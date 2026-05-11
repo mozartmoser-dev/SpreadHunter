@@ -34,16 +34,15 @@ class MonitorOportunidadesUseCase:
         calc = self._get_calculadora()
         instrumentos = self.inst_repo.get_all()
         resultados = []
+        dados = None
 
         for inst in instrumentos:
             key = "{}_{}_{}".format(inst.ativo, inst.strike, inst.vencimento.isoformat())
             mercado = dados_mercado.get(key)
             if mercado is None:
                 continue
-
             if mercado.get("preco_ativo", 0) <= 0:
                 continue
-
             dados = DadosMercado(
                 preco_ativo=mercado["preco_ativo"],
                 of_compra_ativo=mercado.get("of_compra_ativo", 0.0),
@@ -61,11 +60,8 @@ class MonitorOportunidadesUseCase:
                 status_call=mercado.get("status_call", ""),
                 status_ativo=mercado.get("status_ativo", ""),
             )
-
             resultado = calc.calcular(dados)
-
             viavel = resultado.operacao in ("BOX", "SBTH", "BOXSBTH")
-
             resultados.append(OportunidadeMonitor(
                 instrumento_id=inst.id or 0,
                 ativo=inst.ativo,
@@ -85,6 +81,9 @@ class MonitorOportunidadesUseCase:
                 pct_cdi_box=resultado.pct_cdi_box,
                 cdi_periodo=resultado.cdi_periodo,
                 viavel=viavel,
+                preco_compra_ativo=dados._preco_compra_ativo(),
+                of_venda_put=dados.of_venda_put,
+                of_compra_call=dados.of_compra_call,
             ))
 
         resultados.sort(key=lambda o: (not o.viavel, -max(o.pct_cdi_box, o.pct_cdi_sbth)))

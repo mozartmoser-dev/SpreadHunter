@@ -37,13 +37,43 @@ class ExportDialog(QDialog):
         info_layout.addRow("Tipo:", QLabel(self.oportunidade.label_tipo))
         info_layout.addRow("Rentabilidade:", QLabel(self.oportunidade.label_rentabilidade))
         info_layout.addRow("Dias:", QLabel(self.oportunidade.label_dias))
-        info_layout.addRow("Strike:", QLabel(str(self.oportunidade.strike)))
-        info_layout.addRow("Vencimento:", QLabel(self.oportunidade.vencimento))
+        info_layout.addRow("Strike:", QLabel("{:.2f}".format(self.oportunidade.strike)))
+        info_layout.addRow("Vencimento:", QLabel(self.oportunidade.vencimento or "-"))
         info_layout.addRow("Cod Put:", QLabel(self.oportunidade.cod_put))
         info_layout.addRow("Cod Call:", QLabel(self.oportunidade.cod_call))
 
         info_group.setLayout(info_layout)
         layout.addWidget(info_group)
+
+        pernas_group = QGroupBox("Pernas e Custos")
+        pernas_layout = QFormLayout()
+
+        opp = self.oportunidade
+        pernas_layout.addRow("Compra Ativo (of. venda):", QLabel("{:.2f}".format(opp.preco_compra_ativo)))
+        pernas_layout.addRow("Compra Put (of. venda):", QLabel("{:.2f}".format(opp.of_venda_put)))
+        pernas_layout.addRow("Venda Call (of. compra):", QLabel("{:.2f}".format(opp.of_compra_call)))
+
+        pernas_layout.addRow(QLabel(""))
+        is_box = opp.classificacao in ("1BOX", "3BOXSBTH")
+        is_sbth = opp.classificacao in ("2SBTH", "3BOXSBTH")
+
+        if is_sbth or is_box:
+            if is_sbth:
+                pernas_layout.addRow("Custo Total SBTH:", QLabel("{:.2f}".format(opp.custo_sbth)))
+                pernas_layout.addRow("Ganho % SBTH:", QLabel("{:.2f}%".format(opp.pct_ganho_sbth * 100)))
+                pernas_layout.addRow("Ganho vs CDI SBTH:", QLabel("{:.2f}x CDI".format(opp.pct_cdi_sbth)))
+            if is_box:
+                pernas_layout.addRow("Custo Total BOX:", QLabel("{:.2f}".format(opp.custo_box)))
+                pernas_layout.addRow("Ganho % BOX:", QLabel("{:.2f}%".format(opp.pct_ganho_box * 100)))
+                pernas_layout.addRow("Ganho vs CDI BOX:", QLabel("{:.2f}x CDI".format(opp.pct_cdi_box)))
+        else:
+            pernas_layout.addRow("Custo Total SBTH:", QLabel(opp.custo_sbth_display))
+            pernas_layout.addRow("Custo Total BOX:", QLabel(opp.custo_box_display))
+            pernas_layout.addRow("Ganho %:", QLabel("-"))
+            pernas_layout.addRow("Ganho vs CDI:", QLabel("-"))
+
+        pernas_group.setLayout(pernas_layout)
+        layout.addWidget(pernas_group)
 
         params_group = QGroupBox("Parâmetros BASKET")
         params_layout = QFormLayout()
@@ -85,12 +115,15 @@ class ExportDialog(QDialog):
             "cod_call": self.oportunidade.cod_call,
             "classificacao": self.oportunidade.classificacao,
             "operacao": self.oportunidade.operacao,
-        "pct_ganho_box": self.oportunidade.pct_ganho_box,
-        "pct_ganho_sbth": self.oportunidade.pct_ganho_sbth,
-        "pct_cdi_box": self.oportunidade.pct_cdi_box,
-        "pct_cdi_sbth": self.oportunidade.pct_cdi_sbth,
-        "rent_box_vs_cdi": self.oportunidade.pct_cdi_box,
-        "rent_sbth_vs_cdi": self.oportunidade.pct_cdi_sbth,
+            "pct_ganho_box": self.oportunidade.pct_ganho_box,
+            "pct_ganho_sbth": self.oportunidade.pct_ganho_sbth,
+            "pct_cdi_box": self.oportunidade.pct_cdi_box,
+            "pct_cdi_sbth": self.oportunidade.pct_cdi_sbth,
+            "rent_box_vs_cdi": self.oportunidade.pct_cdi_box,
+            "rent_sbth_vs_cdi": self.oportunidade.pct_cdi_sbth,
+            "preco_compra_ativo": self.oportunidade.preco_compra_ativo,
+            "of_venda_put": self.oportunidade.of_venda_put,
+            "of_compra_call": self.oportunidade.of_compra_call,
         }
 
     def _exportar_log(self):

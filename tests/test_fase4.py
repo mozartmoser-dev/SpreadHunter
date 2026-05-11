@@ -51,6 +51,7 @@ def _make_opp(ativo="PETR4", classificacao="1BOX", operacao="BOX", viavel=True,
         custo_sbth=custo_sbth, pct_ganho_sbth=0.30, pct_cdi_sbth=1.2,
         cdi_periodo=0.01,
         viavel=viavel,
+        preco_compra_ativo=18.01, of_venda_put=2.5, of_compra_call=0.8,
     )
 
 

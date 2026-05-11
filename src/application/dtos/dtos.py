@@ -34,6 +34,9 @@ class OportunidadeMonitor:
     pct_cdi_box: float = 0.0
     cdi_periodo: float = 0.0
     viavel: bool = False
+    preco_compra_ativo: float = 0.0
+    of_venda_put: float = 0.0
+    of_compra_call: float = 0.0
 
     @property
     def custo_sbth_display(self) -> str:
