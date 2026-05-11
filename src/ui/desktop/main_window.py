@@ -6,16 +6,15 @@ from PyQt5.QtWidgets import (
     QAction, QTabWidget, QLabel, QFileDialog, QMessageBox,
     QHeaderView, QTableView, QAbstractItemView,
 )
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 
 from src.infrastructure.persistence.database import get_db_path
 from src.application.use_cases.importar_base import ImportarBaseUseCase
-from src.application.use_cases.monitor_oportunidades import MonitorOportunidadesUseCase
 from src.application.use_cases.exportar_operacao import ExportarOperacaoUseCase
 from src.infrastructure.providers.rtd_profit import RTDProfit
-from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
 from src.ui.desktop.monitor_table_model import MonitorTableModel
+from src.ui.desktop.monitor_worker import MonitorWorker
 from src.ui.desktop.import_dialog import ImportDialog
 from src.ui.desktop.export_dialog import ExportDialog
 from src.ui.desktop.parametros_widget import ParametrosWidget
@@ -28,15 +27,15 @@ class MainWindow(QMainWindow):
         self.output_dir = str(Path("logs"))
 
         self.importar_uc = ImportarBaseUseCase(self.db_path)
-        self.monitor_uc = MonitorOportunidadesUseCase(self.db_path)
         self.exportar_uc = ExportarOperacaoUseCase(self.db_path)
 
         self._rtd = RTDProfit()
-        self._mercado_provider = MercadoDataProvider(self.db_path, self._rtd)
-        self._dados_mercado: dict[str, dict] = {}
+        self._worker = MonitorWorker(self.db_path, self._rtd)
+        self._worker.oportunidades_atualizadas.connect(self._on_oportunidades_atualizadas)
+        self._worker.status_message.connect(self._on_status_message)
+
         self._setup_ui()
         self._setup_toolbar()
-        self._setup_timer()
 
     def _setup_ui(self):
         self.setWindowTitle("SpreadHunter - Monitor de Oportunidades")
@@ -119,24 +118,33 @@ class MainWindow(QMainWindow):
         action_output.triggered.connect(self._selecionar_output_dir)
         toolbar.addAction(action_output)
 
-    def _setup_timer(self):
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self._varrer_oportunidades)
-
     def _toggle_monitor(self, checked):
         if checked:
             self.btn_varrer.setText("Pausar Monitor")
             self.btn_import.setEnabled(False)
-            self.timer.start(1500)
-            self._varrer_oportunidades()
+            if not self._worker.isRunning():
+                self._worker.start()
+            else:
+                self._worker.retomar()
             self.statusBar().showMessage("Monitor ativo — RTD: {}".format(
                 "conectado" if self._rtd.disponivel else "indisponivel"
             ))
         else:
             self.btn_varrer.setText("Iniciar Monitor")
             self.btn_import.setEnabled(True)
-            self.timer.stop()
+            if self._worker.isRunning():
+                self._worker.pausar()
             self.statusBar().showMessage("Monitor pausado")
+
+    def _on_oportunidades_atualizadas(self, resultados: list):
+        self.table_model.atualizar(resultados)
+        viaveis = sum(1 for r in resultados if r.viavel)
+        self.lbl_count.setText(
+            "{} oportunidades ({} viaveis)".format(len(resultados), viaveis)
+        )
+
+    def _on_status_message(self, msg: str):
+        self.statusBar().showMessage(msg)
 
     def _abrir_importacao(self):
         dialog = ImportDialog(self.importar_uc, self)
@@ -147,22 +155,6 @@ class MainWindow(QMainWindow):
                     dialog.result.total_importados, len(dialog.result.ativos)
                 )
             )
-            if self.btn_varrer.isChecked():
-                self._varrer_oportunidades()
-
-    def _varrer_oportunidades(self):
-        if self._rtd.disponivel:
-            self._dados_mercado = self._mercado_provider.capturar_dados_mercado()
-
-        resultados = self.monitor_uc.varrer(self._dados_mercado)
-        self.table_model.atualizar(resultados)
-        viaveis = sum(1 for r in resultados if r.viavel)
-        self.lbl_count.setText(
-            "{} oportunidades ({} viaveis)".format(len(resultados), viaveis)
-        )
-        self.statusBar().showMessage(
-            "Varredura: {} oportunidades, {} viaveis".format(len(resultados), viaveis)
-        )
 
     def _on_row_double_clicked(self, index):
         opp = self.table_model.get_oportunidade(index.row())
@@ -179,11 +171,18 @@ class MainWindow(QMainWindow):
             self.output_dir = folder
             self.statusBar().showMessage("Pasta de saida: {}".format(folder))
 
-    def set_dados_mercado(self, dados: dict[str, dict]):
-        self._dados_mercado = dados
+    def closeEvent(self, event):
+        self._worker.parar()
+        super().closeEvent(event)
 
-    def start_auto_scan(self, interval_ms: int = 5000):
-        self.timer.start(interval_ms)
+    def set_dados_mercado(self, dados: dict[str, dict]):
+        pass
+
+    def start_auto_scan(self, interval_ms: int = 1500):
+        self._worker.set_interval(interval_ms)
+        self.btn_varrer.setChecked(True)
+        self._toggle_monitor(True)
 
     def stop_auto_scan(self):
-        self.timer.stop()
+        self.btn_varrer.setChecked(False)
+        self._toggle_monitor(False)

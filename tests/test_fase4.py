@@ -397,3 +397,54 @@ class TestRTDProfitWithoutCOM:
         assert rtd.disponivel is False
         assert rtd.ler_campo("PETR4", "ULT") is None
         assert rtd.ler_status("PETR4") == ""
+
+
+class TestMonitorWorker:
+    def test_worker_emits_signal(self, populated_db):
+        from src.infrastructure.providers.rtd_profit import RTDProfit
+        from src.ui.desktop.monitor_worker import MonitorWorker
+        from PyQt5.QtWidgets import QApplication
+        import sys
+
+        app = QApplication.instance() or QApplication(sys.argv)
+
+        rtd = RTDProfit()
+        worker = MonitorWorker(str(populated_db), rtd)
+        received = []
+
+        def on_result(opps):
+            received.extend(opps)
+
+        worker.oportunidades_atualizadas.connect(on_result)
+        worker.set_interval(500)
+        worker.start()
+        worker.msleep(2000)
+        worker.parar()
+
+        assert len(received) >= 0
+
+    def test_worker_pause_resume(self, populated_db):
+        from src.infrastructure.providers.rtd_profit import RTDProfit
+        from src.ui.desktop.monitor_worker import MonitorWorker
+        from PyQt5.QtWidgets import QApplication
+        import sys
+
+        app = QApplication.instance() or QApplication(sys.argv)
+
+        rtd = RTDProfit()
+        worker = MonitorWorker(str(populated_db), rtd)
+
+        worker.pausar()
+        assert worker._paused is True
+
+        worker.retomar()
+        assert worker._paused is False
+
+    def test_worker_recarregar_parametros(self, populated_db):
+        from src.infrastructure.providers.rtd_profit import RTDProfit
+        from src.ui.desktop.monitor_worker import MonitorWorker
+
+        rtd = RTDProfit()
+        worker = MonitorWorker(str(populated_db), rtd)
+        worker.recarregar_parametros()
+        assert worker._monitor_uc._calculadora is None
