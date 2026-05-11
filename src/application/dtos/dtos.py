@@ -51,6 +51,14 @@ class OportunidadeMonitor:
         return "-"
 
     @property
+    def is_box(self) -> bool:
+        return self.classificacao in ("1BOX", "3BOXSBTH")
+
+    @property
+    def is_sbth(self) -> bool:
+        return self.classificacao in ("2SBTH", "3BOXSBTH")
+
+    @property
     def label_tipo(self) -> str:
         labels = {"1BOX": "BOX", "2SBTH": "SBTH", "3BOXSBTH": "BOX+SBTH", "TP.Op": "T.Ponto"}
         return labels.get(self.classificacao, self.classificacao)

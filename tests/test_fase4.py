@@ -173,6 +173,32 @@ class TestMonitorTableModel:
         result = model.data(model.index(0, venc_col), Qt.DisplayRole)
         assert result == ""
 
+    def test_custo_sbth_struck_when_box_only(self):
+        model = MonitorTableModel()
+        model.atualizar([_make_opp(classificacao="1BOX", custo_sbth=50.0)])
+        col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_sbth_display"][0]
+        index = model.index(0, col)
+        font = model.data(index, Qt.FontRole)
+        assert font is not None and font.strikeOut() is True
+        fg = model.data(index, Qt.ForegroundRole)
+        assert fg is not None
+
+    def test_custo_box_struck_when_sbth_only(self):
+        model = MonitorTableModel()
+        model.atualizar([_make_opp(classificacao="2SBTH", custo_box=100.0)])
+        col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_box_display"][0]
+        index = model.index(0, col)
+        font = model.data(index, Qt.FontRole)
+        assert font is not None and font.strikeOut() is True
+
+    def test_custo_not_struck_when_both(self):
+        model = MonitorTableModel()
+        model.atualizar([_make_opp(classificacao="3BOXSBTH", custo_sbth=50.0, custo_box=100.0)])
+        sbth_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_sbth_display"][0]
+        box_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_box_display"][0]
+        assert model.data(model.index(0, sbth_col), Qt.FontRole) is None
+        assert model.data(model.index(0, box_col), Qt.FontRole) is None
+
 
 class TestMockMarketDataProvider:
     def test_gerar_dados(self, populated_db):
@@ -231,6 +257,18 @@ class TestOportunidadeMonitorDTO:
     def test_label_rentabilidade_tp(self):
         opp = _make_opp(classificacao="TP.Op", operacao="NEUTRA", viavel=False)
         assert opp.label_rentabilidade == "-"
+
+    def test_is_box(self):
+        assert _make_opp(classificacao="1BOX").is_box is True
+        assert _make_opp(classificacao="3BOXSBTH").is_box is True
+        assert _make_opp(classificacao="2SBTH").is_box is False
+        assert _make_opp(classificacao="TP.Op").is_box is False
+
+    def test_is_sbth(self):
+        assert _make_opp(classificacao="2SBTH").is_sbth is True
+        assert _make_opp(classificacao="3BOXSBTH").is_sbth is True
+        assert _make_opp(classificacao="1BOX").is_sbth is False
+        assert _make_opp(classificacao="TP.Op").is_sbth is False
 
 
 class TestRTDConfig:

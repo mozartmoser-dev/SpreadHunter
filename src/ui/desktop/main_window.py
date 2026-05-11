@@ -127,7 +127,7 @@ class MainWindow(QMainWindow):
         if checked:
             self.btn_varrer.setText("Pausar Monitor")
             self.btn_import.setEnabled(False)
-            self.timer.start(5000)
+            self.timer.start(1500)
             self._varrer_oportunidades()
             self.statusBar().showMessage("Monitor ativo — RTD: {}".format(
                 "conectado" if self._rtd.disponivel else "indisponivel"

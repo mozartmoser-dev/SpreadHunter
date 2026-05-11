@@ -54,23 +54,34 @@ class ExportDialog(QDialog):
         pernas_layout.addRow("Venda Call (of. compra):", QLabel("{:.2f}".format(opp.of_compra_call)))
 
         pernas_layout.addRow(QLabel(""))
-        is_box = opp.classificacao in ("1BOX", "3BOXSBTH")
-        is_sbth = opp.classificacao in ("2SBTH", "3BOXSBTH")
 
-        if is_sbth or is_box:
-            if is_sbth:
-                pernas_layout.addRow("Custo Total SBTH:", QLabel("{:.2f}".format(opp.custo_sbth)))
-                pernas_layout.addRow("Ganho % SBTH:", QLabel("{:.2f}%".format(opp.pct_ganho_sbth * 100)))
-                pernas_layout.addRow("Ganho vs CDI SBTH:", QLabel("{:.2f}x CDI".format(opp.pct_cdi_sbth)))
-            if is_box:
-                pernas_layout.addRow("Custo Total BOX:", QLabel("{:.2f}".format(opp.custo_box)))
-                pernas_layout.addRow("Ganho % BOX:", QLabel("{:.2f}%".format(opp.pct_ganho_box * 100)))
-                pernas_layout.addRow("Ganho vs CDI BOX:", QLabel("{:.2f}x CDI".format(opp.pct_cdi_box)))
-        else:
-            pernas_layout.addRow("Custo Total SBTH:", QLabel(opp.custo_sbth_display))
-            pernas_layout.addRow("Custo Total BOX:", QLabel(opp.custo_box_display))
-            pernas_layout.addRow("Ganho %:", QLabel("-"))
-            pernas_layout.addRow("Ganho vs CDI:", QLabel("-"))
+        lbl_custo_sbth = QLabel("{:.2f}".format(opp.custo_sbth) if opp.custo_sbth > 0 else "-")
+        lbl_ganho_sbth = QLabel("{:.2f}%".format(opp.pct_ganho_sbth * 100) if opp.pct_ganho_sbth > 0 else "-")
+        lbl_cdi_sbth = QLabel("{:.2f}x CDI".format(opp.pct_cdi_sbth) if opp.pct_cdi_sbth > 0 else "-")
+        lbl_custo_box = QLabel("{:.2f}".format(opp.custo_box) if opp.custo_box > 0 else "-")
+        lbl_ganho_box = QLabel("{:.2f}%".format(opp.pct_ganho_box * 100) if opp.pct_ganho_box > 0 else "-")
+        lbl_cdi_box = QLabel("{:.2f}x CDI".format(opp.pct_cdi_box) if opp.pct_cdi_box > 0 else "-")
+
+        if not opp.is_sbth:
+            strike_font = lbl_custo_sbth.font()
+            strike_font.setStrikeOut(True)
+            lbl_custo_sbth.setFont(strike_font)
+            lbl_ganho_sbth.setFont(strike_font)
+            lbl_cdi_sbth.setFont(strike_font)
+        if not opp.is_box:
+            strike_font = lbl_custo_box.font()
+            strike_font.setStrikeOut(True)
+            lbl_custo_box.setFont(strike_font)
+            lbl_ganho_box.setFont(strike_font)
+            lbl_cdi_box.setFont(strike_font)
+
+        pernas_layout.addRow("Custo Total SBTH:", lbl_custo_sbth)
+        pernas_layout.addRow("Ganho % SBTH:", lbl_ganho_sbth)
+        pernas_layout.addRow("Ganho vs CDI SBTH:", lbl_cdi_sbth)
+        pernas_layout.addRow(QLabel(""))
+        pernas_layout.addRow("Custo Total BOX:", lbl_custo_box)
+        pernas_layout.addRow("Ganho % BOX:", lbl_ganho_box)
+        pernas_layout.addRow("Ganho vs CDI BOX:", lbl_cdi_box)
 
         pernas_group.setLayout(pernas_layout)
         layout.addWidget(pernas_group)
