@@ -37,6 +37,22 @@ class InstrumentoRepository:
         finally:
             conn.close()
 
+    def save_batch(self, instrumentos: list[InstrumentoOpcional]) -> int:
+        conn = get_connection(self.db_path)
+        try:
+            rows = [
+                (i.ativo, i.cod_put, i.cod_call, i.strike, i.vencimento.isoformat(), i.tipo_opcao.value)
+                for i in instrumentos
+            ]
+            conn.executemany(
+                "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, strike, vencimento, tipo_opcao) VALUES (?, ?, ?, ?, ?, ?)",
+                rows,
+            )
+            conn.commit()
+            return len(rows)
+        finally:
+            conn.close()
+
     def get_all(self) -> list[InstrumentoOpcional]:
         conn = get_connection(self.db_path)
         try:
@@ -211,6 +227,43 @@ class EstruturaRepository:
             conn.commit()
             estrutura.id = cursor.lastrowid
             return estrutura
+        finally:
+            conn.close()
+
+    def get_by_id(self, estrutura_id: int) -> EstruturaOperacional | None:
+        conn = get_connection(self.db_path)
+        try:
+            row = conn.execute(
+                "SELECT * FROM estruturas_operacionais WHERE id = ?", (estrutura_id,)
+            ).fetchone()
+            if not row:
+                return None
+            return EstruturaOperacional(
+                id=row["id"],
+                oportunidade_id=row["oportunidade_id"],
+                tipo=TipoEstrutura(row["tipo"]),
+                coefic_alvo=row["coefic_alvo"],
+                coefic_mercado=row["coefic_mercado"],
+                taxa_ganho=row["taxa_ganho"],
+            )
+        finally:
+            conn.close()
+
+    def get_all(self) -> list[EstruturaOperacional]:
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute("SELECT * FROM estruturas_operacionais").fetchall()
+            return [
+                EstruturaOperacional(
+                    id=row["id"],
+                    oportunidade_id=row["oportunidade_id"],
+                    tipo=TipoEstrutura(row["tipo"]),
+                    coefic_alvo=row["coefic_alvo"],
+                    coefic_mercado=row["coefic_mercado"],
+                    taxa_ganho=row["taxa_ganho"],
+                )
+                for row in rows
+            ]
         finally:
             conn.close()
 

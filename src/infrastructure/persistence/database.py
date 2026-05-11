@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS oportunidades (
 
 CREATE TABLE IF NOT EXISTS estruturas_operacionais (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    oportunidade_id INTEGER NOT NULL,
+    oportunidade_id INTEGER,
     tipo TEXT NOT NULL,
     coefic_alvo REAL NOT NULL,
     coefic_mercado REAL NOT NULL,

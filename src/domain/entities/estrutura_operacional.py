@@ -10,7 +10,7 @@ class TipoEstrutura(Enum):
 
 @dataclass
 class EstruturaOperacional:
-    oportunidade_id: int
+    oportunidade_id: int | None
     tipo: TipoEstrutura
     coefic_alvo: float
     coefic_mercado: float
