@@ -36,6 +36,18 @@ class OportunidadeMonitor:
     viavel: bool = False
 
     @property
+    def custo_sbth_display(self) -> str:
+        if self.custo_sbth > 0:
+            return "{:.2f}".format(self.custo_sbth)
+        return "-"
+
+    @property
+    def custo_box_display(self) -> str:
+        if self.custo_box > 0:
+            return "{:.2f}".format(self.custo_box)
+        return "-"
+
+    @property
     def label_tipo(self) -> str:
         labels = {"1BOX": "BOX", "2SBTH": "SBTH", "3BOXSBTH": "BOX+SBTH", "TP.Op": "T.Ponto"}
         return labels.get(self.classificacao, self.classificacao)

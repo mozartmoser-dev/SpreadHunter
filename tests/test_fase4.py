@@ -40,14 +40,15 @@ def populated_db(db_path):
     return db_path
 
 
-def _make_opp(ativo="PETR4", classificacao="1BOX", operacao="BOX", viavel=True):
+def _make_opp(ativo="PETR4", classificacao="1BOX", operacao="BOX", viavel=True,
+              strike=18.0, custo_box=100.0, custo_sbth=50.0):
     return OportunidadeMonitor(
-        instrumento_id=1, ativo=ativo, strike=18.0,
+        instrumento_id=1, ativo=ativo, strike=strike,
         vencimento="2026-08-21", dias=30,
         cod_put="PETRT180", cod_call="PETRH180",
         tipo_opcao="A", classificacao=classificacao, operacao=operacao,
-        custo_box=100.0, pct_ganho_box=0.80, pct_cdi_box=1.5,
-        custo_sbth=50.0, pct_ganho_sbth=0.30, pct_cdi_sbth=1.2,
+        custo_box=custo_box, pct_ganho_box=0.80, pct_cdi_box=1.5,
+        custo_sbth=custo_sbth, pct_ganho_sbth=0.30, pct_cdi_sbth=1.2,
         cdi_periodo=0.01,
         viavel=viavel,
     )
@@ -132,6 +133,44 @@ class TestMonitorTableModel:
         ganho_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "ganho_display"][0]
         index = model.index(0, ganho_col)
         assert "30.00%" == model.data(index, Qt.DisplayRole)
+
+    def test_strike_display(self):
+        model = MonitorTableModel()
+        model.atualizar([_make_opp(strike=18.50)])
+        strike_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "strike"][0]
+        index = model.index(0, strike_col)
+        assert model.data(index, Qt.DisplayRole) == "18.50"
+
+    def test_custo_sbth_display(self):
+        model = MonitorTableModel()
+        model.atualizar([_make_opp(custo_sbth=50.25)])
+        col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_sbth_display"][0]
+        index = model.index(0, col)
+        assert model.data(index, Qt.DisplayRole) == "50.25"
+
+    def test_custo_box_display(self):
+        model = MonitorTableModel()
+        model.atualizar([_make_opp(custo_box=100.75)])
+        col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_box_display"][0]
+        index = model.index(0, col)
+        assert model.data(index, Qt.DisplayRole) == "100.75"
+
+    def test_custo_zero_display(self):
+        model = MonitorTableModel()
+        model.atualizar([_make_opp(custo_sbth=0.0, custo_box=0.0)])
+        sbth_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_sbth_display"][0]
+        box_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_box_display"][0]
+        assert model.data(model.index(0, sbth_col), Qt.DisplayRole) == "-"
+        assert model.data(model.index(0, box_col), Qt.DisplayRole) == "-"
+
+    def test_none_value_returns_empty_string(self):
+        model = MonitorTableModel()
+        opp = _make_opp()
+        opp.vencimento = None
+        model.atualizar([opp])
+        venc_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "vencimento"][0]
+        result = model.data(model.index(0, venc_col), Qt.DisplayRole)
+        assert result == ""
 
 
 class TestMockMarketDataProvider:

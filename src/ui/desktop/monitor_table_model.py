@@ -12,9 +12,11 @@ class MonitorTableModel(QAbstractTableModel):
         ("Dias", "label_dias"),
         ("Vencimento", "vencimento"),
         ("Strike", "strike"),
+        ("Custo SBTH", "custo_sbth_display"),
+        ("Custo BOX", "custo_box_display"),
+        ("Ganho %", "ganho_display"),
         ("Cod Put", "cod_put"),
         ("Cod Call", "cod_call"),
-        ("Ganho %", "ganho_display"),
         ("Viável", "viavel_display"),
     ]
 
@@ -49,18 +51,24 @@ class MonitorTableModel(QAbstractTableModel):
                 return opp.label_rentabilidade
             if col_key == "label_dias":
                 return opp.label_dias
-        if col_key == "ganho_display":
-            if opp.classificacao in ("1BOX", "3BOXSBTH"):
-                return "{:.2f}%".format(opp.pct_ganho_box * 100)
-            if opp.classificacao == "2SBTH":
-                return "{:.2f}%".format(opp.pct_ganho_sbth * 100)
+            if col_key == "strike":
+                return "{:.2f}".format(opp.strike)
+            if col_key == "custo_sbth_display":
+                return opp.custo_sbth_display
+            if col_key == "custo_box_display":
+                return opp.custo_box_display
+            if col_key == "ganho_display":
+                if opp.classificacao in ("1BOX", "3BOXSBTH"):
+                    return "{:.2f}%".format(opp.pct_ganho_box * 100)
+                if opp.classificacao == "2SBTH":
+                    return "{:.2f}%".format(opp.pct_ganho_sbth * 100)
                 return "-"
-        if col_key == "viavel_display":
-            return "SIM" if opp.viavel else "-"
-        value = getattr(opp, col_key, None)
-        if value is None:
-            return QVariant()
-        return str(value)
+            if col_key == "viavel_display":
+                return "SIM" if opp.viavel else "-"
+            value = getattr(opp, col_key, None)
+            if value is None:
+                return ""
+            return str(value)
 
         if role == Qt.BackgroundRole:
             if not opp.viavel:
@@ -77,7 +85,7 @@ class MonitorTableModel(QAbstractTableModel):
             return QVariant()
 
         if role == Qt.TextAlignmentRole:
-            if col_key in ("strike", "ganho_display", "label_dias", "viavel_display"):
+            if col_key in ("strike", "custo_sbth_display", "custo_box_display", "ganho_display", "label_dias", "viavel_display"):
                 return Qt.AlignRight | Qt.AlignVCenter
             return Qt.AlignLeft | Qt.AlignVCenter
 
