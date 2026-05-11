@@ -71,10 +71,10 @@ class ExportarOperacaoUseCase:
                 {"codigo": p.codigo, "lado": p.lado.value, "quantidade": p.quantidade, "profundidade": p.profundidade}
                 for p in basket.pernas
             ],
-            classificacao=oportunidade_monitor.get("classificacao", ""),
-            operacao="BOX_ITM_BASKET",
-            ganho=oportunidade_monitor.get("ganho_box", 0.0),
-            rent_vs_cdi=oportunidade_monitor.get("rent_box_vs_cdi", 0.0),
+        classificacao=oportunidade_monitor.get("classificacao", ""),
+        operacao="BOX_ITM_BASKET",
+        pct_ganho=oportunidade_monitor.get("pct_ganho_box", 0.0),
+        pct_cdi=oportunidade_monitor.get("pct_cdi_box", 0.0),
             dias=oportunidade_monitor.get("dias", 0),
         )
 
@@ -99,10 +99,10 @@ class ExportarOperacaoUseCase:
                 {"codigo": oportunidade_monitor.get("cod_put", ""), "lado": "C", "quantidade": 100, "profundidade": 0},
                 {"codigo": oportunidade_monitor.get("cod_call", ""), "lado": "V", "quantidade": 100, "profundidade": 0},
             ],
-            classificacao=classificacao,
-            operacao=operacao,
-            ganho=oportunidade_monitor.get("ganho_box", 0.0) if classificacao == "1BOX" else oportunidade_monitor.get("ganho_sbth", 0.0),
-            rent_vs_cdi=oportunidade_monitor.get("rent_box_vs_cdi", 0.0) if classificacao == "1BOX" else oportunidade_monitor.get("rent_sbth_vs_cdi", 0.0),
+        classificacao=classificacao,
+        operacao=operacao,
+        pct_ganho=oportunidade_monitor.get("pct_ganho_box", 0.0) if classificacao == "1BOX" else oportunidade_monitor.get("pct_ganho_sbth", 0.0),
+        pct_cdi=oportunidade_monitor.get("pct_cdi_box", 0.0) if classificacao == "1BOX" else oportunidade_monitor.get("pct_cdi_sbth", 0.0),
             dias=oportunidade_monitor.get("dias", 0),
         )
 
@@ -127,8 +127,8 @@ class ExportarOperacaoUseCase:
             "strike": resultado.strike,
             "classificacao": resultado.classificacao,
             "operacao": resultado.operacao,
-            "ganho": resultado.ganho,
-            "rent_vs_cdi": resultado.rent_vs_cdi,
+    "pct_ganho": resultado.pct_ganho,
+    "pct_cdi": resultado.pct_cdi,
             "dias": resultado.dias,
             "pernas": resultado.pernas,
             "exportado_em": datetime.now().isoformat(),

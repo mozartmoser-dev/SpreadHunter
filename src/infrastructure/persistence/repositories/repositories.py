@@ -167,16 +167,17 @@ class OportunidadeRepository:
         try:
             cursor = conn.execute(
                 """INSERT INTO oportunidades
-                   (instrumento_id, preco_ativo, strike, dias, cdi_periodo,
-                    custo_sbth, ganho_sbth, custo_box, ganho_box,
-                    classificacao, operacao, snapshot_mercado)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (oportunidade.instrumento_id, oportunidade.preco_ativo,
-                 oportunidade.strike, oportunidade.dias, oportunidade.cdi_periodo,
-                 oportunidade.custo_sbth, oportunidade.ganho_sbth,
-                 oportunidade.custo_box, oportunidade.ganho_box,
-                 oportunidade.classificacao.value, oportunidade.operacao,
-                 json.dumps(oportunidade.snapshot_mercado))
+                (instrumento_id, preco_ativo, strike, dias, cdi_periodo,
+                custo_sbth, pct_ganho_sbth, pct_cdi_sbth,
+                custo_box, pct_ganho_box, pct_cdi_box,
+                classificacao, operacao, snapshot_mercado)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (oportunidade.instrumento_id, oportunidade.preco_ativo,
+                oportunidade.strike, oportunidade.dias, oportunidade.cdi_periodo,
+                oportunidade.custo_sbth, oportunidade.pct_ganho_sbth, oportunidade.pct_cdi_sbth,
+                oportunidade.custo_box, oportunidade.pct_ganho_box, oportunidade.pct_cdi_box,
+                oportunidade.classificacao.value, oportunidade.operacao,
+                json.dumps(oportunidade.snapshot_mercado))
             )
             conn.commit()
             oportunidade.id = cursor.lastrowid
@@ -201,9 +202,11 @@ class OportunidadeRepository:
             dias=row["dias"],
             cdi_periodo=row["cdi_periodo"],
             custo_sbth=row["custo_sbth"],
-            ganho_sbth=row["ganho_sbth"],
+            pct_ganho_sbth=row["pct_ganho_sbth"],
+            pct_cdi_sbth=row["pct_cdi_sbth"],
             custo_box=row["custo_box"],
-            ganho_box=row["ganho_box"],
+            pct_ganho_box=row["pct_ganho_box"],
+            pct_cdi_box=row["pct_cdi_box"],
             classificacao=ClassificacaoOp(row["classificacao"]),
             operacao=row["operacao"],
             snapshot_mercado=json.loads(row["snapshot_mercado"] or "{}"),

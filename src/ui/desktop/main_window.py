@@ -87,8 +87,10 @@ class MainWindow(QMainWindow):
         self.btn_import.clicked.connect(self._abrir_importacao)
         btn_layout.addWidget(self.btn_import)
 
-        self.btn_varrer = QPushButton("Varrer Oportunidades")
-        self.btn_varrer.clicked.connect(self._varrer_oportunidades)
+        self.btn_varrer = QPushButton("Iniciar Monitor")
+        self.btn_varrer.setCheckable(True)
+        self.btn_varrer.setChecked(False)
+        self.btn_varrer.clicked.connect(self._toggle_monitor)
         btn_layout.addWidget(self.btn_varrer)
 
         self.lbl_count = QLabel("0 oportunidades")
@@ -109,8 +111,8 @@ class MainWindow(QMainWindow):
         action_import.triggered.connect(self._abrir_importacao)
         toolbar.addAction(action_import)
 
-        action_varrer = QAction("Varrer", self)
-        action_varrer.triggered.connect(self._varrer_oportunidades)
+        action_varrer = QAction("Iniciar/Pausar", self)
+        action_varrer.triggered.connect(lambda: self._toggle_monitor(not self.btn_varrer.isChecked()))
         toolbar.addAction(action_varrer)
 
         action_output = QAction("Pasta de Saida...", self)
@@ -121,6 +123,21 @@ class MainWindow(QMainWindow):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._varrer_oportunidades)
 
+    def _toggle_monitor(self, checked):
+        if checked:
+            self.btn_varrer.setText("Pausar Monitor")
+            self.btn_import.setEnabled(False)
+            self.timer.start(5000)
+            self._varrer_oportunidades()
+            self.statusBar().showMessage("Monitor ativo — RTD: {}".format(
+                "conectado" if self._rtd.disponivel else "indisponivel"
+            ))
+        else:
+            self.btn_varrer.setText("Iniciar Monitor")
+            self.btn_import.setEnabled(True)
+            self.timer.stop()
+            self.statusBar().showMessage("Monitor pausado")
+
     def _abrir_importacao(self):
         dialog = ImportDialog(self.importar_uc, self)
         dialog.exec_()
@@ -130,7 +147,8 @@ class MainWindow(QMainWindow):
                     dialog.result.total_importados, len(dialog.result.ativos)
                 )
             )
-            self._varrer_oportunidades()
+            if self.btn_varrer.isChecked():
+                self._varrer_oportunidades()
 
     def _varrer_oportunidades(self):
         if self._rtd.disponivel:

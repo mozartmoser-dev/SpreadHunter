@@ -27,25 +27,27 @@ class OportunidadeMonitor:
     classificacao: str = ""
     operacao: str = ""
     custo_sbth: float = 0.0
-    ganho_sbth: float = 0.0
+    pct_ganho_sbth: float = 0.0
+    pct_cdi_sbth: float = 0.0
     custo_box: float = 0.0
-    ganho_box: float = 0.0
+    pct_ganho_box: float = 0.0
+    pct_cdi_box: float = 0.0
     cdi_periodo: float = 0.0
-    rent_sbth_vs_cdi: float = 0.0
-    rent_box_vs_cdi: float = 0.0
     viavel: bool = False
 
     @property
     def label_tipo(self) -> str:
-        labels = {"1BOX": "BOX", "2SBTH": "SBTH", "TP.Op": "T.Ponto"}
+        labels = {"1BOX": "BOX", "2SBTH": "SBTH", "3BOXSBTH": "BOX+SBTH", "TP.Op": "T.Ponto"}
         return labels.get(self.classificacao, self.classificacao)
 
     @property
     def label_rentabilidade(self) -> str:
         if self.classificacao == "1BOX":
-            return "{:.2f}% CDI (BOX)".format(self.rent_box_vs_cdi)
+            return "{:.2f}x CDI (BOX)".format(self.pct_cdi_box)
         if self.classificacao == "2SBTH":
-            return "{:.2f}% CDI (SBTH)".format(self.rent_sbth_vs_cdi)
+            return "{:.2f}x CDI (SBTH)".format(self.pct_cdi_sbth)
+        if self.classificacao == "3BOXSBTH":
+            return "{:.2f}x CDI".format(max(self.pct_cdi_box, self.pct_cdi_sbth))
         return "-"
 
     @property
@@ -54,10 +56,10 @@ class OportunidadeMonitor:
 
     @property
     def resumo_linha(self) -> str:
-        return "{} | {} {} | {} | {} | ganho={:.2f}".format(
+        return "{} | {} {} | {} | {} | %ganho={:.2f}%".format(
             self.ativo, self.label_tipo, self.label_dias,
             self.vencimento, self.label_rentabilidade,
-            self.ganho_box if self.classificacao == "1BOX" else self.ganho_sbth,
+            (self.pct_ganho_box * 100) if self.classificacao in ("1BOX", "3BOXSBTH") else (self.pct_ganho_sbth * 100),
         )
 
 
@@ -82,8 +84,8 @@ class ExportarResultado:
     pernas: list[dict] = field(default_factory=list)
     classificacao: str = ""
     operacao: str = ""
-    ganho: float = 0.0
-    rent_vs_cdi: float = 0.0
+    pct_ganho: float = 0.0
+    pct_cdi: float = 0.0
     dias: int = 0
     exportado_em: str = ""
     filepath: str = ""

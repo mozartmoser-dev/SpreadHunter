@@ -14,7 +14,7 @@ class MonitorTableModel(QAbstractTableModel):
         ("Strike", "strike"),
         ("Cod Put", "cod_put"),
         ("Cod Call", "cod_call"),
-        ("Ganho", "ganho_display"),
+        ("Ganho %", "ganho_display"),
         ("Viável", "viavel_display"),
     ]
 
@@ -49,16 +49,18 @@ class MonitorTableModel(QAbstractTableModel):
                 return opp.label_rentabilidade
             if col_key == "label_dias":
                 return opp.label_dias
-            if col_key == "ganho_display":
-                if opp.classificacao == "1BOX":
-                    return "{:.2f}".format(opp.ganho_box)
-                if opp.classificacao == "2SBTH":
-                    return "{:.2f}".format(opp.ganho_sbth)
+        if col_key == "ganho_display":
+            if opp.classificacao in ("1BOX", "3BOXSBTH"):
+                return "{:.2f}%".format(opp.pct_ganho_box * 100)
+            if opp.classificacao == "2SBTH":
+                return "{:.2f}%".format(opp.pct_ganho_sbth * 100)
                 return "-"
-            if col_key == "viavel_display":
-                return "SIM" if opp.viavel else ""
-            value = getattr(opp, col_key, "")
-            return str(value)
+        if col_key == "viavel_display":
+            return "SIM" if opp.viavel else "-"
+        value = getattr(opp, col_key, None)
+        if value is None:
+            return QVariant()
+        return str(value)
 
         if role == Qt.BackgroundRole:
             if not opp.viavel:

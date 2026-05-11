@@ -93,23 +93,25 @@ class TestParametroOperacional:
 
 
 class TestOportunidade:
-    def test_percent_cdi_sbth(self):
+    def test_pct_ganho_sbth(self):
         op = Oportunidade(
             instrumento_id=1, preco_ativo=38.0, strike=38.0, dias=20,
-            cdi_periodo=0.15, custo_sbth=100.0, ganho_sbth=15.0,
-            custo_box=100.0, ganho_box=20.0,
+            cdi_periodo=0.15, custo_sbth=100.0, pct_ganho_sbth=0.15,
+            pct_cdi_sbth=1.0,
+            custo_box=100.0, pct_ganho_box=0.20, pct_cdi_box=1.33,
             classificacao=ClassificacaoOp.BOX_1, operacao="BOX"
         )
-        assert op.percent_cdi_sbth == 15.0
+        assert op.pct_ganho_sbth == 0.15
 
-    def test_percent_cdi_box_zero_cost(self):
+    def test_pct_ganho_box_zero_cost(self):
         op = Oportunidade(
             instrumento_id=1, preco_ativo=38.0, strike=38.0, dias=20,
-            cdi_periodo=0.15, custo_sbth=0.0, ganho_sbth=0.0,
-            custo_box=0.0, ganho_box=0.0,
+            cdi_periodo=0.15, custo_sbth=0.0, pct_ganho_sbth=0.0,
+            pct_cdi_sbth=0.0,
+            custo_box=0.0, pct_ganho_box=0.0, pct_cdi_box=0.0,
             classificacao=ClassificacaoOp.BOX_1, operacao="BOX"
         )
-        assert op.percent_cdi_box == 0.0
+        assert op.pct_ganho_box == 0.0
 
 
 class TestInstrumentoRepository:
@@ -172,8 +174,9 @@ class TestOportunidadeRepository:
         ))
         op = Oportunidade(
             instrumento_id=inst.id, preco_ativo=38.0, strike=38.0, dias=20,
-            cdi_periodo=0.15, custo_sbth=100.0, ganho_sbth=15.0,
-            custo_box=100.0, ganho_box=20.0,
+            cdi_periodo=0.15, custo_sbth=100.0, pct_ganho_sbth=0.15,
+            pct_cdi_sbth=1.0,
+            custo_box=100.0, pct_ganho_box=0.20, pct_cdi_box=1.33,
             classificacao=ClassificacaoOp.BOX_1, operacao="BOX",
             snapshot_mercado={"liq_put_x_lote": 500, "em_leilao": False}
         )
@@ -193,8 +196,9 @@ class TestEstruturaRepository:
         ))
         op = oportunidade_repo.save(Oportunidade(
             instrumento_id=inst.id, preco_ativo=38.0, strike=38.0, dias=20,
-            cdi_periodo=0.15, custo_sbth=100.0, ganho_sbth=15.0,
-            custo_box=100.0, ganho_box=20.0,
+            cdi_periodo=0.15, custo_sbth=100.0, pct_ganho_sbth=0.15,
+            pct_cdi_sbth=1.0,
+            custo_box=100.0, pct_ganho_box=0.20, pct_cdi_box=1.33,
             classificacao=ClassificacaoOp.BOX_1, operacao="BOX"
         ))
         est = EstruturaOperacional(
@@ -217,8 +221,9 @@ class TestPernaRepository:
         ))
         op = oportunidade_repo.save(Oportunidade(
             instrumento_id=inst.id, preco_ativo=38.0, strike=38.0, dias=20,
-            cdi_periodo=0.15, custo_sbth=100.0, ganho_sbth=15.0,
-            custo_box=100.0, ganho_box=20.0,
+            cdi_periodo=0.15, custo_sbth=100.0, pct_ganho_sbth=0.15,
+            pct_cdi_sbth=1.0,
+            custo_box=100.0, pct_ganho_box=0.20, pct_cdi_box=1.33,
             classificacao=ClassificacaoOp.BOX_1, operacao="BOX"
         ))
         est = estrutura_repo.save(EstruturaOperacional(

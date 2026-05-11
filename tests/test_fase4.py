@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from PyQt5.QtCore import Qt
+
 from src.infrastructure.persistence.database import init_db
 from src.infrastructure.persistence.repositories.repositories import (
     InstrumentoRepository,
@@ -44,8 +46,9 @@ def _make_opp(ativo="PETR4", classificacao="1BOX", operacao="BOX", viavel=True):
         vencimento="2026-08-21", dias=30,
         cod_put="PETRT180", cod_call="PETRH180",
         tipo_opcao="A", classificacao=classificacao, operacao=operacao,
-        custo_box=100.0, ganho_box=80.0, custo_sbth=50.0, ganho_sbth=30.0,
-        cdi_periodo=0.01, rent_box_vs_cdi=150.0, rent_sbth_vs_cdi=120.0,
+        custo_box=100.0, pct_ganho_box=0.80, pct_cdi_box=1.5,
+        custo_sbth=50.0, pct_ganho_sbth=0.30, pct_cdi_sbth=1.2,
+        cdi_periodo=0.01,
         viavel=viavel,
     )
 
@@ -66,35 +69,38 @@ class TestMonitorTableModel:
         model = MonitorTableModel()
         model.atualizar([_make_opp()])
         index = model.index(0, 0)
-        assert model.data(index, 0x0000) == "PETR4"
+        result = model.data(index, Qt.DisplayRole)
+        assert str(result) == "PETR4"
 
     def test_label_tipo_column(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(classificacao="1BOX")])
         tipo_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "label_tipo"][0]
         index = model.index(0, tipo_col)
-        assert model.data(index, 0x0000) == "BOX"
+        assert model.data(index, Qt.DisplayRole) == "BOX"
 
     def test_label_tipo_sbth(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(classificacao="2SBTH", operacao="SBTH")])
         tipo_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "label_tipo"][0]
         index = model.index(0, tipo_col)
-        assert model.data(index, 0x0000) == "SBTH"
+        assert model.data(index, Qt.DisplayRole) == "SBTH"
 
     def test_viavel_display(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(viavel=True)])
         viavel_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "viavel_display"][0]
         index = model.index(0, viavel_col)
-        assert model.data(index, 0x0000) == "SIM"
+        result = model.data(index, Qt.DisplayRole)
+        assert str(result) == "SIM"
 
     def test_nao_viavel_display(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(viavel=False)])
         viavel_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "viavel_display"][0]
         index = model.index(0, viavel_col)
-        assert model.data(index, 0x0000) == ""
+        result = model.data(index, Qt.DisplayRole)
+        assert str(result) == "-"
 
     def test_get_oportunidade_valid(self):
         model = MonitorTableModel()
@@ -118,14 +124,14 @@ class TestMonitorTableModel:
         model.atualizar([_make_opp(classificacao="1BOX")])
         ganho_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "ganho_display"][0]
         index = model.index(0, ganho_col)
-        assert "80.00" == model.data(index, 0x0000)
+        assert "80.00%" == model.data(index, Qt.DisplayRole)
 
     def test_ganho_display_sbth(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(classificacao="2SBTH", operacao="SBTH")])
         ganho_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "ganho_display"][0]
         index = model.index(0, ganho_col)
-        assert "30.00" == model.data(index, 0x0000)
+        assert "30.00%" == model.data(index, Qt.DisplayRole)
 
 
 class TestMockMarketDataProvider:
@@ -162,7 +168,7 @@ class TestMockMarketDataProvider:
         assert len(resultados) == 4
         for r in resultados:
             assert isinstance(r, OportunidadeMonitor)
-            assert r.classificacao in ("1BOX", "2SBTH", "TP.Op")
+            assert r.classificacao in ("1BOX", "2SBTH", "3BOXSBTH", "TP.Op")
 
 
 class TestOportunidadeMonitorDTO:

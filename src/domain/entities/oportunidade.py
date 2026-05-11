@@ -2,9 +2,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 
-class ClassificacaoOp (Enum):
+class ClassificacaoOp(Enum):
     BOX_1 = "1BOX"
     SBTH_2 = "2SBTH"
+    BOXSBTH_3 = "3BOXSBTH"
     TP_OP = "TP.Op"
 
 
@@ -16,25 +17,15 @@ class Oportunidade:
     dias: int
     cdi_periodo: float
     custo_sbth: float
-    ganho_sbth: float
+    pct_ganho_sbth: float
+    pct_cdi_sbth: float
     custo_box: float
-    ganho_box: float
+    pct_ganho_box: float
+    pct_cdi_box: float
     classificacao: ClassificacaoOp
     operacao: str
     snapshot_mercado: dict = field(default_factory=dict)
     id: int | None = None
-
-    @property
-    def percent_cdi_sbth(self) -> float:
-        if self.custo_sbth == 0:
-            return 0.0
-        return (self.ganho_sbth / self.custo_sbth) * 100
-
-    @property
-    def percent_cdi_box(self) -> float:
-        if self.custo_box == 0:
-            return 0.0
-        return (self.ganho_box / self.custo_box) * 100
 
     @property
     def liq_put_x_lote(self) -> float:

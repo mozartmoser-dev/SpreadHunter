@@ -64,11 +64,7 @@ class MonitorOportunidadesUseCase:
 
             resultado = calc.calcular(dados)
 
-            cdi_periodo = resultado.cdi_periodo
-            rent_sbth_vs_cdi = (resultado.ganho_sbth / cdi_periodo * 100) if cdi_periodo > 0 else 0.0
-            rent_box_vs_cdi = (resultado.ganho_box / cdi_periodo * 100) if cdi_periodo > 0 else 0.0
-
-            viavel = resultado.operacao in ("BOX", "SBTH")
+            viavel = resultado.operacao in ("BOX", "SBTH", "BOXSBTH")
 
             resultados.append(OportunidadeMonitor(
                 instrumento_id=inst.id or 0,
@@ -82,14 +78,14 @@ class MonitorOportunidadesUseCase:
                 classificacao=resultado.classificacao,
                 operacao=resultado.operacao,
                 custo_sbth=resultado.custo_sbth,
-                ganho_sbth=resultado.ganho_sbth,
+                pct_ganho_sbth=resultado.pct_ganho_sbth,
+                pct_cdi_sbth=resultado.pct_cdi_sbth,
                 custo_box=resultado.custo_box,
-                ganho_box=resultado.ganho_box,
-                cdi_periodo=cdi_periodo,
-                rent_sbth_vs_cdi=round(rent_sbth_vs_cdi, 2),
-                rent_box_vs_cdi=round(rent_box_vs_cdi, 2),
+                pct_ganho_box=resultado.pct_ganho_box,
+                pct_cdi_box=resultado.pct_cdi_box,
+                cdi_periodo=resultado.cdi_periodo,
                 viavel=viavel,
             ))
 
-        resultados.sort(key=lambda o: (not o.viavel, -max(o.rent_box_vs_cdi, o.rent_sbth_vs_cdi)))
+        resultados.sort(key=lambda o: (not o.viavel, -max(o.pct_cdi_box, o.pct_cdi_sbth)))
         return resultados

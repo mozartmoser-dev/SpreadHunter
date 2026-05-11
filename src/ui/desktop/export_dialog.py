@@ -85,10 +85,12 @@ class ExportDialog(QDialog):
             "cod_call": self.oportunidade.cod_call,
             "classificacao": self.oportunidade.classificacao,
             "operacao": self.oportunidade.operacao,
-            "ganho_box": self.oportunidade.ganho_box,
-            "ganho_sbth": self.oportunidade.ganho_sbth,
-            "rent_box_vs_cdi": self.oportunidade.rent_box_vs_cdi,
-            "rent_sbth_vs_cdi": self.oportunidade.rent_sbth_vs_cdi,
+        "pct_ganho_box": self.oportunidade.pct_ganho_box,
+        "pct_ganho_sbth": self.oportunidade.pct_ganho_sbth,
+        "pct_cdi_box": self.oportunidade.pct_cdi_box,
+        "pct_cdi_sbth": self.oportunidade.pct_cdi_sbth,
+        "rent_box_vs_cdi": self.oportunidade.pct_cdi_box,
+        "rent_sbth_vs_cdi": self.oportunidade.pct_cdi_sbth,
         }
 
     def _exportar_log(self):

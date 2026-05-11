@@ -116,24 +116,70 @@ class TestCalculadoraBoxSbth:
 
     def test_calcular_box_classificacao(self, calc):
         dados = DadosMercado(
-            preco_ativo=38.0, of_compra_ativo=37.9, of_venda_ativo=38.1,
+            preco_ativo=35.0, of_compra_ativo=34.9, of_venda_ativo=35.1,
             of_compra_put=2.0, of_venda_put=2.1,
             of_compra_call=2.5, of_venda_call=2.6,
-            strike=38.0, premio_put=2.0, premio_call=2.5, dias=20
+            strike=40.0, premio_put=2.0, premio_call=2.5, dias=20
         )
         result = calc.calcular(dados)
-        assert result.classificacao in ("1BOX", "2SBTH", "TP.Op")
+        assert result.classificacao in ("1BOX", "2SBTH", "3BOXSBTH", "TP.Op")
         assert result.cdi_periodo > 0
+        assert result.custo_sbth > 0
+        assert result.custo_box > 0
 
-    def test_custo_sbth(self, calc):
+    def test_custo_sbth_com_of_venda_ativo(self, calc):
         dados = DadosMercado(
-            preco_ativo=38.0, of_compra_ativo=37.9, of_venda_ativo=38.1,
-            of_compra_put=2.0, of_venda_put=2.1,
-            of_compra_call=2.5, of_venda_call=2.6,
-            strike=38.0, premio_put=2.0, premio_call=2.5, dias=20
+            preco_ativo=35.0, of_compra_ativo=34.9, of_venda_ativo=35.1,
+            of_compra_put=2.0, of_venda_put=2.5,
+            of_compra_call=2.0, of_venda_call=2.6,
+            strike=40.0, premio_put=2.5, premio_call=2.0, dias=20
         )
         result = calc.calcular(dados)
-        assert result.custo_sbth == 37.5  # 38 + 2.0 - 2.5
+        assert result.custo_sbth == 37.6  # of_venda_ativo(35.1) + of_venda_put(2.5)
+
+    def test_custo_sbth_sem_of_venda_ativo(self, calc):
+        dados = DadosMercado(
+            preco_ativo=35.0, of_compra_ativo=0, of_venda_ativo=0,
+            of_compra_put=2.0, of_venda_put=2.5,
+            of_compra_call=2.0, of_venda_call=2.6,
+            strike=40.0, premio_put=2.5, premio_call=2.0, dias=20
+        )
+        result = calc.calcular(dados)
+        assert result.custo_sbth == 37.51  # (35.0 + 0.01) + 2.5
+
+    def test_custo_box_com_of_venda_ativo(self, calc):
+        dados = DadosMercado(
+            preco_ativo=35.0, of_compra_ativo=34.9, of_venda_ativo=35.1,
+            of_compra_put=2.0, of_venda_put=2.5,
+            of_compra_call=2.0, of_venda_call=2.6,
+            strike=40.0, premio_put=2.5, premio_call=2.0, dias=20
+        )
+        result = calc.calcular(dados)
+        assert result.custo_box == 35.6  # of_venda_ativo(35.1) + of_venda_put(2.5) - of_compra_call(2.0)
+
+    def test_pct_ganho_e_cdi(self, calc):
+        dados = DadosMercado(
+            preco_ativo=35.0, of_compra_ativo=34.9, of_venda_ativo=35.1,
+            of_compra_put=1.0, of_venda_put=1.5,
+            of_compra_call=3.0, of_venda_call=3.5,
+            strike=40.0, premio_put=1.5, premio_call=3.0, dias=60
+        )
+        result = calc.calcular(dados)
+        assert result.pct_ganho_box > 0
+        assert result.pct_cdi_box > 0
+        assert result.pct_ganho_sbth > 0
+        assert result.pct_cdi_sbth > 0
+
+    def test_custo_zero_se_of_venda_put_zero(self, calc):
+        dados = DadosMercado(
+            preco_ativo=35.0, of_compra_ativo=34.9, of_venda_ativo=35.1,
+            of_compra_put=2.0, of_venda_put=0,
+            of_compra_call=2.5, of_venda_call=2.6,
+            strike=40.0, premio_put=0, premio_call=2.5, dias=20
+        )
+        result = calc.calcular(dados)
+        assert result.custo_sbth == 0
+        assert result.custo_box == 0
 
 
 class TestElegibilidadePescaria:
@@ -225,14 +271,16 @@ class TestMontadoraBoxItm:
 class TestClassificacaoOportunidade:
     def test_classificar_box(self):
         resultado = ResultadoBOXSBTH(
-            custo_sbth=100, ganho_sbth=10, custo_box=100, ganho_box=80,
+            custo_sbth=100, pct_ganho_sbth=0.10, pct_cdi_sbth=2.0,
+            custo_box=100, pct_ganho_box=0.80, pct_cdi_box=3.0,
             cdi_periodo=0.01, classificacao="1BOX", operacao="BOX"
         )
         assert ClassificacaoOportunidade.classificar(resultado) == ClassificacaoOp.BOX_1
 
     def test_classificar_sbth(self):
         resultado = ResultadoBOXSBTH(
-            custo_sbth=100, ganho_sbth=50, custo_box=100, ganho_box=10,
+            custo_sbth=100, pct_ganho_sbth=0.50, pct_cdi_sbth=2.5,
+            custo_box=100, pct_ganho_box=0.10, pct_cdi_box=0.5,
             cdi_periodo=0.01, classificacao="2SBTH", operacao="SBTH"
         )
         assert ClassificacaoOportunidade.classificar(resultado) == ClassificacaoOp.SBTH_2
@@ -241,14 +289,16 @@ class TestClassificacaoOportunidade:
         ops = [
             Oportunidade(
                 instrumento_id=1, preco_ativo=38.0, strike=38.0, dias=20,
-                cdi_periodo=0.01, custo_sbth=100, ganho_sbth=15,
-                custo_box=100, ganho_box=20,
+                cdi_periodo=0.01, custo_sbth=100, pct_ganho_sbth=0.15,
+                pct_cdi_sbth=1.5,
+                custo_box=100, pct_ganho_box=0.20, pct_cdi_box=2.0,
                 classificacao=ClassificacaoOp.BOX_1, operacao="BOX"
             ),
             Oportunidade(
                 instrumento_id=2, preco_ativo=38.0, strike=38.0, dias=20,
-                cdi_periodo=0.01, custo_sbth=100, ganho_sbth=0,
-                custo_box=100, ganho_box=0,
+                cdi_periodo=0.01, custo_sbth=100, pct_ganho_sbth=0.0,
+                pct_cdi_sbth=0.0,
+                custo_box=100, pct_ganho_box=0.0, pct_cdi_box=0.0,
                 classificacao=ClassificacaoOp.TP_OP, operacao="NEUTRA"
             ),
         ]
@@ -260,15 +310,17 @@ class TestClassificacaoOportunidade:
         ops = [
             Oportunidade(
                 instrumento_id=1, preco_ativo=38.0, strike=38.0, dias=20,
-                cdi_periodo=0.01, custo_sbth=100, ganho_sbth=15,
-                custo_box=100, ganho_box=20,
+                cdi_periodo=0.01, custo_sbth=100, pct_ganho_sbth=0.15,
+                pct_cdi_sbth=1.5,
+                custo_box=100, pct_ganho_box=0.20, pct_cdi_box=2.0,
                 classificacao=ClassificacaoOp.BOX_1, operacao="BOX",
                 snapshot_mercado={"em_leilao": False}
             ),
             Oportunidade(
                 instrumento_id=2, preco_ativo=38.0, strike=38.0, dias=20,
-                cdi_periodo=0.01, custo_sbth=100, ganho_sbth=0,
-                custo_box=100, ganho_box=0,
+                cdi_periodo=0.01, custo_sbth=100, pct_ganho_sbth=0.0,
+                pct_cdi_sbth=0.0,
+                custo_box=100, pct_ganho_box=0.0, pct_cdi_box=0.0,
                 classificacao=ClassificacaoOp.TP_OP, operacao="NEUTRA",
                 snapshot_mercado={"em_leilao": True}
             ),

@@ -107,11 +107,11 @@ class TestMonitorOportunidadesUseCase:
             vencimento="2026-08-21", dias=20,
             cod_put="BOVAT180", cod_call="BOVAH180",
             tipo_opcao="A", classificacao="1BOX", operacao="BOX",
-            custo_box=100.0, ganho_box=80.0,
-            cdi_periodo=0.01, rent_box_vs_cdi=150.0,
+            custo_box=100.0, pct_ganho_box=0.80, pct_cdi_box=1.5,
+            cdi_periodo=0.01,
         )
         assert opp.label_tipo == "BOX"
-        assert "150.00% CDI (BOX)" == opp.label_rentabilidade
+        assert "1.50x CDI (BOX)" == opp.label_rentabilidade
         assert opp.label_dias == "20d"
         assert "BOVA11" in opp.resumo_linha
         assert "BOX" in opp.resumo_linha
@@ -122,11 +122,11 @@ class TestMonitorOportunidadesUseCase:
             vencimento="2026-08-21", dias=45,
             cod_put="BOVAT180", cod_call="BOVAH180",
             tipo_opcao="A", classificacao="2SBTH", operacao="SBTH",
-            custo_sbth=100.0, ganho_sbth=50.0,
-            cdi_periodo=0.02, rent_sbth_vs_cdi=120.0,
+            custo_sbth=100.0, pct_ganho_sbth=0.50, pct_cdi_sbth=1.2,
+            cdi_periodo=0.02,
         )
         assert opp.label_tipo == "SBTH"
-        assert "120.00% CDI (SBTH)" == opp.label_rentabilidade
+        assert "1.20x CDI (SBTH)" == opp.label_rentabilidade
         assert opp.label_dias == "45d"
 
     def test_viaveis_ordenados_primeiro(self, populated_db):
@@ -156,8 +156,8 @@ class TestExportarOperacaoUseCase:
             "vencimento": "2026-08-21",
             "classificacao": "1BOX",
             "operacao": "BOX",
-            "ganho_box": 5.0,
-            "rent_box_vs_cdi": 150.0,
+            "pct_ganho_box": 0.05,
+            "pct_cdi_box": 1.5,
             "dias": 20,
             "cod_put": "BOVAT180",
             "cod_call": "BOVAH180",
@@ -177,8 +177,8 @@ class TestExportarOperacaoUseCase:
             "vencimento": (date.today() + timedelta(days=20)).isoformat(),
             "classificacao": "1BOX",
             "operacao": "BOX",
-            "ganho_box": 5.0,
-            "rent_box_vs_cdi": 150.0,
+            "pct_ganho_box": 0.05,
+            "pct_cdi_box": 1.5,
             "dias": 20,
             "cod_call_itm": "BOVAH124",
             "strike_itm": 12.4,
@@ -195,10 +195,10 @@ class TestExportarOperacaoUseCase:
             "ativo": "BOVA11", "strike": 18.0,
             "vencimento": "2026-08-21",
             "classificacao": "1BOX", "operacao": "BOX",
-            "ganho_box": 5.0, "rent_box_vs_cdi": 150.0,
+            "pct_ganho_box": 0.05, "pct_cdi_box": 1.5,
             "dias": 20,
             "cod_put": "BOVAT180", "cod_call": "BOVAH180",
         }
         result = uc.executar_log(opp_dict, output_dir=tmp_path / "logs")
-        assert result.rent_vs_cdi == 150.0
+        assert result.pct_cdi == 1.5
         assert result.dias == 20

@@ -8,23 +8,26 @@ class ClassificacaoOportunidade:
         mapping = {
             "1BOX": ClassificacaoOp.BOX_1,
             "2SBTH": ClassificacaoOp.SBTH_2,
+            "3BOXSBTH": ClassificacaoOp.BOXSBTH_3,
             "TP.Op": ClassificacaoOp.TP_OP,
         }
         return mapping.get(resultado.classificacao, ClassificacaoOp.TP_OP)
 
     @staticmethod
     def determinar_operacao_viavel(oportunidade: Oportunidade) -> str:
-        if oportunidade.classificacao == ClassificacaoOp.BOX_1 and oportunidade.ganho_box > 0:
+        if oportunidade.classificacao == ClassificacaoOp.BOX_1 and oportunidade.pct_ganho_box > 0:
             return "BOX"
-        if oportunidade.classificacao == ClassificacaoOp.SBTH_2 and oportunidade.ganho_sbth > 0:
+        if oportunidade.classificacao == ClassificacaoOp.SBTH_2 and oportunidade.pct_ganho_sbth > 0:
             return "SBTH"
+        if oportunidade.classificacao == ClassificacaoOp.BOXSBTH_3 and oportunidade.pct_ganho_box > 0 and oportunidade.pct_ganho_sbth > 0:
+            return "BOXSBTH"
         if oportunidade.classificacao == ClassificacaoOp.TP_OP:
             return "TP"
         return "NEUTRA"
 
     @staticmethod
     def filtrar_viaveis(oportunidades: list[Oportunidade]) -> list[Oportunidade]:
-        return [op for op in oportunidades if op.operacao in ("BOX", "SBTH")]
+        return [op for op in oportunidades if op.operacao in ("BOX", "SBTH", "BOXSBTH")]
 
     @staticmethod
     def filtrar_por_liquidez(oportunidades: list[Oportunidade], min_liq_put: float = 0, min_liq_call: float = 0) -> list[Oportunidade]:
