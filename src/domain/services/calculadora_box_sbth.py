@@ -18,6 +18,10 @@ class DadosMercado:
     status_put: str = ""
     status_call: str = ""
     status_ativo: str = ""
+    vov_put_boca: float = 0.0
+    voc_call_boca: float = 0.0
+    qul_put: float = 0.0
+    qul_call: float = 0.0
 
     def _preco_compra_ativo(self) -> float:
         if self.of_venda_ativo > 0:
@@ -47,7 +51,7 @@ class CalculadoraBoxSbth:
     def calcular_cdi_periodo(self, dias: int) -> float:
         if dias <= 0:
             return 0.0
-        return (1 + self.taxa_cdi) ** (dias / 252) - 1
+        return (1 + self.taxa_cdi) ** (dias / 365) - 1
 
     def calcular(self, dados: DadosMercado) -> ResultadoBOXSBTH:
         cdi_periodo = self.calcular_cdi_periodo(dados.dias)

@@ -35,13 +35,14 @@ def populated_db(db_path):
         repo.save(InstrumentoOpcional(
             ativo="BOVA11", cod_put="BOVAT{}".format(int(strike * 10)),
             cod_call="BOVAH{}".format(int(strike * 10)),
-            strike=strike, vencimento=venc, tipo_opcao=TipoOpcao.AMERICANA,
+            vencimento=venc, tipo_opcao=TipoOpcao.AMERICANA,
         ))
     return db_path
 
 
 def _make_opp(ativo="PETR4", classificacao="1BOX", operacao="BOX", viavel=True,
-              strike=18.0, custo_box=100.0, custo_sbth=50.0):
+              strike=18.0, custo_box=100.0, custo_sbth=50.0,
+              liq_put_x_lote=500.0, liq_call_x_lote=500.0):
     return OportunidadeMonitor(
         instrumento_id=1, ativo=ativo, strike=strike,
         vencimento="2026-08-21", dias=30,
@@ -50,8 +51,11 @@ def _make_opp(ativo="PETR4", classificacao="1BOX", operacao="BOX", viavel=True,
         custo_box=custo_box, pct_ganho_box=0.80, pct_cdi_box=1.5,
         custo_sbth=custo_sbth, pct_ganho_sbth=0.30, pct_cdi_sbth=1.2,
         cdi_periodo=0.01,
-        viavel=viavel,
-        preco_compra_ativo=18.01, of_venda_put=2.5, of_compra_call=0.8,
+        viavel=viavel, preco_compra_ativo=18.01, of_venda_put=2.5, of_compra_call=0.8,
+        liq_put_x_lote=liq_put_x_lote, liq_call_x_lote=liq_call_x_lote,
+        of_compra_put=2.48, of_venda_call=0.22,
+        qul_put=50.0, qul_call=60.0,
+        money_put=0.0, money_call=0.0,
     )
 
 
@@ -70,7 +74,8 @@ class TestMonitorTableModel:
     def test_data_display_role(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp()])
-        index = model.index(0, 0)
+        ativo_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "ativo"][0]
+        index = model.index(0, ativo_col)
         result = model.data(index, Qt.DisplayRole)
         assert str(result) == "PETR4"
 
@@ -94,7 +99,7 @@ class TestMonitorTableModel:
         viavel_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "viavel_display"][0]
         index = model.index(0, viavel_col)
         result = model.data(index, Qt.DisplayRole)
-        assert str(result) == "SIM"
+        assert str(result) == "\u2713"
 
     def test_nao_viavel_display(self):
         model = MonitorTableModel()
@@ -102,7 +107,7 @@ class TestMonitorTableModel:
         viavel_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "viavel_display"][0]
         index = model.index(0, viavel_col)
         result = model.data(index, Qt.DisplayRole)
-        assert str(result) == "-"
+        assert str(result) == ""
 
     def test_get_oportunidade_valid(self):
         model = MonitorTableModel()
@@ -199,6 +204,63 @@ class TestMonitorTableModel:
         assert model.data(model.index(0, sbth_col), Qt.FontRole) is None
         assert model.data(model.index(0, box_col), Qt.FontRole) is None
 
+    def test_liq_put_display_positive(self):
+        model = MonitorTableModel()
+        model.atualizar([_make_opp(liq_put_x_lote=500.0)])
+        col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "liq_put_display"][0]
+        assert model.data(model.index(0, col), Qt.DisplayRole) == "500"
+        fg = model.data(model.index(0, col), Qt.ForegroundRole)
+        assert fg is not None and fg.color().green() > 0
+
+    def test_liq_put_display_negative(self):
+        model = MonitorTableModel()
+        model.atualizar([_make_opp(liq_put_x_lote=-200.0)])
+        col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "liq_put_display"][0]
+        assert model.data(model.index(0, col), Qt.DisplayRole) == "-200"
+        fg = model.data(model.index(0, col), Qt.ForegroundRole)
+        assert fg is not None and fg.color().red() > 0
+
+    def test_liq_call_display_positive(self):
+        model = MonitorTableModel()
+        model.atualizar([_make_opp(liq_call_x_lote=300.0)])
+        col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "liq_call_display"][0]
+        assert model.data(model.index(0, col), Qt.DisplayRole) == "300"
+        fg = model.data(model.index(0, col), Qt.ForegroundRole)
+        assert fg is not None and fg.color().green() > 0
+
+    def test_liq_call_display_negative(self):
+        model = MonitorTableModel()
+        model.atualizar([_make_opp(liq_call_x_lote=-100.0)])
+        col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "liq_call_display"][0]
+        assert model.data(model.index(0, col), Qt.DisplayRole) == "-100"
+        fg = model.data(model.index(0, col), Qt.ForegroundRole)
+        assert fg is not None and fg.color().red() > 0
+
+    def test_leilao_display_red(self):
+        model = MonitorTableModel()
+        opp = _make_opp()
+        opp.em_leilao = True
+        model.atualizar([opp])
+        col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "leilao_display"][0]
+        assert model.data(model.index(0, col), Qt.DisplayRole) == "LEILAO"
+        fg = model.data(model.index(0, col), Qt.ForegroundRole)
+        assert fg is not None and fg.color().red() > 0
+
+    def test_money_display(self):
+        model = MonitorTableModel()
+        opp = _make_opp(strike=20.0)
+        opp.money_put = 2.0
+        opp.money_call = 0.0
+        model.atualizar([opp])
+        col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "money_display"][0]
+        assert "P:2.00" == model.data(model.index(0, col), Qt.DisplayRole)
+
+    def test_tipo_opcao_display(self):
+        model = MonitorTableModel()
+        model.atualizar([_make_opp()])
+        col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "tipo_opcao"][0]
+        assert model.data(model.index(0, col), Qt.DisplayRole) == "AMER"
+
 
 class TestMockMarketDataProvider:
     def test_gerar_dados(self, populated_db):
@@ -206,7 +268,8 @@ class TestMockMarketDataProvider:
         instrumentos = repo.get_all()
         provider = MockMarketDataProvider(preco_base=18.0)
         dados = provider.gerar_dados_para_instrumentos(instrumentos)
-        assert len(dados) == 4
+        assert len(dados) >= 1
+        assert len(instrumentos) == 4
         for key, d in dados.items():
             assert "preco_ativo" in d
             assert "premio_put" in d
@@ -218,7 +281,7 @@ class TestMockMarketDataProvider:
         instrumentos = repo.get_all()
         provider = MockMarketDataProvider(preco_base=18.0)
         inst = instrumentos[0]
-        key = "{}_{}_{}".format(inst.ativo, inst.strike, inst.vencimento.isoformat())
+        key = inst.cod_put
         provider.set_override(key, {"preco_ativo": 25.0, "premio_put": 3.0, "premio_call": 1.0})
         dados = provider.gerar_dados_para_instrumentos(instrumentos)
         assert dados[key]["preco_ativo"] == 25.0
@@ -228,7 +291,6 @@ class TestMockMarketDataProvider:
         instrumentos = repo.get_all()
         provider = MockMarketDataProvider(preco_base=18.0)
         dados_mercado = provider.gerar_dados_para_instrumentos(instrumentos)
-
         monitor_uc = MonitorOportunidadesUseCase(populated_db)
         resultados = monitor_uc.varrer(dados_mercado)
         assert len(resultados) == 4

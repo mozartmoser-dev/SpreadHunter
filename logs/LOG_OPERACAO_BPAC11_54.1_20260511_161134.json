@@ -1,0 +1,25 @@
+{
+  "tipo_exportacao": "LOG_OPERACAO",
+  "ativo": "BPAC11",
+  "strike": 54.1,
+  "classificacao": "1BOX",
+  "operacao": "BOX",
+  "pct_ganho": 0.011972,
+  "pct_cdi": 5.390398,
+  "dias": 4,
+  "pernas": [
+    {
+      "codigo": "BPACQ541",
+      "lado": "C",
+      "quantidade": 100,
+      "profundidade": 0
+    },
+    {
+      "codigo": "BPACE541",
+      "lado": "V",
+      "quantidade": 100,
+      "profundidade": 0
+    }
+  ],
+  "exportado_em": "2026-05-11T16:11:34.153675"
+}

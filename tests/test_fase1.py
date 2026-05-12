@@ -58,7 +58,7 @@ class TestInstrumentoOpcional:
     def test_dias_ate_vencimento(self):
         inst = InstrumentoOpcional(
             ativo="PETR4", cod_put="PETRX80", cod_call="PETRZ80",
-            strike=38.0, vencimento=date.today(), tipo_opcao=TipoOpcao.AMERICANA
+            vencimento=date.today(), tipo_opcao=TipoOpcao.AMERICANA
         )
         assert inst.dias_ate_vencimento == 0
 
@@ -66,7 +66,7 @@ class TestInstrumentoOpcional:
         from datetime import timedelta
         inst = InstrumentoOpcional(
             ativo="PETR4", cod_put="PETRX80", cod_call="PETRZ80",
-            strike=38.0, vencimento=date.today() + timedelta(days=20),
+            vencimento=date.today() + timedelta(days=20),
             tipo_opcao=TipoOpcao.AMERICANA
         )
         assert inst.dias_ate_vencimento == 20
@@ -89,7 +89,7 @@ class TestParametroOperacional:
     def test_valor_taxa_cdi(self):
         defaults = ParametroOperacional.defaults()
         cdi = next(p for p in defaults if p.chave == "taxa_cdi")
-        assert cdi.valor == 0.15
+        assert cdi.valor == 0.1450
 
 
 class TestOportunidade:
@@ -118,7 +118,7 @@ class TestInstrumentoRepository:
     def test_save_and_get(self, instrumento_repo):
         inst = InstrumentoOpcional(
             ativo="PETR4", cod_put="PETRX80", cod_call="PETRZ80",
-            strike=38.0, vencimento=date(2026, 6, 20), tipo_opcao=TipoOpcao.AMERICANA
+            vencimento=date(2026, 6, 20), tipo_opcao=TipoOpcao.AMERICANA
         )
         saved = instrumento_repo.save(inst)
         assert saved.id is not None
@@ -126,16 +126,15 @@ class TestInstrumentoRepository:
         all_inst = instrumento_repo.get_all()
         assert len(all_inst) == 1
         assert all_inst[0].ativo == "PETR4"
-        assert all_inst[0].strike == 38.0
 
     def test_get_by_ativo(self, instrumento_repo):
         instrumento_repo.save(InstrumentoOpcional(
             ativo="PETR4", cod_put="PETRX80", cod_call="PETRZ80",
-            strike=38.0, vencimento=date(2026, 6, 20), tipo_opcao=TipoOpcao.AMERICANA
+            vencimento=date(2026, 6, 20), tipo_opcao=TipoOpcao.AMERICANA
         ))
         instrumento_repo.save(InstrumentoOpcional(
             ativo="VALE3", cod_put="VALEX80", cod_call="VALEZ80",
-            strike=60.0, vencimento=date(2026, 6, 20), tipo_opcao=TipoOpcao.AMERICANA
+            vencimento=date(2026, 6, 20), tipo_opcao=TipoOpcao.AMERICANA
         ))
 
         result = instrumento_repo.get_by_ativo("PETR4")
@@ -148,11 +147,11 @@ class TestParametroRepository:
         parametro_repo.seed_defaults()
         cdi = parametro_repo.get_by_chave("taxa_cdi")
         assert cdi is not None
-        assert cdi.valor == 0.15
+        assert cdi.valor == 0.1450
 
     def test_upsert(self, parametro_repo):
         parametro_repo.save(ParametroOperacional(
-            chave="taxa_cdi", valor=0.15, estrategia="GERAL", descricao="Taxa CDI"
+            chave="taxa_cdi", valor=0.1450, estrategia="GERAL", descricao="Taxa CDI"
         ))
         parametro_repo.save(ParametroOperacional(
             chave="taxa_cdi", valor=0.14, estrategia="GERAL", descricao="Taxa CDI"
@@ -170,7 +169,7 @@ class TestOportunidadeRepository:
     def test_save_and_get(self, oportunidade_repo, instrumento_repo):
         inst = instrumento_repo.save(InstrumentoOpcional(
             ativo="PETR4", cod_put="PETRX80", cod_call="PETRZ80",
-            strike=38.0, vencimento=date(2026, 6, 20), tipo_opcao=TipoOpcao.AMERICANA
+            vencimento=date(2026, 6, 20), tipo_opcao=TipoOpcao.AMERICANA
         ))
         op = Oportunidade(
             instrumento_id=inst.id, preco_ativo=38.0, strike=38.0, dias=20,
@@ -192,7 +191,7 @@ class TestEstruturaRepository:
     def test_save_and_get_by_oportunidade(self, estrutura_repo, oportunidade_repo, instrumento_repo):
         inst = instrumento_repo.save(InstrumentoOpcional(
             ativo="PETR4", cod_put="PETRX80", cod_call="PETRZ80",
-            strike=38.0, vencimento=date(2026, 6, 20), tipo_opcao=TipoOpcao.AMERICANA
+            vencimento=date(2026, 6, 20), tipo_opcao=TipoOpcao.AMERICANA
         ))
         op = oportunidade_repo.save(Oportunidade(
             instrumento_id=inst.id, preco_ativo=38.0, strike=38.0, dias=20,
@@ -217,7 +216,7 @@ class TestPernaRepository:
     def test_save_and_get_by_estrutura(self, perna_repo, estrutura_repo, oportunidade_repo, instrumento_repo):
         inst = instrumento_repo.save(InstrumentoOpcional(
             ativo="PETR4", cod_put="PETRX80", cod_call="PETRZ80",
-            strike=38.0, vencimento=date(2026, 6, 20), tipo_opcao=TipoOpcao.AMERICANA
+            vencimento=date(2026, 6, 20), tipo_opcao=TipoOpcao.AMERICANA
         ))
         op = oportunidade_repo.save(Oportunidade(
             instrumento_id=inst.id, preco_ativo=38.0, strike=38.0, dias=20,

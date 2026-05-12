@@ -1,0 +1,25 @@
+{
+  "tipo_exportacao": "LOG_OPERACAO",
+  "ativo": "JBSS32",
+  "strike": 90.0,
+  "classificacao": "1BOX",
+  "operacao": "BOX",
+  "ganho": 10.82,
+  "rent_vs_cdi": 487167.94,
+  "dias": 4,
+  "pernas": [
+    {
+      "codigo": "JBSSQ900",
+      "lado": "C",
+      "quantidade": 100,
+      "profundidade": 0
+    },
+    {
+      "codigo": "JBSSE900",
+      "lado": "V",
+      "quantidade": 100,
+      "profundidade": 0
+    }
+  ],
+  "exportado_em": "2026-05-11T13:40:23.312835"
+}

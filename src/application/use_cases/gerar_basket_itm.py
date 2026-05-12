@@ -2,6 +2,7 @@ from src.application.dtos.dtos import BasketGerada
 from src.domain.entities.estrutura_operacional import EstruturaOperacional, TipoEstrutura
 from src.domain.services.elegibilidade_pescaria import ElegibilidadePescaria, CandidatoPescaria
 from src.domain.services.montadora_box_itm import MontadoraBoxItm
+from src.infrastructure.importers.excel_importer import extrair_strike
 from src.infrastructure.persistence.repositories.repositories import (
     InstrumentoRepository,
     EstruturaRepository,
@@ -47,7 +48,8 @@ class GerarBasketItmUseCase:
         cod_put_atm = ""
         cod_call_atm = ""
         for inst in instrumentos_atm:
-            if inst.strike == strike_atm and inst.vencimento.isoformat() == vencimento:
+            inst_strike = extrair_strike(inst.cod_put)
+            if inst.vencimento.isoformat() == vencimento and inst_strike is not None and abs(inst_strike - strike_atm) < 0.01:
                 cod_put_atm = inst.cod_put
                 cod_call_atm = inst.cod_call
                 break

@@ -9,16 +9,32 @@ class ParametroOperacional:
     descricao: str
     id: int | None = None
 
-    PARAMETROS_DEFAULT = {
-        "taxa_cdi": {"valor": 0.15, "estrategia": "GERAL", "descricao": "Taxa CDI/Selic"},
-        "premio_risco_box": {"valor": 1.5, "estrategia": "BOX", "descricao": "Prêmio risco BOX"},
-        "premio_risco_sbth": {"valor": 1.2, "estrategia": "SBTH", "descricao": "Prêmio risco SBTH"},
-        "premio_box_sintetico_call_itm": {"valor": 3.0, "estrategia": "BOX_SINTETICO", "descricao": "Prêmio BOX sintético call ITM"},
-    }
-
     @classmethod
     def defaults(cls) -> list["ParametroOperacional"]:
         return [
             cls(chave=k, valor=v["valor"], estrategia=v["estrategia"], descricao=v["descricao"])
             for k, v in cls.PARAMETROS_DEFAULT.items()
         ]
+
+    PARAMETROS_DEFAULT = {
+        "taxa_cdi": {"valor": 0.1450, "estrategia": "GERAL", "descricao": "Taxa CDI/Selic"},
+        "premio_risco_box": {"valor": 1.5, "estrategia": "BOX", "descricao": "Premio risco BOX"},
+        "premio_risco_sbth": {"valor": 1.2, "estrategia": "SBTH", "descricao": "Premio risco SBTH"},
+        "premio_box_sintetico_call_itm": {"valor": 3.0, "estrategia": "BOX_SINTETICO", "descricao": "Premio BOX sintetico call ITM"},
+        "sbth_qtd_ativo": {"valor": 1000, "estrategia": "SBTH", "descricao": "Qtd compra ativo"},
+        "sbth_prof_ativo": {"valor": 1, "estrategia": "SBTH", "descricao": "Profundidade book ativo"},
+        "sbth_qtd_put": {"valor": 1000, "estrategia": "SBTH", "descricao": "Qtd compra PUT"},
+        "sbth_prof_put": {"valor": -1, "estrategia": "SBTH", "descricao": "Profundidade book PUT"},
+        "box_qtd_ativo": {"valor": 1000, "estrategia": "BOX", "descricao": "Qtd compra ativo"},
+        "box_prof_ativo": {"valor": 1, "estrategia": "BOX", "descricao": "Profundidade book ativo"},
+        "box_qtd_put": {"valor": 1000, "estrategia": "BOX", "descricao": "Qtd compra PUT"},
+        "box_prof_put": {"valor": -1, "estrategia": "BOX", "descricao": "Profundidade book PUT"},
+        "box_qtd_call": {"valor": 1000, "estrategia": "BOX", "descricao": "Qtd venda Call"},
+        "box_prof_call": {"valor": 1, "estrategia": "BOX", "descricao": "Profundidade book Call"},
+        "basket_qtd_call_itm": {"valor": 100, "estrategia": "BOX_SINTETICO", "descricao": "Qtd compra Call ITM"},
+        "basket_prof_call_itm": {"valor": 1, "estrategia": "BOX_SINTETICO", "descricao": "Profundidade Call ITM"},
+        "basket_qtd_put": {"valor": 100, "estrategia": "BOX_SINTETICO", "descricao": "Qtd compra PUT"},
+        "basket_prof_put": {"valor": -1, "estrategia": "BOX_SINTETICO", "descricao": "Profundidade PUT"},
+        "basket_qtd_call": {"valor": 100, "estrategia": "BOX_SINTETICO", "descricao": "Qtd venda Call ATM"},
+        "basket_prof_call": {"valor": -1, "estrategia": "BOX_SINTETICO", "descricao": "Profundidade Call ATM"},
+    }

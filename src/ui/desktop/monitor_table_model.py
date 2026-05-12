@@ -6,18 +6,27 @@ from src.application.dtos.dtos import OportunidadeMonitor
 
 class MonitorTableModel(QAbstractTableModel):
     COLUMNS = [
-        ("Ativo", "ativo"),
+        ("OK", "viavel_display"),
         ("Tipo", "label_tipo"),
+        ("Ativo", "ativo"),
         ("Rent. vs CDI", "label_rentabilidade"),
         ("Dias", "label_dias"),
         ("Vencimento", "vencimento"),
         ("Strike", "strike"),
+        ("Liq Put", "liq_put_display"),
+        ("Liq Call", "liq_call_display"),
         ("Custo SBTH", "custo_sbth_display"),
         ("Custo BOX", "custo_box_display"),
         ("Ganho %", "ganho_display"),
+        ("Leilao", "leilao_display"),
+        ("Money", "money_display"),
+        ("Tipo Op.", "tipo_opcao"),
+        ("Of Cp Put", "of_compra_put"),
+        ("Of Vd Call", "of_venda_call"),
+        ("Qul Put", "qul_put"),
+        ("Qul Call", "qul_call"),
         ("Cod Put", "cod_put"),
         ("Cod Call", "cod_call"),
-        ("Viável", "viavel_display"),
     ]
 
     def __init__(self, parent=None):
@@ -58,8 +67,8 @@ class MonitorTableModel(QAbstractTableModel):
             return self._font_data(opp, col_key)
 
         if role == Qt.TextAlignmentRole:
-            if col_key in ("strike", "custo_sbth_display", "custo_box_display", "ganho_display", "label_dias", "viavel_display"):
-                return Qt.AlignRight | Qt.AlignVCenter
+            if col_key in ("strike", "custo_sbth_display", "custo_box_display", "ganho_display", "label_dias", "viavel_display", "leilao_display", "liq_put_display", "liq_call_display", "of_compra_put", "of_venda_call", "qul_put", "qul_call", "money_display", "tipo_opcao"):
+                return Qt.AlignCenter | Qt.AlignVCenter
             return Qt.AlignLeft | Qt.AlignVCenter
 
         return None
@@ -84,7 +93,26 @@ class MonitorTableModel(QAbstractTableModel):
                 return "{:.2f}%".format(opp.pct_ganho_sbth * 100)
             return "-"
         if col_key == "viavel_display":
-            return "SIM" if opp.viavel else "-"
+            return "\u2713" if opp.viavel else ""
+        if col_key == "leilao_display":
+            return "LEILAO" if opp.em_leilao else ""
+        if col_key == "liq_put_display":
+            return "{:.0f}".format(opp.liq_put_x_lote)
+        if col_key == "liq_call_display":
+            return "{:.0f}".format(opp.liq_call_x_lote)
+        if col_key == "of_compra_put":
+            return "{:.2f}".format(opp.of_compra_put) if opp.of_compra_put > 0 else "-"
+        if col_key == "of_venda_call":
+            return "{:.2f}".format(opp.of_venda_call) if opp.of_venda_call > 0 else "-"
+        if col_key == "qul_put":
+            return "{:.0f}".format(opp.qul_put) if opp.qul_put > 0 else "-"
+        if col_key == "qul_call":
+            return "{:.0f}".format(opp.qul_call) if opp.qul_call > 0 else "-"
+        if col_key == "money_display":
+            return opp.money_display
+        if col_key == "tipo_opcao":
+            labels = {"A": "AMER", "E": "EUR", "P": "PUT"}
+            return labels.get(opp.tipo_opcao, opp.tipo_opcao)
         value = getattr(opp, col_key, None)
         if value is None:
             return ""
@@ -107,6 +135,19 @@ class MonitorTableModel(QAbstractTableModel):
 
         if col_key == "viavel_display" and opp.viavel:
             return QBrush(QColor(0, 128, 0))
+
+        if col_key == "liq_put_display":
+            if opp.liq_put_x_lote < 0:
+                return QBrush(QColor(200, 0, 0))
+            return QBrush(QColor(0, 128, 0))
+
+        if col_key == "liq_call_display":
+            if opp.liq_call_x_lote < 0:
+                return QBrush(QColor(200, 0, 0))
+            return QBrush(QColor(0, 128, 0))
+
+        if col_key == "leilao_display" and opp.em_leilao:
+            return QBrush(QColor(200, 0, 0))
 
         if col_key == "custo_sbth_display" and not is_sbth and opp.custo_sbth > 0:
             return QBrush(QColor(180, 180, 180))

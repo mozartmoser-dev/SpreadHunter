@@ -14,7 +14,6 @@ class InstrumentoOpcional:
     ativo: str
     cod_put: str
     cod_call: str
-    strike: float
     vencimento: date
     tipo_opcao: TipoOpcao
     id: int | None = None

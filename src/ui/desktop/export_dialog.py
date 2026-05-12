@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QGroupBox, QFormLayout, QMessageBox,
-    QDoubleSpinBox,
+    QDoubleSpinBox, QComboBox,
 )
 from PyQt5.QtCore import Qt
 
@@ -14,16 +14,14 @@ class ExportDialog(QDialog):
         self,
         oportunidade: OportunidadeMonitor,
         use_case: ExportarOperacaoUseCase,
-        output_dir: str,
         parent=None,
     ):
         super().__init__(parent)
         self.oportunidade = oportunidade
         self.use_case = use_case
-        self.output_dir = output_dir
         self._result = None
 
-        self.setWindowTitle("Exportar Operação - {}".format(oportunidade.ativo))
+        self.setWindowTitle("Exportar Operacao - {}".format(oportunidade.ativo))
         self.setMinimumWidth(450)
         self._setup_ui()
 
@@ -41,6 +39,7 @@ class ExportDialog(QDialog):
         info_layout.addRow("Vencimento:", QLabel(self.oportunidade.vencimento or "-"))
         info_layout.addRow("Cod Put:", QLabel(self.oportunidade.cod_put))
         info_layout.addRow("Cod Call:", QLabel(self.oportunidade.cod_call))
+        info_layout.addRow("Tipo Opcao:", QLabel(self.oportunidade.tipo_opcao))
 
         info_group.setLayout(info_layout)
         layout.addWidget(info_group)
@@ -86,20 +85,63 @@ class ExportDialog(QDialog):
         pernas_group.setLayout(pernas_layout)
         layout.addWidget(pernas_group)
 
-        params_group = QGroupBox("Parâmetros BASKET")
-        params_layout = QFormLayout()
+        mercado_group = QGroupBox("Dados de Mercado (Boleta)")
+        mercado_layout = QFormLayout()
+
+        mercado_layout.addRow("Of. Compra Put:", QLabel("{:.2f}".format(opp.of_compra_put) if opp.of_compra_put > 0 else "-"))
+        mercado_layout.addRow("Of. Venda Put:", QLabel("{:.2f}".format(opp.of_venda_put) if opp.of_venda_put > 0 else "-"))
+        mercado_layout.addRow("Of. Compra Call:", QLabel("{:.2f}".format(opp.of_compra_call) if opp.of_compra_call > 0 else "-"))
+        mercado_layout.addRow("Of. Venda Call:", QLabel("{:.2f}".format(opp.of_venda_call) if opp.of_venda_call > 0 else "-"))
+        mercado_layout.addRow("Qul Put:", QLabel("{:.0f}".format(opp.qul_put) if opp.qul_put > 0 else "-"))
+        mercado_layout.addRow("Qul Call:", QLabel("{:.0f}".format(opp.qul_call) if opp.qul_call > 0 else "-"))
+        mercado_layout.addRow("Liq Put x Lote:", QLabel("{:.0f}".format(opp.liq_put_x_lote)))
+        mercado_layout.addRow("Liq Call x Lote:", QLabel("{:.0f}".format(opp.liq_call_x_lote)))
+        mercado_layout.addRow("Money Put:", QLabel("{:.2f}".format(opp.money_put) if opp.money_put > 0 else "-"))
+        mercado_layout.addRow("Money Call:", QLabel("{:.2f}".format(opp.money_call) if opp.money_call > 0 else "-"))
+
+        lbl_leilao = QLabel("SIM - BLOQUEADO" if opp.em_leilao else "Nao")
+        if opp.em_leilao:
+            lbl_leilao.setStyleSheet("color: red; font-weight: bold;")
+        mercado_layout.addRow("Em Leilao:", lbl_leilao)
+
+        mercado_group.setLayout(mercado_layout)
+        layout.addWidget(mercado_group)
+
+        operacao_group = QGroupBox("Operacao a Registrar")
+        operacao_layout = QFormLayout()
+
+        self.combo_operacao = QComboBox()
+        opp = self.oportunidade
+        if opp.is_box:
+            self.combo_operacao.addItem("BOX", "BOX")
+        if opp.is_sbth:
+            self.combo_operacao.addItem("SBTH", "SBTH")
+        if opp.is_box and opp.is_sbth:
+            self.combo_operacao.addItem("BOX + SBTH", "BOXSBTH")
+        if self.combo_operacao.count() == 0:
+            self.combo_operacao.addItem("BOX", "BOX")
+        operacao_layout.addRow("Estrategia:", self.combo_operacao)
+
+        self.lbl_coefic_alvo = QLabel("-")
+        self.lbl_coefic_mercado = QLabel("-")
         self.spin_taxa_ganho = QDoubleSpinBox()
         self.spin_taxa_ganho.setRange(0.0, 100.0)
         self.spin_taxa_ganho.setValue(10.0)
         self.spin_taxa_ganho.setSuffix(" %")
         self.spin_taxa_ganho.setDecimals(1)
-        params_layout.addRow("Taxa Ganho:", self.spin_taxa_ganho)
-        params_group.setLayout(params_layout)
-        layout.addWidget(params_group)
+        self.spin_taxa_ganho.valueChanged.connect(self._atualizar_coeficientes)
+        operacao_layout.addRow("Taxa Ganho:", self.spin_taxa_ganho)
+        operacao_layout.addRow("Coefic. Alvo:", self.lbl_coefic_alvo)
+        operacao_layout.addRow("Coefic. Mercado:", self.lbl_coefic_mercado)
+
+        operacao_group.setLayout(operacao_layout)
+        layout.addWidget(operacao_group)
+
+        self._atualizar_coeficientes()
 
         btn_layout = QHBoxLayout()
 
-        self.btn_log = QPushButton("Exportar LOG")
+        self.btn_log = QPushButton("Registrar Operacao")
         self.btn_log.setStyleSheet("background-color: #4a90d9; color: white; padding: 8px; font-weight: bold;")
         self.btn_log.clicked.connect(self._exportar_log)
         btn_layout.addWidget(self.btn_log)
@@ -115,6 +157,15 @@ class ExportDialog(QDialog):
         self.btn_fechar.clicked.connect(self.reject)
         layout.addWidget(self.btn_fechar)
 
+    def _atualizar_coeficientes(self):
+        opp = self.oportunidade
+        taxa = self.spin_taxa_ganho.value()
+        spread = opp.strike
+        coefic_alvo = spread * ((100.0 - taxa) / 100.0)
+        coefic_mercado = opp.of_venda_call + opp.of_venda_put - opp.of_compra_call
+        self.lbl_coefic_alvo.setText("{:.4f}".format(coefic_alvo))
+        self.lbl_coefic_mercado.setText("{:.4f}".format(coefic_mercado))
+
     def _make_opp_dict(self) -> dict:
         return {
             "instrumento_id": self.oportunidade.instrumento_id,
@@ -124,8 +175,9 @@ class ExportDialog(QDialog):
             "dias": self.oportunidade.dias,
             "cod_put": self.oportunidade.cod_put,
             "cod_call": self.oportunidade.cod_call,
+            "tipo_opcao": self.oportunidade.tipo_opcao,
             "classificacao": self.oportunidade.classificacao,
-            "operacao": self.oportunidade.operacao,
+            "operacao": self.combo_operacao.currentData() or self.oportunidade.operacao,
             "pct_ganho_box": self.oportunidade.pct_ganho_box,
             "pct_ganho_sbth": self.oportunidade.pct_ganho_sbth,
             "pct_cdi_box": self.oportunidade.pct_cdi_box,
@@ -135,21 +187,29 @@ class ExportDialog(QDialog):
             "preco_compra_ativo": self.oportunidade.preco_compra_ativo,
             "of_venda_put": self.oportunidade.of_venda_put,
             "of_compra_call": self.oportunidade.of_compra_call,
+            "of_compra_put": self.oportunidade.of_compra_put,
+            "of_venda_call": self.oportunidade.of_venda_call,
+            "qul_put": self.oportunidade.qul_put,
+            "qul_call": self.oportunidade.qul_call,
+            "liq_put_x_lote": self.oportunidade.liq_put_x_lote,
+            "liq_call_x_lote": self.oportunidade.liq_call_x_lote,
+            "money_put": self.oportunidade.money_put,
+            "money_call": self.oportunidade.money_call,
+            "em_leilao": self.oportunidade.em_leilao,
         }
 
     def _exportar_log(self):
         try:
             self._result = self.use_case.executar_log(
                 self._make_opp_dict(),
-                output_dir=self.output_dir,
             )
             QMessageBox.information(
-                self, "LOG Exportado",
-                "Log exportado com sucesso!\n\nArquivo: {}".format(self._result.filepath),
+                self, "Operacao Registrada",
+                "Operacao registrada com sucesso!\n\nID: {}".format(self._result.estrutura_id),
             )
             self.accept()
         except Exception as e:
-            QMessageBox.critical(self, "Erro ao exportar LOG", str(e))
+            QMessageBox.critical(self, "Erro ao registrar", str(e))
 
     def _exportar_basket(self):
         opp_dict = self._make_opp_dict()
@@ -158,12 +218,11 @@ class ExportDialog(QDialog):
             self._result = self.use_case.executar_basket(
                 opp_dict,
                 taxa_ganho=self.spin_taxa_ganho.value(),
-                output_dir=self.output_dir,
             )
             QMessageBox.information(
                 self, "BASKET Exportado",
-                "Basket exportado com sucesso!\n\nEstrutura ID: {}\nArquivo: {}".format(
-                    self._result.estrutura_id, self._result.filepath
+                "Basket exportado com sucesso!\n\nEstrutura ID: {}".format(
+                    self._result.estrutura_id
                 ),
             )
             self.accept()

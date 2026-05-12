@@ -63,7 +63,6 @@ class TestExcelImporter:
         instrumentos = importer.importar()
         assert len(instrumentos) > 0
         assert instrumentos[0].ativo is not None
-        assert instrumentos[0].strike > 0
         assert instrumentos[0].vencimento is not None
 
     def test_importar_e_persistir(self):
@@ -100,11 +99,11 @@ class TestExcelImporter:
 class TestCalculadoraBoxSbth:
     @pytest.fixture
     def calc(self):
-        return CalculadoraBoxSbth(taxa_cdi=0.15, premio_risco_box=1.5, premio_risco_sbth=1.2)
+        return CalculadoraBoxSbth(taxa_cdi=0.1450, premio_risco_box=1.5, premio_risco_sbth=1.2)
 
     def test_cdi_periodo(self, calc):
-        cdi = calc.calcular_cdi_periodo(252)
-        assert abs(cdi - 0.15) < 0.001
+        cdi = calc.calcular_cdi_periodo(365)
+        assert abs(cdi - 0.1450) < 0.001
 
     def test_cdi_periodo_zero_dias(self, calc):
         assert calc.calcular_cdi_periodo(0) == 0.0
@@ -112,7 +111,7 @@ class TestCalculadoraBoxSbth:
     def test_cdi_periodo_20_dias(self, calc):
         cdi = calc.calcular_cdi_periodo(20)
         assert cdi > 0
-        assert cdi < 0.15
+        assert cdi < 0.1450
 
     def test_calcular_box_classificacao(self, calc):
         dados = DadosMercado(

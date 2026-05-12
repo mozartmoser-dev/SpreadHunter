@@ -64,11 +64,13 @@ class RTDProfit:
             tid = self._topic_id(codigo, campo)
             resultado = self._rtd.ConnectData(tid, [topico, campo], False)
             valor = resultado[0] if isinstance(resultado, tuple) else resultado
+            logger.debug("RTD ConnectData(%s, [%s, %s]) = %s", tid, topico, campo, valor)
             if valor is None:
                 return None
             v = float(str(valor).replace(",", "."))
             return v if v > 0 else None
-        except Exception:
+        except Exception as e:
+            logger.debug("RTD erro ConnectData(%s, [%s, %s]): %s", tid, topico, campo, e)
             return None
 
     def ler_status(self, codigo: str) -> str:

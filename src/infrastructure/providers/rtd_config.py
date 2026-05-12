@@ -68,6 +68,7 @@ class DadosRTDInstrumento:
     def to_dados_mercado(self) -> dict:
         return {
             "preco_ativo": self.preco_ativo or 0.0,
+            "strike_rtd": self.strike,
             "of_compra_ativo": 0.0,
             "of_venda_ativo": 0.0,
             "of_compra_put": self.of_compra_put or 0.0,
@@ -80,4 +81,8 @@ class DadosRTDInstrumento:
             "status_put": self.status_put,
             "status_call": self.status_call,
             "status_ativo": self.status_ativo,
+            "vov_put_boca": self.vov_put or 0.0,
+            "voc_call_boca": self.voc_call or 0.0,
+            "qul_put": self.qul_put or 0.0,
+            "qul_call": self.qul_call or 0.0,
         }

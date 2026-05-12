@@ -1,4 +1,5 @@
 from src.application.dtos.dtos import OportunidadeMonitor
+from src.infrastructure.importers.excel_importer import extrair_strike
 
 
 class MockMarketDataProvider:
@@ -12,21 +13,21 @@ class MockMarketDataProvider:
     def gerar_dados_para_instrumentos(self, instrumentos: list) -> dict[str, dict]:
         dados_mercado = {}
         for inst in instrumentos:
-            key = "{}_{}_{}".format(inst.ativo, inst.strike, inst.vencimento.isoformat())
+            key = inst.cod_put
             if key in self._overrides:
                 dados_mercado[key] = self._overrides[key]
                 continue
-
+            strike = extrair_strike(inst.cod_put) or self.preco_base
             preco = self.preco_base
-            if inst.strike > preco:
-                premio_put = 0.5 + (inst.strike - preco) * 0.3
+            if strike > preco:
+                premio_put = 0.5 + (strike - preco) * 0.3
                 premio_call = 0.2
             else:
                 premio_put = 0.2
-                premio_call = 0.5 + (preco - inst.strike) * 0.3
-
+                premio_call = 0.5 + (preco - strike) * 0.3
             dados_mercado[key] = {
                 "preco_ativo": preco,
+                "strike_rtd": strike,
                 "of_compra_ativo": preco - 0.05,
                 "of_venda_ativo": preco + 0.05,
                 "of_compra_put": premio_put - 0.02,
@@ -35,5 +36,9 @@ class MockMarketDataProvider:
                 "of_venda_call": premio_call + 0.02,
                 "premio_put": premio_put,
                 "premio_call": premio_call,
+                "vov_put_boca": 2000.0,
+                "voc_call_boca": 2000.0,
+                "qul_put": 100.0,
+                "qul_call": 100.0,
             }
         return dados_mercado

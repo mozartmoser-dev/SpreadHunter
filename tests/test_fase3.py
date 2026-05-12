@@ -48,7 +48,7 @@ def populated_db(db_path):
         repo.save(InstrumentoOpcional(
             ativo="BOVA11", cod_put="BOVAT{}".format(int(strike * 10)),
             cod_call="BOVAH{}".format(int(strike * 10)),
-            strike=strike, vencimento=venc, tipo_opcao=TipoOpcao.AMERICANA,
+            vencimento=venc, tipo_opcao=TipoOpcao.AMERICANA,
         ))
     return db_path
 
@@ -77,17 +77,16 @@ class TestMonitorOportunidadesUseCase:
     def test_varrer_com_dados_mercado(self, populated_db):
         venc = (date.today() + timedelta(days=20)).isoformat()
         monitor_uc = MonitorOportunidadesUseCase(populated_db)
-
         dados_mercado = {
-            "BOVA11_15.0_{}".format(venc): {
+            "BOVAT180": {
                 "preco_ativo": 18.0,
                 "of_compra_ativo": 17.9, "of_venda_ativo": 18.1,
                 "of_compra_put": 2.0, "of_venda_put": 2.1,
                 "of_compra_call": 2.5, "of_venda_call": 2.6,
                 "premio_put": 2.0, "premio_call": 2.5,
+                "vov_put_boca": 2000.0, "voc_call_boca": 2000.0,
             }
         }
-
         resultados = monitor_uc.varrer(dados_mercado)
         assert len(resultados) > 0
         opp = resultados[0]
@@ -132,16 +131,12 @@ class TestMonitorOportunidadesUseCase:
     def test_viaveis_ordenados_primeiro(self, populated_db):
         venc = (date.today() + timedelta(days=20)).isoformat()
         monitor_uc = MonitorOportunidadesUseCase(populated_db)
-
         dados_mercado = {
-            "BOVA11_12.4_{}".format(venc): {
-                "preco_ativo": 18.0, "premio_put": 5.0, "premio_call": 0.5,
-            },
-            "BOVA11_18.0_{}".format(venc): {
+            "BOVA11_{}".format(venc): {
                 "preco_ativo": 18.0, "premio_put": 2.0, "premio_call": 2.5,
+                "vov_put_boca": 2000.0, "voc_call_boca": 2000.0,
             },
         }
-
         resultados = monitor_uc.varrer(dados_mercado)
         if len(resultados) > 1:
             assert resultados[0].viavel or not any(r.viavel for r in resultados)
@@ -151,6 +146,7 @@ class TestExportarOperacaoUseCase:
     def test_exportar_log(self, populated_db, tmp_path):
         uc = ExportarOperacaoUseCase(populated_db)
         opp_dict = {
+            "instrumento_id": 3,
             "ativo": "BOVA11",
             "strike": 18.0,
             "vencimento": "2026-08-21",
@@ -162,11 +158,10 @@ class TestExportarOperacaoUseCase:
             "cod_put": "BOVAT180",
             "cod_call": "BOVAH180",
         }
-        result = uc.executar_log(opp_dict, output_dir=tmp_path / "logs")
+        result = uc.executar_log(opp_dict)
         assert result.tipo_exportacao == "LOG_OPERACAO"
         assert result.ativo == "BOVA11"
-        assert result.filepath != ""
-        assert Path(result.filepath).exists()
+        assert result.oportunidade_id > 0
 
     def test_exportar_basket(self, populated_db, tmp_path):
         uc = ExportarOperacaoUseCase(populated_db)
@@ -183,22 +178,27 @@ class TestExportarOperacaoUseCase:
             "cod_call_itm": "BOVAH124",
             "strike_itm": 12.4,
         }
-        result = uc.executar_basket(opp_dict, taxa_ganho=10.0, output_dir=tmp_path / "logs")
+        result = uc.executar_basket(opp_dict, taxa_ganho=10.0)
         assert result.tipo_exportacao == "BASKET_ITM"
         assert result.ativo == "BOVA11"
         assert len(result.pernas) == 3
-        assert Path(result.filepath).exists()
+        assert result.oportunidade_id > 0
 
     def test_log_contem_rentabilidade_e_dias(self, populated_db, tmp_path):
         uc = ExportarOperacaoUseCase(populated_db)
         opp_dict = {
-            "ativo": "BOVA11", "strike": 18.0,
+            "instrumento_id": 3,
+            "ativo": "BOVA11",
+            "strike": 18.0,
             "vencimento": "2026-08-21",
-            "classificacao": "1BOX", "operacao": "BOX",
-            "pct_ganho_box": 0.05, "pct_cdi_box": 1.5,
+            "classificacao": "1BOX",
+            "operacao": "BOX",
+            "pct_ganho_box": 0.05,
+            "pct_cdi_box": 1.5,
             "dias": 20,
-            "cod_put": "BOVAT180", "cod_call": "BOVAH180",
+            "cod_put": "BOVAT180",
+            "cod_call": "BOVAH180",
         }
-        result = uc.executar_log(opp_dict, output_dir=tmp_path / "logs")
+        result = uc.executar_log(opp_dict)
         assert result.pct_cdi == 1.5
         assert result.dias == 20

@@ -25,11 +25,11 @@ class InstrumentoRepository:
         conn = get_connection(self.db_path)
         try:
             cursor = conn.execute(
-                """INSERT INTO instrumentos_base (ativo, cod_put, cod_call, strike, vencimento, tipo_opcao)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao)
+                VALUES (?, ?, ?, ?, ?)""",
                 (instrumento.ativo, instrumento.cod_put, instrumento.cod_call,
-                 instrumento.strike, instrumento.vencimento.isoformat(),
-                 instrumento.tipo_opcao.value)
+                instrumento.vencimento.isoformat(),
+                instrumento.tipo_opcao.value)
             )
             conn.commit()
             instrumento.id = cursor.lastrowid
@@ -41,11 +41,11 @@ class InstrumentoRepository:
         conn = get_connection(self.db_path)
         try:
             rows = [
-                (i.ativo, i.cod_put, i.cod_call, i.strike, i.vencimento.isoformat(), i.tipo_opcao.value)
+                (i.ativo, i.cod_put, i.cod_call, i.vencimento.isoformat(), i.tipo_opcao.value)
                 for i in instrumentos
             ]
             conn.executemany(
-                "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, strike, vencimento, tipo_opcao) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao) VALUES (?, ?, ?, ?, ?)",
                 rows,
             )
             conn.commit()
@@ -63,7 +63,6 @@ class InstrumentoRepository:
                     ativo=row["ativo"],
                     cod_put=row["cod_put"],
                     cod_call=row["cod_call"],
-                    strike=row["strike"],
                     vencimento=_parse_date(row["vencimento"]),
                     tipo_opcao=TipoOpcao(row["tipo_opcao"]),
                 )
@@ -84,7 +83,6 @@ class InstrumentoRepository:
                     ativo=row["ativo"],
                     cod_put=row["cod_put"],
                     cod_call=row["cod_call"],
-                    strike=row["strike"],
                     vencimento=_parse_date(row["vencimento"]),
                     tipo_opcao=TipoOpcao(row["tipo_opcao"]),
                 )

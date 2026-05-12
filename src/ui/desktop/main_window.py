@@ -1,12 +1,12 @@
-from pathlib import Path
+from datetime import datetime
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QStatusBar, QSplitter, QToolBar,
-    QAction, QTabWidget, QLabel, QFileDialog, QMessageBox,
+    QPushButton, QToolBar,
+    QAction, QLabel, QDialog,
     QHeaderView, QTableView, QAbstractItemView,
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
 
 from src.infrastructure.persistence.database import get_db_path
@@ -18,13 +18,16 @@ from src.ui.desktop.monitor_worker import MonitorWorker
 from src.ui.desktop.import_dialog import ImportDialog
 from src.ui.desktop.export_dialog import ExportDialog
 from src.ui.desktop.parametros_widget import ParametrosWidget
+from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 
 
 class MainWindow(QMainWindow):
     def __init__(self, db_path=None):
         super().__init__()
         self.db_path = db_path or str(get_db_path())
-        self.output_dir = str(Path("logs"))
+        self._last_scan_time = None
+        self._total_opps = 0
+        self._total_viaveis = 0
 
         self.importar_uc = ImportarBaseUseCase(self.db_path)
         self.exportar_uc = ExportarOperacaoUseCase(self.db_path)
@@ -36,6 +39,11 @@ class MainWindow(QMainWindow):
 
         self._setup_ui()
         self._setup_toolbar()
+        self._setup_status_bar()
+
+        self._scan_timer = QTimer(self)
+        self._scan_timer.timeout.connect(self._update_scan_status)
+        self._scan_timer.start(1000)
 
     def _setup_ui(self):
         self.setWindowTitle("SpreadHunter - Monitor de Oportunidades")
@@ -44,8 +52,6 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
-
-        splitter = QSplitter(Qt.Horizontal)
 
         self.table_model = MonitorTableModel()
         self.table_view = QTableView()
@@ -60,25 +66,7 @@ class MainWindow(QMainWindow):
         font = QFont("Consolas", 9)
         self.table_view.setFont(font)
 
-        splitter.addWidget(self.table_view)
-
-        self.tabs = QTabWidget()
-        self.parametros_widget = ParametrosWidget(self.db_path)
-        self.tabs.addTab(self.parametros_widget, "Parametros")
-
-        info_label = QLabel(
-            "SpreadHunter v0.1\n\n"
-            "1. Importe a base de instrumentos (XLSX)\n"
-            "2. Configure os dados de mercado\n"
-            "3. O monitor varre oportunidades\n"
-            "4. Clique duplo em uma linha para exportar\n"
-        )
-        self.tabs.addTab(info_label, "Ajuda")
-
-        splitter.addWidget(self.tabs)
-        splitter.setSizes([750, 300])
-
-        main_layout.addWidget(splitter)
+        main_layout.addWidget(self.table_view)
 
         btn_layout = QHBoxLayout()
 
@@ -98,10 +86,6 @@ class MainWindow(QMainWindow):
 
         main_layout.addLayout(btn_layout)
 
-        self.statusBar().showMessage("Pronto — RTD: {}".format(
-            "conectado" if self._rtd.disponivel else "indisponivel"
-        ))
-
     def _setup_toolbar(self):
         toolbar = QToolBar("Arquivo")
         self.addToolBar(toolbar)
@@ -114,9 +98,46 @@ class MainWindow(QMainWindow):
         action_varrer.triggered.connect(lambda: self._toggle_monitor(not self.btn_varrer.isChecked()))
         toolbar.addAction(action_varrer)
 
-        action_output = QAction("Pasta de Saida...", self)
-        action_output.triggered.connect(self._selecionar_output_dir)
-        toolbar.addAction(action_output)
+        action_parametros = QAction("Parametros", self)
+        action_parametros.triggered.connect(self._abrir_parametros)
+        toolbar.addAction(action_parametros)
+
+    def _setup_status_bar(self):
+        self._status_left = QLabel("Pronto")
+        self._status_right = QLabel("")
+        self._status_right.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.statusBar().addWidget(self._status_left, 1)
+        self.statusBar().addPermanentWidget(self._status_right)
+        self._update_cdi_display()
+
+    def _update_cdi_display(self):
+        param_repo = ParametroRepository(self.db_path)
+        taxa_cdi = 0.0
+        param = param_repo.get_by_chave("taxa_cdi")
+        if param:
+            taxa_cdi = param.valor
+        cdi_anual_pct = taxa_cdi * 100
+        cdi_mes = (1 + taxa_cdi) ** (1 / 12) - 1 if taxa_cdi > 0 else 0.0
+        cdi_mes_pct = cdi_mes * 100
+        cdi_dia = (1 + taxa_cdi) ** (1 / 365) - 1 if taxa_cdi > 0 else 0.0
+        cdi_dia_pct = cdi_dia * 100
+        self._status_right.setText(
+            "CDI: {:.2f}%a | {:.4f}%m | {:.4f}%d".format(cdi_anual_pct, cdi_mes_pct, cdi_dia_pct)
+        )
+
+    def _abrir_parametros(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Parametros Operacionais")
+        dialog.setMinimumSize(500, 600)
+        layout = QVBoxLayout(dialog)
+        widget = ParametrosWidget(self.db_path)
+        layout.addWidget(widget)
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.clicked.connect(dialog.accept)
+        layout.addWidget(btn_fechar)
+        dialog.exec_()
+        self._worker.recarregar_parametros()
+        self._update_cdi_display()
 
     def _toggle_monitor(self, checked):
         if checked:
@@ -126,31 +147,47 @@ class MainWindow(QMainWindow):
                 self._worker.start()
             else:
                 self._worker.retomar()
-            self.statusBar().showMessage("Monitor ativo — RTD: {}".format(
+            self._status_left.setText("Monitor ativo — RTD: {}".format(
                 "conectado" if self._rtd.disponivel else "indisponivel"
             ))
+            self._update_cdi_display()
         else:
             self.btn_varrer.setText("Iniciar Monitor")
             self.btn_import.setEnabled(True)
             if self._worker.isRunning():
                 self._worker.pausar()
-            self.statusBar().showMessage("Monitor pausado")
+            self._status_left.setText("Monitor pausado")
 
     def _on_oportunidades_atualizadas(self, resultados: list):
         self.table_model.atualizar(resultados)
-        viaveis = sum(1 for r in resultados if r.viavel)
+        self._total_opps = len(resultados)
+        self._total_viaveis = sum(1 for r in resultados if r.viavel)
         self.lbl_count.setText(
-            "{} oportunidades ({} viaveis)".format(len(resultados), viaveis)
+            "{} oportunidades ({} viaveis)".format(self._total_opps, self._total_viaveis)
         )
+        self._last_scan_time = datetime.now()
+        self._update_scan_status()
 
     def _on_status_message(self, msg: str):
-        self.statusBar().showMessage(msg)
+        self._status_left.setText(msg)
+
+    def _update_scan_status(self):
+        if self._last_scan_time is None:
+            return
+        elapsed = (datetime.now() - self._last_scan_time).total_seconds()
+        ts = self._last_scan_time.strftime("%H:%M:%S")
+        rtd_status = "conectado" if self._rtd.disponivel else "indisponivel"
+        self._status_left.setText(
+            "Ultima varredura: {} ({}s atras) | {} oportunidades ({} viaveis) | RTD: {}".format(
+                ts, int(elapsed), self._total_opps, self._total_viaveis, rtd_status
+            )
+        )
 
     def _abrir_importacao(self):
         dialog = ImportDialog(self.importar_uc, self)
         dialog.exec_()
         if dialog.result is not None:
-            self.statusBar().showMessage(
+            self._status_left.setText(
                 "Importados {} instrumentos, {} ativos".format(
                     dialog.result.total_importados, len(dialog.result.ativos)
                 )
@@ -160,16 +197,8 @@ class MainWindow(QMainWindow):
         opp = self.table_model.get_oportunidade(index.row())
         if opp is None:
             return
-        dialog = ExportDialog(opp, self.exportar_uc, self.output_dir, self)
+        dialog = ExportDialog(opp, self.exportar_uc, self)
         dialog.exec_()
-
-    def _selecionar_output_dir(self):
-        folder = QFileDialog.getExistingDirectory(
-            self, "Selecionar pasta de saida", self.output_dir,
-        )
-        if folder:
-            self.output_dir = folder
-            self.statusBar().showMessage("Pasta de saida: {}".format(folder))
 
     def closeEvent(self, event):
         self._worker.parar()

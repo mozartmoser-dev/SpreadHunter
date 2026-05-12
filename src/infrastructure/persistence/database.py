@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS instrumentos_base (
     ativo TEXT NOT NULL,
     cod_put TEXT NOT NULL,
     cod_call TEXT NOT NULL,
-    strike REAL NOT NULL,
     vencimento DATE NOT NULL,
     tipo_opcao TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

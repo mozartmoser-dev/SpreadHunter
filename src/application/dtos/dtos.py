@@ -37,6 +37,15 @@ class OportunidadeMonitor:
     preco_compra_ativo: float = 0.0
     of_venda_put: float = 0.0
     of_compra_call: float = 0.0
+    em_leilao: bool = False
+    liq_put_x_lote: float = 0.0
+    liq_call_x_lote: float = 0.0
+    of_compra_put: float = 0.0
+    of_venda_call: float = 0.0
+    qul_put: float = 0.0
+    qul_call: float = 0.0
+    money_put: float = 0.0
+    money_call: float = 0.0
 
     @property
     def custo_sbth_display(self) -> str:
@@ -78,6 +87,15 @@ class OportunidadeMonitor:
         return "{}d".format(self.dias)
 
     @property
+    def money_display(self) -> str:
+        parts = []
+        if self.money_put > 0:
+            parts.append("P:{:.2f}".format(self.money_put))
+        if self.money_call > 0:
+            parts.append("C:{:.2f}".format(self.money_call))
+        return " | ".join(parts) if parts else "-"
+
+    @property
     def resumo_linha(self) -> str:
         return "{} | {} {} | {} | {} | %ganho={:.2f}%".format(
             self.ativo, self.label_tipo, self.label_dias,
@@ -111,4 +129,5 @@ class ExportarResultado:
     pct_cdi: float = 0.0
     dias: int = 0
     exportado_em: str = ""
-    filepath: str = ""
+    boleta: dict = field(default_factory=dict)
+    oportunidade_id: int = 0
