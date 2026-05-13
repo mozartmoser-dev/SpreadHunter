@@ -12,6 +12,8 @@ class RTDProfit:
         self._rtd = None
         self._topic_counter = 1000
         self._topic_map: dict[str, int] = {}
+        self._topic_reverse: dict[int, str] = {}
+        self._valores: dict[int, object] = {}
         self._conectar()
 
     def _conectar(self):
@@ -53,8 +55,110 @@ class RTDProfit:
         chave = "{}|{}".format(codigo, campo)
         if chave not in self._topic_map:
             self._topic_counter += 1
-            self._topic_map[chave] = self._topic_counter
+            tid = self._topic_counter
+            self._topic_map[chave] = tid
+            self._topic_reverse[tid] = chave
         return self._topic_map[chave]
+
+    def registrar_topico(self, codigo: str, campo: str) -> int:
+        tid = self._topic_id(codigo, campo)
+        if tid not in self._valores:
+            try:
+                topico = rtd_topico(codigo)
+                resultado = self._rtd.ConnectData(tid, [topico, campo], True)
+                valor = resultado[0] if isinstance(resultado, tuple) else resultado
+                self._valores[tid] = valor
+            except Exception:
+                self._valores[tid] = None
+        return tid
+
+    def registrar_status(self, codigo: str) -> int:
+        tid = self._topic_id(codigo, "EST")
+        if tid not in self._valores:
+            try:
+                resultado = self._rtd.ConnectData(tid, [codigo, "EST"], True)
+                valor = resultado[0] if isinstance(resultado, tuple) else resultado
+                self._valores[tid] = valor
+            except Exception:
+                self._valores[tid] = None
+        return tid
+
+    def refresh(self) -> dict[str, object]:
+        if not self.disponivel or self._rtd is None:
+            return {}
+        try:
+            resultado = self._rtd.RefreshData(0)
+        except Exception as e:
+            logger.debug("RTD RefreshData erro: %s", e)
+            return {}
+        if isinstance(resultado, int):
+            return {}
+        try:
+            data, update_count = resultado[0], resultado[1]
+            update_count = int(update_count)
+        except Exception:
+            return {}
+        if update_count == 0:
+            return {}
+        try:
+            topics = data[0]
+        except Exception:
+            return {}
+        changed_tids: set[int] = set()
+        for i in range(min(len(topics), update_count)):
+            raw_tid = topics[i]
+            if isinstance(raw_tid, int):
+                tid = raw_tid
+            elif isinstance(raw_tid, tuple):
+                tid = int(raw_tid[0])
+            else:
+                try:
+                    tid = int(raw_tid)
+                except (ValueError, TypeError):
+                    continue
+            changed_tids.add(tid)
+        mudancas: dict[str, object] = {}
+        for tid in changed_tids:
+            chave = self._topic_reverse.get(tid)
+            if not chave or "|" not in chave:
+                continue
+            codigo, campo = chave.split("|", 1)
+            try:
+                if campo == "EST":
+                    res = self._rtd.ConnectData(tid, [codigo, "EST"], False)
+                else:
+                    topico = rtd_topico(codigo)
+                    res = self._rtd.ConnectData(tid, [topico, campo], False)
+                valor = res[0] if isinstance(res, tuple) else res
+                self._valores[tid] = valor
+                mudancas[chave] = valor
+            except Exception:
+                pass
+        return mudancas
+
+    def ler_campo_cache(self, codigo: str, campo: str) -> Optional[float]:
+        chave = "{}|{}".format(codigo, campo)
+        tid = self._topic_map.get(chave)
+        if tid is None:
+            return None
+        valor = self._valores.get(tid)
+        if valor is None:
+            return None
+        try:
+            v = float(str(valor).replace(",", "."))
+            return v if v > 0 else None
+        except (ValueError, TypeError):
+            return None
+
+    def ler_status_cache(self, codigo: str) -> str:
+        chave = "{}|EST".format(codigo)
+        tid = self._topic_map.get(chave)
+        if tid is None:
+            return ""
+        valor = self._valores.get(tid)
+        if valor is None:
+            return ""
+        return str(valor).strip()
 
     def ler_campo(self, codigo: str, campo: str) -> Optional[float]:
         if not self.disponivel or self._rtd is None:
@@ -64,13 +168,11 @@ class RTDProfit:
             tid = self._topic_id(codigo, campo)
             resultado = self._rtd.ConnectData(tid, [topico, campo], False)
             valor = resultado[0] if isinstance(resultado, tuple) else resultado
-            logger.debug("RTD ConnectData(%s, [%s, %s]) = %s", tid, topico, campo, valor)
             if valor is None:
                 return None
             v = float(str(valor).replace(",", "."))
             return v if v > 0 else None
-        except Exception as e:
-            logger.debug("RTD erro ConnectData(%s, [%s, %s]): %s", tid, topico, campo, e)
+        except Exception:
             return None
 
     def ler_status(self, codigo: str) -> str:

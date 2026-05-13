@@ -68,6 +68,8 @@ class MonitorOportunidadesUseCase:
         return resultados
 
     def _calcular_oportunidade(self, inst, mercado, calc):
+        if mercado is None:
+            return None
         strike_rtd = mercado.get("strike_rtd")
         strike = strike_rtd if strike_rtd and strike_rtd > 0 else (extrair_strike(inst.cod_put) or 0.0)
 

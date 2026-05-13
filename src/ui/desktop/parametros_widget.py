@@ -1,18 +1,26 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QGroupBox,
-    QDoubleSpinBox, QPushButton, QLabel, QScrollArea,
+    QDoubleSpinBox, QPushButton, QLabel, QScrollArea, QFrame,
 )
 from PyQt5.QtCore import Qt
 
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 from src.domain.entities.parametro_operacional import ParametroOperacional
+from src.ui.desktop.theme import Palette
 
 
 ESTRATEGIA_LABELS = {
     "GERAL": "Geral",
     "SBTH": "SBTH (Synthetic Buy & Hold)",
     "BOX": "BOX Comprado 3 Pontas",
-    "BOX_SINTETICO": "BOX Sint\u00e9tico / Pescaria Basket",
+    "BOX_SINTETICO": "BOX Sintetico / Pescaria Basket",
+}
+
+ESTRATEGIA_COLORS = {
+    "GERAL": Palette.TEXT_PRIMARY,
+    "SBTH": Palette.CYAN,
+    "BOX": Palette.ACCENT_BLUE_BRIGHT,
+    "BOX_SINTETICO": Palette.PURPLE,
 }
 
 PARAMETROS_POR_ESTRATEGIA = {
@@ -20,7 +28,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("taxa_cdi", "Taxa CDI/Selic"),
     ],
     "BOX": [
-        ("premio_risco_box", "Pr\u00eamio risco BOX (x CDI)"),
+        ("premio_risco_box", "Premio risco BOX (x CDI)"),
         ("box_qtd_ativo", "Qtd compra ativo"),
         ("box_prof_ativo", "Profund. book ativo"),
         ("box_qtd_put", "Qtd compra PUT"),
@@ -29,14 +37,14 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("box_prof_call", "Profund. book Call"),
     ],
     "SBTH": [
-        ("premio_risco_sbth", "Pr\u00eamio risco SBTH (x CDI)"),
+        ("premio_risco_sbth", "Premio risco SBTH (x CDI)"),
         ("sbth_qtd_ativo", "Qtd compra ativo"),
         ("sbth_prof_ativo", "Profund. book ativo"),
         ("sbth_qtd_put", "Qtd compra PUT"),
         ("sbth_prof_put", "Profund. book PUT"),
     ],
     "BOX_SINTETICO": [
-        ("premio_box_sintetico_call_itm", "Pr\u00eamio risco Box sint\u00e9tico (x CDI)"),
+        ("premio_box_sintetico_call_itm", "Premio risco Box sintetico (x CDI)"),
         ("basket_qtd_call_itm", "Qtd compra Call ITM"),
         ("basket_prof_call_itm", "Profund. Call ITM"),
         ("basket_qtd_put", "Qtd compra PUT"),
@@ -58,16 +66,26 @@ class ParametrosWidget(QWidget):
 
     def _setup_ui(self):
         outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(8)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll_content = QWidget()
         layout = QVBoxLayout(scroll_content)
+        layout.setSpacing(12)
+        layout.setContentsMargins(8, 8, 8, 8)
 
         for estrategia, params in PARAMETROS_POR_ESTRATEGIA.items():
             label = ESTRATEGIA_LABELS.get(estrategia, estrategia)
+            color = ESTRATEGIA_COLORS.get(estrategia, Palette.TEXT_PRIMARY)
             group = QGroupBox(label)
+            group.setStyleSheet(
+                "QGroupBox::title {{ color: {}; }}".format(color)
+            )
             form = QFormLayout()
+            form.setSpacing(10)
+            form.setContentsMargins(12, 20, 12, 12)
 
             for chave, display in params:
                 spin = QDoubleSpinBox()
@@ -81,8 +99,11 @@ class ParametrosWidget(QWidget):
                 else:
                     spin.setDecimals(4)
                     spin.setSingleStep(0.01)
+
+                param_label = QLabel(display + ":")
+                param_label.setStyleSheet("color: {}; font-size: 9pt;".format(Palette.TEXT_SECONDARY))
+                form.addRow(param_label, spin)
                 self._spins[chave] = spin
-                form.addRow(display + ":", spin)
 
             group.setLayout(form)
             layout.addWidget(group)
@@ -91,11 +112,18 @@ class ParametrosWidget(QWidget):
         scroll.setWidget(scroll_content)
         outer_layout.addWidget(scroll)
 
-        self.btn_salvar = QPushButton("Salvar Par\u00e2metros")
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("background-color: {}; max-height: 1px;".format(Palette.BORDER))
+        outer_layout.addWidget(sep)
+
+        self.btn_salvar = QPushButton("Salvar Parametros")
+        self.btn_salvar.setProperty("class", "primary")
         self.btn_salvar.clicked.connect(self._salvar)
         outer_layout.addWidget(self.btn_salvar)
 
         self.lbl_status = QLabel("")
+        self.lbl_status.setAlignment(Qt.AlignCenter)
         outer_layout.addWidget(self.lbl_status)
 
     def _carregar(self):
@@ -126,8 +154,12 @@ class ParametrosWidget(QWidget):
                             descricao=d["descricao"],
                         )
                         self.repo.save(p)
-            self.lbl_status.setText("Par\u00e2metros salvos com sucesso.")
-            self.lbl_status.setStyleSheet("color: green;")
+            self.lbl_status.setText("Parametros salvos com sucesso.")
+            self.lbl_status.setStyleSheet(
+                "color: {}; font-weight: bold; padding: 4px;".format(Palette.GREEN)
+            )
         except Exception as e:
             self.lbl_status.setText("Erro: {}".format(str(e)))
-            self.lbl_status.setStyleSheet("color: red;")
+            self.lbl_status.setStyleSheet(
+                "color: {}; font-weight: bold; padding: 4px;".format(Palette.RED)
+            )

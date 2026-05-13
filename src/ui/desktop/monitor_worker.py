@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 class MonitorWorker(QThread):
     oportunidades_atualizadas = pyqtSignal(list)
     status_message = pyqtSignal(str)
+    rtd_status = pyqtSignal(bool)
 
     def __init__(self, db_path: str, rtd: RTDProfit, parent=None):
         super().__init__(parent)
@@ -21,7 +22,8 @@ class MonitorWorker(QThread):
         self._monitor_uc = MonitorOportunidadesUseCase(db_path)
         self._running = False
         self._paused = False
-        self._interval_ms = 1500
+        self._interval_ms = 2500
+        self._mostrar_tp_op = False
         self._mutex = QMutex()
         self._wait_condition = QWaitCondition()
 
@@ -29,8 +31,11 @@ class MonitorWorker(QThread):
         import pythoncom
         pythoncom.CoInitialize()
 
-        rtd = RTDProfit()
+        rtd = self._rtd_main
+        if not rtd or not rtd.disponivel:
+            rtd = RTDProfit()
         self._mercado_provider = MercadoDataProvider(self.db_path, rtd)
+        self.rtd_status.emit(rtd.disponivel)
 
         self._running = True
         logger.info("MonitorWorker: thread iniciada (COM inicializado).")
@@ -49,6 +54,8 @@ class MonitorWorker(QThread):
                     dados_mercado = self._mercado_provider.capturar_dados_mercado()
 
                 resultados = self._monitor_uc.varrer(dados_mercado)
+                if not self._mostrar_tp_op:
+                    resultados = [r for r in resultados if r.classificacao != "TP.Op"]
                 self.oportunidades_atualizadas.emit(resultados)
 
                 viaveis = sum(1 for r in resultados if r.viavel)
@@ -86,7 +93,10 @@ class MonitorWorker(QThread):
         logger.info("MonitorWorker: parado.")
 
     def set_interval(self, ms: int):
-        self._interval_ms = max(500, ms)
+        self._interval_ms = max(2000, ms)
 
     def recarregar_parametros(self):
         self._monitor_uc.recarregar_parametros()
+
+    def set_mostrar_tp_op(self, mostrar: bool):
+        self._mostrar_tp_op = mostrar

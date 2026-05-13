@@ -1,5 +1,7 @@
 import logging
+import shutil
 import sys
+from pathlib import Path
 
 from PyQt5.QtWidgets import QApplication
 
@@ -9,7 +11,16 @@ from src.ui.desktop.main_window import MainWindow
 logging.basicConfig(level=logging.DEBUG, format="%(name)s | %(levelname)s | %(message)s")
 
 
+def _clear_pycache():
+    for pycache in Path(".").rglob("__pycache__"):
+        try:
+            shutil.rmtree(pycache)
+        except Exception:
+            pass
+
+
 def run_app(db_path=None):
+    _clear_pycache()
     bootstrap(db_path)
 
     app = QApplication(sys.argv)

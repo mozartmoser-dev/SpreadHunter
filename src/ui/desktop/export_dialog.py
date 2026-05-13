@@ -1,12 +1,13 @@
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QGroupBox, QFormLayout, QMessageBox,
-    QDoubleSpinBox, QComboBox,
+    QDoubleSpinBox, QComboBox, QFrame, QTabWidget, QWidget,
 )
 from PyQt5.QtCore import Qt
 
 from src.application.dtos.dtos import OportunidadeMonitor, TipoExportacao
 from src.application.use_cases.exportar_operacao import ExportarOperacaoUseCase
+from src.ui.desktop.theme import Palette
 
 
 class ExportDialog(QDialog):
@@ -22,140 +23,268 @@ class ExportDialog(QDialog):
         self._result = None
 
         self.setWindowTitle("Exportar Operacao - {}".format(oportunidade.ativo))
-        self.setMinimumWidth(450)
+        self.setMinimumWidth(520)
+        self.setMinimumHeight(580)
         self._setup_ui()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 12)
+        layout.setSpacing(10)
 
-        info_group = QGroupBox("Oportunidade")
-        info_layout = QFormLayout()
+        header = QLabel("{}  |  {}  |  Strike {:.2f}  |  {}".format(
+            self.oportunidade.ativo,
+            self.oportunidade.label_tipo,
+            self.oportunidade.strike,
+            self.oportunidade.vencimento or "-",
+        ))
+        header.setStyleSheet(
+            "font-size: 13pt; font-weight: bold; color: {}; padding: 6px 0;".format(Palette.TEXT_PRIMARY)
+        )
+        layout.addWidget(header)
 
-        info_layout.addRow("Ativo:", QLabel(self.oportunidade.ativo))
-        info_layout.addRow("Tipo:", QLabel(self.oportunidade.label_tipo))
-        info_layout.addRow("Rentabilidade:", QLabel(self.oportunidade.label_rentabilidade))
-        info_layout.addRow("Dias:", QLabel(self.oportunidade.label_dias))
-        info_layout.addRow("Strike:", QLabel("{:.2f}".format(self.oportunidade.strike)))
-        info_layout.addRow("Vencimento:", QLabel(self.oportunidade.vencimento or "-"))
-        info_layout.addRow("Cod Put:", QLabel(self.oportunidade.cod_put))
-        info_layout.addRow("Cod Call:", QLabel(self.oportunidade.cod_call))
-        info_layout.addRow("Tipo Opcao:", QLabel(self.oportunidade.tipo_opcao))
+        tabs = QTabWidget()
+        layout.addWidget(tabs, stretch=1)
 
-        info_group.setLayout(info_layout)
-        layout.addWidget(info_group)
+        tabs.addTab(self._build_pernas_tab(), "Pernas & Custos")
+        tabs.addTab(self._build_mercado_tab(), "Dados de Mercado")
+        tabs.addTab(self._build_operacao_tab(), "Operacao")
 
-        pernas_group = QGroupBox("Pernas e Custos")
-        pernas_layout = QFormLayout()
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
+
+        self.btn_log = QPushButton("Registrar Operacao")
+        self.btn_log.setProperty("class", "primary")
+        self.btn_log.clicked.connect(self._exportar_log)
+        btn_layout.addWidget(self.btn_log)
+
+        self.btn_basket = QPushButton("Exportar BASKET ITM")
+        self.btn_basket.setProperty("class", "danger")
+        self.btn_basket.clicked.connect(self._exportar_basket)
+        btn_layout.addWidget(self.btn_basket)
+
+        btn_layout.addStretch()
+
+        self.btn_fechar = QPushButton("Cancelar")
+        self.btn_fechar.clicked.connect(self.reject)
+        btn_layout.addWidget(self.btn_fechar)
+
+        layout.addLayout(btn_layout)
+
+    def _build_pernas_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(8, 12, 8, 8)
 
         opp = self.oportunidade
-        pernas_layout.addRow("Compra Ativo (of. venda):", QLabel("{:.2f}".format(opp.preco_compra_ativo)))
-        pernas_layout.addRow("Compra Put (of. venda):", QLabel("{:.2f}".format(opp.of_venda_put)))
-        pernas_layout.addRow("Venda Call (of. compra):", QLabel("{:.2f}".format(opp.of_compra_call)))
 
-        pernas_layout.addRow(QLabel(""))
+        pernas_group = QGroupBox("Pernas da Estrutura")
+        pernas_form = QFormLayout()
+        pernas_form.setSpacing(8)
+        pernas_form.addRow(self._label_muted("Compra Ativo:"), QLabel("{:.2f} (of. venda)".format(opp.preco_compra_ativo)))
+        pernas_form.addRow(self._label_muted("Compra Put:"), QLabel("{:.2f} (of. venda)".format(opp.of_venda_put)))
+        pernas_form.addRow(self._label_muted("Venda Call:"), QLabel("{:.2f} (of. compra)".format(opp.of_compra_call)))
+        pernas_group.setLayout(pernas_form)
+        layout.addWidget(pernas_group)
+
+        custos_group = QGroupBox("Custos e Rentabilidade")
+        custos_form = QFormLayout()
+        custos_form.setSpacing(8)
+
+        is_box = opp.is_box
+        is_sbth = opp.is_sbth
 
         lbl_custo_sbth = QLabel("{:.2f}".format(opp.custo_sbth) if opp.custo_sbth > 0 else "-")
         lbl_ganho_sbth = QLabel("{:.2f}%".format(opp.pct_ganho_sbth * 100) if opp.pct_ganho_sbth > 0 else "-")
         lbl_cdi_sbth = QLabel("{:.2f}x CDI".format(opp.pct_cdi_sbth) if opp.pct_cdi_sbth > 0 else "-")
+
+        if is_sbth:
+            lbl_custo_sbth.setStyleSheet("color: {}; font-weight: bold;".format(Palette.CYAN))
+            lbl_ganho_sbth.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
+            lbl_cdi_sbth.setStyleSheet("color: {}; font-weight: bold;".format(Palette.YELLOW))
+        else:
+            strike_font = lbl_custo_sbth.font()
+            strike_font.setStrikeOut(True)
+            for w in (lbl_custo_sbth, lbl_ganho_sbth, lbl_cdi_sbth):
+                w.setFont(strike_font)
+                w.setStyleSheet("color: {};".format(Palette.STRIKEOUT_COLOR))
+
+        custos_form.addRow(self._label_muted("Custo SBTH:"), lbl_custo_sbth)
+        custos_form.addRow(self._label_muted("Ganho % SBTH:"), lbl_ganho_sbth)
+        custos_form.addRow(self._label_muted("vs CDI SBTH:"), lbl_cdi_sbth)
+
+        custos_form.addRow(self._spacer(), QLabel(""))
+
         lbl_custo_box = QLabel("{:.2f}".format(opp.custo_box) if opp.custo_box > 0 else "-")
         lbl_ganho_box = QLabel("{:.2f}%".format(opp.pct_ganho_box * 100) if opp.pct_ganho_box > 0 else "-")
         lbl_cdi_box = QLabel("{:.2f}x CDI".format(opp.pct_cdi_box) if opp.pct_cdi_box > 0 else "-")
 
-        if not opp.is_sbth:
-            strike_font = lbl_custo_sbth.font()
-            strike_font.setStrikeOut(True)
-            lbl_custo_sbth.setFont(strike_font)
-            lbl_ganho_sbth.setFont(strike_font)
-            lbl_cdi_sbth.setFont(strike_font)
-        if not opp.is_box:
+        if is_box:
+            lbl_custo_box.setStyleSheet("color: {}; font-weight: bold;".format(Palette.ACCENT_BLUE_BRIGHT))
+            lbl_ganho_box.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
+            lbl_cdi_box.setStyleSheet("color: {}; font-weight: bold;".format(Palette.YELLOW))
+        else:
             strike_font = lbl_custo_box.font()
             strike_font.setStrikeOut(True)
-            lbl_custo_box.setFont(strike_font)
-            lbl_ganho_box.setFont(strike_font)
-            lbl_cdi_box.setFont(strike_font)
+            for w in (lbl_custo_box, lbl_ganho_box, lbl_cdi_box):
+                w.setFont(strike_font)
+                w.setStyleSheet("color: {};".format(Palette.STRIKEOUT_COLOR))
 
-        pernas_layout.addRow("Custo Total SBTH:", lbl_custo_sbth)
-        pernas_layout.addRow("Ganho % SBTH:", lbl_ganho_sbth)
-        pernas_layout.addRow("Ganho vs CDI SBTH:", lbl_cdi_sbth)
-        pernas_layout.addRow(QLabel(""))
-        pernas_layout.addRow("Custo Total BOX:", lbl_custo_box)
-        pernas_layout.addRow("Ganho % BOX:", lbl_ganho_box)
-        pernas_layout.addRow("Ganho vs CDI BOX:", lbl_cdi_box)
+        custos_form.addRow(self._label_muted("Custo BOX:"), lbl_custo_box)
+        custos_form.addRow(self._label_muted("Ganho % BOX:"), lbl_ganho_box)
+        custos_form.addRow(self._label_muted("vs CDI BOX:"), lbl_cdi_box)
 
-        pernas_group.setLayout(pernas_layout)
-        layout.addWidget(pernas_group)
+        custos_group.setLayout(custos_form)
+        layout.addWidget(custos_group)
+        layout.addStretch()
+        return widget
 
-        mercado_group = QGroupBox("Dados de Mercado (Boleta)")
-        mercado_layout = QFormLayout()
+    def _build_mercado_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(8, 12, 8, 8)
 
-        mercado_layout.addRow("Of. Compra Put:", QLabel("{:.2f}".format(opp.of_compra_put) if opp.of_compra_put > 0 else "-"))
-        mercado_layout.addRow("Of. Venda Put:", QLabel("{:.2f}".format(opp.of_venda_put) if opp.of_venda_put > 0 else "-"))
-        mercado_layout.addRow("Of. Compra Call:", QLabel("{:.2f}".format(opp.of_compra_call) if opp.of_compra_call > 0 else "-"))
-        mercado_layout.addRow("Of. Venda Call:", QLabel("{:.2f}".format(opp.of_venda_call) if opp.of_venda_call > 0 else "-"))
-        mercado_layout.addRow("Qul Put:", QLabel("{:.0f}".format(opp.qul_put) if opp.qul_put > 0 else "-"))
-        mercado_layout.addRow("Qul Call:", QLabel("{:.0f}".format(opp.qul_call) if opp.qul_call > 0 else "-"))
-        mercado_layout.addRow("Liq Put x Lote:", QLabel("{:.0f}".format(opp.liq_put_x_lote)))
-        mercado_layout.addRow("Liq Call x Lote:", QLabel("{:.0f}".format(opp.liq_call_x_lote)))
-        mercado_layout.addRow("Money Put:", QLabel("{:.2f}".format(opp.money_put) if opp.money_put > 0 else "-"))
-        mercado_layout.addRow("Money Call:", QLabel("{:.2f}".format(opp.money_call) if opp.money_call > 0 else "-"))
+        opp = self.oportunidade
 
-        lbl_leilao = QLabel("SIM - BLOQUEADO" if opp.em_leilao else "Nao")
+        ofertas_group = QGroupBox("Ofertas")
+        ofertas_form = QFormLayout()
+        ofertas_form.setSpacing(8)
+        ofertas_form.addRow(
+            self._label_muted("Compra Put:"),
+            self._value_label(opp.of_compra_put),
+        )
+        ofertas_form.addRow(
+            self._label_muted("Venda Put:"),
+            self._value_label(opp.of_venda_put),
+        )
+        ofertas_form.addRow(
+            self._label_muted("Compra Call:"),
+            self._value_label(opp.of_compra_call),
+        )
+        ofertas_form.addRow(
+            self._label_muted("Venda Call:"),
+            self._value_label(opp.of_venda_call),
+        )
+        ofertas_group.setLayout(ofertas_form)
+        layout.addWidget(ofertas_group)
+
+        liquidez_group = QGroupBox("Liquidez & Quantidade")
+        liq_form = QFormLayout()
+        liq_form.setSpacing(8)
+
+        liq_put_lbl = QLabel("{:.0f}".format(opp.liq_put_x_lote))
+        liq_put_lbl.setStyleSheet(
+            "color: {}; font-weight: bold;".format(
+                Palette.LIQ_POSITIVE if opp.liq_put_x_lote >= 0 else Palette.LIQ_NEGATIVE
+            )
+        )
+        liq_call_lbl = QLabel("{:.0f}".format(opp.liq_call_x_lote))
+        liq_call_lbl.setStyleSheet(
+            "color: {}; font-weight: bold;".format(
+                Palette.LIQ_POSITIVE if opp.liq_call_x_lote >= 0 else Palette.LIQ_NEGATIVE
+            )
+        )
+
+        liq_form.addRow(self._label_muted("Liq Put x Lote:"), liq_put_lbl)
+        liq_form.addRow(self._label_muted("Liq Call x Lote:"), liq_call_lbl)
+        liq_form.addRow(self._label_muted("Qul Put:"), self._value_label(opp.qul_put, is_int=True))
+        liq_form.addRow(self._label_muted("Qul Call:"), self._value_label(opp.qul_call, is_int=True))
+        liquidez_group.setLayout(liq_form)
+        layout.addWidget(liquidez_group)
+
+        info_group = QGroupBox("Moneyness & Status")
+        info_form = QFormLayout()
+        info_form.setSpacing(8)
+        info_form.addRow(self._label_muted("Money Put:"), self._value_label(opp.money_put))
+        info_form.addRow(self._label_muted("Money Call:"), self._value_label(opp.money_call))
+
+        lbl_leilao = QLabel("BLOQUEADO" if opp.em_leilao else "OK")
         if opp.em_leilao:
-            lbl_leilao.setStyleSheet("color: red; font-weight: bold;")
-        mercado_layout.addRow("Em Leilao:", lbl_leilao)
+            lbl_leilao.setStyleSheet(
+                "color: {}; background-color: {}; border-radius: 3px; "
+                "padding: 2px 8px; font-weight: bold;".format("#ffffff", Palette.RED_DIM)
+            )
+        else:
+            lbl_leilao.setStyleSheet(
+                "color: {}; font-weight: bold;".format(Palette.GREEN)
+            )
+        info_form.addRow(self._label_muted("Status:"), lbl_leilao)
 
-        mercado_group.setLayout(mercado_layout)
-        layout.addWidget(mercado_group)
+        info_group.setLayout(info_form)
+        layout.addWidget(info_group)
+        layout.addStretch()
+        return widget
 
-        operacao_group = QGroupBox("Operacao a Registrar")
+    def _build_operacao_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(8, 12, 8, 8)
+
+        opp = self.oportunidade
+
+        operacao_group = QGroupBox("Configurar Operacao")
         operacao_layout = QFormLayout()
+        operacao_layout.setSpacing(10)
 
         self.combo_operacao = QComboBox()
-        opp = self.oportunidade
         if opp.is_box:
-            self.combo_operacao.addItem("BOX", "BOX")
+            self.combo_operacao.addItem("BOX Comprado", "BOX")
         if opp.is_sbth:
-            self.combo_operacao.addItem("SBTH", "SBTH")
+            self.combo_operacao.addItem("SBTH (Synthetic Buy & Hold)", "SBTH")
         if opp.is_box and opp.is_sbth:
             self.combo_operacao.addItem("BOX + SBTH", "BOXSBTH")
         if self.combo_operacao.count() == 0:
             self.combo_operacao.addItem("BOX", "BOX")
-        operacao_layout.addRow("Estrategia:", self.combo_operacao)
+        operacao_layout.addRow(self._label_muted("Estrategia:"), self.combo_operacao)
 
-        self.lbl_coefic_alvo = QLabel("-")
-        self.lbl_coefic_mercado = QLabel("-")
         self.spin_taxa_ganho = QDoubleSpinBox()
         self.spin_taxa_ganho.setRange(0.0, 100.0)
         self.spin_taxa_ganho.setValue(10.0)
         self.spin_taxa_ganho.setSuffix(" %")
         self.spin_taxa_ganho.setDecimals(1)
         self.spin_taxa_ganho.valueChanged.connect(self._atualizar_coeficientes)
-        operacao_layout.addRow("Taxa Ganho:", self.spin_taxa_ganho)
-        operacao_layout.addRow("Coefic. Alvo:", self.lbl_coefic_alvo)
-        operacao_layout.addRow("Coefic. Mercado:", self.lbl_coefic_mercado)
+        operacao_layout.addRow(self._label_muted("Taxa Ganho:"), self.spin_taxa_ganho)
+
+        self.lbl_coefic_alvo = QLabel("-")
+        self.lbl_coefic_alvo.setStyleSheet("color: {}; font-weight: bold; font-family: Consolas, monospace;".format(Palette.CYAN))
+        self.lbl_coefic_mercado = QLabel("-")
+        self.lbl_coefic_mercado.setStyleSheet("font-family: Consolas, monospace;")
+        operacao_layout.addRow(self._label_muted("Coefic. Alvo:"), self.lbl_coefic_alvo)
+        operacao_layout.addRow(self._label_muted("Coefic. Mercado:"), self.lbl_coefic_mercado)
 
         operacao_group.setLayout(operacao_layout)
         layout.addWidget(operacao_group)
 
+        layout.addStretch()
+
         self._atualizar_coeficientes()
+        return widget
 
-        btn_layout = QHBoxLayout()
+    @staticmethod
+    def _label_muted(text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet("color: {}; font-size: 9pt;".format(Palette.TEXT_SECONDARY))
+        return lbl
 
-        self.btn_log = QPushButton("Registrar Operacao")
-        self.btn_log.setStyleSheet("background-color: #4a90d9; color: white; padding: 8px; font-weight: bold;")
-        self.btn_log.clicked.connect(self._exportar_log)
-        btn_layout.addWidget(self.btn_log)
+    @staticmethod
+    def _spacer() -> QLabel:
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("background-color: {}; max-height: 1px;".format(Palette.BORDER))
+        return sep
 
-        self.btn_basket = QPushButton("Exportar BASKET ITM")
-        self.btn_basket.setStyleSheet("background-color: #d94a4a; color: white; padding: 8px; font-weight: bold;")
-        self.btn_basket.clicked.connect(self._exportar_basket)
-        btn_layout.addWidget(self.btn_basket)
-
-        layout.addLayout(btn_layout)
-
-        self.btn_fechar = QPushButton("Cancelar")
-        self.btn_fechar.clicked.connect(self.reject)
-        layout.addWidget(self.btn_fechar)
+    @staticmethod
+    def _value_label(value: float, is_int: bool = False) -> QLabel:
+        if is_int:
+            text = "{:.0f}".format(value) if value > 0 else "-"
+        else:
+            text = "{:.2f}".format(value) if value > 0 else "-"
+        lbl = QLabel(text)
+        if value > 0:
+            lbl.setStyleSheet("color: {}; font-family: Consolas, monospace;".format(Palette.TEXT_PRIMARY))
+        else:
+            lbl.setStyleSheet("color: {}; font-family: Consolas, monospace;".format(Palette.TEXT_MUTED))
+        return lbl
 
     def _atualizar_coeficientes(self):
         opp = self.oportunidade
@@ -165,6 +294,15 @@ class ExportDialog(QDialog):
         coefic_mercado = opp.of_venda_call + opp.of_venda_put - opp.of_compra_call
         self.lbl_coefic_alvo.setText("{:.4f}".format(coefic_alvo))
         self.lbl_coefic_mercado.setText("{:.4f}".format(coefic_mercado))
+
+        if coefic_mercado <= coefic_alvo:
+            self.lbl_coefic_mercado.setStyleSheet(
+                "color: {}; font-weight: bold; font-family: Consolas, monospace;".format(Palette.GREEN)
+            )
+        else:
+            self.lbl_coefic_mercado.setStyleSheet(
+                "color: {}; font-weight: bold; font-family: Consolas, monospace;".format(Palette.RED)
+            )
 
     def _make_opp_dict(self) -> dict:
         return {
