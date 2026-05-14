@@ -274,6 +274,8 @@ class MonitorTableModel(QAbstractTableModel):
             self.endInsertRows()
             return
 
+        old_key_map = self._key_map  # salva ANTES de sobrescrever
+
         self._oportunidades = oportunidades
         self._key_map = new_key_map
 
@@ -281,9 +283,9 @@ class MonitorTableModel(QAbstractTableModel):
             self.beginInsertRows(QModelIndex(), old_count, new_count - 1)
             self.endInsertRows()
 
-        removed = set(self._key_map.keys()) - set(new_key_map.keys())
+        removed = set(old_key_map.keys()) - set(new_key_map.keys())
         if removed:
-            rows_to_remove = sorted((self._key_map[k] for k in removed), reverse=True)
+            rows_to_remove = sorted((old_key_map[k] for k in removed), reverse=True)
             for row in rows_to_remove:
                 self.beginRemoveRows(QModelIndex(), row, row)
                 self.endRemoveRows()

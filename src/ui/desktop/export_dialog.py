@@ -289,13 +289,21 @@ class ExportDialog(QDialog):
     def _atualizar_coeficientes(self):
         opp = self.oportunidade
         taxa = self.spin_taxa_ganho.value()
-        spread = opp.strike
-        coefic_alvo = spread * ((100.0 - taxa) / 100.0)
-        coefic_mercado = opp.of_venda_call + opp.of_venda_put - opp.of_compra_call
-        self.lbl_coefic_alvo.setText("{:.4f}".format(coefic_alvo))
+
+        # coefic_mercado: custo real da estrutura (Call ITM + PUT - Call ATM)
+        # No contexto do monitor, usamos of_venda_put - of_compra_call (pernas do BOX)
+        coefic_mercado = opp.of_venda_put - opp.of_compra_call
         self.lbl_coefic_mercado.setText("{:.4f}".format(coefic_mercado))
 
-        if coefic_mercado <= coefic_alvo:
+        # coefic_alvo só pode ser calculado com o spread (strike_atm - strike_itm),
+        # que não está disponível neste contexto (requer seleção de Call ITM).
+        self.lbl_coefic_alvo.setText("Requer Strike ITM")
+        self.lbl_coefic_alvo.setStyleSheet(
+            "color: {}; font-style: italic; font-family: Consolas, monospace;".format(Palette.TEXT_MUTED)
+        )
+
+        # indica se o custo de mercado é aceitável (negativo = CALL rende mais que PUT custa)
+        if coefic_mercado <= 0:
             self.lbl_coefic_mercado.setStyleSheet(
                 "color: {}; font-weight: bold; font-family: Consolas, monospace;".format(Palette.GREEN)
             )

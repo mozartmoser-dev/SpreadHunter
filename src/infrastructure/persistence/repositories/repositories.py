@@ -152,8 +152,21 @@ class ParametroRepository:
             conn.close()
 
     def seed_defaults(self) -> None:
-        for param in ParametroOperacional.defaults():
-            self.save(param)
+        """Insere os parâmetros padrão APENAS se ainda não existirem no banco.
+        Nunca sobrescreve valores que o usuário já tenha alterado.
+        """
+        conn = get_connection(self.db_path)
+        try:
+            for param in ParametroOperacional.defaults():
+                conn.execute(
+                    """INSERT OR IGNORE INTO parametros_operacionais
+                       (chave, valor, estrategia, descricao)
+                       VALUES (?, ?, ?, ?)""",
+                    (param.chave, param.valor, param.estrategia, param.descricao),
+                )
+            conn.commit()
+        finally:
+            conn.close()
 
 
 class OportunidadeRepository:

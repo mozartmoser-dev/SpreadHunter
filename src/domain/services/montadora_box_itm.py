@@ -69,15 +69,23 @@ class MontadoraBoxItm:
         premio_call_atm: float,
         premio_call_itm: float,
         premio_put_atm: float,
+        taxa_ganho: float = 0.0,
     ) -> tuple[float, float]:
+        """Retorna (coefic_alvo, coefic_mercado) como frações do spread.
+
+        coefic_alvo  = fração máxima aceitável do spread (ex: 0.90 para taxa_ganho=10%)
+        coefic_mercado = custo real da estrutura dividido pelo spread
+        Operação é viável quando coefic_mercado <= coefic_alvo.
+        """
         spread = strike_atm - strike_itm
         if spread <= 0:
             return (0.0, 0.0)
 
         custo_estrutura = premio_call_itm + premio_put_atm - premio_call_atm
-        ganho_estrutura = spread
 
-        coefic_alvo = ganho_estrutura / spread if spread != 0 else 0.0
+        # coefic_alvo: fração do spread que é o máximo que podemos pagar
+        # (1 - taxa_ganho/100) → para taxa=10%, alvo é 90% do spread
+        coefic_alvo = (100.0 - taxa_ganho) / 100.0 if taxa_ganho >= 0 else 1.0
         coefic_mercado = custo_estrutura / spread if spread != 0 else 0.0
 
         return (round(coefic_alvo, 4), round(coefic_mercado, 4))

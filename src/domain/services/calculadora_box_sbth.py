@@ -100,7 +100,7 @@ class CalculadoraBoxSbth:
         return (strike - custo) / custo
 
     def _calcular_pct_cdi(self, pct_ganho: float, cdi_periodo: float) -> float:
-        if cdi_periodo <= 0 or pct_ganho <= 0:
+        if cdi_periodo <= 0:
             return 0.0
         return pct_ganho / cdi_periodo
 
