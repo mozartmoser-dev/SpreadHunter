@@ -260,55 +260,10 @@ class MonitorTableModel(QAbstractTableModel):
         return opp.instrumento_id
 
     def atualizar(self, oportunidades: list[OportunidadeMonitor]):
-        new_key_map = {}
-        for i, opp in enumerate(oportunidades):
-            new_key_map[self._item_key(opp)] = i
-
-        old_count = len(self._oportunidades)
-        new_count = len(oportunidades)
-
-        if old_count == 0:
-            self.beginInsertRows(QModelIndex(), 0, new_count - 1)
-            self._oportunidades = oportunidades
-            self._key_map = new_key_map
-            self.endInsertRows()
-            return
-
-        old_key_map = self._key_map  # salva ANTES de sobrescrever
-
+        self.layoutAboutToBeChanged.emit()
         self._oportunidades = oportunidades
-        self._key_map = new_key_map
-
-        if new_count > old_count:
-            self.beginInsertRows(QModelIndex(), old_count, new_count - 1)
-            self.endInsertRows()
-
-        removed = set(old_key_map.keys()) - set(new_key_map.keys())
-        if removed:
-            rows_to_remove = sorted((old_key_map[k] for k in removed), reverse=True)
-            for row in rows_to_remove:
-                self.beginRemoveRows(QModelIndex(), row, row)
-                self.endRemoveRows()
-
-        changed_rows = []
-        for key, new_idx in new_key_map.items():
-            old_idx = self._key_map.get(key)
-            if old_idx is not None and old_idx < old_count:
-                old_opp = self._oportunidades[old_idx] if old_idx < len(self._oportunidades) else None
-                new_opp = oportunidades[new_idx]
-                if old_opp is not None and not self._opp_equal(old_opp, new_opp):
-                    changed_rows.append(new_idx)
-            elif old_idx is None:
-                changed_rows.append(new_idx)
-
-        if changed_rows:
-            changed_rows.sort()
-            first = changed_rows[0]
-            last = changed_rows[-1]
-            self.dataChanged.emit(
-                self.index(first, 0),
-                self.index(last, self.columnCount() - 1),
-            )
+        self._key_map = {self._item_key(opp): i for i, opp in enumerate(oportunidades)}
+        self.layoutChanged.emit()
 
     @staticmethod
     def _opp_equal(a: OportunidadeMonitor, b: OportunidadeMonitor) -> bool:

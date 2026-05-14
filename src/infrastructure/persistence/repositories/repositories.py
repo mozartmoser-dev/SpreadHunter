@@ -94,6 +94,7 @@ class InstrumentoRepository:
     def delete_all(self) -> int:
         conn = get_connection(self.db_path)
         try:
+            conn.execute("PRAGMA foreign_keys=OFF")
             cursor = conn.execute("DELETE FROM instrumentos_base")
             conn.commit()
             return cursor.rowcount
