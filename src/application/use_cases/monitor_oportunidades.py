@@ -6,7 +6,7 @@ from src.domain.entities.instrumento_opcional import InstrumentoOpcional
 from src.domain.services.calculadora_box_sbth import CalculadoraBoxSbth, DadosMercado
 from src.domain.services.calculadora_vetorizada import CalculadoraVetorizada
 from src.domain.rules.classificacao_oportunidade import ClassificacaoOportunidade
-from src.infrastructure.importers.excel_importer import extrair_strike
+from src.infrastructure.importers.excel_importer import extrair_strike, sanitizar_strike
 from src.infrastructure.persistence.repositories.repositories import (
     InstrumentoRepository,
     ParametroRepository,
@@ -102,17 +102,10 @@ class MonitorOportunidadesUseCase:
         of_v_put = get_arr("of_venda_put")
         of_c_call = get_arr("of_compra_call")
         def _get_clean_strike(key):
-            # Prioridade 1: Extrair do código (Verdade Absoluta da B3)
-            s_ext = extrair_strike(key)
-            if s_ext and s_ext > 0:
-                return s_ext
-                
-            # Prioridade 2: Fallback para o RTD (apenas se o código for estranho)
             d = dados_mercado[key]
+            # Prioridade Única: RTD (Verdade Absoluta do Profit)
             s_rtd = d.get("strike_rtd")
-            if s_rtd and 0 < s_rtd < 5000: # Limite mais rigoroso
-                return s_rtd
-            return 0.0
+            return s_rtd if (s_rtd and s_rtd > 0) else 0.0
 
         strikes = np.array([_get_clean_strike(k) for k in keys_validas])
         dias = np.array([inst_map[chaves[i]].dias_ate_vencimento for i in indices_validos])
@@ -152,11 +145,10 @@ class MonitorOportunidadesUseCase:
     def _calcular_oportunidade(self, inst, mercado, calc):
         if mercado is None:
             return None
-        s_rtd = mercado.get("strike_rtd")
-        if s_rtd and 0 < s_rtd < 10000:
-            strike = s_rtd
-        else:
-            strike = extrair_strike(inst.cod_put) or 0.0
+        p_ref = mercado["preco_ativo"]
+        
+        # Prioridade Única: RTD (Ajustado pelo Profit)
+        strike = mercado.get("strike_rtd") or 0.0
 
         dados = DadosMercado(
             preco_ativo=mercado["preco_ativo"],
@@ -197,7 +189,7 @@ class MonitorOportunidadesUseCase:
             instrumento_id=inst.id or 0,
             ativo=inst.ativo,
             strike=strike,
-            vencimento=inst.vencimento.isoformat(),
+            vencimento=inst.vencimento,
             dias=dados.dias,
             cod_put=inst.cod_put,
             cod_call=inst.cod_call,

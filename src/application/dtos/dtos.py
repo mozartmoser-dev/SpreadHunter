@@ -69,7 +69,7 @@ class OportunidadeMonitor:
 
     @property
     def label_tipo(self) -> str:
-        labels = {"1BOX": "BOX", "2SBTH": "SBTH", "3BOXSBTH": "BOX+SBTH", "TP.Op": "T.Ponto"}
+        labels = {"1BOX": "BOX", "2SBTH": "SBTH", "3BOXSBTH": "BOX+SBTH", "TP.Op": "Outras"}
         return labels.get(self.classificacao, self.classificacao)
 
     @property
@@ -80,6 +80,12 @@ class OportunidadeMonitor:
             return "{:.2f}x CDI (SBTH)".format(self.pct_cdi_sbth)
         if self.classificacao == "3BOXSBTH":
             return "{:.2f}x CDI".format(max(self.pct_cdi_box, self.pct_cdi_sbth))
+        
+        # Para TP.Op ou outros, mostra o melhor disponível se houver ganho
+        max_cdi = max(self.pct_cdi_box, self.pct_cdi_sbth)
+        if max_cdi > 0:
+            return "{:.2f}x CDI".format(max_cdi)
+            
         return "-"
 
     @property

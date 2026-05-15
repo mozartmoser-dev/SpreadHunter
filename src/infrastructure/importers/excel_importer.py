@@ -10,7 +10,45 @@ from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOp
 TIPO_MAP = {"A": TipoOpcao.AMERICANA, "E": TipoOpcao.EUROPEIA}
 
 
-def extrair_strike(codigo: str) -> float | None:
+def sanitizar_strike(valor_bruto: float, preco_ref: float) -> float:
+    """
+    Corrige a escala do strike (ex: 134.4 -> 13.44) usando o preço do ativo como referência.
+    Prioriza valores que resultem em um strike entre 0.1x e 3.0x o preço da ação.
+    """
+    if not preco_ref or preco_ref <= 0 or not valor_bruto or valor_bruto <= 0:
+        return valor_bruto
+    
+    import math
+    # Testamos uma gama maior de divisores para cobrir layouts variados do Profit
+    divisores = [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
+    melhor_strike = valor_bruto
+    menor_score = float('inf')
+    
+    for d in divisores:
+        tentativa = valor_bruto / d
+        try:
+            # Razão entre o strike e o spot
+            razao = tentativa / preco_ref
+            
+            # Penalizamos fortemente valores fora da faixa 0.1x - 3.0x
+            # (Uma opção raramente tem strike 4x o preço da ação ou 0.05x)
+            penalidade = 0
+            if razao < 0.1 or razao > 3.0:
+                penalidade = 10.0 # Grande penalidade
+            
+            # O score é a distância logarítmica + penalidade
+            score = abs(math.log(razao)) + penalidade
+            
+            if score < menor_score:
+                menor_score = score
+                melhor_strike = tentativa
+        except (ValueError, ZeroDivisionError):
+            continue
+            
+    return melhor_strike
+
+
+def extrair_strike(codigo: str, preco_ref: float | None = None) -> float | None:
     if not codigo:
         return None
     # Busca a parte numérica no final do código (ex: PETRA300 -> 300)
@@ -22,6 +60,12 @@ def extrair_strike(codigo: str) -> float | None:
     
     try:
         val = float(raw)
+        
+        # Se temos preço de referência, usamos a sanitização inteligente
+        if preco_ref and preco_ref > 0:
+            return sanitizar_strike(val, preco_ref)
+            
+        # Fallback para a lógica antiga baseada em tamanho (menos precisa)
         if n_len <= 2:
             return val
         if n_len == 3: # Ex: 300 -> 30.0

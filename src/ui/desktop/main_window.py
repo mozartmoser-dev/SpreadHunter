@@ -120,7 +120,7 @@ class MainWindow(QMainWindow):
 
         btn_layout.addSpacing(16)
 
-        self.chk_tp_op = QCheckBox("T.Ponto")
+        self.chk_tp_op = QCheckBox("Exibir Todas Operações")
         self.chk_tp_op.setChecked(False)
         self.chk_tp_op.setStyleSheet(
             "QCheckBox {{ color: {}; spacing: 4px; font-size: 9pt; }}"

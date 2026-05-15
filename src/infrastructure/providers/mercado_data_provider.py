@@ -4,7 +4,7 @@ from datetime import date
 from PyQt5.QtCore import QMutex
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
-from src.infrastructure.importers.excel_importer import extrair_strike
+from src.infrastructure.importers.excel_importer import extrair_strike, sanitizar_strike
 from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
 from src.infrastructure.providers.rtd_config import (
     RTD_CAMPO_ULTIMO_PRECO, RTD_CAMPO_STRIKE,
@@ -158,22 +158,10 @@ class MercadoDataProvider:
                     if (inst.vencimento - hoje).days > (self._limite_meses * 30):
                         count_pulas += 1
                         continue
-                preco_ativo = self._precos_ativo_cache.get(inst.ativo)
-                if preco_ativo and preco_ativo > 0:
-                    # No registro inicial (Onda 1), sempre extraímos do código
-                    # para evitar lixo do RTD que ainda não foi totalmente carregado
-                    strike = extrair_strike(inst.cod_put) or extrair_strike(inst.cod_call)
-                    if strike:
-                        limite_inf = preco_ativo * (1 + self._range_min)
-                        limite_sup = preco_ativo * (1 + self._range_max)
-                        if strike < limite_inf or strike > limite_sup:
-                            count_pulas += 1
-                            continue
-
-            # ONDA 1: Registra apenas o essencial para detectar atividade
-            # Reduzimos de 15 chamadas para apenas 2 por instrumento (Book Header de Put e Call)
-            rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
-            rtd.registrar_topico(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
+                # ONDA 1: Registra o strike e o cabeçalho para detecção
+                rtd.registrar_topico(inst.cod_put, RTD_CAMPO_STRIKE)
+                rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
+                rtd.registrar_topico(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
             
             if inst.ativo not in self._ativos_registrados:
                 rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
@@ -302,18 +290,13 @@ class MercadoDataProvider:
         if not of_venda_put and not of_compra_put and not of_venda_call and not of_compra_call:
             return None
 
-        # Prioridade Total: Extrair do nome da opção (Garantido pela B3)
-        strike_rtd = extrair_strike(inst.cod_put) or extrair_strike(inst.cod_call)
-        
-        # Só usa o Profit como fallback se o nome da opção for estranho
+        # Prioridade Única: RTD (Garantido pelo Profit)
+        strike_rtd = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_STRIKE)
         if not strike_rtd or strike_rtd <= 0:
-            strike_rtd = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_STRIKE)
-            if not strike_rtd or strike_rtd <= 0:
-                strike_rtd = rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_STRIKE)
+            strike_rtd = rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_STRIKE)
         
-        # Proteção final contra lixo do Profit
-        if strike_rtd and strike_rtd > 10000:
-            strike_rtd = extrair_strike(inst.cod_put) or 0.0
+        if not strike_rtd or strike_rtd <= 0:
+            return None # Sem strike real, não calculamos para evitar erro
 
         status_put = rtd.ler_status_cache(inst.cod_put) or "Aberto"
         status_call = rtd.ler_status_cache(inst.cod_call) or "Aberto"

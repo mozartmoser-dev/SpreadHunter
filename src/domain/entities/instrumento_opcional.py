@@ -15,6 +15,7 @@ class InstrumentoOpcional:
     cod_call: str
     vencimento: date
     tipo_opcao: TipoOpcao
+    strike: float | None = None
     id: int | None = None
 
     @property

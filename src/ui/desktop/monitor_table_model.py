@@ -140,6 +140,11 @@ class MonitorTableModel(QAbstractTableModel):
                 return "{:.2f}%".format(opp.pct_ganho_box * 100)
             if opp.classificacao == "2SBTH":
                 return "{:.2f}%".format(opp.pct_ganho_sbth * 100)
+            
+            # Para TP.Op ou outros, mostra o melhor ganho se existir
+            max_ganho = max(opp.pct_ganho_box, opp.pct_ganho_sbth)
+            if max_ganho > 0:
+                return "{:.2f}%".format(max_ganho * 100)
             return "-"
         if col_key == "leilao_display":
             return "\u26a0 LEILAO" if opp.em_leilao else ""
