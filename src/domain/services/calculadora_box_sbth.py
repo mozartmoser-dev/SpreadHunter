@@ -23,7 +23,8 @@ class DadosMercado:
     qul_put: float = 0.0
     qul_call: float = 0.0
 
-    def _preco_compra_ativo(self) -> float:
+    @property
+    def preco_compra_ativo(self) -> float:
         if self.of_venda_ativo > 0:
             return self.of_venda_ativo
         return self.preco_ativo + 0.01
@@ -82,7 +83,7 @@ class CalculadoraBoxSbth:
     def _calcular_custo_sbth(self, dados: DadosMercado) -> float:
         if dados.of_venda_put <= 0:
             return 0.0
-        return dados._preco_compra_ativo() + dados.of_venda_put
+        return dados.preco_compra_ativo + dados.of_venda_put
 
     def _calcular_pct_ganho_sbth(self, custo: float, strike: float) -> float:
         if custo <= 0:
@@ -92,7 +93,7 @@ class CalculadoraBoxSbth:
     def _calcular_custo_box(self, dados: DadosMercado) -> float:
         if dados.of_venda_put <= 0 or dados.of_compra_call <= 0:
             return 0.0
-        return dados._preco_compra_ativo() + dados.of_venda_put - dados.of_compra_call
+        return dados.preco_compra_ativo + dados.of_venda_put - dados.of_compra_call
 
     def _calcular_pct_ganho_box(self, custo: float, strike: float) -> float:
         if custo <= 0:

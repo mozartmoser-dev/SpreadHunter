@@ -1,10 +1,14 @@
 import logging
+import time
+import os
+import psutil
 
 from PyQt5.QtCore import QThread, pyqtSignal, QMutex, QWaitCondition
 
 from src.application.use_cases.monitor_oportunidades import MonitorOportunidadesUseCase
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
 from src.infrastructure.providers.rtd_profit import RTDProfit
+from src.application.dtos.dtos import EngineStatsDTO
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +17,7 @@ class MonitorWorker(QThread):
     oportunidades_atualizadas = pyqtSignal(list)
     status_message = pyqtSignal(str)
     rtd_status = pyqtSignal(bool)
+    engine_stats_updated = pyqtSignal(object)
 
     def __init__(self, db_path: str, rtd: RTDProfit, parent=None):
         super().__init__(parent)
@@ -28,8 +33,14 @@ class MonitorWorker(QThread):
         self._wait_condition = QWaitCondition()
 
     def run(self):
-        import pythoncom
-        pythoncom.CoInitialize()
+        com_initialized = False
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+            com_initialized = True
+        except ImportError:
+            logger.warning("MonitorWorker: pythoncom não disponível. Thread rodará sem inicializar COM.")
+            self.status_message.emit("Aviso: pythoncom ausente. RTD indisponível.")
 
         rtd = self._rtd_main
         if not rtd or not rtd.disponivel:
@@ -49,6 +60,7 @@ class MonitorWorker(QThread):
                     break
 
             try:
+                t_start_cycle = time.perf_counter()
                 dados_mercado = {}
                 if rtd.disponivel:
                     dados_mercado = self._mercado_provider.capturar_dados_mercado()
@@ -62,6 +74,28 @@ class MonitorWorker(QThread):
                 self.status_message.emit(
                     "Varredura: {} oportunidades, {} viaveis".format(len(resultados), viaveis)
                 )
+
+                # Coleta Estatísticas do Motor
+                t_end = time.perf_counter()
+                scan_ms = int((t_end - t_start_cycle) * 1000)
+                
+                process = psutil.Process(os.getpid())
+                cpu_pct = psutil.cpu_percent() # Simplificado
+                mem_mb = process.memory_info().rss / 1024 / 1024
+                
+                e_stats = self._mercado_provider.get_engine_stats()
+                
+                stats_dto = EngineStatsDTO(
+                    scan_time_ms=scan_ms,
+                    cpu_pct=cpu_pct,
+                    mem_mb=mem_mb,
+                    total_instrumentos=e_stats["total"],
+                    monitored_onda1=e_stats["onda1"],
+                    monitored_onda2=e_stats["onda2"],
+                    registrado=e_stats.get("registrado", False),
+                    progresso_idx=e_stats.get("progresso_idx", 0)
+                )
+                self.engine_stats_updated.emit(stats_dto)
             except Exception as e:
                 logger.error("MonitorWorker: erro na varredura: %s", e)
                 self.status_message.emit("Erro na varredura: {}".format(str(e)))
@@ -69,7 +103,9 @@ class MonitorWorker(QThread):
             self.msleep(self._interval_ms)
 
         rtd.desconectar()
-        pythoncom.CoUninitialize()
+        if com_initialized:
+            import pythoncom
+            pythoncom.CoUninitialize()
         logger.info("MonitorWorker: thread finalizada.")
 
     def pausar(self):
@@ -97,6 +133,14 @@ class MonitorWorker(QThread):
 
     def recarregar_parametros(self):
         self._monitor_uc.recarregar_parametros()
+        if self._mercado_provider:
+            self._mercado_provider.recarregar_parametros()
+
+    def recarregar_instrumentos(self):
+        from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
+        InstrumentoRepository.invalidate_cache()
+        if self._mercado_provider:
+            self._mercado_provider.recarregar_instrumentos()
 
     def set_mostrar_tp_op(self, mostrar: bool):
         self._mostrar_tp_op = mostrar

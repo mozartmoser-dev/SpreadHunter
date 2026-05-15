@@ -1,8 +1,10 @@
+import numpy as np
 from datetime import date
 
 from src.application.dtos.dtos import OportunidadeMonitor
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
 from src.domain.services.calculadora_box_sbth import CalculadoraBoxSbth, DadosMercado
+from src.domain.services.calculadora_vetorizada import CalculadoraVetorizada
 from src.domain.rules.classificacao_oportunidade import ClassificacaoOportunidade
 from src.infrastructure.importers.excel_importer import extrair_strike
 from src.infrastructure.persistence.repositories.repositories import (
@@ -17,6 +19,8 @@ class MonitorOportunidadesUseCase:
         self.inst_repo = InstrumentoRepository(db_path)
         self.param_repo = ParametroRepository(db_path)
         self._calculadora = None
+        self._calc_vetorizada = None
+        self._lotes_cache = {}
 
     def _get_calculadora(self) -> CalculadoraBoxSbth:
         if self._calculadora is None:
@@ -30,39 +34,117 @@ class MonitorOportunidadesUseCase:
         param = self.param_repo.get_by_chave(chave)
         return param.valor if param else default
 
+    def _get_calculadoras(self):
+        if self._calculadora is None:
+            taxa_cdi = self._get_param("taxa_cdi", 0.1450)
+            premio_box = self._get_param("premio_risco_box", 1.5)
+            premio_sbth = self._get_param("premio_risco_sbth", 1.2)
+            self._calculadora = CalculadoraBoxSbth(taxa_cdi, premio_box, premio_sbth)
+            self._calc_vetorizada = CalculadoraVetorizada(taxa_cdi, premio_box, premio_sbth)
+        return self._calculadora, self._calc_vetorizada
+
     def recarregar_parametros(self):
         self._calculadora = None
+        self._calc_vetorizada = None
+        self._lotes_cache = {}
+        # Invalida o cache do repositório para garantir leitura do banco
+        self.param_repo.invalidate_cache()
 
     def _lote_liquidez_put(self, operacao: str) -> float:
+        if "lote_put_box" not in self._lotes_cache:
+            self._lotes_cache["lote_put_box"] = self._get_param("box_qtd_put", 1000)
+            self._lotes_cache["lote_put_sbth"] = self._get_param("sbth_qtd_put", 1000)
+            
         if operacao in ("BOX", "BOXSBTH"):
-            return self._get_param("box_qtd_put", 1000)
-        return self._get_param("sbth_qtd_put", 1000)
+            return self._lotes_cache["lote_put_box"]
+        return self._lotes_cache["lote_put_sbth"]
 
     def _lote_liquidez_call(self, operacao: str) -> float:
+        if "lote_call_box" not in self._lotes_cache:
+            self._lotes_cache["lote_call_box"] = self._get_param("box_qtd_call", 1000)
+            
         if operacao in ("BOX", "BOXSBTH"):
-            return self._get_param("box_qtd_call", 1000)
+            return self._lotes_cache["lote_call_box"]
         return 0.0
 
     def varrer(self, dados_mercado: dict[str, dict]) -> list[OportunidadeMonitor]:
-        calc = self._get_calculadora()
-        instrumentos = self.inst_repo.get_all()
+        calc_oo, calc_vec = self._get_calculadoras()
+        inst_map = self.inst_repo.get_all_mapped()
         resultados = []
         hoje = date.today()
 
-        for inst in instrumentos:
-            if inst.vencimento is not None and inst.vencimento <= hoje:
-                continue
+        if not dados_mercado:
+            return []
 
-            key = inst.cod_put
-            mercado = dados_mercado.get(key)
-            if mercado is None:
-                continue
-            if mercado.get("preco_ativo", 0) <= 0:
-                continue
+        # 1. Preparação dos dados para vetorização
+        chaves = list(dados_mercado.keys())
+        n = len(chaves)
+        
+        # Filtra instrumentos válidos e não vencidos
+        indices_validos = []
+        for i, k in enumerate(chaves):
+            inst = inst_map.get(k)
+            if inst and (not inst.vencimento or inst.vencimento > hoje):
+                indices_validos.append(i)
+        
+        if not indices_validos:
+            return []
+            
+        # Extrai arrays apenas para os válidos
+        idx = np.array(indices_validos)
+        keys_validas = [chaves[i] for i in indices_validos]
+        
+        def get_arr(key_field, default=0.0):
+            return np.array([dados_mercado[chaves[i]].get(key_field, default) for i in indices_validos], dtype=float)
 
-            opp = self._calcular_oportunidade(inst, mercado, calc)
-            if opp is not None:
-                resultados.append(opp)
+        p_ativo = get_arr("preco_ativo")
+        of_v_ativo = get_arr("of_venda_ativo")
+        of_v_put = get_arr("of_venda_put")
+        of_c_call = get_arr("of_compra_call")
+        def _get_clean_strike(key):
+            # Prioridade 1: Extrair do código (Verdade Absoluta da B3)
+            s_ext = extrair_strike(key)
+            if s_ext and s_ext > 0:
+                return s_ext
+                
+            # Prioridade 2: Fallback para o RTD (apenas se o código for estranho)
+            d = dados_mercado[key]
+            s_rtd = d.get("strike_rtd")
+            if s_rtd and 0 < s_rtd < 5000: # Limite mais rigoroso
+                return s_rtd
+            return 0.0
+
+        strikes = np.array([_get_clean_strike(k) for k in keys_validas])
+        dias = np.array([inst_map[chaves[i]].dias_ate_vencimento for i in indices_validos])
+        vov_p = get_arr("vov_put_boca")
+        voc_c = get_arr("voc_call_boca")
+        em_leilao = np.array([dados_mercado[chaves[i]].get("em_leilao", False) for i in indices_validos])
+
+        # Lotes de liquidez (usamos o padrão do BOX para o filtro grosso da vetorização)
+        lote_put = self._lote_liquidez_put("BOX")
+        lote_call = self._lote_liquidez_call("BOX")
+
+        # 2. Cálculo Vetorizado (Super Rápido)
+        res_vec = calc_vec.calcular(
+            p_ativo, of_v_ativo, of_v_put, of_c_call, strikes, dias,
+            vov_p, voc_c, lote_put, lote_call, em_leilao
+        )
+
+        # 3. Criação de DTOs apenas para o que for minimamente interessante
+        # (Viáveis ou com prêmio razoável)
+        for i in range(len(keys_validas)):
+            # Se não for viavel e tiver prêmio baixo, ignora para economizar objetos
+            # Aqui definimos o que é "interessante" mostrar no monitor
+            interessante = (i in res_vec.indices_viaveis) or (res_vec.pct_cdi_box[i] > 0.8) or (res_vec.pct_cdi_sbth[i] > 0.8)
+            
+            if interessante:
+                key = keys_validas[i]
+                inst = inst_map[key]
+                mercado = dados_mercado[key]
+                
+                opp = self._calcular_oportunidade(inst, mercado, calc_oo)
+                if opp:
+                    resultados.append(opp)
 
         resultados.sort(key=lambda o: (not o.viavel, -max(o.pct_cdi_box, o.pct_cdi_sbth)))
         return resultados
@@ -70,8 +152,11 @@ class MonitorOportunidadesUseCase:
     def _calcular_oportunidade(self, inst, mercado, calc):
         if mercado is None:
             return None
-        strike_rtd = mercado.get("strike_rtd")
-        strike = strike_rtd if strike_rtd and strike_rtd > 0 else (extrair_strike(inst.cod_put) or 0.0)
+        s_rtd = mercado.get("strike_rtd")
+        if s_rtd and 0 < s_rtd < 10000:
+            strike = s_rtd
+        else:
+            strike = extrair_strike(inst.cod_put) or 0.0
 
         dados = DadosMercado(
             preco_ativo=mercado["preco_ativo"],
@@ -127,7 +212,7 @@ class MonitorOportunidadesUseCase:
             pct_cdi_box=resultado.pct_cdi_box,
             cdi_periodo=resultado.cdi_periodo,
             viavel=viavel,
-            preco_compra_ativo=dados._preco_compra_ativo(),
+            preco_compra_ativo=dados.preco_compra_ativo,
             of_venda_put=dados.of_venda_put,
             of_compra_call=dados.of_compra_call,
             em_leilao=dados.em_leilao,

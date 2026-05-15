@@ -74,7 +74,6 @@ class TestInstrumentoOpcional:
     def test_tipo_opcao_values(self):
         assert TipoOpcao.AMERICANA.value == "A"
         assert TipoOpcao.EUROPEIA.value == "E"
-        assert TipoOpcao.PUT.value == "P"
 
 
 class TestParametroOperacional:

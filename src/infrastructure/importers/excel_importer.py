@@ -7,19 +7,32 @@ import openpyxl
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOpcao
 
 
-TIPO_MAP = {"A": TipoOpcao.AMERICANA, "E": TipoOpcao.EUROPEIA, "P": TipoOpcao.PUT}
+TIPO_MAP = {"A": TipoOpcao.AMERICANA, "E": TipoOpcao.EUROPEIA}
 
 
 def extrair_strike(codigo: str) -> float | None:
     if not codigo:
         return None
-    nums = re.search(r'(\d+)$', codigo)
+    # Busca a parte numérica no final do código (ex: PETRA300 -> 300)
+    nums = re.search(r'(\d+)[a-zA-Z]?$', codigo)
     if not nums:
         return None
     raw = nums.group(1)
-    if len(raw) <= 2:
-        return float(raw)
-    return float(raw) / 10.0
+    n_len = len(raw)
+    
+    try:
+        val = float(raw)
+        if n_len <= 2:
+            return val
+        if n_len == 3: # Ex: 300 -> 30.0
+            return val / 10.0
+        if n_len == 4: # Ex: 3004 -> 30.04
+            return val / 100.0
+        if n_len >= 5: # Ex: 30040 -> 30.04
+            return val / 1000.0
+        return val
+    except:
+        return None
 
 
 def parse_vencimento(val) -> date | None:

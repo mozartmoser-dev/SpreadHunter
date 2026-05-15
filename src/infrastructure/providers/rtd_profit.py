@@ -100,40 +100,32 @@ class RTDProfit:
             return {}
         if update_count == 0:
             return {}
+
         try:
             topics = data[0]
+            values = data[1]
         except Exception:
+            logger.debug("RTD: RefreshData format unexpected (no values array).")
             return {}
-        changed_tids: set[int] = set()
-        for i in range(min(len(topics), update_count)):
-            raw_tid = topics[i]
-            if isinstance(raw_tid, int):
-                tid = raw_tid
-            elif isinstance(raw_tid, tuple):
-                tid = int(raw_tid[0])
-            else:
-                try:
-                    tid = int(raw_tid)
-                except (ValueError, TypeError):
-                    continue
-            changed_tids.add(tid)
+
         mudancas: dict[str, object] = {}
-        for tid in changed_tids:
-            chave = self._topic_reverse.get(tid)
-            if not chave or "|" not in chave:
-                continue
-            codigo, campo = chave.split("|", 1)
+        # Itera sobre os tópicos atualizados e seus respectivos valores
+        for i in range(min(len(topics), len(values), update_count)):
             try:
-                if campo == "EST":
-                    res = self._rtd.ConnectData(tid, [codigo, "EST"], False)
-                else:
-                    topico = rtd_topico(codigo)
-                    res = self._rtd.ConnectData(tid, [topico, campo], False)
-                valor = res[0] if isinstance(res, tuple) else res
+                raw_tid = topics[i]
+                tid = int(raw_tid[0]) if isinstance(raw_tid, (tuple, list)) else int(raw_tid)
+                
+                valor = values[i]
+                if isinstance(valor, (tuple, list)):
+                    valor = valor[0]
+                
                 self._valores[tid] = valor
-                mudancas[chave] = valor
-            except Exception:
-                pass
+                chave = self._topic_reverse.get(tid)
+                if chave:
+                    mudancas[chave] = valor
+            except (ValueError, TypeError, IndexError):
+                continue
+                
         return mudancas
 
     def ler_campo_cache(self, codigo: str, campo: str) -> Optional[float]:

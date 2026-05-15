@@ -37,4 +37,9 @@ class ParametroOperacional:
         "basket_prof_put": {"valor": -1, "estrategia": "BOX_SINTETICO", "descricao": "Profundidade PUT"},
         "basket_qtd_call": {"valor": 100, "estrategia": "BOX_SINTETICO", "descricao": "Qtd venda Call ATM"},
         "basket_prof_call": {"valor": -1, "estrategia": "BOX_SINTETICO", "descricao": "Profundidade Call ATM"},
+        "perf_carga_inteligente": {"valor": 1.0, "estrategia": "PERFORMANCE", "descricao": "Carga Inteligente (Filtro Strike)"},
+        "perf_range_min": {"valor": -50.0, "estrategia": "PERFORMANCE", "descricao": "Filtro Strike Min (%)"},
+        "perf_range_max": {"valor": 50.0, "estrategia": "PERFORMANCE", "descricao": "Filtro Strike Max (%)"},
+        "perf_limite_meses": {"valor": 0.0, "estrategia": "PERFORMANCE", "descricao": "Limite de Vencimento (Meses, 0=Sem Limite)"},
+        "perf_dias_minimos": {"valor": 0.0, "estrategia": "PERFORMANCE", "descricao": "Dias Minimos para Vencimento"},
     }

@@ -57,7 +57,7 @@ class GerarBasketItmUseCase:
         baskets = []
         for candidato in elegidos:
             estrutura = self.est_repo.save(EstruturaOperacional(
-                oportunidade_id=0,
+                oportunidade_id=None,
                 tipo=TipoEstrutura.BOX_ITM_BASKET,
                 coefic_alvo=0.0,
                 coefic_mercado=0.0,

@@ -1,5 +1,7 @@
 import logging
 import time
+from datetime import date
+from PyQt5.QtCore import QMutex
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
 from src.infrastructure.importers.excel_importer import extrair_strike
@@ -30,91 +32,264 @@ class MercadoDataProvider:
         self.inst_repo = InstrumentoRepository(db_path)
         self.rtd = rtd or RTDProfit()
         self._registrado = False
-        self._sem_book_skip: dict[str, int] = {}
+        self._registro_idx = 0
+        self._ativos_registrados: set[str] = set()
+        self._chaves_registradas: set[str] = set()
+        self._chaves_com_book: set[str] = set()
+        self._chaves_detalhes_completos: set[str] = set()
         self._sem_ativo_skip: dict[str, int] = {}
         self._precos_ativo_cache: dict[str, float] = {}
         self._scan_count = 0
+        self._lock = QMutex()
+        self.recarregar_parametros()
 
-    def _registrar_todos(self, instrumentos: list[InstrumentoOpcional]):
+    def recarregar_instrumentos(self):
+        """Limpa as flags de cache e força o re-registro dos instrumentos no RTD."""
+        self._lock.lock()
+        try:
+            self._registrado = False
+            self._registro_idx = 0
+            self._ativos_registrados.clear()
+            self._chaves_registradas.clear()
+            self._chaves_com_book.clear()
+            self._chaves_detalhes_completos.clear()
+            self._sem_ativo_skip.clear()
+            self._precos_ativo_cache.clear()
+            self.recarregar_parametros()
+            logger.info("MercadoDataProvider: recarregamento de instrumentos agendado.")
+        finally:
+            self._lock.unlock()
+
+    def recarregar_parametros(self):
+        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+        repo = ParametroRepository(self.db_path)
+        
+        p_ci = repo.get_by_chave("perf_carga_inteligente")
+        self._carga_inteligente_habilitada = bool(p_ci.valor) if p_ci else True
+        
+        p_min = repo.get_by_chave("perf_range_min")
+        self._range_min = (p_min.valor / 100.0) if p_min else -0.5
+        
+        p_max = repo.get_by_chave("perf_range_max")
+        self._range_max = (p_max.valor / 100.0) if p_max else 0.5
+        
+        p_meses = repo.get_by_chave("perf_limite_meses")
+        self._limite_meses = int(p_meses.valor) if p_meses else 0
+        
+        p_dias_min = repo.get_by_chave("perf_dias_minimos")
+        self._dias_minimos = int(p_dias_min.valor) if p_dias_min else 0
+        
+        # Se houve mudança em parâmetros que afetam a carga, agendamos uma revisão de carga
+        if self._registrado:
+            # Ao resetar apenas estas duas flags, o sistema re-escaneia o banco em background
+            # mas MANTÉM tudo o que já estava registrado (não desconecta nada).
+            self._registrado = False
+            self._registro_idx = 0
+            # Limpa o cache de preços para forçar leitura limpa
+            self._precos_ativo_cache.clear()
+            self._chaves_com_book.clear()
+            logger.info("MercadoDataProvider: Parametros alterados. Revisão de carga agendada em background.")
+        
+        logger.info("MercadoDataProvider: Parametros de performance atualizados.")
+
+    def _registrar_ativos_prioritarios(self, instrumentos: list[InstrumentoOpcional]):
+        """Registra apenas os ativos (underlyings) para obter preços de referência rápido."""
         rtd = self.rtd
-        ativos_registrados: set[str] = set()
         t0 = time.perf_counter()
-
+        count = 0
         for inst in instrumentos:
-            for campo in self._CAMPOS_PUT:
-                rtd.registrar_topico(inst.cod_put, campo)
-            for campo in self._CAMPOS_CALL:
-                rtd.registrar_topico(inst.cod_call, campo)
-            rtd.registrar_status(inst.cod_put)
-            rtd.registrar_status(inst.cod_call)
-            if inst.ativo not in ativos_registrados:
+            if inst.ativo not in self._ativos_registrados:
                 rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
                 rtd.registrar_status(inst.ativo)
-                ativos_registrados.add(inst.ativo)
+                self._ativos_registrados.add(inst.ativo)
+                count += 1
+        if count > 0:
+            logger.info("RTD: %d ativos registrados prioritariamente em %.2fs.", count, time.perf_counter() - t0)
 
-        self._registrado = True
-        logger.info("RTD: %d topicos registrados em %.2fs.",
-                     len(rtd._topic_map), time.perf_counter() - t0)
+    def _registrar_detalhes_completos(self, inst: InstrumentoOpcional):
+        """Registra todos os campos de um instrumento quando detectamos liquidez."""
+        key = inst.cod_put
+        if key in self._chaves_detalhes_completos:
+            return
+        
+        rtd = self.rtd
+        # Campos de PUT
+        for campo in self._CAMPOS_PUT:
+            if campo != RTD_CAMPO_CABECALHO_BOOK: # Já registrado na onda 1
+                rtd.registrar_topico(inst.cod_put, campo)
+        # Campos de CALL
+        for campo in self._CAMPOS_CALL:
+            if campo != RTD_CAMPO_CABECALHO_BOOK:
+                rtd.registrar_topico(inst.cod_call, campo)
+        
+        rtd.registrar_status(inst.cod_put)
+        rtd.registrar_status(inst.cod_call)
+        
+        self._chaves_detalhes_completos.add(key)
+        logger.debug("RTD: Detalhes completos registrados para %s (Liquidez detectada)", key)
+
+    def _registrar_batch_inteligente(self, instrumentos: list[InstrumentoOpcional], batch_size: int = 2000):
+        if self._registrado:
+            return
+
+        rtd = self.rtd
+        t0 = time.perf_counter()
+        start_idx = self._registro_idx
+        end_idx = min(start_idx + batch_size, len(instrumentos))
+        
+        count_processados = 0
+        count_pulas = 0
+
+        for i in range(start_idx, end_idx):
+            inst = instrumentos[i]
+            key = inst.cod_put
+            
+            if key in self._chaves_registradas:
+                continue
+
+            # Filtros de Proximidade (Carga Inteligente)
+            if self._carga_inteligente_habilitada:
+                hoje = date.today()
+                if self._dias_minimos > 0 and inst.vencimento:
+                    if (inst.vencimento - hoje).days < self._dias_minimos:
+                        count_pulas += 1
+                        continue
+                if self._limite_meses > 0 and inst.vencimento:
+                    if (inst.vencimento - hoje).days > (self._limite_meses * 30):
+                        count_pulas += 1
+                        continue
+                preco_ativo = self._precos_ativo_cache.get(inst.ativo)
+                if preco_ativo and preco_ativo > 0:
+                    # No registro inicial (Onda 1), sempre extraímos do código
+                    # para evitar lixo do RTD que ainda não foi totalmente carregado
+                    strike = extrair_strike(inst.cod_put) or extrair_strike(inst.cod_call)
+                    if strike:
+                        limite_inf = preco_ativo * (1 + self._range_min)
+                        limite_sup = preco_ativo * (1 + self._range_max)
+                        if strike < limite_inf or strike > limite_sup:
+                            count_pulas += 1
+                            continue
+
+            # ONDA 1: Registra apenas o essencial para detectar atividade
+            # Reduzimos de 15 chamadas para apenas 2 por instrumento (Book Header de Put e Call)
+            rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
+            rtd.registrar_topico(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
+            
+            if inst.ativo not in self._ativos_registrados:
+                rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                rtd.registrar_status(inst.ativo)
+                self._ativos_registrados.add(inst.ativo)
+            
+            self._chaves_registradas.add(key)
+            count_processados += 1
+
+        self._registro_idx = end_idx
+
+        if self._registro_idx >= len(instrumentos):
+            self._registrado = True
+            logger.info("RTD: Onda 1 (Cabeçalhos) concluída. %d monitorados. (Pulos: %d)",
+                         len(self._chaves_registradas), count_pulas)
+        else:
+            logger.info("RTD: Lote Onda 1 %d/%d (Registros: %d) em %.2fs.",
+                         self._registro_idx, len(instrumentos), count_processados, time.perf_counter() - t0)
 
     def capturar_dados_mercado(self) -> dict[str, dict]:
         if not self.rtd.disponivel:
             logger.warning("RTD nao disponivel — retornando dados vazios.")
             return {}
 
-        instrumentos = self.inst_repo.get_all()
-        logger.info("capturar_dados_mercado: %d instrumentos na base.", len(instrumentos))
+        self._lock.lock()
+        try:
+            # Carrega a lista completa do banco apenas quando necessário
+            # (evita ler 52k linhas do SQLite a cada ciclo)
+            if not self._registrado or not self._ativos_registrados:
+                instrumentos = self.inst_repo.get_all()
+                
+                # Primeiro ciclo: registra apenas ativos para pegar preços base
+                if not self._ativos_registrados:
+                    self._registrar_ativos_prioritarios(instrumentos)
 
-        if not self._registrado:
-            self._registrar_todos(instrumentos)
+                # Registro em lotes com filtro de proximidade
+                if not self._registrado:
+                    self._registrar_batch_inteligente(instrumentos, batch_size=2000)
 
-        t0 = time.perf_counter()
-        self.rtd.refresh()
-        self._scan_count += 1
-        if self._scan_count % 10 == 0:
-            self._precos_ativo_cache.clear()
+            t0 = time.perf_counter()
+            self.rtd.refresh()
+            self._scan_count += 1
+            
+            # Ciclo Global a cada 5 rodadas
+            is_global_scan = (self._scan_count % 5 == 0)
+            
+            if self._scan_count % 10 == 0:
+                self._precos_ativo_cache.clear()
 
-        dados_mercado: dict[str, dict] = {}
-        sem_book_atual: dict[str, int] = {}
-        sem_ativo_atual: dict[str, int] = {}
+            dados_mercado: dict[str, dict] = {}
+            sem_ativo_atual: dict[str, int] = {}
+            
+            count_reg_onda2 = 0
+            MAX_REG_ONDA2_PER_CYCLE = 40 # Limite para não engasgar o COM
+            
+            inst_map = self.inst_repo.get_all_mapped()
+            chaves_alvo = self._chaves_registradas if is_global_scan else self._chaves_com_book
 
-        for inst in instrumentos:
-            key = inst.cod_put
-            if key in dados_mercado:
-                continue
+            for key in list(chaves_alvo):
+                inst = inst_map.get(key)
+                if not inst:
+                    continue
 
-            skip_ativo = self._sem_ativo_skip.get(inst.ativo, 0)
-            if skip_ativo > 0:
-                sem_ativo_atual[inst.ativo] = skip_ativo - 1
-                continue
+                # 1. Se já temos detalhes completos, tentamos ler
+                if key in self._chaves_detalhes_completos:
+                    preco_ativo = self._precos_ativo_cache.get(inst.ativo)
+                    if preco_ativo is None:
+                        preco_ativo = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                        if not preco_ativo or preco_ativo <= 0:
+                            preco_ativo = self.rtd.ler_campo(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                            if not preco_ativo or preco_ativo <= 0:
+                                sem_ativo_atual[inst.ativo] = self.SEM_ATIVO_SKIP_CYCLES
+                                continue
+                        self._precos_ativo_cache[inst.ativo] = preco_ativo
 
-            preco_ativo = self._precos_ativo_cache.get(inst.ativo)
-            if preco_ativo is None:
-                preco_ativo = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
-                if not preco_ativo or preco_ativo <= 0:
-                    preco_ativo = self.rtd.ler_campo(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
-                    if not preco_ativo or preco_ativo <= 0:
-                        sem_ativo_atual[inst.ativo] = self.SEM_ATIVO_SKIP_CYCLES
-                        continue
-                self._precos_ativo_cache[inst.ativo] = preco_ativo
+                    dados_rtd = self._ler_instrumento_cache(inst, preco_ativo)
+                    if dados_rtd:
+                        dados_mercado[key] = dados_rtd.to_dados_mercado()
+                        self._chaves_com_book.add(key)
+                    else:
+                        if key in self._chaves_com_book:
+                            self._chaves_com_book.remove(key)
+                    continue
 
-            skip = self._sem_book_skip.get(key, 0)
-            if skip > 0:
-                self._sem_book_skip[key] = skip - 1
-                sem_book_atual[key] = skip - 1
-                continue
+                # 2. Senão, checamos se ele "acordou" (tem book) para registrar na Onda 2
+                cab_put = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
+                cab_call = self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
+                
+                if (cab_put and cab_put > 0) or (cab_call and cab_call > 0):
+                    if count_reg_onda2 < MAX_REG_ONDA2_PER_CYCLE:
+                        self._registrar_detalhes_completos(inst)
+                        count_reg_onda2 += 1
+                    self._chaves_com_book.add(key)
 
-            dados_rtd = self._ler_instrumento_cache(inst, preco_ativo)
-            if dados_rtd and dados_rtd.preco_ativo and dados_rtd.preco_ativo > 0:
-                dados_mercado[key] = dados_rtd.to_dados_mercado()
-            else:
-                sem_book_atual[key] = self.SEM_BOOK_SKIP_CYCLES
+            self._sem_ativo_skip = sem_ativo_atual
+            logger.info("Varredura (%s): %d monitored, %d with book in %.2fs",
+                         "Global" if is_global_scan else "Fast",
+                         len(self._chaves_registradas), len(dados_mercado),
+                         time.perf_counter() - t0)
+            return dados_mercado
+        finally:
+            self._lock.unlock()
 
-        self._sem_book_skip = sem_book_atual
-        self._sem_ativo_skip = sem_ativo_atual
-        logger.info("MercadoDataProvider: %d chaves (de %d) em %.2fs. pulados=%d sem_ativo=%d",
-                     len(dados_mercado), len(instrumentos), time.perf_counter() - t0,
-                     len(sem_book_atual), len(sem_ativo_atual))
-        return dados_mercado
+    def get_engine_stats(self) -> dict:
+        """Retorna contagens internas para o Dashboard de Performance."""
+        self._lock.lock()
+        try:
+            return {
+                "total": len(self.inst_repo.get_all()),
+                "onda1": len(self._chaves_registradas),
+                "onda2": len(self._chaves_detalhes_completos),
+                "registrado": self._registrado,
+                "progresso_idx": self._registro_idx
+            }
+        finally:
+            self._lock.unlock()
 
     def _ler_instrumento_cache(self, inst: InstrumentoOpcional, preco_ativo: float | None) -> DadosRTDInstrumento | None:
         rtd = self.rtd
@@ -127,11 +302,18 @@ class MercadoDataProvider:
         if not of_venda_put and not of_compra_put and not of_venda_call and not of_compra_call:
             return None
 
-        strike_rtd = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_STRIKE)
+        # Prioridade Total: Extrair do nome da opção (Garantido pela B3)
+        strike_rtd = extrair_strike(inst.cod_put) or extrair_strike(inst.cod_call)
+        
+        # Só usa o Profit como fallback se o nome da opção for estranho
         if not strike_rtd or strike_rtd <= 0:
-            strike_rtd = rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_STRIKE)
-        if not strike_rtd or strike_rtd <= 0:
-            strike_rtd = extrair_strike(inst.cod_put) or extrair_strike(inst.cod_call)
+            strike_rtd = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_STRIKE)
+            if not strike_rtd or strike_rtd <= 0:
+                strike_rtd = rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_STRIKE)
+        
+        # Proteção final contra lixo do Profit
+        if strike_rtd and strike_rtd > 10000:
+            strike_rtd = extrair_strike(inst.cod_put) or 0.0
 
         status_put = rtd.ler_status_cache(inst.cod_put) or "Aberto"
         status_call = rtd.ler_status_cache(inst.cod_call) or "Aberto"

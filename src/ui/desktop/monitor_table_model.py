@@ -7,20 +7,20 @@ from src.ui.desktop.theme import Palette
 
 class MonitorTableModel(QAbstractTableModel):
     COLUMNS = [
-        ("Tipo", "label_tipo"),
-        ("Ativo", "ativo"),
-        ("Strike", "strike"),
-        ("Ganho %", "ganho_display"),
-        ("Rent. vs CDI", "label_rentabilidade"),
-        ("Dias", "label_dias"),
-        ("Vencimento", "vencimento"),
-        ("Liq", "liq_indicator"),
+        ("Tipo (i)", "label_tipo"),
+        ("Ativo (i)", "ativo"),
+        ("Strike (i)", "strike"),
+        ("Ganho % (i)", "ganho_display"),
+        ("Rent. vs CDI (i)", "label_rentabilidade"),
+        ("Dias (i)", "label_dias"),
+        ("Vencimento (i)", "vencimento"),
+        ("Liq (i)", "liq_indicator"),
         ("Leilao", "leilao_display"),
         ("Custo BOX", "custo_box_display"),
         ("Custo SBTH", "custo_sbth_display"),
         ("Liq Put", "liq_put_display"),
         ("Liq Call", "liq_call_display"),
-        ("Money", "money_display"),
+        ("Money (i)", "money_display"),
         ("Of Cp Put", "of_compra_put"),
         ("Of Vd Call", "of_venda_call"),
         ("Qul Put", "qul_put"),
@@ -71,10 +71,29 @@ class MonitorTableModel(QAbstractTableModel):
         return len(self.COLUMNS)
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if role != Qt.DisplayRole:
+        if orientation != Qt.Horizontal or not (0 <= section < len(self.COLUMNS)):
             return None
-        if orientation == Qt.Horizontal and 0 <= section < len(self.COLUMNS):
+            
+        if role == Qt.DisplayRole:
             return self.COLUMNS[section][0]
+            
+        if role == Qt.ToolTipRole:
+            tips = {
+                "label_tipo": "Tipo de estratégia identificada (BOX, SBTH ou BOX+SBTH).",
+                "ativo": "Código da ação objeto (ex: PETR4) que dá origem às opções.",
+                "strike": "Preço de exercício das opções envolvidas na estrutura.",
+                "ganho_display": "Percentual de ganho bruto projetado para a operação até o vencimento.",
+                "label_rentabilidade": "Rentabilidade da operação comparada à taxa CDI do período.",
+                "label_dias": "Quantidade de dias corridos até a data de vencimento.",
+                "vencimento": "Data de expiração das opções da montagem.",
+                "liq_indicator": "Sinalizador de liquidez (✓: Ambos lados ok, ✗: Falta liquidez).",
+                "custo_box_display": "Preço de montagem da perna de BOX.",
+                "custo_sbth_display": "Preço de montagem da perna de SBTH.",
+                "money_display": "Indica se as opções estão 'Dentro do Dinheiro' (P: Put, C: Call)."
+            }
+            col_key = self.COLUMNS[section][1]
+            return tips.get(col_key, self.COLUMNS[section][0])
+            
         return None
 
     def data(self, index, role=Qt.DisplayRole):
@@ -152,6 +171,12 @@ class MonitorTableModel(QAbstractTableModel):
         value = getattr(opp, col_key, None)
         if value is None:
             return ""
+        
+        # Formata datas no padrao brasileiro
+        from datetime import date
+        if isinstance(value, date):
+            return value.strftime("%d/%m/%Y")
+            
         return str(value)
 
     def _background_data(self, opp: OportunidadeMonitor, col_key: str):

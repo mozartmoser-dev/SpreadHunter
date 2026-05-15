@@ -97,9 +97,11 @@ class OportunidadeMonitor:
 
     @property
     def resumo_linha(self) -> str:
+        from datetime import date
+        venc_str = self.vencimento.strftime("%d/%m/%Y") if isinstance(self.vencimento, date) else str(self.vencimento)
         return "{} | {} {} | {} | {} | %ganho={:.2f}%".format(
             self.ativo, self.label_tipo, self.label_dias,
-            self.vencimento, self.label_rentabilidade,
+            venc_str, self.label_rentabilidade,
             (self.pct_ganho_box * 100) if self.classificacao in ("1BOX", "3BOXSBTH") else (self.pct_ganho_sbth * 100),
         )
 
@@ -131,3 +133,17 @@ class ExportarResultado:
     exportado_em: str = ""
     boleta: dict = field(default_factory=dict)
     oportunidade_id: int = 0
+
+
+@dataclass
+class EngineStatsDTO:
+    scan_time_ms: int
+    cpu_pct: float
+    mem_mb: float
+    total_instrumentos: int
+    monitored_onda1: int
+    monitored_onda2: int
+    threads_count: int = 1
+    engine_type: str = "NumPy Vectorized"
+    registrado: bool = False
+    progresso_idx: int = 0

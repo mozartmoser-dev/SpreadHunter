@@ -6,7 +6,6 @@ from enum import Enum
 class TipoOpcao(Enum):
     AMERICANA = "A"
     EUROPEIA = "E"
-    PUT = "P"
 
 
 @dataclass

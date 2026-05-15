@@ -32,11 +32,19 @@ class ExportDialog(QDialog):
         layout.setContentsMargins(16, 16, 16, 12)
         layout.setSpacing(10)
 
+        venc_display = "-"
+        if self.oportunidade.vencimento:
+            from datetime import date
+            if isinstance(self.oportunidade.vencimento, date):
+                venc_display = self.oportunidade.vencimento.strftime("%d/%m/%Y")
+            else:
+                venc_display = str(self.oportunidade.vencimento)
+
         header = QLabel("{}  |  {}  |  Strike {:.2f}  |  {}".format(
             self.oportunidade.ativo,
             self.oportunidade.label_tipo,
             self.oportunidade.strike,
-            self.oportunidade.vencimento or "-",
+            venc_display,
         ))
         header.setStyleSheet(
             "font-size: 13pt; font-weight: bold; color: {}; padding: 6px 0;".format(Palette.TEXT_PRIMARY)
@@ -81,9 +89,9 @@ class ExportDialog(QDialog):
         pernas_group = QGroupBox("Pernas da Estrutura")
         pernas_form = QFormLayout()
         pernas_form.setSpacing(8)
-        pernas_form.addRow(self._label_muted("Compra Ativo:"), QLabel("{:.2f} (of. venda)".format(opp.preco_compra_ativo)))
-        pernas_form.addRow(self._label_muted("Compra Put:"), QLabel("{:.2f} (of. venda)".format(opp.of_venda_put)))
-        pernas_form.addRow(self._label_muted("Venda Call:"), QLabel("{:.2f} (of. compra)".format(opp.of_compra_call)))
+        pernas_form.addRow(self._label_muted("Compra Ativo ({}):".format(opp.ativo)), QLabel("{:.2f} (of. venda)".format(opp.preco_compra_ativo)))
+        pernas_form.addRow(self._label_muted("Compra Put ({}):".format(opp.cod_put)), QLabel("{:.2f} (of. venda)".format(opp.of_venda_put)))
+        pernas_form.addRow(self._label_muted("Venda Call ({}):".format(opp.cod_call)), QLabel("{:.2f} (of. compra)".format(opp.of_compra_call)))
         pernas_group.setLayout(pernas_form)
         layout.addWidget(pernas_group)
 

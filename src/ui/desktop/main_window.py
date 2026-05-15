@@ -18,6 +18,7 @@ from src.ui.desktop.monitor_worker import MonitorWorker
 from src.ui.desktop.import_dialog import ImportDialog
 from src.ui.desktop.export_dialog import ExportDialog
 from src.ui.desktop.parametros_widget import ParametrosWidget
+from src.ui.desktop.engine_dashboard import EngineDashboard
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 
 
@@ -49,6 +50,9 @@ class MainWindow(QMainWindow):
         self._worker.oportunidades_atualizadas.connect(self._on_oportunidades_atualizadas)
         self._worker.status_message.connect(self._on_status_message)
         self._worker.rtd_status.connect(self._on_rtd_status)
+        self._worker.engine_stats_updated.connect(self._on_engine_stats_updated)
+        
+        self._engine_dialog = EngineDashboard(self)
 
         self.setStyleSheet(DARK_THEME_QSS)
 
@@ -136,6 +140,22 @@ class MainWindow(QMainWindow):
         self.lbl_rtd_indicator.setFixedHeight(24)
         self._update_rtd_indicator(False)
         btn_layout.addWidget(self.lbl_rtd_indicator)
+
+        self.btn_engine = QPushButton("⚡")
+        self.btn_engine.setToolTip("Engine Health & Performance")
+        self.btn_engine.setFixedSize(28, 24)
+        self.btn_engine.setStyleSheet("""
+            QPushButton {
+                background-color: #1e1e2f;
+                color: #00f2ff;
+                border: 1px solid #2d2d44;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #2d2d44; color: #00ff88; }
+        """)
+        self.btn_engine.clicked.connect(self._abrir_engine_dashboard)
+        btn_layout.addWidget(self.btn_engine)
 
         main_layout.addLayout(btn_layout)
 
@@ -291,6 +311,12 @@ class MainWindow(QMainWindow):
     def _on_status_message(self, msg: str):
         self._status_left.setText(msg)
 
+    def _abrir_engine_dashboard(self):
+        self._engine_dialog.exec_()
+
+    def _on_engine_stats_updated(self, stats):
+        self._engine_dialog.update_stats(stats)
+
     def _update_scan_status(self):
         if self._last_scan_time is None:
             return
@@ -313,6 +339,7 @@ class MainWindow(QMainWindow):
                 )
             )
             self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
+            self._worker.recarregar_instrumentos()
 
     def _on_row_double_clicked(self, index):
         opp = self.table_model.get_oportunidade(index.row())

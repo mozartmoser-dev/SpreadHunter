@@ -18,10 +18,19 @@ def _parse_date(val) -> date | None:
 
 
 class InstrumentoRepository:
+    _cache_all = None
+    _cache_mapped = None
+
     def __init__(self, db_path=None):
         self.db_path = db_path
 
+    @classmethod
+    def invalidate_cache(cls):
+        cls._cache_all = None
+        cls._cache_mapped = None
+
     def save(self, instrumento: InstrumentoOpcional) -> InstrumentoOpcional:
+        self.invalidate_cache()
         conn = get_connection(self.db_path)
         try:
             cursor = conn.execute(
@@ -38,6 +47,7 @@ class InstrumentoRepository:
             conn.close()
 
     def save_batch(self, instrumentos: list[InstrumentoOpcional]) -> int:
+        self.invalidate_cache()
         conn = get_connection(self.db_path)
         try:
             rows = [
@@ -54,10 +64,13 @@ class InstrumentoRepository:
             conn.close()
 
     def get_all(self) -> list[InstrumentoOpcional]:
+        if self.__class__._cache_all is not None:
+            return self.__class__._cache_all
+        
         conn = get_connection(self.db_path)
         try:
             rows = conn.execute("SELECT * FROM instrumentos_base").fetchall()
-            return [
+            self.__class__._cache_all = [
                 InstrumentoOpcional(
                     id=row["id"],
                     ativo=row["ativo"],
@@ -68,8 +81,18 @@ class InstrumentoRepository:
                 )
                 for row in rows
             ]
+            return self.__class__._cache_all
         finally:
             conn.close()
+
+    def get_all_mapped(self) -> dict[str, InstrumentoOpcional]:
+        """Retorna dicionário {cod_put: InstrumentoOpcional}."""
+        if self.__class__._cache_mapped is not None:
+            return self.__class__._cache_mapped
+        
+        all_inst = self.get_all()
+        self.__class__._cache_mapped = {i.cod_put: i for i in all_inst}
+        return self.__class__._cache_mapped
 
     def get_by_ativo(self, ativo: str) -> list[InstrumentoOpcional]:
         conn = get_connection(self.db_path)
@@ -92,6 +115,7 @@ class InstrumentoRepository:
             conn.close()
 
     def delete_all(self) -> int:
+        self.invalidate_cache()
         conn = get_connection(self.db_path)
         try:
             conn.execute("PRAGMA foreign_keys=OFF")
@@ -103,10 +127,17 @@ class InstrumentoRepository:
 
 
 class ParametroRepository:
+    _cache = None
+
     def __init__(self, db_path=None):
         self.db_path = db_path
 
+    @classmethod
+    def invalidate_cache(cls):
+        cls._cache = None
+
     def save(self, param: ParametroOperacional) -> ParametroOperacional:
+        self.invalidate_cache()
         conn = get_connection(self.db_path)
         try:
             cursor = conn.execute(
@@ -122,35 +153,28 @@ class ParametroRepository:
             conn.close()
 
     def get_by_chave(self, chave: str) -> ParametroOperacional | None:
-        conn = get_connection(self.db_path)
-        try:
-            row = conn.execute(
-                "SELECT * FROM parametros_operacionais WHERE chave = ?", (chave,)
-            ).fetchone()
-            if not row:
-                return None
-            return ParametroOperacional(
-                id=row["id"], chave=row["chave"], valor=row["valor"],
-                estrategia=row["estrategia"], descricao=row["descricao"]
-            )
-        finally:
-            conn.close()
+        if self.__class__._cache is None:
+            self._fill_cache()
+        return self.__class__._cache.get(chave)
 
-    def get_by_estrategia(self, estrategia: str) -> list[ParametroOperacional]:
+    def _fill_cache(self):
         conn = get_connection(self.db_path)
         try:
-            rows = conn.execute(
-                "SELECT * FROM parametros_operacionais WHERE estrategia = ?", (estrategia,)
-            ).fetchall()
-            return [
-                ParametroOperacional(
+            rows = conn.execute("SELECT * FROM parametros_operacionais").fetchall()
+            self.__class__._cache = {
+                row["chave"]: ParametroOperacional(
                     id=row["id"], chave=row["chave"], valor=row["valor"],
                     estrategia=row["estrategia"], descricao=row["descricao"]
                 )
                 for row in rows
-            ]
+            }
         finally:
             conn.close()
+
+    def get_by_estrategia(self, estrategia: str) -> list[ParametroOperacional]:
+        if self.__class__._cache is None:
+            self._fill_cache()
+        return [p for p in self.__class__._cache.values() if p.estrategia == estrategia]
 
     def seed_defaults(self) -> None:
         """Insere os parâmetros padrão APENAS se ainda não existirem no banco.

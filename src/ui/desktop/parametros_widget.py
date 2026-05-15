@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QGroupBox,
     QDoubleSpinBox, QPushButton, QLabel, QScrollArea, QFrame,
+    QCheckBox,
 )
 from PyQt5.QtCore import Qt
 
@@ -8,12 +9,22 @@ from src.infrastructure.persistence.repositories.repositories import ParametroRe
 from src.domain.entities.parametro_operacional import ParametroOperacional
 from src.ui.desktop.theme import Palette
 
+class NoWheelSpinBox(QDoubleSpinBox):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFocusPolicy(Qt.StrongFocus)
+
+    def wheelEvent(self, event):
+        # Ignora o evento de roda para evitar mudanças acidentais ao rolar a tela
+        event.ignore()
+
 
 ESTRATEGIA_LABELS = {
     "GERAL": "Geral",
     "SBTH": "SBTH (Synthetic Buy & Hold)",
     "BOX": "BOX Comprado 3 Pontas",
     "BOX_SINTETICO": "BOX Sintetico / Pescaria Basket",
+    "PERFORMANCE": "Ajuste de Performance",
 }
 
 ESTRATEGIA_COLORS = {
@@ -21,6 +32,7 @@ ESTRATEGIA_COLORS = {
     "SBTH": Palette.CYAN,
     "BOX": Palette.ACCENT_BLUE_BRIGHT,
     "BOX_SINTETICO": Palette.PURPLE,
+    "PERFORMANCE": Palette.YELLOW,
 }
 
 PARAMETROS_POR_ESTRATEGIA = {
@@ -52,6 +64,13 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("basket_qtd_call", "Qtd venda Call ATM"),
         ("basket_prof_call", "Profund. Call ATM"),
     ],
+    "PERFORMANCE": [
+        ("perf_carga_inteligente", "Habilitar Carga Inteligente (0=Off, 1=On)"),
+        ("perf_range_min", "Filtro Strike Min (%)"),
+        ("perf_range_max", "Filtro Strike Max (%)"),
+        ("perf_limite_meses", "Limite Vencimento (Meses, 0=S.Lim)"),
+        ("perf_dias_minimos", "Dias Minimos Vencimento"),
+    ],
 }
 
 
@@ -60,7 +79,7 @@ class ParametrosWidget(QWidget):
         super().__init__(parent)
         self.db_path = db_path
         self.repo = ParametroRepository(db_path)
-        self._spins: dict[str, QDoubleSpinBox] = {}
+        self._widgets: dict[str, QWidget] = {}
         self._setup_ui()
         self._carregar()
 
@@ -88,22 +107,23 @@ class ParametrosWidget(QWidget):
             form.setContentsMargins(12, 20, 12, 12)
 
             for chave, display in params:
-                spin = QDoubleSpinBox()
-                spin.setRange(-100.0, 100000.0)
-                if "prof" in chave:
-                    spin.setDecimals(0)
-                    spin.setSingleStep(1)
-                elif "qtd" in chave:
-                    spin.setDecimals(0)
-                    spin.setSingleStep(100)
+                if "perf_carga_inteligente" in chave:
+                    widget = QCheckBox("Habilitado")
+                    widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
                 else:
-                    spin.setDecimals(4)
-                    spin.setSingleStep(0.01)
+                    widget = NoWheelSpinBox()
+                    widget.setRange(-100.0, 100000.0)
+                    if "prof" in chave or "qtd" in chave or "meses" in chave or "inteligente" in chave:
+                        widget.setDecimals(0)
+                        widget.setSingleStep(1 if "qtd" not in chave else 100)
+                    else:
+                        widget.setDecimals(4)
+                        widget.setSingleStep(0.01)
 
                 param_label = QLabel(display + ":")
                 param_label.setStyleSheet("color: {}; font-size: 9pt;".format(Palette.TEXT_SECONDARY))
-                form.addRow(param_label, spin)
-                self._spins[chave] = spin
+                form.addRow(param_label, widget)
+                self._widgets[chave] = widget
 
             group.setLayout(form)
             layout.addWidget(group)
@@ -127,21 +147,26 @@ class ParametrosWidget(QWidget):
         outer_layout.addWidget(self.lbl_status)
 
     def _carregar(self):
-        for chave, spin in self._spins.items():
+        for chave, widget in self._widgets.items():
             param = self.repo.get_by_chave(chave)
-            if param:
-                spin.setValue(param.valor)
-            else:
-                defaults = ParametroOperacional.PARAMETROS_DEFAULT
-                if chave in defaults:
-                    spin.setValue(defaults[chave]["valor"])
+            val = param.valor if param else ParametroOperacional.PARAMETROS_DEFAULT.get(chave, {}).get("valor", 0.0)
+            
+            if isinstance(widget, QCheckBox):
+                widget.setChecked(bool(val))
+            elif isinstance(widget, QDoubleSpinBox):
+                widget.setValue(val)
 
     def _salvar(self):
         try:
-            for chave, spin in self._spins.items():
+            for chave, widget in self._widgets.items():
+                if isinstance(widget, QCheckBox):
+                    valor = 1.0 if widget.isChecked() else 0.0
+                else:
+                    valor = widget.value()
+                    
                 param = self.repo.get_by_chave(chave)
                 if param:
-                    param.valor = spin.value()
+                    param.valor = valor
                     self.repo.save(param)
                 else:
                     defaults = ParametroOperacional.PARAMETROS_DEFAULT
@@ -149,7 +174,7 @@ class ParametrosWidget(QWidget):
                         d = defaults[chave]
                         p = ParametroOperacional(
                             chave=chave,
-                            valor=spin.value(),
+                            valor=valor,
                             estrategia=d["estrategia"],
                             descricao=d["descricao"],
                         )
