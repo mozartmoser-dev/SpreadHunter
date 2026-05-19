@@ -12,7 +12,7 @@ from PyQt5.QtGui import QFont, QColor, QBrush, QIcon, QPixmap, QPainter
 from src.infrastructure.persistence.database import get_db_path
 from src.application.use_cases.importar_base import ImportarBaseUseCase
 from src.application.use_cases.exportar_operacao import ExportarOperacaoUseCase
-from src.ui.desktop.theme import DARK_THEME_QSS, Palette
+from src.ui.desktop.theme import DARK_THEME_QSS, Palette, get_theme_qss
 from src.ui.desktop.monitor_table_model import MonitorTableModel
 from src.ui.desktop.monitor_worker import MonitorWorker
 from src.ui.desktop.import_dialog import ImportDialog
@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
         
         self._engine_dialog = EngineDashboard(self)
 
-        self.setStyleSheet(DARK_THEME_QSS)
+        self._aplicar_tema_configurado()
 
         self._setup_ui()
         self._setup_toolbar()
@@ -254,6 +254,12 @@ class MainWindow(QMainWindow):
             "font-size: 8.5pt; font-weight: bold; margin-right: 8px;"
         )
 
+    def _aplicar_tema_configurado(self):
+        param_repo = ParametroRepository(self.db_path)
+        param = param_repo.get_by_chave("tema_visual")
+        theme_id = param.valor if param else 0.0
+        self.setStyleSheet(get_theme_qss(theme_id))
+
     def _abrir_parametros(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Parametros Operacionais")
@@ -266,6 +272,7 @@ class MainWindow(QMainWindow):
         btn_fechar.clicked.connect(dialog.accept)
         layout.addWidget(btn_fechar)
         dialog.exec_()
+        self._aplicar_tema_configurado()
         self._worker.recarregar_parametros()
         self._update_cdi_display()
 

@@ -56,15 +56,15 @@ class BadgeDelegate(QStyledItemDelegate):
             if text in ("\u2713", "✓"):
                 badge_bg = QColor(46, 204, 113, 35)  # Verde
                 badge_fg = QColor("#2ecc71")
-                display_text = "OK"
+                display_text = "\u2713"
             elif text in ("\u2717", "✗"):
                 badge_bg = QColor(231, 76, 60, 35)  # Vermelho
                 badge_fg = QColor("#e74c3c")
-                display_text = "SEM LIQ"
+                display_text = "\u2717"
             else:
                 badge_bg = QColor(243, 156, 18, 35)  # Laranja
                 badge_fg = QColor("#f39c12")
-                display_text = "PARCIAL"
+                display_text = "\u2713~"
 
         # 4. Desenha a pilula (pill) com cantos arredondados
         rect = QRectF(option.rect)
@@ -80,7 +80,10 @@ class BadgeDelegate(QStyledItemDelegate):
         painter.setPen(badge_fg)
         font = painter.font()
         font.setBold(True)
-        font.setPointSize(8)
+        if col_key == "liq_indicator":
+            font.setPointSize(10)
+        else:
+            font.setPointSize(8)
         painter.setFont(font)
         painter.drawText(option.rect, Qt.AlignCenter | Qt.AlignVCenter, display_text)
 

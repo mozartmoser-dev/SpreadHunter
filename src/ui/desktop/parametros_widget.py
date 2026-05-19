@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QGroupBox,
     QDoubleSpinBox, QPushButton, QLabel, QScrollArea, QFrame,
-    QCheckBox,
+    QCheckBox, QComboBox,
 )
 from PyQt5.QtCore import Qt
 
@@ -38,6 +38,7 @@ ESTRATEGIA_COLORS = {
 PARAMETROS_POR_ESTRATEGIA = {
     "GERAL": [
         ("taxa_cdi", "Taxa CDI/Selic"),
+        ("tema_visual", "Aspecto do Sistema"),
     ],
     "BOX": [
         ("premio_risco_box", "Premio risco BOX (x CDI)"),
@@ -110,6 +111,9 @@ class ParametrosWidget(QWidget):
                 if "perf_carga_inteligente" in chave:
                     widget = QCheckBox("Habilitado")
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
+                elif "tema_visual" in chave:
+                    widget = QComboBox()
+                    widget.addItems(["Azul Marinho", "Grafite / Slate", "True Dark / Charcoal"])
                 else:
                     widget = NoWheelSpinBox()
                     widget.setRange(-100.0, 100000.0)
@@ -153,6 +157,8 @@ class ParametrosWidget(QWidget):
             
             if isinstance(widget, QCheckBox):
                 widget.setChecked(bool(val))
+            elif isinstance(widget, QComboBox):
+                widget.setCurrentIndex(int(val))
             elif isinstance(widget, QDoubleSpinBox):
                 widget.setValue(val)
 
@@ -161,6 +167,8 @@ class ParametrosWidget(QWidget):
             for chave, widget in self._widgets.items():
                 if isinstance(widget, QCheckBox):
                     valor = 1.0 if widget.isChecked() else 0.0
+                elif isinstance(widget, QComboBox):
+                    valor = float(widget.currentIndex())
                 else:
                     valor = widget.value()
                     

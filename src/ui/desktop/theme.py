@@ -465,3 +465,66 @@ class Palette:
     LIQ_NEGATIVE = "#e74c3c"
 
     STRIKEOUT_COLOR = "#4a4a5e"
+
+
+THEME_REPLACEMENTS = {
+    0.0: [],  # Mantem o Azul Marinho padrao
+    1.0: [    # Grafite / Slate Gray
+        ("#1a1a2e", "#0f172a"),
+        ("#1e1e34", "#1e293b"),
+        ("#0f0f23", "#020617"),
+        ("#16213e", "#1e293b"),
+        ("#2d2d44", "#334155"),
+        ("#3d3d5c", "#475569"),
+        ("#4a4a6a", "#64748b"),
+        ("#1e1e30", "#0f172a"),
+        ("#5a5a8a", "#64748b"),
+        ("#2a2a3e", "#334155"),
+        ("#22223a", "#1e293b"),
+        ("#2d4a7a", "#3b82f6"),
+        ("#24243e", "#1e293b"),
+        ("#00f2ff", "#3b82f6"),
+        ("#e0e0e0", "#f1f5f9"),
+        ("#9090b0", "#94a3b8"),
+        ("#80809b", "#94a3b8"),
+    ],
+    2.0: [    # True Dark / Charcoal
+        ("#1a1a2e", "#09090b"),
+        ("#1e1e34", "#18181b"),
+        ("#0f0f23", "#030303"),
+        ("#16213e", "#18181b"),
+        ("#2d2d44", "#27272a"),
+        ("#3d3d5c", "#3f3f46"),
+        ("#4a4a6a", "#52525b"),
+        ("#1e1e30", "#09090b"),
+        ("#5a5a8a", "#52525b"),
+        ("#2a2a3e", "#27272a"),
+        ("#22223a", "#18181b"),
+        ("#2d4a7a", "#27272a"),
+        ("#24243e", "#1b1b1f"),
+        ("#00f2ff", "#ffffff"),
+        ("#e0e0e0", "#fafafa"),
+        ("#9090b0", "#a1a1aa"),
+        ("#80809b", "#a1a1aa"),
+    ]
+}
+
+
+def get_theme_qss(theme_id: float) -> str:
+    qss = DARK_THEME_QSS
+    replacements = THEME_REPLACEMENTS.get(float(theme_id), [])
+    for old_color, new_color in replacements:
+        qss = qss.replace(old_color, new_color)
+        qss = qss.replace(old_color.upper(), new_color)
+    return qss
+
+    ROW_BOX = "#1a2e1a"
+    ROW_SBTH = "#1a1a2e"
+    ROW_BOXSBTH = "#1a2e2e"
+    ROW_NOT_VIABLE = "#2e1a1a"
+    ROW_LEILAO = "#3a1a1a"
+
+    LIQ_POSITIVE = "#2ecc71"
+    LIQ_NEGATIVE = "#e74c3c"
+
+    STRIKEOUT_COLOR = "#4a4a5e"
