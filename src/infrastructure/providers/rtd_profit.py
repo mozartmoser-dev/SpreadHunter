@@ -10,10 +10,10 @@ class RTDProfit:
     def __init__(self):
         self.disponivel = False
         self._rtd = None
-        import time
-        # Começa com um número dinâmico baseado no timestamp para evitar colisão de IDs 
+        import random
+        # Começa com um número dinâmico e aleatório alto para evitar colisão de IDs 
         # de tópicos com execuções anteriores que possam ter ficado ativas no servidor RTD do Profit
-        self._topic_counter = int(time.time() * 10) % 10000000 + 1000
+        self._topic_counter = random.randint(100000, 20000000)
         self._topic_map: dict[str, int] = {}
         self._topic_reverse: dict[int, str] = {}
         self._valores: dict[int, object] = {}
