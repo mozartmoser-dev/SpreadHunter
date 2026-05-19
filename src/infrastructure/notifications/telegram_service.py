@@ -14,7 +14,7 @@ class TelegramService:
         self._notifier: TelegramNotifier | None = None
         import time
         self._last_sent_time = 0.0
-        self._min_interval_seconds = 120.0  # Evita spam enviando no maximo a cada 2 minutos
+        self._min_interval_seconds = 3.0  # Evita sobrecarregar a API com limite de 3 segundos
 
     def _load_params(self) -> dict[str, str]:
         """Fetch token, chat_id and enable flag from the parameters table.

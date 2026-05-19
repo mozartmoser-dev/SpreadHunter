@@ -23,6 +23,7 @@ class MonitorOportunidadesUseCase:
         self._calculadora = None
         self._calc_vetorizada = None
         self._lotes_cache = {}
+        self._historico_enviado = {}  # Guarda as taxas das oportunidades enviadas
 
     def _get_calculadora(self) -> CalculadoraBoxSbth:
         if self._calculadora is None:
@@ -141,11 +142,67 @@ class MonitorOportunidadesUseCase:
         resultados.sort(key=lambda o: (not o.viavel, -max(o.pct_cdi_box, o.pct_cdi_sbth)))
         # Envio opcional de notificação por Telegram quando há oportunidades viáveis
         if hasattr(self, "telegram_service") and self.telegram_service.is_enabled():
+            import time
             viaveis = [o for o in resultados if o.viavel]
-            if viaveis:
-                count = len(viaveis)
-                msgs = [f"{o.ativo} {o.strike:.2f} ({o.classificacao.name})" for o in viaveis[:3]]
-                text = f"⚡️ {count} oportunidade(s) viável(is) detectada(s):\n" + "\n".join(msgs)
+            novas_ou_melhores = []
+            now = time.time()
+
+            for o in viaveis:
+                key_hist = f"{o.ativo}_{o.strike:.2f}"
+                last = self._historico_enviado.get(key_hist)
+                
+                melhorou = False
+                if not last:
+                    melhorou = True
+                else:
+                    # Só envia novamente se o rendimento CDI ou %ganho atual superou o último enviado
+                    if o.classificacao == "1BOX":
+                        if o.pct_cdi_box > last["pct_cdi_box"] or o.pct_ganho_box > last["pct_ganho_box"]:
+                            melhorou = True
+                    elif o.classificacao == "2SBTH":
+                        if o.pct_cdi_sbth > last["pct_cdi_sbth"] or o.pct_ganho_sbth > last["pct_ganho_sbth"]:
+                            melhorou = True
+                    elif o.classificacao == "3BOXSBTH":
+                        if (o.pct_cdi_box > last["pct_cdi_box"] or o.pct_cdi_sbth > last["pct_cdi_sbth"] or
+                            o.pct_ganho_box > last["pct_ganho_box"] or o.pct_ganho_sbth > last["pct_ganho_sbth"]):
+                            melhorou = True
+                    else:
+                        max_cdi_atual = max(o.pct_cdi_box, o.pct_cdi_sbth)
+                        max_cdi_antigo = max(last["pct_cdi_box"], last["pct_cdi_sbth"])
+                        max_ganho_atual = max(o.pct_ganho_box, o.pct_ganho_sbth)
+                        max_ganho_antigo = max(last["pct_ganho_box"], last["pct_ganho_sbth"])
+                        if max_cdi_atual > max_cdi_antigo or max_ganho_atual > max_ganho_antigo:
+                            melhorou = True
+
+                # Atualiza as taxas e o timestamp no histórico
+                self._historico_enviado[key_hist] = {
+                    "pct_cdi_box": o.pct_cdi_box,
+                    "pct_cdi_sbth": o.pct_cdi_sbth,
+                    "pct_ganho_box": o.pct_ganho_box,
+                    "pct_ganho_sbth": o.pct_ganho_sbth,
+                    "timestamp": now
+                }
+
+                if melhorou:
+                    novas_ou_melhores.append(o)
+
+            # Limpa o histórico de itens inativos por mais de 5 minutos (300s)
+            chaves_para_remover = [
+                k for k, v in self._historico_enviado.items()
+                if now - v["timestamp"] > 300
+            ]
+            for k in chaves_para_remover:
+                self._historico_enviado.pop(k, None)
+
+            # Dispara o Telegram apenas para as novas/melhoradas
+            if novas_ou_melhores:
+                count = len(novas_ou_melhores)
+                msgs = []
+                for o in novas_ou_melhores[:3]:
+                    cdi_val = max(o.pct_cdi_box, o.pct_cdi_sbth)
+                    msgs.append(f"• {o.ativo} (Strike: {o.strike:.2f}) | {o.label_tipo} | {cdi_val:.2f}x CDI")
+                
+                text = f"⚡️ {count} nova(s) oportunidade(s) viável(is) detectada(s):\n" + "\n".join(msgs)
                 self.telegram_service.send(text)
         return resultados
 
