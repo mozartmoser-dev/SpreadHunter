@@ -31,9 +31,10 @@ class BadgeDelegate(QStyledItemDelegate):
                 painter.fillRect(option.rect, QColor("#1a1a2e"))
 
         # 2. Desenha destaque de selecao ou hover
-        if option.state & option.State_Selected:
+        from PyQt5.QtWidgets import QStyle
+        if option.state & QStyle.State_Selected:
             painter.fillRect(option.rect, QColor("#2d4a7a"))
-        elif option.state & option.State_MouseOver:
+        elif option.state & QStyle.State_MouseOver:
             painter.fillRect(option.rect, QColor("#24243e"))
 
         # 3. Configura cores do Badge de acordo com o conteudo
