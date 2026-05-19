@@ -90,11 +90,15 @@ class MainWindow(QMainWindow):
         self.table_view.verticalHeader().hide()
         self.table_view.setShowGrid(True)
         self._apply_hidden_columns()
+
+        from src.ui.desktop.badge_delegate import BadgeDelegate
+        delegate = BadgeDelegate(self.table_view)
+        for idx, (col_name, col_key) in enumerate(MonitorTableModel.COLUMNS):
+            if col_key in ("label_tipo", "liq_indicator"):
+                self.table_view.setItemDelegateForColumn(idx, delegate)
+
         font = QFont("Consolas", 9)
         self.table_view.setFont(font)
-        self.table_view.setStyleSheet(
-            "QTableView { font-family: Consolas, 'Courier New', monospace; font-size: 9pt; }"
-        )
 
         main_layout.addWidget(self.table_view, stretch=1)
 
@@ -245,9 +249,9 @@ class MainWindow(QMainWindow):
             "CDI: {:.2f}%a | {:.4f}%m | {:.4f}%d".format(cdi_anual_pct, cdi_mes_pct, cdi_dia_pct)
         )
         self._status_right.setStyleSheet(
-            "color: {}; font-family: Consolas, monospace; font-size: 9pt; padding-right: 8px;".format(
-                Palette.CYAN
-            )
+            "background-color: #16213e; color: #00f2ff; border: 1px solid #2d2d44; "
+            "border-radius: 4px; padding: 3px 10px; font-family: 'JetBrains Mono', Consolas, monospace; "
+            "font-size: 8.5pt; font-weight: bold; margin-right: 8px;"
         )
 
     def _abrir_parametros(self):

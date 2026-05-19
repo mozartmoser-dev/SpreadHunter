@@ -3,7 +3,7 @@ DARK_THEME_QSS = """
 QMainWindow, QDialog, QWidget {
     background-color: #1a1a2e;
     color: #e0e0e0;
-    font-family: "Segoe UI", Tahoma, sans-serif;
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Segoe UI Semibold", "Inter", sans-serif;
     font-size: 10pt;
 }
 
@@ -151,7 +151,7 @@ QTableView {
     border-radius: 4px;
     selection-background-color: #2d4a7a;
     selection-color: #ffffff;
-    font-family: "Consolas", "Courier New", monospace;
+    font-family: "JetBrains Mono", "Consolas", "Courier New", monospace;
     font-size: 9pt;
     outline: none;
 }
@@ -165,41 +165,49 @@ QTableView::item:selected {
     background-color: #2d4a7a;
 }
 
+QTableView::item:hover {
+    background-color: #24243e;
+}
+
 QHeaderView::section {
-    background-color: #16213e;
-    color: #9090b0;
+    background-color: #0f0f23;
+    color: #a0a0c0;
     border: none;
-    border-right: 1px solid #2a2a3e;
-    border-bottom: 1px solid #2a2a3e;
-    padding: 6px 10px;
+    border-right: 1px solid #1a1a2e;
+    border-bottom: 1px solid #2d2d44;
+    padding: 8px 10px;
     font-weight: bold;
-    font-size: 8pt;
-    font-family: "Segoe UI", Tahoma, sans-serif;
+    font-size: 8.5pt;
+    font-family: "Segoe UI", sans-serif;
     text-transform: uppercase;
 }
 
 QHeaderView::section:hover {
-    background-color: #1e2d4a;
+    background-color: #1a1a2e;
+    color: #ffffff;
 }
 
 /* ── Group Box ───────────────────────────────────────────────────── */
 QGroupBox {
-    background-color: #1e1e34;
-    border: 1px solid #2d2d44;
-    border-radius: 6px;
-    margin-top: 12px;
-    padding: 12px 10px 10px 10px;
+    background-color: #16213e;
+    border: 1px solid #25253d;
+    border-radius: 8px;
+    margin-top: 16px;
+    padding: 16px 12px 12px 12px;
     font-weight: bold;
-    font-size: 9pt;
-    color: #a0a0c0;
+    font-size: 9.5pt;
+    color: #00f2ff;
 }
 
 QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
     left: 14px;
-    padding: 0 6px;
-    color: #c0c0e0;
+    padding: 0 8px;
+    color: #ffffff;
+    background-color: #1a1a2e;
+    border-radius: 4px;
+    border: 1px solid #25253d;
 }
 
 /* ── Form Layout Labels ─────────────────────────────────────────── */
@@ -358,30 +366,33 @@ QMessageBox QLabel {
 
 /* ── Tab Widget ──────────────────────────────────────────────────── */
 QTabWidget::pane {
-    background-color: #1a1a2e;
+    background-color: #1e1e34;
     border: 1px solid #2d2d44;
-    border-radius: 4px;
+    border-radius: 6px;
+    top: -1px;
 }
 
 QTabBar::tab {
-    background-color: #16213e;
-    color: #9090b0;
+    background-color: #0f0f23;
+    color: #80809b;
     border: 1px solid #2d2d44;
     border-bottom: none;
-    border-top-left-radius: 4px;
-    border-top-right-radius: 4px;
-    padding: 6px 16px;
-    margin-right: 2px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    padding: 8px 20px;
+    margin-right: 4px;
+    font-weight: bold;
 }
 
 QTabBar::tab:selected {
-    background-color: #1a1a2e;
-    color: #e0e0e0;
+    background-color: #1e1e34;
+    color: #00f2ff;
+    border-bottom: 2px solid #00f2ff;
 }
 
 QTabBar::tab:hover {
-    background-color: #2d2d44;
-    color: #e0e0e0;
+    background-color: #16213e;
+    color: #ffffff;
 }
 
 /* ── Tool Tip ────────────────────────────────────────────────────── */
