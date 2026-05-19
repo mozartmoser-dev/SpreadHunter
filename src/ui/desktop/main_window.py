@@ -117,6 +117,10 @@ class MainWindow(QMainWindow):
         self.btn_import.clicked.connect(self._abrir_importacao)
         btn_layout.addWidget(self.btn_import)
 
+        self.btn_historico = QPushButton("  Histórico")
+        self.btn_historico.clicked.connect(self._abrir_historico)
+        btn_layout.addWidget(self.btn_historico)
+
         self.btn_varrer = QPushButton("  Iniciar Monitor")
         self.btn_varrer.setCheckable(True)
         self.btn_varrer.setChecked(False)
@@ -454,6 +458,11 @@ class MainWindow(QMainWindow):
             self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
             self._worker.recarregar_instrumentos()
             self._refresh_ativos_filter()
+
+    def _abrir_historico(self):
+        from src.ui.desktop.historico_dialog import HistoricoDialog
+        dialog = HistoricoDialog(self.db_path, self)
+        dialog.exec_()
 
     def _on_row_double_clicked(self, index):
         opp = self.table_model.get_oportunidade(index.row())

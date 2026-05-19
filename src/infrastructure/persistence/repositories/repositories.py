@@ -254,6 +254,58 @@ class OportunidadeRepository:
             snapshot_mercado=json.loads(row["snapshot_mercado"] or "{}"),
         )
 
+    def get_historico_completo(self) -> list[dict]:
+        conn = get_connection(self.db_path)
+        try:
+            cursor = conn.execute(
+                """SELECT o.id, o.created_at, i.ativo, o.strike, o.operacao, o.dias, o.preco_ativo,
+                          o.custo_box, o.pct_ganho_box, o.pct_cdi_box,
+                          o.custo_sbth, o.pct_ganho_sbth, o.pct_cdi_sbth,
+                          o.snapshot_mercado
+                   FROM oportunidades o
+                   JOIN instrumentos_base i ON o.instrumento_id = i.id
+                   ORDER BY o.created_at DESC"""
+            )
+            rows = cursor.fetchall()
+            res = []
+            for r in rows:
+                res.append({
+                    "id": r["id"],
+                    "created_at": r["created_at"],
+                    "ativo": r["ativo"],
+                    "strike": r["strike"],
+                    "operacao": r["operacao"],
+                    "dias": r["dias"],
+                    "preco_ativo": r["preco_ativo"],
+                    "custo_box": r["custo_box"],
+                    "pct_ganho_box": r["pct_ganho_box"],
+                    "pct_cdi_box": r["pct_cdi_box"],
+                    "custo_sbth": r["custo_sbth"],
+                    "pct_ganho_sbth": r["pct_ganho_sbth"],
+                    "pct_cdi_sbth": r["pct_cdi_sbth"],
+                    "snapshot_mercado": r["snapshot_mercado"],
+                })
+            return res
+        finally:
+            conn.close()
+
+    def delete_by_id(self, o_id: int) -> bool:
+        conn = get_connection(self.db_path)
+        try:
+            conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute(
+                """DELETE FROM pernas_operacao 
+                   WHERE estrutura_id IN (
+                       SELECT id FROM estruturas_operacionais WHERE oportunidade_id = ?
+                   )""", (o_id,)
+            )
+            conn.execute("DELETE FROM estruturas_operacionais WHERE oportunidade_id = ?", (o_id,))
+            cursor = conn.execute("DELETE FROM oportunidades WHERE id = ?", (o_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+        finally:
+            conn.close()
+
 
 class EstruturaRepository:
     def __init__(self, db_path=None):
