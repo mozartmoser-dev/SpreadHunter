@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QToolBar, QAction, QLabel, QDialog,
     QHeaderView, QTableView, QAbstractItemView, QFrame, QMenu,
-    QCheckBox,
+    QCheckBox, QComboBox,
 )
 from PyQt5.QtCore import Qt, QTimer, QSize
 from PyQt5.QtGui import QFont, QColor, QBrush, QIcon, QPixmap, QPainter
@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self._last_scan_time = None
         self._total_opps = 0
         self._total_viaveis = 0
+        self._resultados_brutos = []
 
         self.importar_uc = ImportarBaseUseCase(self.db_path)
         self.exportar_uc = ExportarOperacaoUseCase(self.db_path)
@@ -63,6 +64,7 @@ class MainWindow(QMainWindow):
         self._scan_timer = QTimer(self)
         self._scan_timer.timeout.connect(self._update_scan_status)
         self._scan_timer.start(1000)
+        self._refresh_ativos_filter()
 
     def _setup_ui(self):
         self.setWindowTitle("SpreadHunter — Monitor de Oportunidades")
@@ -138,6 +140,40 @@ class MainWindow(QMainWindow):
             "color: {}; font-size: 10pt; font-weight: bold; padding: 0 8px;".format(Palette.TEXT_SECONDARY)
         )
         btn_layout.addWidget(self.lbl_count)
+
+        btn_layout.addSpacing(16)
+
+        self.lbl_filter_ativo = QLabel("Filtrar Ativo:")
+        self.lbl_filter_ativo.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold;".format(Palette.TEXT_MUTED))
+        btn_layout.addWidget(self.lbl_filter_ativo)
+
+        self.cmb_filter_ativo = QComboBox()
+        self.cmb_filter_ativo.setStyleSheet("""
+            QComboBox {
+                background-color: #1e1e2f;
+                color: #e0e0e0;
+                border: 1px solid #2d2d44;
+                border-radius: 4px;
+                padding: 2px 8px;
+                min-width: 100px;
+                font-weight: bold;
+                font-size: 9pt;
+            }
+            QComboBox::drop-down {
+                border: 0;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #1e1e2f;
+                color: #e0e0e0;
+                selection-background-color: #2d2d44;
+                selection-color: #1abc9c;
+                border: 1px solid #2d2d44;
+            }
+        """)
+        self.cmb_filter_ativo.addItem("TODOS")
+        self.cmb_filter_ativo.currentIndexChanged.connect(self._on_filter_ativo_changed)
+        btn_layout.addWidget(self.cmb_filter_ativo)
+
         btn_layout.addStretch()
 
         self.lbl_rtd_indicator = QLabel(" RTD: --- ")
@@ -311,9 +347,19 @@ class MainWindow(QMainWindow):
         self._update_rtd_indicator(connected)
 
     def _on_oportunidades_atualizadas(self, resultados: list):
-        self.table_model.atualizar(resultados)
-        self._total_opps = len(resultados)
-        self._total_viaveis = sum(1 for r in resultados if r.viavel)
+        self._resultados_brutos = resultados
+        self._filtrar_e_atualizar_tabela()
+
+    def _filtrar_e_atualizar_tabela(self):
+        ativo_filtro = self.cmb_filter_ativo.currentText()
+        if ativo_filtro == "TODOS":
+            filtrados = self._resultados_brutos
+        else:
+            filtrados = [r for r in self._resultados_brutos if r.ativo == ativo_filtro]
+
+        self.table_model.atualizar(filtrados)
+        self._total_opps = len(filtrados)
+        self._total_viaveis = sum(1 for r in filtrados if r.viavel)
         viaveis_color = Palette.GREEN if self._total_viaveis > 0 else Palette.TEXT_MUTED
         self.lbl_count.setText(
             '<span style="color:{}">{} oportunidades</span> | '
@@ -325,6 +371,35 @@ class MainWindow(QMainWindow):
         self._last_scan_time = datetime.now()
         self._update_rtd_indicator(self._rtd_connected)
         self._update_scan_status()
+
+    def _on_filter_ativo_changed(self, index):
+        self._filtrar_e_atualizar_tabela()
+
+    def _refresh_ativos_filter(self):
+        from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
+        repo = InstrumentoRepository(self.db_path)
+        try:
+            all_inst = repo.get_all()
+            ativos = sorted(list(set(i.ativo for i in all_inst if i.ativo)))
+        except Exception:
+            ativos = []
+
+        current_selection = self.cmb_filter_ativo.currentText()
+
+        self.cmb_filter_ativo.blockSignals(True)
+        self.cmb_filter_ativo.clear()
+        self.cmb_filter_ativo.addItem("TODOS")
+        for ativo in ativos:
+            if ativo:
+                self.cmb_filter_ativo.addItem(ativo)
+
+        idx = self.cmb_filter_ativo.findText(current_selection)
+        if idx >= 0:
+            self.cmb_filter_ativo.setCurrentIndex(idx)
+        else:
+            self.cmb_filter_ativo.setCurrentIndex(0)
+
+        self.cmb_filter_ativo.blockSignals(False)
 
     def _on_status_message(self, msg: str):
         self._status_left.setText(msg)
@@ -358,6 +433,7 @@ class MainWindow(QMainWindow):
             )
             self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
             self._worker.recarregar_instrumentos()
+            self._refresh_ativos_filter()
 
     def _on_row_double_clicked(self, index):
         opp = self.table_model.get_oportunidade(index.row())
