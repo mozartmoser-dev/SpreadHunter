@@ -221,9 +221,28 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(btn_layout)
 
     def _apply_hidden_columns(self):
+        from PyQt5.QtCore import QSettings
+        settings = QSettings("Spreadhunter", "DesktopMonitor")
+        hidden_cols = settings.value("colunas_ocultas", None)
+        
+        if hidden_cols is None:
+            hidden_cols = MonitorTableModel.HIDDEN_BY_DEFAULT
+        elif isinstance(hidden_cols, str):
+            hidden_cols = hidden_cols.split(",") if hidden_cols else []
+        elif not isinstance(hidden_cols, list):
+            hidden_cols = list(hidden_cols)
+
         for i, (_, col_key) in enumerate(MonitorTableModel.COLUMNS):
-            if col_key in MonitorTableModel.HIDDEN_BY_DEFAULT:
-                self.table_view.setColumnHidden(i, True)
+            self.table_view.setColumnHidden(i, col_key in hidden_cols)
+
+    def _save_column_visibility(self):
+        from PyQt5.QtCore import QSettings
+        settings = QSettings("Spreadhunter", "DesktopMonitor")
+        hidden_cols = []
+        for i, (_, col_key) in enumerate(MonitorTableModel.COLUMNS):
+            if self.table_view.isColumnHidden(i):
+                hidden_cols.append(col_key)
+        settings.setValue("colunas_ocultas", hidden_cols)
 
     def _show_column_menu(self, pos):
         menu = QMenu(self)
@@ -238,6 +257,7 @@ class MainWindow(QMainWindow):
         if chosen is not None and id(chosen) in col_actions:
             col_idx = col_actions[id(chosen)]
             self.table_view.setColumnHidden(col_idx, not chosen.isChecked())
+            self._save_column_visibility()
 
     def _setup_toolbar(self):
         toolbar = QToolBar("Arquivo")
