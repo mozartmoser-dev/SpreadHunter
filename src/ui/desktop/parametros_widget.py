@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QGroupBox,
     QDoubleSpinBox, QPushButton, QLabel, QScrollArea, QFrame,
-    QCheckBox, QComboBox,
+    QCheckBox, QComboBox, QLineEdit,
 )
 from PyQt5.QtCore import Qt
 
@@ -25,6 +25,7 @@ ESTRATEGIA_LABELS = {
     "BOX": "BOX Comprado 3 Pontas",
     "BOX_SINTETICO": "BOX Sintetico / Pescaria Basket",
     "PERFORMANCE": "Ajuste de Performance",
+    "TELEGRAM": "Notificações Telegram",
 }
 
 ESTRATEGIA_COLORS = {
@@ -33,6 +34,7 @@ ESTRATEGIA_COLORS = {
     "BOX": Palette.ACCENT_BLUE_BRIGHT,
     "BOX_SINTETICO": Palette.PURPLE,
     "PERFORMANCE": Palette.YELLOW,
+    "TELEGRAM": Palette.GREEN,
 }
 
 PARAMETROS_POR_ESTRATEGIA = {
@@ -72,6 +74,11 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("perf_limite_meses", "Limite Vencimento (Meses, 0=S.Lim)"),
         ("perf_dias_minimos", "Dias Minimos Vencimento"),
     ],
+    "TELEGRAM": [
+        ("notif_telegram_enable", "Habilitar Telegram"),
+        ("telegram_bot_token", "Token do Bot Telegram"),
+        ("telegram_chat_id", "ID do Chat Telegram"),
+    ],
 }
 
 
@@ -108,12 +115,15 @@ class ParametrosWidget(QWidget):
             form.setContentsMargins(12, 20, 12, 12)
 
             for chave, display in params:
-                if "perf_carga_inteligente" in chave:
+                if "perf_carga_inteligente" in chave or "notif_telegram_enable" in chave:
                     widget = QCheckBox("Habilitado")
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
                 elif "tema_visual" in chave:
                     widget = QComboBox()
                     widget.addItems(["Azul Marinho", "Grafite / Slate", "True Dark / Charcoal"])
+                elif "telegram_bot_token" in chave or "telegram_chat_id" in chave:
+                    widget = QLineEdit()
+                    widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
                 else:
                     widget = NoWheelSpinBox()
                     widget.setRange(-100.0, 100000.0)
@@ -159,6 +169,8 @@ class ParametrosWidget(QWidget):
                 widget.setChecked(bool(val))
             elif isinstance(widget, QComboBox):
                 widget.setCurrentIndex(int(val))
+            elif isinstance(widget, QLineEdit):
+                widget.setText(str(val))
             elif isinstance(widget, QDoubleSpinBox):
                 widget.setValue(val)
 
@@ -169,6 +181,8 @@ class ParametrosWidget(QWidget):
                     valor = 1.0 if widget.isChecked() else 0.0
                 elif isinstance(widget, QComboBox):
                     valor = float(widget.currentIndex())
+                elif isinstance(widget, QLineEdit):
+                    valor = widget.text().strip()
                 else:
                     valor = widget.value()
                     

@@ -12,6 +12,9 @@ class TelegramService:
     def __init__(self, db_path=None):
         self.param_repo = ParametroRepository(db_path)
         self._notifier: TelegramNotifier | None = None
+        import time
+        self._last_sent_time = 0.0
+        self._min_interval_seconds = 120.0  # Evita spam enviando no maximo a cada 2 minutos
 
     def _load_params(self) -> dict[str, str]:
         """Fetch token, chat_id and enable flag from the parameters table.
@@ -32,21 +35,44 @@ class TelegramService:
         cfg = self._load_params()
         token = cfg.get("token", "")
         chat_id = cfg.get("chat_id", "")
-        if token and chat_id:
+        if token and chat_id and token != "0" and chat_id != "0":
             self._notifier = TelegramNotifier(token, chat_id)
             return self._notifier
         return None
 
     def is_enabled(self) -> bool:
         cfg = self._load_params()
-        return cfg.get("enable") == "1" and bool(cfg.get("token")) and bool(cfg.get("chat_id"))
+        try:
+            enable_val = float(cfg.get("enable", "0"))
+        except ValueError:
+            enable_val = 0.0
+        token = cfg.get("token", "")
+        chat_id = cfg.get("chat_id", "")
+        return (
+            enable_val == 1.0 
+            and bool(token) 
+            and token != "0" 
+            and bool(chat_id) 
+            and chat_id != "0"
+        )
 
     def send(self, message: str) -> bool:
         if not self.is_enabled():
             logger.info("Telegram notifications disabled via config.")
             return False
+            
+        import time
+        now = time.time()
+        if now - self._last_sent_time < self._min_interval_seconds:
+            logger.info("Telegram message skipped to avoid spam (throttled).")
+            return False
+
         notifier = self._build_notifier()
         if not notifier:
             logger.warning("TelegramService: Notifier could not be built (missing token/chat_id).")
             return False
-        return notifier.notify(message)
+        
+        success = notifier.notify(message)
+        if success:
+            self._last_sent_time = now
+        return success

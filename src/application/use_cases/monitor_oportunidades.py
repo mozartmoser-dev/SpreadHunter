@@ -19,6 +19,7 @@ class MonitorOportunidadesUseCase:
         self.db_path = db_path
         self.inst_repo = InstrumentoRepository(db_path)
         self.param_repo = ParametroRepository(db_path)
+        self.telegram_service = TelegramService(db_path)
         self._calculadora = None
         self._calc_vetorizada = None
         self._lotes_cache = {}

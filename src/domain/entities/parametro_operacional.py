@@ -43,4 +43,7 @@ class ParametroOperacional:
         "perf_limite_meses": {"valor": 0.0, "estrategia": "PERFORMANCE", "descricao": "Limite de Vencimento (Meses, 0=Sem Limite)"},
         "perf_dias_minimos": {"valor": 0.0, "estrategia": "PERFORMANCE", "descricao": "Dias Minimos para Vencimento"},
         "tema_visual": {"valor": 0.0, "estrategia": "GERAL", "descricao": "Tema Visual (0=Marinho, 1=Grafite, 2=Charcoal)"},
+        "notif_telegram_enable": {"valor": 0.0, "estrategia": "TELEGRAM", "descricao": "Habilitar Telegram"},
+        "telegram_bot_token": {"valor": "0", "estrategia": "TELEGRAM", "descricao": "Token Telegram"},
+        "telegram_chat_id": {"valor": "0", "estrategia": "TELEGRAM", "descricao": "Chat ID Telegram"},
     }
