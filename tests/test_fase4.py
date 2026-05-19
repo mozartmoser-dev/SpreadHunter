@@ -302,7 +302,7 @@ class TestOportunidadeMonitorDTO:
 
     def test_label_rentabilidade_tp(self):
         opp = _make_opp(classificacao="TP.Op", operacao="NEUTRA", viavel=False)
-        assert opp.label_rentabilidade == "-"
+        assert opp.label_rentabilidade == "1.50x CDI"
 
     def test_is_box(self):
         assert _make_opp(classificacao="1BOX").is_box is True

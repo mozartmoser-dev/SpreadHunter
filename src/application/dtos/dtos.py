@@ -83,10 +83,8 @@ class OportunidadeMonitor:
         
         # Para TP.Op ou outros, mostra o melhor disponível se houver ganho
         max_cdi = max(self.pct_cdi_box, self.pct_cdi_sbth)
-        if max_cdi > 0:
-            return "{:.2f}x CDI".format(max_cdi)
-            
-        return "-"
+        # Sempre exibe CDI, mesmo que seja 0.00
+        return f"{max_cdi:.2f}x CDI"
 
     @property
     def label_dias(self) -> str:

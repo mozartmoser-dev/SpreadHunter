@@ -11,10 +11,7 @@ TIPO_MAP = {"A": TipoOpcao.AMERICANA, "E": TipoOpcao.EUROPEIA}
 
 
 def sanitizar_strike(valor_bruto: float, preco_ref: float) -> float:
-    """
-    Corrige a escala do strike (ex: 134.4 -> 13.44) usando o preço do ativo como referência.
-    Prioriza valores que resultem em um strike entre 0.1x e 3.0x o preço da ação.
-    """
+    # (Função mantida por compatibilidade, mas não é mais necessária ao processar strikes vindos do RTD.)
     if not preco_ref or preco_ref <= 0 or not valor_bruto or valor_bruto <= 0:
         return valor_bruto
     
@@ -70,8 +67,8 @@ def extrair_strike(codigo: str, preco_ref: float | None = None) -> float | None:
             return val
         if n_len == 3: # Ex: 300 -> 30.0
             return val / 10.0
-        if n_len == 4: # Ex: 3004 -> 30.04
-            return val / 100.0
+        if n_len == 4: # Ex: 3004 -> 300.0 (adjusted for H suffix)
+            return val / 10.0
         if n_len >= 5: # Ex: 30040 -> 30.04
             return val / 1000.0
         return val

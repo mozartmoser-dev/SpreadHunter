@@ -141,21 +141,42 @@ class MainWindow(QMainWindow):
         self._update_rtd_indicator(False)
         btn_layout.addWidget(self.lbl_rtd_indicator)
 
-        self.btn_engine = QPushButton("⚡")
-        self.btn_engine.setToolTip("Engine Health & Performance")
+        self.btn_engine = QPushButton()
+        import os
+        icon_path = os.path.join(os.path.dirname(__file__), "engine_perf.png")
+        self.btn_engine.setIcon(QIcon(icon_path))
+        self.btn_engine.setIconSize(QSize(16, 16))
+        self.btn_engine.setToolTip("Engine Health & Performance (CPU/Memória)")
         self.btn_engine.setFixedSize(28, 24)
         self.btn_engine.setStyleSheet("""
             QPushButton {
                 background-color: #1e1e2f;
-                color: #00f2ff;
                 border: 1px solid #2d2d44;
                 border-radius: 4px;
-                font-weight: bold;
+                padding: 2px;
             }
-            QPushButton:hover { background-color: #2d2d44; color: #00ff88; }
+            QPushButton:hover { background-color: #2d2d44; }
         """)
         self.btn_engine.clicked.connect(self._abrir_engine_dashboard)
         btn_layout.addWidget(self.btn_engine)
+
+        self.btn_parametros = QPushButton("⚙")
+        self.btn_parametros.setToolTip("Parametros Operacionais")
+        self.btn_parametros.setFixedSize(28, 24)
+        self.btn_parametros.setStyleSheet("""
+            QPushButton {
+                background-color: #1e1e2f;
+                color: #e0e0e0;
+                border: 1px solid #2d2d44;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 11pt;
+                padding: 0;
+            }
+            QPushButton:hover { background-color: #2d2d44; color: #1abc9c; }
+        """)
+        self.btn_parametros.clicked.connect(self._abrir_parametros)
+        btn_layout.addWidget(self.btn_parametros)
 
         main_layout.addLayout(btn_layout)
 
@@ -184,21 +205,7 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
 
-        action_import = QAction("Importar XLSX", self)
-        action_import.triggered.connect(self._abrir_importacao)
-        toolbar.addAction(action_import)
-
-        toolbar.addSeparator()
-
-        action_varrer = QAction("Iniciar / Pausar", self)
-        action_varrer.triggered.connect(lambda: self._toggle_monitor(not self.btn_varrer.isChecked()))
-        toolbar.addAction(action_varrer)
-
-        toolbar.addSeparator()
-
-        action_parametros = QAction("Parametros", self)
-        action_parametros.triggered.connect(self._abrir_parametros)
-        toolbar.addAction(action_parametros)
+        # Toolbar actions moved to UI; parameters now in footer
 
     def _setup_status_bar(self):
         self._status_left = QLabel("Pronto")

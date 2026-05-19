@@ -35,10 +35,27 @@ class ExportDialog(QDialog):
         venc_display = "-"
         if self.oportunidade.vencimento:
             from datetime import date
+            venc_date = None
             if isinstance(self.oportunidade.vencimento, date):
-                venc_display = self.oportunidade.vencimento.strftime("%d/%m/%Y")
+                venc_date = self.oportunidade.vencimento
+                venc_display = venc_date.strftime("%d/%m/%Y")
             else:
                 venc_display = str(self.oportunidade.vencimento)
+                try:
+                    from datetime import datetime
+                    if "/" in venc_display:
+                        venc_date = datetime.strptime(venc_display, "%d/%m/%Y").date()
+                    else:
+                        venc_date = datetime.strptime(venc_display[:10], "%Y-%m-%d").date()
+                except Exception:
+                    pass
+
+            if venc_date:
+                dte = (venc_date - date.today()).days
+                dte = max(dte, 0)
+                venc_display = "{} ({} DTE)".format(venc_display, dte)
+            elif hasattr(self.oportunidade, "dias") and self.oportunidade.dias is not None:
+                venc_display = "{} ({} DTE)".format(venc_display, self.oportunidade.dias)
 
         header = QLabel("{}  |  {}  |  Strike {:.2f}  |  {}".format(
             self.oportunidade.ativo,
@@ -90,8 +107,29 @@ class ExportDialog(QDialog):
         pernas_form = QFormLayout()
         pernas_form.setSpacing(8)
         pernas_form.addRow(self._label_muted("Compra Ativo ({}):".format(opp.ativo)), QLabel("{:.2f} (of. venda)".format(opp.preco_compra_ativo)))
-        pernas_form.addRow(self._label_muted("Compra Put ({}):".format(opp.cod_put)), QLabel("{:.2f} (of. venda)".format(opp.of_venda_put)))
-        pernas_form.addRow(self._label_muted("Venda Call ({}):".format(opp.cod_call)), QLabel("{:.2f} (of. compra)".format(opp.of_compra_call)))
+        
+        # Compra Put com Strike à direita
+        put_layout = QHBoxLayout()
+        put_layout.setContentsMargins(0, 0, 0, 0)
+        lbl_put_val = QLabel("{:.2f} (of. venda)".format(opp.of_venda_put))
+        lbl_put_strike = QLabel("Strike: {:.2f}".format(opp.strike))
+        lbl_put_strike.setStyleSheet("color: {}; font-weight: bold;".format(Palette.TEXT_SECONDARY))
+        put_layout.addWidget(lbl_put_val)
+        put_layout.addStretch()
+        put_layout.addWidget(lbl_put_strike)
+        pernas_form.addRow(self._label_muted("Compra Put ({}):".format(opp.cod_put)), put_layout)
+
+        # Venda Call com Strike à direita
+        call_layout = QHBoxLayout()
+        call_layout.setContentsMargins(0, 0, 0, 0)
+        lbl_call_val = QLabel("{:.2f} (of. compra)".format(opp.of_compra_call))
+        lbl_call_strike = QLabel("Strike: {:.2f}".format(opp.strike))
+        lbl_call_strike.setStyleSheet("color: {}; font-weight: bold;".format(Palette.TEXT_SECONDARY))
+        call_layout.addWidget(lbl_call_val)
+        call_layout.addStretch()
+        call_layout.addWidget(lbl_call_strike)
+        pernas_form.addRow(self._label_muted("Venda Call ({}):".format(opp.cod_call)), call_layout)
+
         pernas_group.setLayout(pernas_form)
         layout.addWidget(pernas_group)
 

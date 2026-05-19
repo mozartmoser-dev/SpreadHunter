@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS instrumentos_base (
 CREATE TABLE IF NOT EXISTS parametros_operacionais (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     chave TEXT UNIQUE NOT NULL,
-    valor REAL NOT NULL,
+    valor TEXT NOT NULL,
     estrategia TEXT NOT NULL,
     descricao TEXT
 );

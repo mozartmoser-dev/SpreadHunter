@@ -6,11 +6,12 @@ from src.domain.entities.instrumento_opcional import InstrumentoOpcional
 from src.domain.services.calculadora_box_sbth import CalculadoraBoxSbth, DadosMercado
 from src.domain.services.calculadora_vetorizada import CalculadoraVetorizada
 from src.domain.rules.classificacao_oportunidade import ClassificacaoOportunidade
-from src.infrastructure.importers.excel_importer import extrair_strike, sanitizar_strike
+from src.infrastructure.importers.excel_importer import extrair_strike
 from src.infrastructure.persistence.repositories.repositories import (
     InstrumentoRepository,
     ParametroRepository,
 )
+from src.infrastructure.notifications.telegram_service import TelegramService
 
 
 class MonitorOportunidadesUseCase:
@@ -127,19 +128,24 @@ class MonitorOportunidadesUseCase:
         # (Viáveis ou com prêmio razoável)
         for i in range(len(keys_validas)):
             # Se não for viavel e tiver prêmio baixo, ignora para economizar objetos
-            # Aqui definimos o que é "interessante" mostrar no monitor
-            interessante = (i in res_vec.indices_viaveis) or (res_vec.pct_cdi_box[i] > 0.8) or (res_vec.pct_cdi_sbth[i] > 0.8)
+            # Sempre inclui a oportunidade calculada
+            key = keys_validas[i]
+            inst = inst_map[key]
+            mercado = dados_mercado[key]
             
-            if interessante:
-                key = keys_validas[i]
-                inst = inst_map[key]
-                mercado = dados_mercado[key]
-                
-                opp = self._calcular_oportunidade(inst, mercado, calc_oo)
-                if opp:
-                    resultados.append(opp)
+            opp = self._calcular_oportunidade(inst, mercado, calc_oo)
+            if opp:
+                resultados.append(opp)
 
         resultados.sort(key=lambda o: (not o.viavel, -max(o.pct_cdi_box, o.pct_cdi_sbth)))
+        # Envio opcional de notificação por Telegram quando há oportunidades viáveis
+        if hasattr(self, "telegram_service") and self.telegram_service.is_enabled():
+            viaveis = [o for o in resultados if o.viavel]
+            if viaveis:
+                count = len(viaveis)
+                msgs = [f"{o.ativo} {o.strike:.2f} ({o.classificacao.name})" for o in viaveis[:3]]
+                text = f"⚡️ {count} oportunidade(s) viável(is) detectada(s):\n" + "\n".join(msgs)
+                self.telegram_service.send(text)
         return resultados
 
     def _calcular_oportunidade(self, inst, mercado, calc):

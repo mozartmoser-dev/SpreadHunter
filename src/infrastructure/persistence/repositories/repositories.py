@@ -34,12 +34,11 @@ class InstrumentoRepository:
         conn = get_connection(self.db_path)
         try:
             cursor = conn.execute(
-                """INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao, strike)
-                VALUES (?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao)
+                VALUES (?, ?, ?, ?, ?)""",
                 (instrumento.ativo, instrumento.cod_put, instrumento.cod_call,
                 instrumento.vencimento.isoformat(),
-                instrumento.tipo_opcao.value,
-                instrumento.strike)
+                instrumento.tipo_opcao.value)
             )
             conn.commit()
             instrumento.id = cursor.lastrowid
@@ -52,11 +51,11 @@ class InstrumentoRepository:
         conn = get_connection(self.db_path)
         try:
             rows = [
-                (i.ativo, i.cod_put, i.cod_call, i.vencimento.isoformat(), i.tipo_opcao.value, i.strike)
+                (i.ativo, i.cod_put, i.cod_call, i.vencimento.isoformat(), i.tipo_opcao.value)
                 for i in instrumentos
             ]
             conn.executemany(
-                "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao, strike) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao) VALUES (?, ?, ?, ?, ?)",
                 rows,
             )
             conn.commit()
@@ -163,13 +162,17 @@ class ParametroRepository:
         conn = get_connection(self.db_path)
         try:
             rows = conn.execute("SELECT * FROM parametros_operacionais").fetchall()
-            self.__class__._cache = {
-                row["chave"]: ParametroOperacional(
-                    id=row["id"], chave=row["chave"], valor=row["valor"],
+            self.__class__._cache = {}
+            for row in rows:
+                val_raw = row["valor"]
+                try:
+                    valor = float(val_raw)
+                except (ValueError, TypeError):
+                    valor = val_raw
+                self.__class__._cache[row["chave"]] = ParametroOperacional(
+                    id=row["id"], chave=row["chave"], valor=valor,
                     estrategia=row["estrategia"], descricao=row["descricao"]
                 )
-                for row in rows
-            }
         finally:
             conn.close()
 
@@ -179,6 +182,7 @@ class ParametroRepository:
         return [p for p in self.__class__._cache.values() if p.estrategia == estrategia]
 
     def seed_defaults(self) -> None:
+        self.invalidate_cache()
         """Insere os parâmetros padrão APENAS se ainda não existirem no banco.
         Nunca sobrescreve valores que o usuário já tenha alterado.
         """
