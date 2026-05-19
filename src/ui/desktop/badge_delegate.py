@@ -68,9 +68,16 @@ class BadgeDelegate(QStyledItemDelegate):
 
         # 4. Desenha a pilula (pill) com cantos arredondados
         rect = QRectF(option.rect)
-        margin_x = 8
-        margin_y = 4
-        pill_rect = rect.adjusted(margin_x, margin_y, -margin_x, -margin_y)
+        
+        # Limita a largura maxima da pilula para nao esticar demais em colunas largas
+        max_width = 80 if col_key == "tipo" else 50
+        pill_width = min(rect.width() - 16, max_width)
+        pill_height = rect.height() - 8
+        
+        # Centraliza horizontal e verticalmente
+        x = rect.x() + (rect.width() - pill_width) / 2
+        y = rect.y() + (rect.height() - pill_height) / 2
+        pill_rect = QRectF(x, y, pill_width, pill_height)
 
         painter.setBrush(QBrush(badge_bg))
         painter.setPen(QPen(badge_fg, 1))
