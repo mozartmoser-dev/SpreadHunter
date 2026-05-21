@@ -194,17 +194,60 @@ class MonitorOportunidadesUseCase:
             for k in chaves_para_remover:
                 self._historico_enviado.pop(k, None)
 
-            # Dispara o Telegram apenas para as novas/melhoradas
+            # Dispara o Telegram apenas para as novas/melhoradas, uma por vez
             if novas_ou_melhores:
-                count = len(novas_ou_melhores)
-                msgs = []
-                for o in novas_ou_melhores[:3]:
-                    cdi_val = max(o.pct_cdi_box, o.pct_cdi_sbth)
-                    msgs.append(f"• {o.ativo} (Strike: {o.strike:.2f}) | {o.label_tipo} | {cdi_val:.2f}x CDI")
-                
-                text = f"⚡️ {count} nova(s) oportunidade(s) viável(is) detectada(s):\n" + "\n".join(msgs)
-                self.telegram_service.send(text)
+                for o in novas_ou_melhores:
+                    text = self._montar_mensagem_telegram(o)
+                    self.telegram_service.send(text)
         return resultados
+
+    def _montar_mensagem_telegram(self, o) -> str:
+        from datetime import datetime
+        emoji = "🚀"
+        classif_label = o.classificacao if o.classificacao else "TP.Op"
+        operacao_label = o.operacao if o.operacao else classif_label
+
+        if o.vencimento:
+            venc_str = o.vencimento.strftime("%d/%m/%Y")
+            dias_str = f" ({o.dias} dias)" if o.dias else ""
+            vencimento_display = f"{venc_str}{dias_str}"
+        else:
+            vencimento_display = "N/A"
+
+        msg = f"{emoji} <b>OPORTUNIDADE DETECTADA</b>\n\n"
+        msg += f"Ativo: {o.ativo}\n"
+        msg += f"Operação: {operacao_label}\n"
+        msg += f"Strike: R$ {o.strike:.2f}\n"
+        msg += f"Vencimento: {vencimento_display}\n"
+        msg += f"Classificação: {classif_label}\n\n"
+
+        msg += "--- Pernas da Estrutura ---\n"
+        msg += f"• Compra Ativo ({o.ativo}): R$ {o.preco_compra_ativo:.2f}\n"
+        msg += f"• Compra Put ({o.cod_put}): R$ {o.of_venda_put:.2f}\n"
+        if o.of_compra_call and o.of_compra_call > 0:
+            msg += f"• Venda Call ({o.cod_call}): R$ {o.of_compra_call:.2f}\n"
+        msg += "\n"
+
+        msg += "--- Custos e Rentabilidade ---\n"
+        if o.custo_sbth and o.custo_sbth > 0:
+            msg += f"• Custo SBTH: R$ {o.custo_sbth:.2f}\n"
+            msg += f"• Ganho % SBTH: {o.pct_ganho_sbth:.2f}%\n"
+            msg += f"• vs CDI SBTH: {o.pct_cdi_sbth:.2f}x CDI\n"
+        else:
+            msg += "• SBTH: (N/A)\n"
+        msg += "\n"
+        if o.custo_box and o.custo_box > 0:
+            msg += f"• Custo BOX: R$ {o.custo_box:.2f}\n"
+            msg += f"• Ganho % BOX: {o.pct_ganho_box:.2f}%\n"
+            msg += f"• vs CDI BOX: {o.pct_cdi_box:.2f}x CDI\n"
+        else:
+            msg += "• BOX: (N/A)\n"
+        msg += "\n"
+
+        status = "VIÁVEL ✅" if o.viavel else "NÃO VIÁVEL ❌"
+        msg += f"Status: {status}"
+
+        return msg
 
     def _calcular_oportunidade(self, inst, mercado, calc):
         if mercado is None:

@@ -87,6 +87,19 @@ CREATE TABLE IF NOT EXISTS pernas_operacao (
     FOREIGN KEY (estrutura_id) REFERENCES estruturas_operacionais(id)
 );
 
+CREATE TABLE IF NOT EXISTS dividendos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ativo TEXT NOT NULL,
+    tipo TEXT,
+    data_ex DATE,
+    data_aprovacao DATE,
+    valor REAL,
+    tipo_acao TEXT,
+    preco_fechamento REAL,
+    atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(ativo, data_ex, tipo)
+);
+
 CREATE INDEX IF NOT EXISTS idx_instrumentos_ativo ON instrumentos_base(ativo);
 CREATE INDEX IF NOT EXISTS idx_instrumentos_vencimento ON instrumentos_base(vencimento);
 CREATE INDEX IF NOT EXISTS idx_oportunidades_instrumento ON oportunidades(instrumento_id);

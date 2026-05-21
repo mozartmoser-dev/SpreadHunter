@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (
     QDoubleSpinBox, QComboBox, QFrame, QTabWidget, QWidget,
 )
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
 
 from src.application.dtos.dtos import OportunidadeMonitor, TipoExportacao
 from src.application.use_cases.exportar_operacao import ExportarOperacaoUseCase
@@ -16,16 +17,19 @@ class ExportDialog(QDialog):
         oportunidade: OportunidadeMonitor,
         use_case: ExportarOperacaoUseCase,
         parent=None,
+        db_path=None,
     ):
         super().__init__(parent)
         self.oportunidade = oportunidade
         self.use_case = use_case
+        self.db_path = db_path
         self._result = None
 
         self.setWindowTitle("Exportar Operacao - {}".format(oportunidade.ativo))
         self.setMinimumWidth(520)
         self.setMinimumHeight(580)
         self._setup_ui()
+        self._verificar_ex_dividendo()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -424,3 +428,37 @@ class ExportDialog(QDialog):
     @property
     def result(self):
         return self._result
+
+    def _verificar_ex_dividendo(self):
+        """Nível 3: Alerta se o ativo estiver em dia ex de dividendo hoje."""
+        if not self.db_path:
+            return
+
+        try:
+            from src.infrastructure.persistence.repositories.repositories import DividendoRepository
+            from datetime import date
+
+            div_repo = DividendoRepository(self.db_path)
+            divs_hoje = div_repo.get_ex_hoje()
+            divs_ativo = [d for d in divs_hoje if d["ativo"] == self.oportunidade.ativo]
+
+            if divs_ativo:
+                tipos = ", ".join(set(d.get("tipo", "") for d in divs_ativo if d.get("tipo")))
+                valores = ", ".join("{:.4f}".format(d.get("valor", 0)) for d in divs_ativo if d.get("valor"))
+
+                msg_box = QMessageBox(self)
+                msg_box.setIcon(QMessageBox.Warning)
+                msg_box.setWindowTitle("⚠️ Atenção — Dia Ex de Dividendo")
+                msg_box.setText(
+                    f"O ativo <b>{self.oportunidade.ativo}</b> está em <b>dia ex de dividendo</b> hoje.\n\n"
+                    f"Tipo(s): {tipos or 'N/A'}\n"
+                    f"Valor(es): {valores or 'N/A'}\n\n"
+                    "O strike da opção pode ter sido ajustado pela B3.\n"
+                    "Verifique o valor do strike na grade do Profit Pro antes de operar."
+                )
+                msg_box.setStandardButtons(QMessageBox.Ok)
+                msg_box.setDefaultButton(QMessageBox.Ok)
+                msg_box.exec_()
+        except Exception as e:
+            # Falha silenciosa para não bloquear o fluxo
+            pass

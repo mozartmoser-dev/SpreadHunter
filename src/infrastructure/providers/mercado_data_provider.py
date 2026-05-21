@@ -128,6 +128,46 @@ class MercadoDataProvider:
         self._chaves_detalhes_completos.add(key)
         logger.debug("RTD: Detalhes completos registrados para %s (Liquidez detectada)", key)
 
+    def forcar_refresh_ex_dividendo(self, ativos_ex: list[str]):
+        """Forca registro completo (Wave 2) para ativos em dia ex-dividendo."""
+        if not ativos_ex or not self.rtd.disponivel:
+            return
+
+        inst_map = self.inst_repo.get_all_mapped()
+        ativos_registrados = set()
+        count = 0
+
+        for key, inst in inst_map.items():
+            if inst.ativo in ativos_ex and inst.ativo not in ativos_registrados:
+                # Registra preco do ativo
+                self.rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                self.rtd.registrar_status(inst.ativo)
+                ativos_registrados.add(inst.ativo)
+
+            if inst.ativo in ativos_ex and key not in self._chaves_detalhes_completos:
+                # Registra todos os campos (strike, ofertas, book)
+                self.rtd.registrar_topico(inst.cod_put, RTD_CAMPO_STRIKE)
+                self.rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
+                self.rtd.registrar_topico(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
+                self.rtd.registrar_topico(inst.cod_put, RTD_CAMPO_OFERTA_VENDA)
+                self.rtd.registrar_topico(inst.cod_put, RTD_CAMPO_OFERTA_COMPRA)
+                self.rtd.registrar_topico(inst.cod_call, RTD_CAMPO_OFERTA_VENDA)
+                self.rtd.registrar_topico(inst.cod_call, RTD_CAMPO_OFERTA_COMPRA)
+                self.rtd.registrar_topico(inst.cod_put, RTD_CAMPO_QTDE_ULT_NEG)
+                self.rtd.registrar_topico(inst.cod_call, RTD_CAMPO_QTDE_ULT_NEG)
+                self.rtd.registrar_topico(inst.cod_put, RTD_CAMPO_VOL_VENDA)
+                self.rtd.registrar_topico(inst.cod_call, RTD_CAMPO_VOL_COMPRA)
+                self.rtd.registrar_status(inst.cod_put)
+                self.rtd.registrar_status(inst.cod_call)
+                
+                self._chaves_registradas.add(key)
+                self._chaves_detalhes_completos.add(key)
+                self._chaves_com_book.add(key)
+                count += 1
+
+        if count > 0:
+            logger.info("RTD: Refresh forcado para %d instrumentos de %d ativos ex-dividendo.", count, len(ativos_registrados))
+
     def _registrar_batch_inteligente(self, instrumentos: list[InstrumentoOpcional], batch_size: int = 2000):
         if self._registrado:
             return

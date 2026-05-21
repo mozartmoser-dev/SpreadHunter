@@ -48,6 +48,9 @@ class MonitorWorker(QThread):
         self._mercado_provider = MercadoDataProvider(self.db_path, rtd)
         self.rtd_status.emit(rtd.disponivel)
 
+        # Nível 2: Forca refresh RTD para ativos ex-dividendo do dia
+        self._verificar_e_forcar_refresh_ex_dividendo()
+
         self._running = True
         logger.info("MonitorWorker: thread iniciada (COM inicializado).")
 
@@ -144,3 +147,24 @@ class MonitorWorker(QThread):
 
     def set_mostrar_tp_op(self, mostrar: bool):
         self._mostrar_tp_op = mostrar
+
+    def _verificar_e_forcar_refresh_ex_dividendo(self):
+        """Nível 2: Verifica ativos ex-dividendo do dia e força refresh RTD."""
+        try:
+            from src.infrastructure.persistence.repositories.repositories import DividendoRepository
+            from datetime import date
+
+            div_repo = DividendoRepository(self.db_path)
+            divs_hoje = div_repo.get_ex_hoje()
+
+            if divs_hoje:
+                ativos_ex = list(set(d["ativo"] for d in divs_hoje))
+                self.status_message.emit(
+                    f"⚠️ Dia ex de dividendo: {', '.join(ativos_ex)} — Forcando refresh RTD..."
+                )
+                self._mercado_provider.forcar_refresh_ex_dividendo(ativos_ex)
+                self.status_message.emit("Refresh RTD ex-dividendo concluído.")
+            else:
+                logger.info("Nenhum ativo ex-dividendo detectado hoje.")
+        except Exception as e:
+            logger.warning("Erro ao verificar ex-dividendo: %s", e)

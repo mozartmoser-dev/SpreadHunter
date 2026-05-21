@@ -112,16 +112,20 @@ class MainWindow(QMainWindow):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(12)
 
-        self.btn_import = QPushButton("  Importar Base")
+        self.btn_import = QPushButton("📥  Importar Base")
         self.btn_import.setProperty("class", "primary")
         self.btn_import.clicked.connect(self._abrir_importacao)
         btn_layout.addWidget(self.btn_import)
 
-        self.btn_historico = QPushButton("  Histórico")
+        self.btn_historico = QPushButton("📊  Histórico")
         self.btn_historico.clicked.connect(self._abrir_historico)
         btn_layout.addWidget(self.btn_historico)
 
-        self.btn_varrer = QPushButton("  Iniciar Monitor")
+        self.btn_dividendos = QPushButton("📅  Proventos")
+        self.btn_dividendos.clicked.connect(self._abrir_dividendos)
+        btn_layout.addWidget(self.btn_dividendos)
+
+        self.btn_varrer = QPushButton("▶  Iniciar Monitor")
         self.btn_varrer.setCheckable(True)
         self.btn_varrer.setChecked(False)
         self.btn_varrer.setProperty("class", "success")
@@ -338,7 +342,7 @@ class MainWindow(QMainWindow):
 
     def _toggle_monitor(self, checked):
         if checked:
-            self.btn_varrer.setText("  Pausar Monitor")
+            self.btn_varrer.setText("⏸  Pausar Monitor")
             self.btn_varrer.setProperty("class", "monitor-active")
             self.btn_varrer.style().unpolish(self.btn_varrer)
             self.btn_varrer.style().polish(self.btn_varrer)
@@ -352,7 +356,7 @@ class MainWindow(QMainWindow):
             self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
             self._update_cdi_display()
         else:
-            self.btn_varrer.setText("  Iniciar Monitor")
+            self.btn_varrer.setText("▶  Iniciar Monitor")
             self.btn_varrer.setProperty("class", "success")
             self.btn_varrer.style().unpolish(self.btn_varrer)
             self.btn_varrer.style().polish(self.btn_varrer)
@@ -464,11 +468,16 @@ class MainWindow(QMainWindow):
         dialog = HistoricoDialog(self.db_path, self)
         dialog.exec_()
 
+    def _abrir_dividendos(self):
+        from src.ui.desktop.dividendos_dialog import DividendosDialog
+        dialog = DividendosDialog(self.db_path, self)
+        dialog.exec_()
+
     def _on_row_double_clicked(self, index):
         opp = self.table_model.get_oportunidade(index.row())
         if opp is None:
             return
-        dialog = ExportDialog(opp, self.exportar_uc, self)
+        dialog = ExportDialog(opp, self.exportar_uc, self, self.db_path)
         dialog.exec_()
 
     def closeEvent(self, event):

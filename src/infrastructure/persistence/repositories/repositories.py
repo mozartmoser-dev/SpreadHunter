@@ -427,3 +427,106 @@ class PernaRepository:
             ]
         finally:
             conn.close()
+
+
+class DividendoRepository:
+    def __init__(self, db_path=None):
+        self.db_path = db_path
+
+    def save(self, div: dict) -> None:
+        conn = get_connection(self.db_path)
+        try:
+            conn.execute(
+                """INSERT INTO dividendos
+                   (ativo, tipo, data_ex, data_aprovacao, valor, tipo_acao, preco_fechamento)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(ativo, data_ex, tipo) DO UPDATE SET
+                       data_aprovacao=excluded.data_aprovacao,
+                       valor=excluded.valor,
+                       tipo_acao=excluded.tipo_acao,
+                       preco_fechamento=excluded.preco_fechamento,
+                       atualizado_em=CURRENT_TIMESTAMP""",
+                (div["ativo"], div.get("tipo"), div.get("data_ex"),
+                 div.get("data_aprovacao"), div.get("valor"),
+                 div.get("tipo_acao"), div.get("preco_fechamento"))
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def save_batch(self, dividendos: list[dict]) -> int:
+        conn = get_connection(self.db_path)
+        try:
+            conn.executemany(
+                """INSERT INTO dividendos
+                   (ativo, tipo, data_ex, data_aprovacao, valor, tipo_acao, preco_fechamento)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(ativo, data_ex, tipo) DO UPDATE SET
+                       data_aprovacao=excluded.data_aprovacao,
+                       valor=excluded.valor,
+                       tipo_acao=excluded.tipo_acao,
+                       preco_fechamento=excluded.preco_fechamento,
+                       atualizado_em=CURRENT_TIMESTAMP""",
+                [(d["ativo"], d.get("tipo"), d.get("data_ex"),
+                  d.get("data_aprovacao"), d.get("valor"),
+                  d.get("tipo_acao"), d.get("preco_fechamento"))
+                 for d in dividendos]
+            )
+            conn.commit()
+            return len(dividendos)
+        finally:
+            conn.close()
+
+    def get_all(self) -> list[dict]:
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM dividendos ORDER BY data_ex DESC, ativo"
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_ex_hoje(self) -> list[dict]:
+        from datetime import date
+        hoje = date.today().isoformat()
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM dividendos WHERE data_ex = ? ORDER BY ativo",
+                (hoje,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_by_ativo(self, ativo: str) -> list[dict]:
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM dividendos WHERE ativo = ? ORDER BY data_ex DESC",
+                (ativo,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_ex_range(self, data_inicio: str, data_fim: str) -> list[dict]:
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM dividendos WHERE data_ex BETWEEN ? AND ? ORDER BY data_ex, ativo",
+                (data_inicio, data_fim)
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def delete_all(self) -> int:
+        conn = get_connection(self.db_path)
+        try:
+            cursor = conn.execute("DELETE FROM dividendos")
+            conn.commit()
+            return cursor.rowcount
+        finally:
+            conn.close()
