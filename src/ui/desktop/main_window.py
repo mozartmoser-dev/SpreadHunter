@@ -19,6 +19,7 @@ from src.ui.desktop.import_dialog import ImportDialog
 from src.ui.desktop.export_dialog import ExportDialog
 from src.ui.desktop.parametros_widget import ParametrosWidget
 from src.ui.desktop.engine_dashboard import EngineDashboard
+from src.ui.desktop.colar_dialog import ColarDialog
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 
 
@@ -42,6 +43,7 @@ class MainWindow(QMainWindow):
         self._total_opps = 0
         self._total_viaveis = 0
         self._resultados_brutos = []
+        self._ultimos_colares = []
 
         self.importar_uc = ImportarBaseUseCase(self.db_path)
         self.exportar_uc = ExportarOperacaoUseCase(self.db_path)
@@ -52,8 +54,10 @@ class MainWindow(QMainWindow):
         self._worker.status_message.connect(self._on_status_message)
         self._worker.rtd_status.connect(self._on_rtd_status)
         self._worker.engine_stats_updated.connect(self._on_engine_stats_updated)
+        self._worker.colares_atualizados.connect(self._on_colares_atualizados)
         
         self._engine_dialog = EngineDashboard(self)
+        self._colar_dialog = None
 
         self._aplicar_tema_configurado()
 
@@ -125,6 +129,10 @@ class MainWindow(QMainWindow):
         self.btn_dividendos.clicked.connect(self._abrir_dividendos)
         btn_layout.addWidget(self.btn_dividendos)
 
+        self.btn_colar = QPushButton("🛡  Colares")
+        self.btn_colar.clicked.connect(self._abrir_colar)
+        btn_layout.addWidget(self.btn_colar)
+
         self.btn_varrer = QPushButton("▶  Iniciar Monitor")
         self.btn_varrer.setCheckable(True)
         self.btn_varrer.setChecked(False)
@@ -148,6 +156,10 @@ class MainWindow(QMainWindow):
             "color: {}; font-size: 10pt; font-weight: bold; padding: 0 8px;".format(Palette.TEXT_SECONDARY)
         )
         btn_layout.addWidget(self.lbl_count)
+
+        self._status_colar = QLabel("")
+        self._status_colar.setStyleSheet("color: {}; font-size: 10pt; font-weight: bold; padding: 0 8px;".format(Palette.GREEN))
+        btn_layout.addWidget(self._status_colar)
 
         btn_layout.addSpacing(16)
 
@@ -373,6 +385,8 @@ class MainWindow(QMainWindow):
     def _on_rtd_status(self, connected: bool):
         self._rtd_connected = connected
         self._update_rtd_indicator(connected)
+        if self._colar_dialog and self._colar_dialog.isVisible():
+            self._colar_dialog.set_rtd_status(connected)
 
     def _on_oportunidades_atualizadas(self, resultados: list):
         self._resultados_brutos = resultados
@@ -472,6 +486,41 @@ class MainWindow(QMainWindow):
         from src.ui.desktop.dividendos_dialog import DividendosDialog
         dialog = DividendosDialog(self.db_path, self)
         dialog.exec_()
+
+    def _salvar_selecao_colar(self, ativos: list):
+        self._colar_selecionados = ativos
+
+    def _on_colares_atualizados(self, resultados: list):
+        self._ultimos_colares = resultados
+        n_viaveis = sum(1 for r in resultados if r.viavel)
+        if n_viaveis > 0:
+            self._status_colar.setText(f"🛡 {n_viaveis} colar{'es' if n_viaveis > 1 else ''}")
+            self._status_colar.setStyleSheet(
+                f"color: {Palette.GREEN}; font-weight: bold; padding: 0 8px;"
+            )
+        else:
+            self._status_colar.setText("")
+        if self._colar_dialog and self._colar_dialog.isVisible():
+            self._colar_dialog.atualizar_resultados(resultados)
+            self._colar_dialog.set_rtd_status(self._rtd_connected)
+
+    def _abrir_colar(self):
+        if self._colar_dialog and self._colar_dialog.isVisible():
+            self._colar_dialog.raise_()
+            return
+        self._colar_dialog = ColarDialog(self, self.db_path)
+        self._colar_dialog.iniciar_scan_signal.connect(self._worker.iniciar_auto_colar)
+        self._colar_dialog.parar_scan_signal.connect(self._worker.parar_auto_colar)
+        self._colar_dialog.selecao_alterada.connect(self._salvar_selecao_colar)
+        if hasattr(self, "_colar_selecionados") and self._colar_selecionados:
+            self._colar_dialog.restaurar_selecao(self._colar_selecionados)
+        if getattr(self, "_colar_auto_active", False):
+            self._colar_dialog.sync_auto_active()
+        self._colar_dialog.atualizar_resultados(self._ultimos_colares)
+        self._colar_dialog.set_rtd_status(self._rtd_connected)
+        self._colar_dialog.setAttribute(Qt.WA_DeleteOnClose, True)
+        self._colar_dialog.destroyed.connect(lambda: setattr(self, "_colar_dialog", None))
+        self._colar_dialog.show()
 
     def _on_row_double_clicked(self, index):
         opp = self.table_model.get_oportunidade(index.row())

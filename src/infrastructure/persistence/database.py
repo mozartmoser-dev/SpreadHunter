@@ -21,8 +21,64 @@ def get_connection(db_path: Path | str | None = None) -> sqlite3.Connection:
 def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
     conn = get_connection(db_path)
     conn.executescript(SCHEMA)
+    _migrar_dividendos(conn)
+    _seed_parametros_colar(conn)
     conn.commit()
     return conn
+
+
+def _seed_parametros_colar(conn):
+    params = [
+        ("premio_risco_colar", "1.0", "COLAR", "Premio risco Colar (x CDI)"),
+        ("colar_dist_max_pct", "0.3", "COLAR", "Distancia maxima do strike (%)"),
+    ]
+    for chave, valor, estrategia, descricao in params:
+        try:
+            conn.execute(
+                "INSERT OR IGNORE INTO parametros_operacionais (chave, valor, estrategia, descricao) VALUES (?, ?, ?, ?)",
+                (chave, valor, estrategia, descricao),
+            )
+        except sqlite3.OperationalError:
+            pass
+
+
+def _migrar_dividendos(conn):
+    """Adiciona colunas data_com e data_pagamento se nao existirem."""
+    for col in ("data_com", "data_pagamento"):
+        try:
+            conn.execute(f"ALTER TABLE dividendos ADD COLUMN {col} DATE")
+        except sqlite3.OperationalError:
+            pass
+    # Remove UNIQUE antigo e recria tabela com UNIQUE melhor
+    try:
+        cursor = conn.execute("SELECT sql FROM sqlite_master WHERE name='dividendos' AND sql LIKE '%UNIQUE%'")
+        row = cursor.fetchone()
+        if row and "UNIQUE(ativo, data_ex, tipo)" in row[0]:
+            conn.executescript("""
+                CREATE TABLE dividendos_nova (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ativo TEXT NOT NULL,
+                    tipo TEXT,
+                    data_com DATE,
+                    data_ex DATE,
+                    data_pagamento DATE,
+                    data_aprovacao DATE,
+                    valor REAL,
+                    tipo_acao TEXT,
+                    preco_fechamento REAL,
+                    fonte TEXT DEFAULT 'b3',
+                    atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(ativo, data_com, tipo, data_pagamento)
+                );
+                INSERT INTO dividendos_nova (id, ativo, tipo, data_ex, data_aprovacao, valor, tipo_acao, preco_fechamento, atualizado_em)
+                    SELECT id, ativo, tipo, data_ex, data_aprovacao, valor, tipo_acao, preco_fechamento, atualizado_em FROM dividendos;
+                DROP TABLE dividendos;
+                ALTER TABLE dividendos_nova RENAME TO dividendos;
+                CREATE INDEX IF NOT EXISTS idx_dividendos_ativo ON dividendos(ativo);
+                CREATE INDEX IF NOT EXISTS idx_dividendos_data_com ON dividendos(data_com);
+            """)
+    except sqlite3.OperationalError:
+        pass
 
 
 SCHEMA = """
@@ -91,13 +147,16 @@ CREATE TABLE IF NOT EXISTS dividendos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ativo TEXT NOT NULL,
     tipo TEXT,
+    data_com DATE,
     data_ex DATE,
+    data_pagamento DATE,
     data_aprovacao DATE,
     valor REAL,
     tipo_acao TEXT,
     preco_fechamento REAL,
+    fonte TEXT DEFAULT 'b3',
     atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(ativo, data_ex, tipo)
+    UNIQUE(ativo, data_com, tipo, data_pagamento)
 );
 
 CREATE INDEX IF NOT EXISTS idx_instrumentos_ativo ON instrumentos_base(ativo);

@@ -46,4 +46,6 @@ class ParametroOperacional:
         "notif_telegram_enable": {"valor": 0.0, "estrategia": "TELEGRAM", "descricao": "Habilitar Telegram"},
         "telegram_bot_token": {"valor": "0", "estrategia": "TELEGRAM", "descricao": "Token Telegram"},
         "telegram_chat_id": {"valor": "0", "estrategia": "TELEGRAM", "descricao": "Chat ID Telegram"},
+        "premio_risco_colar": {"valor": 1.0, "estrategia": "COLAR", "descricao": "Premio risco Colar (x CDI)"},
+        "colar_dist_max_pct": {"valor": 0.3, "estrategia": "COLAR", "descricao": "Distancia maxima do strike (%)"},
     }

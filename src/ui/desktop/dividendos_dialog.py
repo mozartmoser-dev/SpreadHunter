@@ -4,21 +4,34 @@ from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView, QAbstractItemView,
     QMessageBox, QLabel, QHeaderView, QComboBox, QProgressBar
 )
-from PyQt5.QtCore import Qt, QAbstractTableModel, QDate, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QAbstractTableModel, QDate, QThread, pyqtSignal, QSortFilterProxyModel
 from PyQt5.QtGui import QFont, QColor, QBrush
 
 from src.ui.desktop.theme import Palette
+
+
+class DividendosSortProxy(QSortFilterProxyModel):
+    """Proxy que ordena datas ISO e numeros corretamente."""
+    def lessThan(self, left, right):
+        src = self.sourceModel()
+        l_val = src._items[left.row()].get(src.COLUMNS[left.column()][1])
+        r_val = src._items[right.row()].get(src.COLUMNS[right.column()][1])
+        if l_val is None:
+            return True
+        if r_val is None:
+            return False
+        if isinstance(l_val, (int, float)) and isinstance(r_val, (int, float)):
+            return l_val < r_val
+        return str(l_val) < str(r_val)
 
 
 class DividendosTableModel(QAbstractTableModel):
     COLUMNS = [
         ("Ativo", "ativo"),
         ("Tipo", "tipo"),
-        ("Data Ex", "data_ex"),
-        ("Data Aprov.", "data_aprovacao"),
+        ("Data COM", "data_com"),
+        ("Pagamento", "data_pagamento"),
         ("Valor", "valor"),
-        ("Tipo Ação", "tipo_acao"),
-        ("Preço Fech.", "preco_fechamento"),
         ("Atualizado", "atualizado_em"),
     ]
 
@@ -38,6 +51,19 @@ class DividendosTableModel(QAbstractTableModel):
                 return self.COLUMNS[section][0]
         return None
 
+    @staticmethod
+    def _fmt_data(val) -> str:
+        if not val:
+            return "-"
+        try:
+            if "T" in str(val):
+                dt = datetime.fromisoformat(str(val))
+                return dt.strftime("%d/%m/%Y")
+            dt = datetime.fromisoformat(str(val))
+            return dt.strftime("%d/%m/%Y")
+        except ValueError:
+            return str(val)
+
     def data(self, index, role=Qt.DisplayRole):
         if not index.isValid() or index.row() >= len(self._items):
             return None
@@ -46,28 +72,15 @@ class DividendosTableModel(QAbstractTableModel):
         col_key = self.COLUMNS[index.column()][1]
 
         if role == Qt.DisplayRole:
+            if col_key in ("data_com", "data_pagamento", "atualizado_em"):
+                return self._fmt_data(item.get(col_key))
             if col_key == "valor":
                 val = item.get("valor")
                 return "{:.6f}".format(val) if val else "-"
-            if col_key == "preco_fechamento":
-                val = item.get("preco_fechamento")
-                return "{:.2f}".format(val) if val else "-"
-            if col_key in ("data_ex", "data_aprovacao", "atualizado_em"):
-                val = item.get(col_key)
-                if val:
-                    try:
-                        if "T" in str(val):
-                            dt = datetime.fromisoformat(str(val))
-                            return dt.strftime("%d/%m/%Y %H:%M")
-                        dt = datetime.fromisoformat(str(val))
-                        return dt.strftime("%d/%m/%Y")
-                    except ValueError:
-                        return str(val)
-                return "-"
             return str(item.get(col_key, "-"))
 
         if role == Qt.TextAlignmentRole:
-            if col_key in ("valor", "preco_fechamento", "tipo_acao"):
+            if col_key == "valor":
                 return Qt.AlignCenter | Qt.AlignVCenter
             return Qt.AlignLeft | Qt.AlignVCenter
 
@@ -79,14 +92,14 @@ class DividendosTableModel(QAbstractTableModel):
             return QBrush(QColor(Palette.TEXT_PRIMARY))
 
         if role == Qt.BackgroundRole:
-            data_ex = item.get("data_ex")
-            if data_ex:
+            data_com = item.get("data_com")
+            if data_com:
                 try:
-                    ex_date = datetime.fromisoformat(str(data_ex)).date()
+                    dt = datetime.fromisoformat(str(data_com)).date()
                     hoje = datetime.now().date()
-                    if ex_date == hoje:
+                    if dt == hoje:
                         return QBrush(QColor("#2d4a1e"))
-                    elif ex_date == hoje + timedelta(days=1):
+                    elif dt == hoje + timedelta(days=1):
                         return QBrush(QColor("#3d3a1e"))
                 except ValueError:
                     pass
@@ -101,22 +114,22 @@ class DividendosTableModel(QAbstractTableModel):
 
 
 class DividendosFetchWorker(QThread):
-    progresso = pyqtSignal(int, int, str)  # atual, total, ativo_atual
-    concluido = pyqtSignal(int, str)  # total_proventos, mensagem
+    progresso = pyqtSignal(int, int, str)
+    concluido = pyqtSignal(int, str)
     erro = pyqtSignal(str)
 
     def __init__(self, db_path, ativos: list[str], modo: str = "rapida"):
         super().__init__()
         self.db_path = db_path
         self.ativos = ativos
-        self.modo = modo  # "completa" ou "rapida"
+        self.modo = modo
 
     def run(self):
         try:
-            from src.infrastructure.providers.dividendos_b3 import DividendosB3Provider
+            from src.infrastructure.providers.dividendos_statusinvest import DividendosStatusInvestProvider
             from src.infrastructure.persistence.repositories.repositories import DividendoRepository
 
-            provider = DividendosB3Provider()
+            provider = DividendosStatusInvestProvider()
             div_repo = DividendoRepository(self.db_path)
 
             total_proventos = 0
@@ -125,14 +138,7 @@ class DividendosFetchWorker(QThread):
             for i, ativo in enumerate(self.ativos):
                 self.progresso.emit(i + 1, total_ativos, ativo)
 
-                if self.modo == "rapida":
-                    from datetime import date
-                    data_de = date.today() - timedelta(days=5)
-                    dividendos = provider.buscar_proventos_recentes(
-                        ativo, data_de.isoformat()
-                    )
-                else:
-                    dividendos = provider.buscar_proventos(ativo)
+                dividendos = provider.buscar_proventos(ativo)
 
                 if dividendos:
                     div_repo.save_batch(dividendos)
@@ -201,9 +207,9 @@ class DividendosDialog(QDialog):
         self.cmb_filtro.currentIndexChanged.connect(self._aplicar_filtro)
         header_layout.addWidget(self.cmb_filtro)
 
-        self.btn_atualizar = QPushButton("🔄 Atualizar da B3")
+        self.btn_atualizar = QPushButton("🔄 Atualizar")
         self.btn_atualizar.setProperty("class", "primary")
-        self.btn_atualizar.clicked.connect(self._atualizar_da_b3)
+        self.btn_atualizar.clicked.connect(self._atualizar_proventos)
         header_layout.addWidget(self.btn_atualizar)
 
         layout.addLayout(header_layout)
@@ -232,15 +238,29 @@ class DividendosDialog(QDialog):
 
         self.table_view = QTableView()
         self.model = DividendosTableModel()
-        self.table_view.setModel(self.model)
+
+        self.proxy = DividendosSortProxy()
+        self.proxy.setSourceModel(self.model)
+        self.proxy.setDynamicSortFilter(True)
+
+        self.table_view.setModel(self.proxy)
+        self.table_view.setSortingEnabled(True)
         self.table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table_view.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table_view.setAlternatingRowColors(True)
         self.table_view.setFont(QFont("Consolas", 9))
         self.table_view.horizontalHeader().setStretchLastSection(True)
-        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.table_view.verticalHeader().setDefaultSectionSize(26)
         self.table_view.verticalHeader().hide()
+
+        header = self.table_view.horizontalHeader()
+        header.resizeSection(0, 90)   # Ativo
+        header.resizeSection(1, 120)  # Tipo
+        header.resizeSection(2, 110)  # Data COM
+        header.resizeSection(3, 110)  # Pagamento
+        header.resizeSection(4, 100)  # Valor
+        # Atualizado fica elastico (StretchLastSection)
         layout.addWidget(self.table_view, stretch=1)
 
         btn_layout = QHBoxLayout()
@@ -271,23 +291,23 @@ class DividendosDialog(QDialog):
         hoje = date.today()
 
         if filtro == "Hoje":
-            filtrados = [d for d in self._all_items if d.get("data_ex") == hoje.isoformat()]
+            filtrados = [d for d in self._all_items if d.get("data_com") == hoje.isoformat()]
         elif filtro == "Amanhã":
             amanha = (hoje + timedelta(days=1)).isoformat()
-            filtrados = [d for d in self._all_items if d.get("data_ex") == amanha]
+            filtrados = [d for d in self._all_items if d.get("data_com") == amanha]
         elif filtro == "Próx. 7 dias":
             fim = (hoje + timedelta(days=7)).isoformat()
-            filtrados = [d for d in self._all_items if d.get("data_ex") and hoje.isoformat() <= d["data_ex"] <= fim]
+            filtrados = [d for d in self._all_items if d.get("data_com") and hoje.isoformat() <= d["data_com"] <= fim]
         elif filtro == "Próx. 30 dias":
             fim = (hoje + timedelta(days=30)).isoformat()
-            filtrados = [d for d in self._all_items if d.get("data_ex") and hoje.isoformat() <= d["data_ex"] <= fim]
+            filtrados = [d for d in self._all_items if d.get("data_com") and hoje.isoformat() <= d["data_com"] <= fim]
         else:
             filtrados = self._all_items
 
         self.model.atualizar(filtrados)
         self.lbl_status.setText(f"{len(filtrados)} registros")
 
-    def _atualizar_da_b3(self):
+    def _atualizar_proventos(self):
         from src.infrastructure.persistence.repositories.repositories import (
             DividendoRepository, InstrumentoRepository
         )
@@ -299,19 +319,13 @@ class DividendosDialog(QDialog):
             QMessageBox.warning(self, "Aviso", "Nenhum ativo na base. Importe a base de opções primeiro.")
             return
 
-        div_repo = DividendoRepository(self.db_path)
-        total_existente = len(div_repo.get_all())
-
-        modo = "rapida" if total_existente > 0 else "completa"
-        label_modo = "Atualização rápida" if modo == "rapida" else "Busca completa"
-
         self.btn_atualizar.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.progress_bar.setMaximum(len(ativos))
         self.progress_bar.setValue(0)
-        self.lbl_status.setText(f"{label_modo}... (0/{len(ativos)})")
+        self.lbl_status.setText(f"Buscando proventos... (0/{len(ativos)})")
 
-        self._worker = DividendosFetchWorker(self.db_path, ativos, modo)
+        self._worker = DividendosFetchWorker(self.db_path, ativos, "completa")
         self._worker.progresso.connect(self._on_progresso)
         self._worker.concluido.connect(self._on_concluido)
         self._worker.erro.connect(self._on_erro)
@@ -332,4 +346,4 @@ class DividendosDialog(QDialog):
         self.progress_bar.setVisible(False)
         self.btn_atualizar.setEnabled(True)
         self.lbl_status.setText("Erro na atualização")
-        QMessageBox.critical(self, "Erro", f"Erro ao atualizar da B3:\n{erro}")
+        QMessageBox.critical(self, "Erro", f"Erro ao atualizar:\n{erro}")

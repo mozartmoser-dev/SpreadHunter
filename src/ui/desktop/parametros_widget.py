@@ -26,6 +26,7 @@ ESTRATEGIA_LABELS = {
     "BOX_SINTETICO": "BOX Sintetico / Pescaria Basket",
     "PERFORMANCE": "Ajuste de Performance",
     "TELEGRAM": "Notificações Telegram",
+    "COLAR": "Colar Protetivo",
 }
 
 ESTRATEGIA_COLORS = {
@@ -35,6 +36,7 @@ ESTRATEGIA_COLORS = {
     "BOX_SINTETICO": Palette.PURPLE,
     "PERFORMANCE": Palette.YELLOW,
     "TELEGRAM": Palette.GREEN,
+    "COLAR": "#1abc9c",
 }
 
 PARAMETROS_POR_ESTRATEGIA = {
@@ -78,6 +80,10 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("notif_telegram_enable", "Habilitar Telegram"),
         ("telegram_bot_token", "Token do Bot Telegram"),
         ("telegram_chat_id", "ID do Chat Telegram"),
+    ],
+    "COLAR": [
+        ("premio_risco_colar", "Premio risco Colar (x CDI)"),
+        ("colar_dist_max_pct", "Distancia maxima do strike (%)"),
     ],
 }
 
