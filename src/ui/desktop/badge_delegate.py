@@ -70,7 +70,7 @@ class BadgeDelegate(QStyledItemDelegate):
         rect = QRectF(option.rect)
         
         # Limita a largura maxima da pilula para nao esticar demais em colunas largas
-        max_width = 80 if col_key == "tipo" else 50
+        max_width = 90 if col_key == "label_tipo" else 50
         pill_width = min(rect.width() - 16, max_width)
         pill_height = rect.height() - 8
         

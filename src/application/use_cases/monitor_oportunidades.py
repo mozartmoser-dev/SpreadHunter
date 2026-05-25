@@ -231,14 +231,14 @@ class MonitorOportunidadesUseCase:
         msg += "--- Custos e Rentabilidade ---\n"
         if o.custo_sbth and o.custo_sbth > 0:
             msg += f"• Custo SBTH: R$ {o.custo_sbth:.2f}\n"
-            msg += f"• Ganho % SBTH: {o.pct_ganho_sbth:.2f}%\n"
+            msg += f"• Ganho % SBTH: {o.pct_ganho_sbth * 100:.2f}%\n"
             msg += f"• vs CDI SBTH: {o.pct_cdi_sbth:.2f}x CDI\n"
         else:
             msg += "• SBTH: (N/A)\n"
         msg += "\n"
         if o.custo_box and o.custo_box > 0:
             msg += f"• Custo BOX: R$ {o.custo_box:.2f}\n"
-            msg += f"• Ganho % BOX: {o.pct_ganho_box:.2f}%\n"
+            msg += f"• Ganho % BOX: {o.pct_ganho_box * 100:.2f}%\n"
             msg += f"• vs CDI BOX: {o.pct_cdi_box:.2f}x CDI\n"
         else:
             msg += "• BOX: (N/A)\n"

@@ -1,4 +1,5 @@
 import re
+import math
 from datetime import date, datetime
 from pathlib import Path
 
@@ -15,7 +16,6 @@ def sanitizar_strike(valor_bruto: float, preco_ref: float) -> float:
     if not preco_ref or preco_ref <= 0 or not valor_bruto or valor_bruto <= 0:
         return valor_bruto
     
-    import math
     # Testamos uma gama maior de divisores para cobrir layouts variados do Profit
     divisores = [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
     melhor_strike = valor_bruto

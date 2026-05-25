@@ -429,6 +429,8 @@ class PernaRepository:
             conn.close()
 
 
+COLUNAS_DIVIDENDOS = "ativo, tipo, data_com, data_ex, data_pagamento, data_aprovacao, valor, tipo_acao, preco_fechamento, fonte"
+
 class DividendoRepository:
     def __init__(self, db_path=None):
         self.db_path = db_path
@@ -437,18 +439,21 @@ class DividendoRepository:
         conn = get_connection(self.db_path)
         try:
             conn.execute(
-                """INSERT INTO dividendos
-                   (ativo, tipo, data_ex, data_aprovacao, valor, tipo_acao, preco_fechamento)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(ativo, data_ex, tipo) DO UPDATE SET
+                f"""INSERT INTO dividendos ({COLUNAS_DIVIDENDOS})
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(ativo, data_com, tipo, data_pagamento) DO UPDATE SET
+                       data_ex=excluded.data_ex,
                        data_aprovacao=excluded.data_aprovacao,
                        valor=excluded.valor,
                        tipo_acao=excluded.tipo_acao,
                        preco_fechamento=excluded.preco_fechamento,
+                       fonte=excluded.fonte,
                        atualizado_em=CURRENT_TIMESTAMP""",
-                (div["ativo"], div.get("tipo"), div.get("data_ex"),
+                (div["ativo"], div.get("tipo"), div.get("data_com"),
+                 div.get("data_ex"), div.get("data_pagamento"),
                  div.get("data_aprovacao"), div.get("valor"),
-                 div.get("tipo_acao"), div.get("preco_fechamento"))
+                 div.get("tipo_acao"), div.get("preco_fechamento"),
+                 div.get("fonte", "statusinvest"))
             )
             conn.commit()
         finally:
@@ -458,18 +463,21 @@ class DividendoRepository:
         conn = get_connection(self.db_path)
         try:
             conn.executemany(
-                """INSERT INTO dividendos
-                   (ativo, tipo, data_ex, data_aprovacao, valor, tipo_acao, preco_fechamento)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(ativo, data_ex, tipo) DO UPDATE SET
+                f"""INSERT INTO dividendos ({COLUNAS_DIVIDENDOS})
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(ativo, data_com, tipo, data_pagamento) DO UPDATE SET
+                       data_ex=excluded.data_ex,
                        data_aprovacao=excluded.data_aprovacao,
                        valor=excluded.valor,
                        tipo_acao=excluded.tipo_acao,
                        preco_fechamento=excluded.preco_fechamento,
+                       fonte=excluded.fonte,
                        atualizado_em=CURRENT_TIMESTAMP""",
-                [(d["ativo"], d.get("tipo"), d.get("data_ex"),
+                [(d["ativo"], d.get("tipo"), d.get("data_com"),
+                  d.get("data_ex"), d.get("data_pagamento"),
                   d.get("data_aprovacao"), d.get("valor"),
-                  d.get("tipo_acao"), d.get("preco_fechamento"))
+                  d.get("tipo_acao"), d.get("preco_fechamento"),
+                  d.get("fonte", "statusinvest"))
                  for d in dividendos]
             )
             conn.commit()
@@ -481,7 +489,7 @@ class DividendoRepository:
         conn = get_connection(self.db_path)
         try:
             rows = conn.execute(
-                "SELECT * FROM dividendos ORDER BY data_ex DESC, ativo"
+                "SELECT * FROM dividendos ORDER BY data_com DESC, ativo"
             ).fetchall()
             return [dict(r) for r in rows]
         finally:
@@ -500,11 +508,25 @@ class DividendoRepository:
         finally:
             conn.close()
 
+    def get_proximos(self, dias: int = 30) -> list[dict]:
+        from datetime import date, timedelta
+        hoje = date.today().isoformat()
+        fim = (date.today() + timedelta(days=dias)).isoformat()
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM dividendos WHERE data_com >= ? AND data_com <= ? ORDER BY data_com, ativo",
+                (hoje, fim)
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
     def get_by_ativo(self, ativo: str) -> list[dict]:
         conn = get_connection(self.db_path)
         try:
             rows = conn.execute(
-                "SELECT * FROM dividendos WHERE ativo = ? ORDER BY data_ex DESC",
+                "SELECT * FROM dividendos WHERE ativo = ? ORDER BY data_com DESC",
                 (ativo,)
             ).fetchall()
             return [dict(r) for r in rows]

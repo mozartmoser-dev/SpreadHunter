@@ -1,4 +1,6 @@
+import sys
 from datetime import datetime
+from pathlib import Path
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -6,7 +8,7 @@ from PyQt5.QtWidgets import (
     QHeaderView, QTableView, QAbstractItemView, QFrame, QMenu,
     QCheckBox, QComboBox,
 )
-from PyQt5.QtCore import Qt, QTimer, QSize
+from PyQt5.QtCore import Qt, QTimer, QSize, QProcess
 from PyQt5.QtGui import QFont, QColor, QBrush, QIcon, QPixmap, QPainter
 
 from src.infrastructure.persistence.database import get_db_path
@@ -20,6 +22,7 @@ from src.ui.desktop.export_dialog import ExportDialog
 from src.ui.desktop.parametros_widget import ParametrosWidget
 from src.ui.desktop.engine_dashboard import EngineDashboard
 from src.ui.desktop.colar_dialog import ColarDialog
+from src.ui.desktop.colar_calendario_dialog import ColarCalendarioDialog
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 
 
@@ -44,6 +47,7 @@ class MainWindow(QMainWindow):
         self._total_viaveis = 0
         self._resultados_brutos = []
         self._ultimos_colares = []
+        self._ultimos_colares_cal = []
 
         self.importar_uc = ImportarBaseUseCase(self.db_path)
         self.exportar_uc = ExportarOperacaoUseCase(self.db_path)
@@ -55,9 +59,12 @@ class MainWindow(QMainWindow):
         self._worker.rtd_status.connect(self._on_rtd_status)
         self._worker.engine_stats_updated.connect(self._on_engine_stats_updated)
         self._worker.colares_atualizados.connect(self._on_colares_atualizados)
-        
+
+        self._worker.colares_calendario_atualizados.connect(self._on_colares_calendario_atualizados)
+
         self._engine_dialog = EngineDashboard(self)
         self._colar_dialog = None
+        self._colar_cal_dialog = None
 
         self._aplicar_tema_configurado()
 
@@ -121,6 +128,18 @@ class MainWindow(QMainWindow):
         self.btn_import.clicked.connect(self._abrir_importacao)
         btn_layout.addWidget(self.btn_import)
 
+        self.btn_importflash = QPushButton("⚡  ImportFlash")
+        self.btn_importflash.clicked.connect(self._abrir_importflash)
+        self.btn_importflash.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #1a3a5c; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid #2c6fbb; border-radius: 4px;
+                padding: 6px 12px; font-size: 9pt; font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: #204a77; }}
+        """)
+        btn_layout.addWidget(self.btn_importflash)
+
         self.btn_historico = QPushButton("📊  Histórico")
         self.btn_historico.clicked.connect(self._abrir_historico)
         btn_layout.addWidget(self.btn_historico)
@@ -132,6 +151,18 @@ class MainWindow(QMainWindow):
         self.btn_colar = QPushButton("🛡  Colares")
         self.btn_colar.clicked.connect(self._abrir_colar)
         btn_layout.addWidget(self.btn_colar)
+
+        self.btn_colar_cal = QPushButton("📅  Collar Cal")
+        self.btn_colar_cal.clicked.connect(self._abrir_colar_calendario)
+        self.btn_colar_cal.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #2d1f0e; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid #f39c12; border-radius: 4px;
+                padding: 6px 12px; font-size: 9pt; font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: #3d2f1e; }}
+        """)
+        btn_layout.addWidget(self.btn_colar_cal)
 
         self.btn_varrer = QPushButton("▶  Iniciar Monitor")
         self.btn_varrer.setCheckable(True)
@@ -160,6 +191,10 @@ class MainWindow(QMainWindow):
         self._status_colar = QLabel("")
         self._status_colar.setStyleSheet("color: {}; font-size: 10pt; font-weight: bold; padding: 0 8px;".format(Palette.GREEN))
         btn_layout.addWidget(self._status_colar)
+
+        self._status_colar_cal = QLabel("")
+        self._status_colar_cal.setStyleSheet("color: {}; font-size: 10pt; font-weight: bold; padding: 0 8px;".format(Palette.YELLOW))
+        btn_layout.addWidget(self._status_colar_cal)
 
         btn_layout.addSpacing(16)
 
@@ -477,6 +512,63 @@ class MainWindow(QMainWindow):
             self._worker.recarregar_instrumentos()
             self._refresh_ativos_filter()
 
+    def _abrir_importflash(self):
+        from PyQt5.QtWidgets import QMessageBox
+        resp = QMessageBox.question(
+            self,
+            "ImportFlash",
+            "Isso vai SUBSTITUIR toda a base de instrumentos "
+            "pelos dados atuais do opcoes.net.br.\n\n"
+            "O processo leva ~5 minutos.\n"
+            "Continuar?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if resp != QMessageBox.Yes:
+            return
+
+        from PyQt5.QtCore import QProcess
+        script_dir = Path(__file__).resolve().parent.parent.parent.parent / "scripts" / "validar_opcoes"
+        self._importflash_process = QProcess(self)
+        self._importflash_process.setWorkingDirectory(str(script_dir))
+        script = str(script_dir / "importflash.py")
+
+        self._importflash_process.readyReadStandardOutput.connect(
+            lambda: self._on_importflash_output(
+                self._importflash_process.readAllStandardOutput().data().decode("utf-8", errors="replace")
+            )
+        )
+        self._importflash_process.readyReadStandardError.connect(
+            lambda: self._on_importflash_output(
+                self._importflash_process.readAllStandardError().data().decode("utf-8", errors="replace"),
+                is_error=True,
+            )
+        )
+        self._importflash_process.finished.connect(self._on_importflash_finished)
+
+        self.btn_importflash.setEnabled(False)
+        self.btn_importflash.setText("⏳  ImportFlash...")
+        self._status_left.setText("ImportFlash: varrendo opcoes.net.br...")
+        self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.YELLOW))
+
+        self._importflash_process.start(
+            sys.executable, [script, "--excluir", "IBOV11", "--delay", "1.0", "--incluir", "VALE3"]
+        )
+
+    def _on_importflash_output(self, text: str, is_error=False):
+        print(text, end="", flush=True)
+
+    def _on_importflash_finished(self, exit_code, exit_status):
+        self.btn_importflash.setEnabled(True)
+        self.btn_importflash.setText("⚡  ImportFlash")
+        if exit_code == 0:
+            self._worker.recarregar_instrumentos()
+            self._refresh_ativos_filter()
+            self._status_left.setText("ImportFlash: concluido com sucesso!")
+            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
+        else:
+            self._status_left.setText(f"ImportFlash: erro (codigo {exit_code})")
+            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.RED))
+
     def _abrir_historico(self):
         from src.ui.desktop.historico_dialog import HistoricoDialog
         dialog = HistoricoDialog(self.db_path, self)
@@ -521,6 +613,39 @@ class MainWindow(QMainWindow):
         self._colar_dialog.setAttribute(Qt.WA_DeleteOnClose, True)
         self._colar_dialog.destroyed.connect(lambda: setattr(self, "_colar_dialog", None))
         self._colar_dialog.show()
+
+    def _abrir_colar_calendario(self):
+        if self._colar_cal_dialog and self._colar_cal_dialog.isVisible():
+            self._colar_cal_dialog.raise_()
+            return
+        self._colar_cal_dialog = ColarCalendarioDialog(self, self.db_path)
+        self._colar_cal_dialog.iniciar_scan_signal.connect(self._worker.iniciar_auto_colar_cal)
+        self._colar_cal_dialog.parar_scan_signal.connect(self._worker.parar_auto_colar_cal)
+        self._colar_cal_dialog.selecao_alterada.connect(self._salvar_selecao_colar_cal)
+        if hasattr(self, "_colar_cal_selecionados") and self._colar_cal_selecionados:
+            self._colar_cal_dialog.restaurar_selecao(self._colar_cal_selecionados)
+        if getattr(self, "_colar_cal_auto_active", False):
+            self._colar_cal_dialog.sync_auto_active()
+        self._colar_cal_dialog.atualizar_resultados(self._ultimos_colares_cal)
+        self._colar_cal_dialog.setAttribute(Qt.WA_DeleteOnClose, True)
+        self._colar_cal_dialog.destroyed.connect(lambda: setattr(self, "_colar_cal_dialog", None))
+        self._colar_cal_dialog.show()
+
+    def _salvar_selecao_colar_cal(self, ativos: list):
+        self._colar_cal_selecionados = ativos
+
+    def _on_colares_calendario_atualizados(self, resultados: list):
+        self._ultimos_colares_cal = resultados
+        n_viaveis = sum(1 for r in resultados if r.viavel)
+        if n_viaveis > 0:
+            self._status_colar_cal.setText(f"📅 {n_viaveis}")
+            self._status_colar_cal.setStyleSheet(
+                f"color: {Palette.YELLOW}; font-weight: bold; padding: 0 8px;"
+            )
+        else:
+            self._status_colar_cal.setText("")
+        if self._colar_cal_dialog and self._colar_cal_dialog.isVisible():
+            self._colar_cal_dialog.atualizar_resultados(resultados)
 
     def _on_row_double_clicked(self, index):
         opp = self.table_model.get_oportunidade(index.row())

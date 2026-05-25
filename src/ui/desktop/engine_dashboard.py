@@ -229,3 +229,14 @@ class EngineDashboard(QDialog):
             self.card_latency.lbl_value.setStyleSheet("color: #ffff00; font-size: 14pt; font-weight: bold; font-family: Consolas;")
         else:
             self.card_latency.lbl_value.setStyleSheet("color: #ff5555; font-size: 14pt; font-weight: bold; font-family: Consolas;")
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_pos = event.globalPos() - self.pos()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.LeftButton:
+            self.move(event.globalPos() - self._drag_pos)
+            event.accept()
+

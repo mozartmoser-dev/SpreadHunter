@@ -403,9 +403,20 @@ class ExportDialog(QDialog):
                 self, "Operacao Registrada",
                 "Operacao registrada com sucesso!\n\nID: {}".format(self._result.estrutura_id),
             )
+            # Aciona a integração visual com o PNT logo após salvar no banco
+            self._enviar_para_pnt()
             self.accept()
         except Exception as e:
             QMessageBox.critical(self, "Erro ao registrar", str(e))
+
+    def _enviar_para_pnt(self):
+        """Aciona a integração visual com o PNT."""
+        try:
+            from src.infrastructure.integrations.pnt import PNTIntegration
+            pnt = PNTIntegration(db_path=self.db_path)
+            pnt.enviar_oportunidade(self.oportunidade)
+        except Exception as e:
+            print(f"Erro na automação PNT: {e}")
 
     def _exportar_basket(self):
         opp_dict = self._make_opp_dict()

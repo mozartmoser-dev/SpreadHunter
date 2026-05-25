@@ -517,14 +517,3 @@ def get_theme_qss(theme_id: float) -> str:
         qss = qss.replace(old_color, new_color)
         qss = qss.replace(old_color.upper(), new_color)
     return qss
-
-    ROW_BOX = "#1a2e1a"
-    ROW_SBTH = "#1a1a2e"
-    ROW_BOXSBTH = "#1a2e2e"
-    ROW_NOT_VIABLE = "#2e1a1a"
-    ROW_LEILAO = "#3a1a1a"
-
-    LIQ_POSITIVE = "#2ecc71"
-    LIQ_NEGATIVE = "#e74c3c"
-
-    STRIKEOUT_COLOR = "#4a4a5e"

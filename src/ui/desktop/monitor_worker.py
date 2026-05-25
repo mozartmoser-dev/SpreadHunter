@@ -7,6 +7,7 @@ from PyQt5.QtCore import QThread, pyqtSignal, QMutex, QWaitCondition
 
 from src.application.use_cases.monitor_oportunidades import MonitorOportunidadesUseCase
 from src.application.use_cases.monitor_colares import MonitorColaresUseCase
+from src.application.use_cases.monitor_colares_calendario import MonitorColaresCalendarioUseCase
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
 from src.infrastructure.providers.rtd_profit import RTDProfit
 from src.application.dtos.dtos import EngineStatsDTO
@@ -20,6 +21,7 @@ class MonitorWorker(QThread):
     rtd_status = pyqtSignal(bool)
     engine_stats_updated = pyqtSignal(object)
     colares_atualizados = pyqtSignal(list)
+    colares_calendario_atualizados = pyqtSignal(list)
 
     def __init__(self, db_path: str, rtd: RTDProfit, parent=None):
         super().__init__(parent)
@@ -28,17 +30,24 @@ class MonitorWorker(QThread):
         self._mercado_provider = None
         self._monitor_uc = MonitorOportunidadesUseCase(db_path)
         self._monitor_colares_uc = MonitorColaresUseCase(db_path)
+        self._monitor_colares_cal_uc = MonitorColaresCalendarioUseCase(db_path)
         self._running = False
         self._paused = False
         self._interval_ms = 2500
         self._mostrar_tp_op = False
         self._colar_cycle = 0
         self._colar_interval = 24
+        self._colar_cal_cycle = 0
+        self._colar_cal_interval = 3
         self._mutex = QMutex()
         self._wait_condition = QWaitCondition()
         self._forcar_colar = False
         self._colar_auto = False
         self._colar_mutex = QMutex()
+        self._forcar_colar_cal = False
+        self._colar_cal_auto = False
+        self._colar_cal_ativos: list[str] | None = None
+        self._colar_cal_mutex = QMutex()
 
     def run(self):
         com_initialized = False
@@ -110,6 +119,34 @@ class MonitorWorker(QThread):
                     except Exception as e:
                         logger.error("Colar scan error: %s", e)
 
+                # Varredura de Collar Calendário
+                forcar_cal = False
+                colar_cal_ativos: list[str] | None = None
+                self._colar_cal_mutex.lock()
+                if self._forcar_colar_cal:
+                    forcar_cal = True
+                    self._forcar_colar_cal = False
+                colar_cal_auto = self._colar_cal_auto
+                colar_cal_ativos = self._colar_cal_ativos
+                self._colar_cal_mutex.unlock()
+
+                deve_escanear_cal = forcar_cal
+                if colar_cal_auto:
+                    self._colar_cal_cycle += 1
+                    if self._colar_cal_cycle >= self._colar_cal_interval:
+                        deve_escanear_cal = True
+                        self._colar_cal_cycle = 0
+
+                if deve_escanear_cal:
+                    try:
+                        self.status_message.emit("🔄 Varredura de collar calendario...")
+                        cal_results = self._monitor_colares_cal_uc.varrer(rtd, ativos=colar_cal_ativos)
+                        n = len(cal_results)
+                        self.status_message.emit(f"✅ Collar Cal: {n} viaveis" if n else "✅ Collar Cal: nenhum viavel")
+                        self.colares_calendario_atualizados.emit(cal_results)
+                    except Exception as e:
+                        logger.error("Collar Cal scan error: %s", e)
+
                 # Coleta Estatísticas do Motor
                 t_end = time.perf_counter()
                 scan_ms = int((t_end - t_start_cycle) * 1000)
@@ -169,6 +206,7 @@ class MonitorWorker(QThread):
     def recarregar_parametros(self):
         self._monitor_uc.recarregar_parametros()
         self._monitor_colares_uc.recarregar_parametros()
+        self._monitor_colares_cal_uc.recarregar_parametros()
         if self._mercado_provider:
             self._mercado_provider.recarregar_parametros()
 
@@ -195,6 +233,25 @@ class MonitorWorker(QThread):
         self._colar_auto = False
         self._colar_cycle = 0
         self._colar_mutex.unlock()
+
+    def solicitar_varredura_colar_cal(self):
+        self._colar_cal_mutex.lock()
+        self._forcar_colar_cal = True
+        self._colar_cal_mutex.unlock()
+
+    def iniciar_auto_colar_cal(self, ativos: list[str] | None = None):
+        self._colar_cal_mutex.lock()
+        self._colar_cal_auto = True
+        self._forcar_colar_cal = True
+        self._colar_cal_cycle = 0
+        self._colar_cal_ativos = ativos
+        self._colar_cal_mutex.unlock()
+
+    def parar_auto_colar_cal(self):
+        self._colar_cal_mutex.lock()
+        self._colar_cal_auto = False
+        self._colar_cal_cycle = 0
+        self._colar_cal_mutex.unlock()
 
     def set_mostrar_tp_op(self, mostrar: bool):
         self._mostrar_tp_op = mostrar

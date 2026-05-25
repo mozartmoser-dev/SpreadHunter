@@ -255,7 +255,7 @@ class MercadoDataProvider:
             sem_ativo_atual: dict[str, int] = {}
             
             count_reg_onda2 = 0
-            MAX_REG_ONDA2_PER_CYCLE = 40 # Limite para não engasgar o COM
+            MAX_REG_ONDA2_PER_CYCLE = 200
             
             inst_map = self.inst_repo.get_all_mapped()
             chaves_alvo = self._chaves_registradas if is_global_scan else self._chaves_com_book
