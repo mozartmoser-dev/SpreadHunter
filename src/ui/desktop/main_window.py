@@ -212,11 +212,11 @@ class MainWindow(QMainWindow):
         self.btn_dividendos.clicked.connect(self._abrir_dividendos)
         btn_layout.addWidget(self.btn_dividendos)
 
-        self.btn_colar = QPushButton("🛡  Colares")
+        self.btn_colar = QPushButton("🛡  Collar")
         self.btn_colar.clicked.connect(self._abrir_colar)
         btn_layout.addWidget(self.btn_colar)
 
-        self.btn_colar_cal = QPushButton("📅  Collar Cal")
+        self.btn_colar_cal = QPushButton("📅  Collar")
         self.btn_colar_cal.clicked.connect(self._abrir_colar_calendario)
         self.btn_colar_cal.setStyleSheet(f"""
             QPushButton {{
