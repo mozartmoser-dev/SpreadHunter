@@ -255,7 +255,7 @@ class MercadoDataProvider:
             sem_ativo_atual: dict[str, int] = {}
             
             count_reg_onda2 = 0
-            MAX_REG_ONDA2_PER_CYCLE = 200
+            MAX_REG_ONDA2_PER_CYCLE = 500
             
             inst_map = self.inst_repo.get_all_mapped()
             chaves_alvo = self._chaves_registradas if is_global_scan else self._chaves_com_book
@@ -291,10 +291,13 @@ class MercadoDataProvider:
                 cab_call = self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
                 
                 if (cab_put and cab_put > 0) or (cab_call and cab_call > 0):
+                    self._chaves_com_book.add(key)
+                    dte = inst.dias_ate_vencimento or 0
+                    if not (7 <= dte <= 180):
+                        continue
                     if count_reg_onda2 < MAX_REG_ONDA2_PER_CYCLE:
                         self._registrar_detalhes_completos(inst)
                         count_reg_onda2 += 1
-                    self._chaves_com_book.add(key)
 
             self._sem_ativo_skip = sem_ativo_atual
             logger.info("Varredura (%s): %d monitored, %d with book in %.2fs",

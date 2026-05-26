@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, QStringListModel, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QBrush
 
+from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.ui.desktop.theme import Palette
 
 
@@ -605,6 +606,19 @@ class ColarDialog(QDialog):
         btn_payoff.clicked.connect(lambda: self._plot_payoff(r))
         btn_row.addWidget(btn_payoff)
 
+        btn_variacao = QPushButton("📈 Ver Variação")
+        btn_variacao.setAutoDefault(False)
+        btn_variacao.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #2d2d44; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid {Palette.BORDER}; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #3d3d55; }}
+        """)
+        btn_variacao.clicked.connect(lambda: self._mostrar_variacao(r))
+        btn_row.addWidget(btn_variacao)
+
         btn_row.addStretch()
 
         btn_fechar = QPushButton("Fechar")
@@ -708,6 +722,185 @@ class ColarDialog(QDialog):
         btn_close.clicked.connect(payoff_dialog.close)
         payoff_layout.addWidget(btn_close, alignment=Qt.AlignRight)
         payoff_dialog.exec_()
+
+    def _mostrar_variacao(self, r):
+        from PyQt5.QtWidgets import QMessageBox
+        from datetime import date, timedelta
+        import re as re2
+        import numpy as np
+        from scipy.stats import norm
+        import matplotlib
+        matplotlib.use('Agg')
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        from matplotlib.figure import Figure
+
+        client = OpcoesNetClient()
+        hoje = date.today()
+        raw = client.get_variacao(
+            r.ativo,
+            data_inicial=(hoje - timedelta(days=365)).strftime("%d/%m/%Y"),
+            data_final=hoje.strftime("%d/%m/%Y"),
+        )
+        if not raw:
+            QMessageBox.information(self, "Variação", "Não foi possível obter dados.")
+            return
+
+        dados = raw.get("data", {})
+        chave_alvo = None
+        for k in dados:
+            if "20" in k:
+                chave_alvo = k
+                break
+        if not chave_alvo:
+            chave_alvo = list(dados.keys())[0]
+        bins = dados[chave_alvo]
+        total_obs = sum(b["quantidade"] for b in bins)
+        dias_neg = raw.get("diasComNegociacao", 0)
+
+        CLASS_KEY = "classifica\u00e7\u00e3o"
+        cents, wts = [], []
+        for b in bins:
+            q = b["quantidade"]
+            if q <= 0:
+                continue
+            rot = b[CLASS_KEY]
+            nums = [float(x.replace(",", ".")) for x in re2.findall(r'[\d,.]+', rot)]
+            if "Menos" in rot:
+                c = nums[0] / 2
+            elif "Mais" in rot:
+                c = nums[0] * 1.5
+            elif len(nums) >= 2:
+                c = (nums[0] + nums[1]) / 2
+            else:
+                c = nums[0]
+            cents.append(c)
+            wts.append(q)
+
+        media = sum(c * w for c, w in zip(cents, wts)) / sum(wts) if wts else 0
+        desvio = (sum(w * (c - media) ** 2 for c, w in zip(cents, wts)) / sum(wts)) ** 0.5 if wts else 0
+
+        pct_call = ((r.strike_call - r.preco_ativo) / r.preco_ativo) * 100
+        pct_put = ((r.strike_put - r.preco_ativo) / r.preco_ativo) * 100
+        spot = r.preco_ativo
+
+        def preco_no_sigma(n_sigma):
+            return spot * (1 + (media + n_sigma * desvio) / 100)
+
+        BG = '#0d0d0d'; TEXT = '#c0c0c0'; ACCENT = '#ffc107'
+        BLUE = '#2196f3'; GREEN = '#4caf50'; RED = '#ff3355'; PURPLE = '#9c27b0'
+
+        fig = Figure(figsize=(11, 5.5), facecolor=BG)
+        ax1 = fig.add_subplot(121, facecolor=BG)
+        rotulos = [b[CLASS_KEY] for b in bins]
+        vals = [b["percentual"] for b in bins]
+        cores_b = [BLUE, GREEN, ACCENT, RED][:len(vals)]
+        ax1.bar(range(len(vals)), vals, color=cores_b, alpha=0.7, width=0.6, edgecolor='#333', linewidth=0.5)
+        for i, v in enumerate(vals):
+            ax1.text(i, v + 0.5, f"{v:.1f}%", ha='center', va='bottom', color=TEXT, fontsize=8, fontweight='bold')
+        ax1.set_xticks(range(len(vals)))
+        ax1.set_xticklabels(rotulos, color=TEXT, fontsize=7)
+        ax1.set_ylabel("% das observacoes", color=TEXT, fontsize=9)
+        ax1.set_title(f"{r.ativo} - Variacao em ~20 pregoes\n{dias_neg} dias de amostra", color='#e0e0e0', fontsize=10, fontweight='bold')
+        ax1.set_facecolor(BG)
+        ax1.tick_params(colors=TEXT, labelsize=8)
+        ax1.set_ylim(0, max(vals) * 1.25)
+        for s in ax1.spines.values():
+            s.set_color('#333')
+        ax1.text(0.98, 0.98, f"Spot: R${spot:.2f}\nK Call: R${r.strike_call:.2f}\nK Put: R${r.strike_put:.2f}",
+                 transform=ax1.transAxes, fontsize=7, verticalalignment='top', horizontalalignment='right',
+                 color=TEXT, bbox=dict(boxstyle='round', facecolor='#1a1a1a', edgecolor='#333'))
+
+        ax2 = fig.add_subplot(122, facecolor=BG)
+        x_lim = max(desvio * 4, 12)
+        x = np.linspace(-x_lim, x_lim, 800)
+        y = norm.pdf(x, media, desvio) if desvio > 0 else np.zeros_like(x)
+        y_max = max(y) * 1.45
+        ax2.plot(x, y, color=ACCENT, linewidth=2.5, label='Dist. Normal')
+        ax2.set_facecolor(BG)
+        ax2.set_xlim(-x_lim, x_lim)
+        ax2.set_ylim(-y_max * 0.3, y_max)
+        ax2.fill_between(x, 0, y, where=(x >= media - desvio) & (x <= media + desvio), color=BLUE, alpha=0.12)
+        ax2.fill_between(x, 0, y, where=(x >= media + desvio) & (x <= media + 2 * desvio), color=GREEN, alpha=0.07)
+        ax2.fill_between(x, 0, y, where=(x >= media - 2 * desvio) & (x <= media - desvio), color=GREEN, alpha=0.07)
+        ax2.fill_between(x, 0, y, where=(x >= media + 2 * desvio) & (x <= media + 3 * desvio), color=RED, alpha=0.04)
+        ax2.fill_between(x, 0, y, where=(x >= media - 3 * desvio) & (x <= media - 2 * desvio), color=RED, alpha=0.04)
+
+        ax2.text(media, y_max * 0.88, "68%", ha='center', va='center', color=BLUE, fontsize=12, fontweight='bold',
+                 bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=BLUE, alpha=0.9))
+        ax2.text(media + 1.5 * desvio, y_max * 0.62, "13.5%", ha='center', color=GREEN, fontsize=8)
+        ax2.text(media - 1.5 * desvio, y_max * 0.62, "13.5%", ha='center', color=GREEN, fontsize=8)
+        ax2.text(media + 2.5 * desvio, y_max * 0.35, "2.35%", ha='center', color=RED, fontsize=7)
+        ax2.text(media - 2.5 * desvio, y_max * 0.35, "2.35%", ha='center', color=RED, fontsize=7)
+
+        ax2.axvline(media, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.2)
+        for i in range(1, 4):
+            cor = [BLUE, GREEN, RED][i - 1]
+            ax2.axvline(media + i * desvio, color=cor, linewidth=0.6, linestyle='--', alpha=0.3)
+            ax2.axvline(media - i * desvio, color=cor, linewidth=0.6, linestyle='--', alpha=0.3)
+
+        eixo_y_seta = -y_max * 0.08
+        eixo_y_texto = -y_max * 0.15
+        for i in range(-3, 4):
+            variacao_pct = media if i == 0 else media + i * desvio
+            cor = ACCENT if i == 0 else ([BLUE, GREEN, RED][abs(i) - 1] if abs(i) <= 3 else TEXT)
+            preco_r = preco_no_sigma(i)
+            ax2.annotate('', xy=(variacao_pct, 0), xytext=(variacao_pct, eixo_y_seta),
+                         arrowprops=dict(arrowstyle='->', color=cor, lw=1.5, alpha=0.8))
+            texto_preco = f"R${preco_r:.2f}" + (" (spot)" if i == 0 else "")
+            ax2.text(variacao_pct, eixo_y_texto, texto_preco, ha='center', va='top',
+                     color=cor, fontsize=7.5, fontweight='bold',
+                     bbox=dict(boxstyle='round,pad=0.2', facecolor='#1a1a1a', edgecolor=cor, alpha=0.8))
+            ax2.text(variacao_pct, eixo_y_seta - y_max * 0.04, f"{i:+d}s" if i != 0 else "0",
+                     ha='center', va='top', color=TEXT, fontsize=6.5, alpha=0.6)
+
+        if abs(pct_call - pct_put) < 0.1:
+            pct_k = (pct_call + pct_put) / 2
+            z_k = abs(pct_k - media) / desvio if desvio > 0 else 0
+            ax2.axvline(pct_k, color=PURPLE, linewidth=2.5, linestyle='-', alpha=0.95,
+                        label=f'K R${r.strike_call:.2f} (Z={z_k:.2f})')
+            ax2.axvspan(pct_k - 0.5, pct_k + 0.5, color=PURPLE, alpha=0.08)
+            ax2.text(pct_k, y_max * 0.50, f"Strike no percentil {norm.cdf(z_k)*100:.0f}%",
+                     ha='center', va='center', color=PURPLE, fontsize=7.5, fontweight='bold',
+                     bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=PURPLE, alpha=0.85))
+        else:
+            ax2.axvline(pct_call, color=RED, linewidth=2, linestyle='-', alpha=0.9, label=f'K Call {r.strike_call:.2f} ({pct_call:+.1f}%)')
+            ax2.axvline(pct_put, color=GREEN, linewidth=2, linestyle='-', alpha=0.9, label=f'K Put {r.strike_put:.2f} ({pct_put:+.1f}%)')
+
+        ax2.axhline(0, color=TEXT, linewidth=0.4, alpha=0.15)
+        ax2.set_xlabel('Variacao em relacao ao spot (%)', color=TEXT, fontsize=9)
+        ax2.set_ylabel('Densidade', color=TEXT, fontsize=9)
+        ax2.set_title("Dist. Normal - Probabilidades e Precos Correspondentes", color='#e0e0e0', fontsize=10, fontweight='bold')
+        ax2.tick_params(colors=TEXT, labelsize=8)
+        for s in ax2.spines.values():
+            s.set_color('#333')
+        leg = ax2.legend(loc='upper right', fontsize=7, labelcolor=TEXT, facecolor='#1a1a1a', edgecolor='#333')
+        leg.get_frame().set_alpha(0.95)
+        ax2.text(0.02, 0.98, f"Media: {media:.1f}%\nDesvio: {desvio:.1f}%\nObs: {total_obs}",
+                 transform=ax2.transAxes, fontsize=7, verticalalignment='top', color=TEXT,
+                 bbox=dict(boxstyle='round', facecolor='#1a1a1a', edgecolor='#333'))
+        fig.tight_layout()
+
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+        dialog = QDialog(self, Qt.Window)
+        dialog.setWindowTitle(f"Variacao - {r.ativo}")
+        dialog.setMinimumSize(1050, 580)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+        title = QLabel(f"<b>{r.ativo}</b>  |  Spot: R${spot:.2f}  |  K: R${r.strike_call:.2f} / R${r.strike_put:.2f}")
+        title.setStyleSheet(f"font-size: 10pt; color: {Palette.TEXT_PRIMARY};")
+        layout.addWidget(title)
+        canvas = FigureCanvas(fig)
+        layout.addWidget(canvas, stretch=1)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.setAutoDefault(False)
+        btn_fechar.clicked.connect(dialog.close)
+        btn_fechar.setProperty("class", "primary")
+        btn_row.addWidget(btn_fechar)
+        layout.addLayout(btn_row)
+        dialog.exec_()
 
     def _carregar_todos_ativos(self) -> list[str]:
         if not self._db_path:

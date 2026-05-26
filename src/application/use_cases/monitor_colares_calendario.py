@@ -41,7 +41,7 @@ class MonitorColaresCalendarioUseCase:
 
         if params is None:
             params = {
-                "dte_call_min": 40,
+                "dte_call_min": 29,
                 "dte_call_max": 60,
                 "dte_extra_min": 30,
                 "dte_extra_max": 90,
@@ -51,35 +51,53 @@ class MonitorColaresCalendarioUseCase:
         hoje = date.today()
         calls_por_ativo: dict[str, list] = defaultdict(list)
         puts_por_ativo: dict[str, list] = defaultdict(list)
-        stats = {"total": 0, "sem_strike": 0, "sem_ocp_ovd": 0, "sem_preco": 0, "calls": 0, "puts": 0}
-        ativo_counts: dict[str, dict] = defaultdict(lambda: {"dte_range": 0, "strike_ok": 0, "ocp_ovd_ok": 0, "final": 0})
+        stats = {"total": 0, "sem_vencimento": 0, "sem_codigos": 0, "sem_dias": 0, "sem_strike": 0, "sem_strike_registrado": 0, "sem_ocp_ovd": 0, "sem_ocp_registrado": 0, "sem_ovd_registrado": 0, "sem_preco": 0, "sem_qul": 0, "calls": 0, "puts": 0, "fora_dte": 0, "fora_ativo": 0}
 
         for key, inst in inst_map.items():
+            stats["total"] += 1
             if not inst.vencimento or inst.vencimento <= hoje:
+                stats["sem_vencimento"] += 1
                 continue
             if not inst.cod_put or not inst.cod_call:
+                stats["sem_codigos"] += 1
                 continue
             if inst.dias_ate_vencimento is None or inst.dias_ate_vencimento <= 0:
+                stats["sem_dias"] += 1
                 continue
 
+            # ---- FILTRO 1: ATIVOS SELECIONADOS (mais barato) ----
+            if ativos_set and inst.ativo not in ativos_set:
+                stats["fora_ativo"] += 1
+                continue
+
+            # ---- FILTRO 2: DTE (barato, sem RTD) ----
             dte = inst.dias_ate_vencimento
             if dte < params["dte_call_min"] or dte > params["dte_total_max"]:
+                stats["fora_dte"] += 1
                 continue
 
-            if ativos_set and inst.ativo not in ativos_set:
-                continue
-
-            # Só processa instrumentos com dados RTD disponíveis (Onda 2 já promoveu)
+            # ---- FILTRO 3: LIQUIDEZ (RTD Onda 2 + QUL) ----
             strike = rtd.ler_campo_cache(inst.cod_put, "PEX")
             if not strike or strike <= 0:
                 strike = rtd.ler_campo_cache(inst.cod_call, "PEX")
             if not strike or strike <= 0:
+                chk_reg = rtd._topic_map.get(f"{inst.cod_put}|PEX")
+                if chk_reg is None:
+                    chk_reg = rtd._topic_map.get(f"{inst.cod_call}|PEX")
                 stats["sem_strike"] += 1
+                if chk_reg is not None:
+                    stats["sem_strike_registrado"] += 1
                 continue
 
             ocp = rtd.ler_campo_cache(inst.cod_call, "OCP")
             ovd = rtd.ler_campo_cache(inst.cod_put, "OVD")
             if ocp is None or ovd is None:
+                chk_ocp = rtd._topic_map.get(f"{inst.cod_call}|OCP")
+                chk_ovd = rtd._topic_map.get(f"{inst.cod_put}|OVD")
+                if chk_ocp is not None:
+                    stats["sem_ocp_registrado"] += 1
+                if chk_ovd is not None:
+                    stats["sem_ovd_registrado"] += 1
                 stats["sem_ocp_ovd"] += 1
                 continue
 
@@ -87,6 +105,12 @@ class MonitorColaresCalendarioUseCase:
             preco_put = ovd or 0.0
             if preco_call <= 0 or preco_put <= 0:
                 stats["sem_preco"] += 1
+                continue
+
+            qul_put = rtd.ler_campo_cache(inst.cod_put, "QUL") or 0
+            qul_call = rtd.ler_campo_cache(inst.cod_call, "QUL") or 0
+            if qul_put <= 0 and qul_call <= 0:
+                stats["sem_qul"] += 1
                 continue
 
             dados = {
@@ -105,18 +129,19 @@ class MonitorColaresCalendarioUseCase:
             else:
                 puts_por_ativo[inst.ativo].append(dados)
                 stats["puts"] += 1
-            ac["final"] += 1
 
-        logger.debug("CollarCal stats: total=%d calls=%d puts=%d sem_strike=%d sem_ocp_ovd=%d sem_preco=%d",
-                     stats["total"], stats["calls"], stats["puts"],
-                     stats["sem_strike"], stats["sem_ocp_ovd"], stats["sem_preco"])
-
-        # Log per-ativo summary for top ativos
-        for ativo in sorted(ativo_counts, key=lambda a: -ativo_counts[a]["dte_range"])[:10]:
-            ac = ativo_counts[ativo]
-            if ac["dte_range"] > 0:
-                logger.debug("CollarCal ativo=%s: dte_range=%d strike_ok=%d ocp_ovd_ok=%d final=%d",
-                             ativo, ac["dte_range"], ac["strike_ok"], ac["ocp_ovd_ok"], ac["final"])
+        if "PETR4" in calls_por_ativo or "PETR4" in puts_por_ativo:
+            logger.debug("CollarCal PETR4: calls=%d puts=%d",
+                         len(calls_por_ativo.get("PETR4", [])),
+                         len(puts_por_ativo.get("PETR4", [])))
+            if "PETR4" in calls_por_ativo:
+                for c in calls_por_ativo["PETR4"]:
+                    logger.debug("CollarCal PETR4 call: %s strike=%.2f dte=%d ocp=%.4f",
+                                 c["cod_call"], c["strike"], c["dte"], c["preco_call"])
+            if "PETR4" in puts_por_ativo:
+                for c in puts_por_ativo["PETR4"]:
+                    logger.debug("CollarCal PETR4 put: %s strike=%.2f dte=%d ovd=%.4f",
+                                 c["cod_put"], c["strike"], c["dte"], c["preco_put"])
 
         resultados = []
 
@@ -131,25 +156,25 @@ class MonitorColaresCalendarioUseCase:
             if preco_ativo <= 0:
                 continue
 
-            calls.sort(key=lambda x: x["strike"])
-            puts.sort(key=lambda x: x["strike"])
+            calls.sort(key=lambda c: abs(c["strike"] - preco_ativo))
 
-            pares_testados = 0
             for call in calls:
                 sc = call["strike"]
-                if sc <= preco_ativo:
-                    continue
+                dte_call = call["dte"]
 
-                for put in puts:
+                # Ordena puts por |strike_diff| crescente (strike mais próximo)
+                puts_ordenadas = sorted(
+                    puts,
+                    key=lambda p: abs(p["strike"] - sc),
+                )
+
+                for put in puts_ordenadas:
                     sp = put["strike"]
-                    if sp >= preco_ativo:
-                        continue
+                    dte_extra = put["dte"] - dte_call
 
-                    dte_extra = put["dte"] - call["dte"]
                     if dte_extra < params["dte_extra_min"] or dte_extra > params["dte_extra_max"]:
                         continue
 
-                    pares_testados += 1
                     resultado = calc.calcular(
                         preco_ativo=preco_ativo,
                         strike_call=sc,
@@ -158,7 +183,7 @@ class MonitorColaresCalendarioUseCase:
                         premio_put=put["preco_put"],
                         cod_call=call["cod_call"],
                         cod_put=put["cod_put"],
-                        dte_call=call["dte"],
+                        dte_call=dte_call,
                         dte_put=put["dte"],
                         ativo=ativo,
                         vencimento_call=call["vencimento"],
@@ -167,14 +192,12 @@ class MonitorColaresCalendarioUseCase:
 
                     if resultado and resultado.viavel:
                         resultados.append(resultado)
-                        logger.debug("CollarCal PAR VIÁVEL %s: call=%s(%.0f) put=%s(%.0f) DTE %d+%d pct_cdi=%.2f",
+                        logger.debug("CollarCal PAR VIÁVEL %s: call=%s(%.0f) put=%s(%.0f) DTE %d+%d |ΔK|=%.1f pct_cdi=%.2f",
                                      ativo, call["cod_call"], sc, put["cod_put"], sp,
-                                     call["dte"], dte_extra, resultado.pct_cdi)
-
-            if pares_testados > 0:
-                logger.debug("CollarCal ativo=%s calls=%d puts=%d pares=%d viaveis=%d",
-                             ativo, len(calls), len(puts), pares_testados, sum(1 for r in resultados if r.ativo == ativo))
+                                     dte_call, dte_extra, abs(sc - sp), resultado.pct_cdi)
+                        break  # melhor par pra esta call
 
         resultados.sort(key=lambda r: -r.pct_cdi)
+        logger.debug("CollarCal STATS: %s", stats)
         logger.debug("CollarCal TOTAL: %d viaveis em %d ativos", len(resultados), len(set(r.ativo for r in resultados)))
         return resultados

@@ -31,6 +31,7 @@ class ResultadoColarCalendario:
     iv_call: float
     iv_put: float
     valor_put_venc_call: float
+    pnl_stock: float
     pnl_projetado: float
     pct_retorno: float
     pct_cdi: float
@@ -137,9 +138,11 @@ class CalculadoraColarCalendario:
         T_put_rem = dte_extra / 365 if dte_extra > 0 else 0
         valor_put_vc = self.black_scholes(preco_ativo, strike_put, T_put_rem, r, iv_put, 'put') if T_put_rem > 0 else 0
 
-        pnl_call = premio_call
+        # Modelo COBERTO: compra 100 acoes + short call + long put
+        pnl_call = premio_call  # premio recebido, acao cobre exercicio
+        pnl_stock = min(preco_ativo, strike_call) - preco_ativo  # acao vendida a Kc se ITM
         pnl_put = valor_put_vc - premio_put
-        pnl_projetado = pnl_call + pnl_put
+        pnl_projetado = pnl_call + pnl_stock + pnl_put
 
         if pnl_projetado <= 0:
             return None
@@ -149,7 +152,8 @@ class CalculadoraColarCalendario:
         if cdi_periodo <= 0:
             return None
 
-        pct_retorno = pnl_projetado / premio_put if premio_put > 0 else 0
+        capital_empregado = preco_ativo + premio_put - premio_call
+        pct_retorno = pnl_projetado / capital_empregado if capital_empregado > 0 else 0
         pct_cdi = pct_retorno / cdi_periodo if cdi_periodo > 0 else 0
         viavel = pct_cdi >= self.premio_risco
 
@@ -171,6 +175,7 @@ class CalculadoraColarCalendario:
             iv_call=round(iv_call * 100, 2),
             iv_put=round(iv_put * 100, 2),
             valor_put_venc_call=round(valor_put_vc, 4),
+            pnl_stock=round(pnl_stock, 4),
             pnl_projetado=round(pnl_projetado, 4),
             pct_retorno=round(pct_retorno * 100, 4),
             pct_cdi=round(pct_cdi, 4),

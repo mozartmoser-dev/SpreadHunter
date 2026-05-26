@@ -6,10 +6,11 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QToolBar, QAction, QLabel, QDialog,
     QHeaderView, QTableView, QAbstractItemView, QFrame, QMenu,
-    QCheckBox, QComboBox,
+    QCheckBox, QComboBox, QStackedWidget, QGraphicsOpacityEffect,
 )
-from PyQt5.QtCore import Qt, QTimer, QSize, QProcess
+from PyQt5.QtCore import Qt, QTimer, QSize, QProcess, QPropertyAnimation, QEasingCurve
 from PyQt5.QtGui import QFont, QColor, QBrush, QIcon, QPixmap, QPainter
+
 
 from src.infrastructure.persistence.database import get_db_path
 from src.application.use_cases.importar_base import ImportarBaseUseCase
@@ -113,7 +114,70 @@ class MainWindow(QMainWindow):
         font = QFont("Consolas", 9)
         self.table_view.setFont(font)
 
-        main_layout.addWidget(self.table_view, stretch=1)
+        temas_dir = Path(__file__).parent.parent.parent.parent / "temas"
+        self._splash_inicial = QLabel()
+        pix_abertura = QPixmap(str(temas_dir / "shtemaabertura.jpeg"))
+        if not pix_abertura.isNull():
+            self._splash_inicial.setPixmap(pix_abertura.scaled(1200, 600, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self._splash_inicial.setAlignment(Qt.AlignCenter)
+            self._splash_inicial.setStyleSheet("background-color: #0d0d0d;")
+        else:
+            self._splash_inicial.setText("SPREADHUNTER")
+            self._splash_inicial.setAlignment(Qt.AlignCenter)
+            self._splash_inicial.setStyleSheet("color: #4fc3f7; font-size: 36pt; font-weight: bold; background-color: #0d0d0d;")
+
+        self._splash_transicao = QLabel()
+        pix_trans = QPixmap(str(temas_dir / "shtemainicializando.jpeg"))
+        if not pix_trans.isNull():
+            self._splash_transicao.setPixmap(pix_trans.scaled(1200, 600, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self._splash_transicao.setAlignment(Qt.AlignCenter)
+            self._splash_transicao.setStyleSheet("background-color: #0d0d0d;")
+        else:
+            self._splash_transicao.setText("INICIALIZANDO...")
+            self._splash_transicao.setAlignment(Qt.AlignCenter)
+            self._splash_transicao.setStyleSheet("color: #1abc9c; font-size: 36pt; font-weight: bold; background-color: #0d0d0d;")
+
+        self._transicao_opacity = QGraphicsOpacityEffect(self._splash_transicao)
+        self._transicao_opacity.setOpacity(1.0)
+        self._splash_transicao.setGraphicsEffect(self._transicao_opacity)
+
+        self._fade_anim = QPropertyAnimation(self._transicao_opacity, b"opacity")
+        self._fade_anim.setDuration(800)
+        self._fade_anim.setStartValue(1.0)
+        self._fade_anim.setEndValue(0.0)
+        self._fade_anim.setEasingCurve(QEasingCurve.InOutQuad)
+        self._fade_anim.finished.connect(self._on_fade_finished)
+
+        self._disclaimer = QLabel()
+        pix_disc = QPixmap(str(temas_dir / "Disclaimer.jpeg"))
+        if not pix_disc.isNull():
+            self._disclaimer.setPixmap(pix_disc.scaled(1200, 600, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self._disclaimer.setAlignment(Qt.AlignCenter)
+            self._disclaimer.setStyleSheet("background-color: #0d0d0d;")
+        else:
+            self._disclaimer.setWordWrap(True)
+            self._disclaimer.setAlignment(Qt.AlignCenter)
+            self._disclaimer.setText(
+                "<h3 style='color:#e0e0e0;'>Aviso de Risco</h3>"
+                "<p style='color:#999; font-size:10pt; line-height:1.6;'>"
+                "Operações com opções envolvem riscos significativos.<br>"
+                "Este sistema é uma ferramenta de análise, não uma recomendação.<br>"
+                "Você é o único responsável por suas decisões de investimento.<br><br>"
+                "<span style='color:#4fc3f7;'>Clique em qualquer lugar para continuar.</span>"
+                "</p>"
+            )
+            self._disclaimer.setStyleSheet(
+                "background-color: rgba(13, 13, 13, 220); border: none; padding: 40px;"
+            )
+        self._disclaimer.mousePressEvent = lambda _: self._fechar_disclaimer()
+
+        self._stack = QStackedWidget()
+        self._stack.addWidget(self._splash_inicial)
+        self._stack.addWidget(self._splash_transicao)
+        self._stack.addWidget(self.table_view)
+        self._stack.addWidget(self._disclaimer)
+        self._stack.setCurrentIndex(0)
+        main_layout.addWidget(self._stack, stretch=1)
 
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
@@ -387,8 +451,18 @@ class MainWindow(QMainWindow):
         self._worker.recarregar_parametros()
         self._update_cdi_display()
 
+    def _on_fade_finished(self):
+        self._transicao_opacity.setOpacity(1.0)
+        if self._stack.currentIndex() == 1:
+            self._stack.setCurrentIndex(3)
+
+    def _fechar_disclaimer(self):
+        self._stack.setCurrentIndex(2)
+
     def _toggle_monitor(self, checked):
         if checked:
+            self._stack.setCurrentIndex(1)
+            QTimer.singleShot(1500, self._fade_anim.start)
             self.btn_varrer.setText("⏸  Pausar Monitor")
             self.btn_varrer.setProperty("class", "monitor-active")
             self.btn_varrer.style().unpolish(self.btn_varrer)
@@ -403,6 +477,8 @@ class MainWindow(QMainWindow):
             self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
             self._update_cdi_display()
         else:
+            self._stack.setCurrentIndex(0)
+            self._transicao_opacity.setOpacity(1.0)
             self.btn_varrer.setText("▶  Iniciar Monitor")
             self.btn_varrer.setProperty("class", "success")
             self.btn_varrer.style().unpolish(self.btn_varrer)

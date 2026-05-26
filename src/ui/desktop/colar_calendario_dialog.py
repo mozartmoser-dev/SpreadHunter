@@ -1,11 +1,12 @@
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QLineEdit, QFormLayout, QFrame,
-    QListWidget, QListWidgetItem, QWidget, QTextEdit,
+    QListWidget, QListWidgetItem, QWidget, QTextEdit, QSpinBox, QDoubleSpinBox,
 )
 from PyQt5.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QBrush
 
+from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.ui.desktop.theme import Palette
 
 
@@ -135,7 +136,7 @@ class ColarCalSortProxy(QSortFilterProxyModel):
 
 
 class ColarCalendarioDialog(QDialog):
-    iniciar_scan_signal = pyqtSignal(list)
+    iniciar_scan_signal = pyqtSignal(list, dict)
     parar_scan_signal = pyqtSignal()
     selecao_alterada = pyqtSignal(list)
 
@@ -251,6 +252,62 @@ class ColarCalendarioDialog(QDialog):
         sep.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
         left_panel.addWidget(sep)
 
+        filtros_label = QLabel("Filtros DTE / %CDI")
+        filtros_label.setStyleSheet(f"color: {Palette.TEXT_MUTED}; font-size: 8pt; font-weight: bold;")
+        left_panel.addWidget(filtros_label)
+
+        def _mk_spin(row_lbl, min_v, max_v, default, step=1):
+            h = QHBoxLayout()
+            h.setSpacing(4)
+            lbl = QLabel(row_lbl)
+            lbl.setStyleSheet(f"color: {Palette.TEXT_MUTED}; font-size: 7pt;")
+            h.addWidget(lbl)
+            sp = QSpinBox()
+            sp.setMinimum(min_v)
+            sp.setMaximum(max_v)
+            sp.setValue(default)
+            sp.setSingleStep(step)
+            sp.setFixedWidth(55)
+            sp.setStyleSheet("background:#1e1e2f; color:#e0e0e0; border:1px solid #2d2d44; border-radius:3px; padding:1px 3px; font-size:7pt;")
+            h.addWidget(sp)
+            h.addStretch()
+            return sp, h
+
+        self.sp_call_min, h1 = _mk_spin("Call min:", 1, 120, 29)
+        left_panel.addLayout(h1)
+        self.sp_call_max, h2 = _mk_spin("Call max:", 1, 120, 60)
+        left_panel.addLayout(h2)
+        self.sp_extra_min, h3 = _mk_spin("Extra min:", 1, 180, 30)
+        left_panel.addLayout(h3)
+        self.sp_extra_max, h4 = _mk_spin("Extra max:", 1, 180, 90)
+        left_panel.addLayout(h4)
+        self.sp_total_max, h5 = _mk_spin("Total max:", 1, 365, 120)
+        left_panel.addLayout(h5)
+
+        h_pct = QHBoxLayout()
+        h_pct.setSpacing(4)
+        lbl_pct = QLabel("%CDI min:")
+        lbl_pct.setStyleSheet(f"color: {Palette.TEXT_MUTED}; font-size: 7pt;")
+        h_pct.addWidget(lbl_pct)
+        self.sp_pct_min = QDoubleSpinBox()
+        self.sp_pct_min.setMinimum(0)
+        self.sp_pct_min.setMaximum(9999)
+        self.sp_pct_min.setValue(0)
+        self.sp_pct_min.setSingleStep(10)
+        self.sp_pct_min.setDecimals(0)
+        self.sp_pct_min.setFixedWidth(55)
+        self.sp_pct_min.setStyleSheet("background:#1e1e2f; color:#e0e0e0; border:1px solid #2d2d44; border-radius:3px; padding:1px 3px; font-size:7pt;")
+        h_pct.addWidget(self.sp_pct_min)
+        h_pct.addStretch()
+        left_panel.addLayout(h_pct)
+
+        self.sp_call_min.valueChanged.connect(self._restart_scan_if_auto)
+        self.sp_call_max.valueChanged.connect(self._restart_scan_if_auto)
+        self.sp_extra_min.valueChanged.connect(self._restart_scan_if_auto)
+        self.sp_extra_max.valueChanged.connect(self._restart_scan_if_auto)
+        self.sp_total_max.valueChanged.connect(self._restart_scan_if_auto)
+        self.sp_pct_min.valueChanged.connect(self._restart_scan_if_auto)
+
         self.lbl_selecionados = QLabel("Selecionados: 0 ativos")
         self.lbl_selecionados.setStyleSheet(f"color: {Palette.YELLOW}; font-size: 8pt; font-weight: bold;")
         left_panel.addWidget(self.lbl_selecionados)
@@ -323,8 +380,19 @@ class ColarCalendarioDialog(QDialog):
                 item.setHidden(bool(texto.strip() and texto.upper() not in item.text().upper()))
         self.lista_ativos.setUpdatesEnabled(True)
 
+    def _restart_scan_if_auto(self):
+        if self._auto_mode:
+            self._auto_mode = False
+            self._scanning = False
+            self.parar_scan_signal.emit()
+            selecionados = [self.lista_ativos.item(i).text()
+                            for i in range(1, self.lista_ativos.count())
+                            if self.lista_ativos.item(i).checkState() == Qt.Checked]
+            self.iniciar_scan_signal.emit(selecionados, self._get_dte_params())
+
     def _on_asset_check_changed(self, item):
         self._aplicar_filtro_lista()
+        self._restart_scan_if_auto()
 
     def _toggle_todos(self):
         algum_marcado = any(
@@ -337,6 +405,7 @@ class ColarCalendarioDialog(QDialog):
             self.lista_ativos.item(i).setCheckState(estado)
         self.lista_ativos.blockSignals(False)
         self._aplicar_filtro_lista()
+        self._restart_scan_if_auto()
 
     def _aplicar_filtro_lista(self):
         selecionados = []
@@ -400,6 +469,16 @@ class ColarCalendarioDialog(QDialog):
             item.setCheckState(Qt.Checked if item.text() in ativos else Qt.Unchecked)
         self._aplicar_filtro_lista()
 
+    def _get_dte_params(self) -> dict:
+        return {
+            "dte_call_min": self.sp_call_min.value(),
+            "dte_call_max": self.sp_call_max.value(),
+            "dte_extra_min": self.sp_extra_min.value(),
+            "dte_extra_max": self.sp_extra_max.value(),
+            "dte_total_max": self.sp_total_max.value(),
+            "pct_cdi_min": self.sp_pct_min.value(),
+        }
+
     def _toggle_scan(self):
         if self._auto_mode:
             self._auto_mode = False
@@ -424,6 +503,18 @@ class ColarCalendarioDialog(QDialog):
                         if self.lista_ativos.item(i).checkState() == Qt.Checked)
             if n_sel == 0 and self.lista_ativos.count() > 1:
                 return
+            if n_sel > 20:
+                from PyQt5.QtWidgets import QMessageBox
+                resp = QMessageBox.question(
+                    self, "Muitos ativos",
+                    f"{n_sel} ativos selecionados.\n"
+                    "A varredura pode levar vários minutos até todos\n"
+                    "os instrumentos terem dados RTD completos.\n\n"
+                    "Deseja continuar mesmo assim?",
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+                )
+                if resp != QMessageBox.Yes:
+                    return
             self._auto_mode = True
             self._scanning = False
             self.btn_scan.setText("⏹ Parar Scanner")
@@ -441,7 +532,7 @@ class ColarCalendarioDialog(QDialog):
             selecionados = [self.lista_ativos.item(i).text()
                              for i in range(1, self.lista_ativos.count())
                              if self.lista_ativos.item(i).checkState() == Qt.Checked]
-            self.iniciar_scan_signal.emit(selecionados)
+            self.iniciar_scan_signal.emit(selecionados, self._get_dte_params())
 
     def set_scan_completed(self, n_resultados: int, auto: bool = False):
         if auto and self._auto_mode:
@@ -558,6 +649,32 @@ class ColarCalendarioDialog(QDialog):
         """)
         btn_payoff.clicked.connect(lambda: self._plot_payoff(r))
         btn_row.addWidget(btn_payoff)
+
+        btn_variacao = QPushButton("📈 Ver Variação")
+        btn_variacao.setAutoDefault(False)
+        btn_variacao.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #2d2d44; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid {Palette.BORDER}; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #3d3d55; }}
+        """)
+        btn_variacao.clicked.connect(lambda: self._mostrar_variacao(r))
+        btn_row.addWidget(btn_variacao)
+
+        btn_export = QPushButton("📋 Exportar Debug")
+        btn_export.setAutoDefault(False)
+        btn_export.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #2d2d44; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid {Palette.BORDER}; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #3d3d55; }}
+        """)
+        btn_export.clicked.connect(lambda: self._exportar_debug(r))
+        btn_row.addWidget(btn_export)
         btn_row.addStretch()
 
         btn_fechar = QPushButton("Fechar")
@@ -569,73 +686,415 @@ class ColarCalendarioDialog(QDialog):
         layout.addLayout(btn_row)
         dialog.exec_()
 
-    def _plot_payoff(self, r):
+    def _exportar_debug(self, r):
+        from PyQt5.QtWidgets import QApplication, QMessageBox
         import numpy as np
+        from scipy.stats import norm
+
+        T_call = r.dte_call / 365
+        T_put = r.dte_put / 365
+        T_rem = r.dte_extra / 365
+        cdi_periodo = (1 + 0.145) ** (r.dte_call / 365) - 1
+        # Modelo COBERTO: compra acao + short call + long put
+        pnl_stk = min(r.preco_ativo, r.strike_call) - r.preco_ativo
+        pnl_call = r.premio_call
+        if T_rem > 0:
+            dp1 = (np.log(r.preco_ativo / r.strike_put) + (0.1325 + 0.5 * (r.iv_put / 100) ** 2) * T_rem) / ((r.iv_put / 100) * np.sqrt(T_rem))
+            dp2 = dp1 - (r.iv_put / 100) * np.sqrt(T_rem)
+            put_val_vc = r.strike_put * np.exp(-0.1325 * T_rem) * norm.cdf(-dp2) - r.preco_ativo * norm.cdf(-dp1)
+        else:
+            put_val_vc = max(r.strike_put - r.preco_ativo, 0)
+
+        pnl_put = put_val_vc - r.premio_put
+        pnl_total = pnl_stk + pnl_call + pnl_put
+        cap = r.preco_ativo + r.premio_put - r.premio_call
+        ret = pnl_total / cap if cap > 0 else 0
+        pct_cdi = ret / cdi_periodo if cdi_periodo > 0 else 0
+
+        lines = [
+            "=== DEBUG COLLAR CALENDARIO ===",
+            "",
+            "--- INPUTS ---",
+            f"Ativo:          {r.ativo}",
+            f"Spot:           R$ {r.preco_ativo:.4f}",
+            f"Cod Call:       {r.cod_call}",
+            f"Strike Call:    R$ {r.strike_call:.4f}  (RTD PEX)",
+            f"Cod Put:        {r.cod_put}",
+            f"Strike Put:     R$ {r.strike_put:.4f}  (RTD PEX)",
+            f"Premio Call:    R$ {r.premio_call:.4f}  (OCP)",
+            f"Premio Put:     R$ {r.premio_put:.4f}  (OVD)",
+            f"DTE Call:       {r.dte_call}d",
+            f"DTE Put:        {r.dte_put}d",
+            f"DTE Extra:      {r.dte_extra}d",
+            f"IV Call:        {r.iv_call:.2f}%",
+            f"IV Put:         {r.iv_put:.2f}%",
+            f"Venc Call:      {r.vencimento_call}",
+            f"Venc Put:       {r.vencimento_put}",
+            "",
+            "--- MODELO COBERTO (acao + opcoes) ---",
+            f"T_call (anos):  {T_call:.6f}",
+            f"T_rem  (anos):  {T_rem:.6f}",
+            f"r (fixa):       0.1325",
+            f"CDI periodo:    {cdi_periodo*100:.4f}% = (1.145)^({r.dte_call}/365)-1",
+            f"Acao comprada a R$ {r.preco_ativo:.2f}",
+            f"Acao PnL:      min({r.preco_ativo:.2f}, {r.strike_call:.2f}) - {r.preco_ativo:.2f} = R$ {pnl_stk:.4f}",
+            f"Short Call PnL: R$ {r.premio_call:.4f} (premio recebido, acao cobre)",
+            f"Put val @callVC: BS(S={r.preco_ativo:.2f}, K={r.strike_put:.2f}, T={T_rem:.4f}, r=0.1325, IV={r.iv_put:.2f}%) = R$ {put_val_vc:.4f}",
+            f"Long Put PnL:   {put_val_vc:.4f} - {r.premio_put:.4f} = R$ {pnl_put:.4f}",
+            f"Capital empreg: {r.preco_ativo:.2f} + {r.premio_put:.2f} - {r.premio_call:.2f} = R$ {cap:.4f}",
+            "",
+            "--- RESULTADO ---",
+            f"PnL Projetado:  R$ {pnl_total:.4f}",
+            f"pct_retorno:    {ret*100:.2f}% = {pnl_total:.4f}/{cap:.4f}",
+            f"pct_cdi:        {pct_cdi:.2f}x = {ret*100:.2f}% / {cdi_periodo*100:.4f}%",
+            f"Net Credito:    R$ {r.net_credito:.4f}",
+            f"Valor Put VC:   R$ {r.valor_put_venc_call:.4f}",
+            f"Tipo:           {r.tipo.value}",
+            f"Viavel:         {r.viavel}",
+        ]
+        texto = "\n".join(lines)
+        QApplication.clipboard().setText(texto)
+        QMessageBox.information(self, "Debug Exportado",
+                                "Dados de debug copiados para a área de transferência.\n"
+                                "Cole (Ctrl+V) aqui no chat.")
+
+    def _plot_payoff(self, r):
+        from PyQt5.QtWidgets import QMessageBox
+        import traceback
+        try:
+            import numpy as np
+            from scipy.stats import norm
+            import matplotlib
+            matplotlib.use('Agg')
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+            from matplotlib.figure import Figure
+
+            S0 = r.preco_ativo
+            Kc = r.strike_call
+            Kp = r.strike_put
+            Pc = r.premio_call
+            Pp = r.premio_put
+            iv_c = r.iv_call / 100
+            iv_p = r.iv_put / 100
+            T_call = r.dte_call / 365
+            T_rem = r.dte_extra / 365
+
+            x_min = min(Kp, S0) * 0.85
+            x_max = max(Kc, S0) * 1.15
+            x = np.linspace(x_min, x_max, 500)
+
+            # Modelo COBERTO: acao + short call + long put
+            stock_pnl = np.minimum(x, Kc) - S0  # acao vendida a Kc se ITM
+            call_pnl = Pc  # premio recebido, acao cobre exercicio
+            if T_rem > 0:
+                dp1 = (np.log(x / Kp) + (0.1325 + 0.5 * iv_p ** 2) * T_rem) / (iv_p * np.sqrt(T_rem))
+                dp2 = dp1 - iv_p * np.sqrt(T_rem)
+                put_val = Kp * np.exp(-0.1325 * T_rem) * norm.cdf(-dp2) - x * norm.cdf(-dp1)
+            else:
+                put_val = np.maximum(Kp - x, 0)
+            put_pnl = put_val - Pp
+
+            pnl = stock_pnl + call_pnl + put_pnl
+
+            # Sigmas (1 desvio = S0 * IV_call * sqrt(T_call))
+            sigma_spot = S0 * iv_c * np.sqrt(T_call)
+
+            BG = '#0d0d0d'; TEXT = '#c0c0c0'; RED = '#ff3355'
+            ACCENT = '#ffc107'; FILL_BLUE = '#1a5276'; SIGMA_C = '#6c5ce7'
+
+            fig = Figure(figsize=(8, 4.5), facecolor=BG)
+            ax = fig.add_subplot(111, facecolor=BG)
+
+            ax.plot(x, pnl, color=ACCENT, linewidth=2.0, label='Payoff')
+
+            ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
+            ax.axvline(S0, color='#2196f3', linewidth=0.7, linestyle='--', alpha=0.8, label=f'Entrada {S0:.2f}')
+            ax.axvline(Kp, color=RED, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Put {Kp:.2f}')
+            ax.axvline(Kc, color=ACCENT, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Call {Kc:.2f}')
+
+            for n in [-2, -1, 1, 2]:
+                px = S0 + n * sigma_spot
+                if x_min <= px <= x_max:
+                    ax.axvline(px, color=SIGMA_C, linewidth=0.5, linestyle=':', alpha=0.5)
+                    ax.text(px, ax.get_ylim()[0], f'{n:+d}σ\n{px:.2f}',
+                            color=SIGMA_C, fontsize=6, ha='center', va='bottom')
+
+            ax.fill_between(x, 0, pnl, where=(pnl >= 0), color=FILL_BLUE, alpha=0.12)
+            ax.fill_between(x, 0, pnl, where=(pnl < 0), color=RED, alpha=0.1)
+
+            ax.set_xlabel('Preço do Ativo no Vencimento da Call (R$)', color=TEXT, fontsize=9)
+            ax.set_ylabel('Lucro / Prejuízo (R$)', color=TEXT, fontsize=9)
+            ax.set_title(f'Payoff Collar Calendário (Coberto) — {r.ativo}', color='#e0e0e0', fontsize=11, fontweight='bold')
+
+            ax.tick_params(colors=TEXT, labelsize=8)
+            for spine in ax.spines.values():
+                spine.set_color('#333')
+            leg = ax.legend(loc='best', fontsize=7, labelcolor=TEXT, facecolor='#1a1a1a', edgecolor='#333')
+
+            fig.tight_layout()
+
+            payoff_dialog = QDialog(self, Qt.Window)
+            payoff_dialog.setWindowTitle(f"Payoff Calendário — {r.ativo}")
+            payoff_dialog.setMinimumSize(800, 500)
+            payoff_layout = QVBoxLayout(payoff_dialog)
+            payoff_layout.setContentsMargins(8, 8, 8, 8)
+            canvas = FigureCanvas(fig)
+            payoff_layout.addWidget(canvas)
+            btn_close = QPushButton("Fechar")
+            btn_close.setAutoDefault(False)
+            btn_close.clicked.connect(payoff_dialog.close)
+            payoff_layout.addWidget(btn_close, alignment=Qt.AlignRight)
+            payoff_dialog.exec_()
+        except Exception as e:
+            logger.exception("Erro no payoff: %s", e)
+            QMessageBox.critical(self, "Erro", f"Falha ao gerar payoff:\n{e}\n\n{traceback.format_exc()}")
+
+    def _mostrar_variacao(self, r):
+        from PyQt5.QtWidgets import QMessageBox
+        from datetime import date, timedelta
+        import re as re2
+        import numpy as np
+        from scipy.stats import norm
         import matplotlib
         matplotlib.use('Agg')
         from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.figure import Figure
+        import traceback
 
-        S = r.preco_ativo
-        Kc = r.strike_call
-        Kp = r.strike_put
-        Pc = r.premio_call
-        Pp = r.premio_put
+        try:
+            client = OpcoesNetClient()
+            hoje = date.today()
+            raw = client.get_variacao(
+                r.ativo,
+                data_inicial=(hoje - timedelta(days=365)).strftime("%d/%m/%Y"),
+                data_final=hoje.strftime("%d/%m/%Y"),
+            )
 
-        x_min = min(Kp, S) * 0.85
-        x_max = max(Kc, S) * 1.15
-        x = np.linspace(x_min, x_max, 500)
+            if not raw:
+                QMessageBox.information(
+                    self, "Variação",
+                    f"Não foi possível obter dados de variação para {r.ativo}.\n"
+                    "Verifique se o .env tem CPF/senha válidos do opcoes.net.br."
+                )
+                return
 
-        d1 = (np.log(x / Kc) + (0.1325 + 0.5 * (r.iv_call / 100) ** 2) * (r.dte_call / 365)) / ((r.iv_call / 100) * np.sqrt(r.dte_call / 365))
-        d2 = d1 - (r.iv_call / 100) * np.sqrt(r.dte_call / 365)
-        call_val = x * norm.cdf(d1) - Kc * np.exp(-0.1325 * r.dte_call / 365) * norm.cdf(d2)
+            dados = raw.get("data", {})
+            chave_alvo = None
+            for k in dados:
+                if "20" in k:
+                    chave_alvo = k
+                    break
+            if not chave_alvo:
+                max_n = 0
+                for k in dados:
+                    nums = re2.findall(r'\d+', k)
+                    if nums:
+                        n = int(nums[-1])
+                        if n > max_n:
+                            max_n = n
+                            chave_alvo = k
+                if not chave_alvo:
+                    chave_alvo = list(dados.keys())[0]
+            bins = dados[chave_alvo]
+            total_obs = sum(b["quantidade"] for b in bins)
+            dias_neg = raw.get("diasComNegociacao", 0)
 
-        Tp = r.dte_put / 365
-        dp1 = (np.log(x / Kp) + (0.1325 + 0.5 * (r.iv_put / 100) ** 2) * Tp) / ((r.iv_put / 100) * np.sqrt(Tp))
-        dp2 = dp1 - (r.iv_put / 100) * np.sqrt(Tp)
-        put_val = Kp * np.exp(-0.1325 * Tp) * norm.cdf(-dp2) - x * norm.cdf(-dp1)
+            CLASS_KEY = "classifica\u00e7\u00e3o"
+            cents, wts = [], []
+            for b in bins:
+                q = b["quantidade"]
+                if q <= 0:
+                    continue
+                rot = b[CLASS_KEY]
+                nums = [float(x.replace(",", ".")) for x in re2.findall(r'[\d,.]+', rot)]
+                if "Menos" in rot:
+                    c = nums[0] / 2
+                elif "Mais" in rot:
+                    c = nums[0] * 1.5
+                elif len(nums) >= 2:
+                    c = (nums[0] + nums[1]) / 2
+                else:
+                    c = nums[0]
+                cents.append(c)
+                wts.append(q)
 
-        pnl = Pc - call_val + put_val - Pp
+            media = sum(c * w for c, w in zip(cents, wts)) / sum(wts) if wts else 0
+            desvio = (sum(w * (c - media) ** 2 for c, w in zip(cents, wts)) / sum(wts)) ** 0.5 if wts else 0
 
-        BG = '#0d0d0d'; TEXT = '#c0c0c0'; RED = '#ff3355'
-        ACCENT = '#ffc107'; FILL_BLUE = '#1a5276'
+            pct_call = ((r.strike_call - r.preco_ativo) / r.preco_ativo) * 100
+            pct_put = ((r.strike_put - r.preco_ativo) / r.preco_ativo) * 100
 
-        fig = Figure(figsize=(7, 4), facecolor=BG)
-        ax = fig.add_subplot(111, facecolor=BG)
+            spot = r.preco_ativo
 
-        ax.plot(x, pnl, color=ACCENT, linewidth=2.0, label='Payoff')
+            def preco_no_sigma(n_sigma):
+                return spot * (1 + (media + n_sigma * desvio) / 100)
 
-        ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
-        ax.axvline(S, color='#2196f3', linewidth=0.7, linestyle='--', alpha=0.8, label='Entrada')
-        ax.axvline(Kp, color=RED, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Put {Kp:.2f}')
-        ax.axvline(Kc, color=ACCENT, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Call {Kc:.2f}')
+            BG = '#0d0d0d'; TEXT = '#c0c0c0'; ACCENT = '#ffc107'
+            BLUE = '#2196f3'; GREEN = '#4caf50'; RED = '#ff3355'; PURPLE = '#9c27b0'
 
-        ax.fill_between(x, 0, pnl, where=(pnl >= 0), color=FILL_BLUE, alpha=0.12)
-        ax.fill_between(x, 0, pnl, where=(pnl < 0), color=RED, alpha=0.1)
+            fig = Figure(figsize=(11, 5.5), facecolor=BG)
+            ax1 = fig.add_subplot(121, facecolor=BG)
+            rotulos = [b[CLASS_KEY] for b in bins]
+            vals = [b["percentual"] for b in bins]
+            cores_b = [BLUE, GREEN, ACCENT, RED][:len(vals)]
+            ax1.bar(range(len(vals)), vals, color=cores_b, alpha=0.7, width=0.6, edgecolor='#333', linewidth=0.5)
+            for i, v in enumerate(vals):
+                ax1.text(i, v + 0.5, f"{v:.1f}%", ha='center', va='bottom', color=TEXT, fontsize=8, fontweight='bold')
+            ax1.set_xticks(range(len(vals)))
+            ax1.set_xticklabels(rotulos, color=TEXT, fontsize=7)
+            ax1.set_ylabel("% das observacoes", color=TEXT, fontsize=9)
+            ax1.set_title(f"{r.ativo} - Variacao em ~20 pregoes\n{dias_neg} dias de amostra",
+                          color='#e0e0e0', fontsize=10, fontweight='bold')
+            ax1.set_facecolor(BG)
+            ax1.tick_params(colors=TEXT, labelsize=8)
+            ax1.set_ylim(0, max(vals) * 1.25)
+            for s in ax1.spines.values():
+                s.set_color('#333')
+            info_hist = (f"Spot: R$ {spot:.2f}\n"
+                         f"K Call: R$ {r.strike_call:.2f}\n"
+                         f"K Put:  R$ {r.strike_put:.2f}")
+            ax1.text(0.98, 0.98, info_hist, transform=ax1.transAxes, fontsize=7,
+                     verticalalignment='top', horizontalalignment='right', color=TEXT,
+                     bbox=dict(boxstyle='round', facecolor='#1a1a1a', edgecolor='#333'))
 
-        ax.set_xlabel('Preço do Ativo no Vencimento da Call (R$)', color=TEXT, fontsize=9)
-        ax.set_ylabel('Lucro / Prejuízo (R$)', color=TEXT, fontsize=9)
-        ax.set_title(f'Payoff Collar Calendário — {r.ativo}', color='#e0e0e0', fontsize=11, fontweight='bold')
+            ax2 = fig.add_subplot(122, facecolor=BG)
+            x_lim = max(desvio * 4, 12)
+            x = np.linspace(-x_lim, x_lim, 800)
+            y = norm.pdf(x, media, desvio) if desvio > 0 else np.zeros_like(x)
+            y_max = max(y) * 1.45
 
-        ax.tick_params(colors=TEXT, labelsize=8)
-        for spine in ax.spines.values():
-            spine.set_color('#333')
-        ax.legend(loc='best', fontsize=7, labelcolor=TEXT, facecolor='#1a1a1a', edgecolor='#333')
+            ax2.plot(x, y, color=ACCENT, linewidth=2.5, label='Dist. Normal')
+            ax2.set_facecolor(BG)
+            ax2.set_xlim(-x_lim, x_lim)
+            ax2.set_ylim(-y_max * 0.3, y_max)
 
-        fig.tight_layout()
+            ax2.fill_between(x, 0, y, where=(x >= media - desvio) & (x <= media + desvio),
+                             color=BLUE, alpha=0.12)
+            ax2.fill_between(x, 0, y, where=(x >= media + desvio) & (x <= media + 2 * desvio),
+                             color=GREEN, alpha=0.07)
+            ax2.fill_between(x, 0, y, where=(x >= media - 2 * desvio) & (x <= media - desvio),
+                             color=GREEN, alpha=0.07)
+            ax2.fill_between(x, 0, y, where=(x >= media + 2 * desvio) & (x <= media + 3 * desvio),
+                             color=RED, alpha=0.04)
+            ax2.fill_between(x, 0, y, where=(x >= media - 3 * desvio) & (x <= media - 2 * desvio),
+                             color=RED, alpha=0.04)
 
-        payoff_dialog = QDialog(self, Qt.Window)
-        payoff_dialog.setWindowTitle(f"Payoff Calendário — {r.ativo}")
-        payoff_dialog.setMinimumSize(750, 480)
-        payoff_layout = QVBoxLayout(payoff_dialog)
-        payoff_layout.setContentsMargins(8, 8, 8, 8)
-        canvas = FigureCanvas(fig)
-        payoff_layout.addWidget(canvas)
-        btn_close = QPushButton("Fechar")
-        btn_close.setAutoDefault(False)
-        btn_close.clicked.connect(payoff_dialog.close)
-        payoff_layout.addWidget(btn_close, alignment=Qt.AlignRight)
-        payoff_dialog.exec_()
+            ax2.text(media, y_max * 0.88, "68%", ha='center', va='center', color=BLUE,
+                     fontsize=12, fontweight='bold',
+                     bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=BLUE, alpha=0.9))
+            ax2.text(media + 1.5 * desvio, y_max * 0.62, "13.5%", ha='center', va='center',
+                     color=GREEN, fontsize=8)
+            ax2.text(media - 1.5 * desvio, y_max * 0.62, "13.5%", ha='center', va='center',
+                     color=GREEN, fontsize=8)
+            ax2.text(media + 2.5 * desvio, y_max * 0.35, "2.35%", ha='center', va='center',
+                     color=RED, fontsize=7)
+            ax2.text(media - 2.5 * desvio, y_max * 0.35, "2.35%", ha='center', va='center',
+                     color=RED, fontsize=7)
+
+            ax2.axvline(media, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.2)
+            for i in range(1, 4):
+                cor = [BLUE, GREEN, RED][i - 1]
+                ax2.axvline(media + i * desvio, color=cor, linewidth=0.6, linestyle='--', alpha=0.3)
+                ax2.axvline(media - i * desvio, color=cor, linewidth=0.6, linestyle='--', alpha=0.3)
+
+            eixo_y_seta = -y_max * 0.08
+            eixo_y_texto = -y_max * 0.15
+            for i in range(-3, 4):
+                if i == 0:
+                    variacao_pct = media
+                    cor = ACCENT
+                else:
+                    variacao_pct = media + i * desvio
+                    cor = [BLUE, GREEN, RED][abs(i) - 1] if abs(i) <= 3 else TEXT
+                preco_r = preco_no_sigma(i)
+                ax2.annotate('', xy=(variacao_pct, 0), xytext=(variacao_pct, eixo_y_seta),
+                             arrowprops=dict(arrowstyle='->', color=cor, lw=1.5, alpha=0.8))
+                texto_preco = f"R${preco_r:.2f}"
+                if i == 0:
+                    texto_preco += " (spot)"
+                ax2.text(variacao_pct, eixo_y_texto, texto_preco, ha='center', va='top',
+                         color=cor, fontsize=7.5, fontweight='bold',
+                         bbox=dict(boxstyle='round,pad=0.2', facecolor='#1a1a1a',
+                                   edgecolor=cor, alpha=0.8))
+                sigma_label = f"{i:+d}s" if i != 0 else "0"
+                ax2.text(variacao_pct, eixo_y_seta - y_max * 0.04, sigma_label,
+                         ha='center', va='top', color=TEXT, fontsize=6.5, alpha=0.6)
+
+            # Linha vertical do spot (variação 0%)
+            ax2.axvline(media, color='#2196f3', linewidth=1.2, linestyle='--', alpha=0.7,
+                        label=f'Spot R${spot:.2f} (0%)')
+
+            if abs(pct_call - pct_put) < 0.1:
+                pct_k = (pct_call + pct_put) / 2
+                z_k = abs(pct_k - media) / desvio if desvio > 0 else 0
+                percentil = norm.cdf(z_k) * 100
+                ax2.axvline(pct_k, color=PURPLE, linewidth=2.5, linestyle='-', alpha=0.95,
+                            label=f'K R${r.strike_call:.2f} (Z={z_k:.2f})')
+                ax2.axvspan(pct_k - 0.5, pct_k + 0.5, color=PURPLE, alpha=0.08)
+                ax2.text(pct_k, y_max * 0.50, f"Strike no\npercentil {percentil:.0f}%",
+                         ha='center', va='center', color=PURPLE, fontsize=7.5, fontweight='bold',
+                         bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a',
+                                   edgecolor=PURPLE, alpha=0.85))
+            else:
+                ax2.axvline(pct_call, color=RED, linewidth=2, linestyle='-', alpha=0.9,
+                            label=f'K Call {r.strike_call:.2f} ({pct_call:+.1f}%)')
+                ax2.axvline(pct_put, color=GREEN, linewidth=2, linestyle='-', alpha=0.9,
+                            label=f'K Put {r.strike_put:.2f} ({pct_put:+.1f}%)')
+
+            ax2.axhline(0, color=TEXT, linewidth=0.4, alpha=0.15)
+            ax2.set_xlabel('Variacao em relacao ao spot (%)', color=TEXT, fontsize=9)
+            ax2.set_ylabel('Densidade', color=TEXT, fontsize=9)
+            ax2.set_title("Dist. Normal - Probabilidades e Precos Correspondentes",
+                          color='#e0e0e0', fontsize=10, fontweight='bold')
+            ax2.tick_params(colors=TEXT, labelsize=8)
+            for s in ax2.spines.values():
+                s.set_color('#333')
+
+            leg = ax2.legend(loc='upper right', fontsize=7, labelcolor=TEXT,
+                             facecolor='#1a1a1a', edgecolor='#333')
+            leg.get_frame().set_alpha(0.95)
+
+            texto_info = (f"Media: {media:.1f}%\n"
+                          f"Desvio: {desvio:.1f}%\n"
+                          f"Obs: {total_obs}")
+            ax2.text(0.02, 0.98, texto_info, transform=ax2.transAxes, fontsize=7,
+                     verticalalignment='top', color=TEXT,
+                     bbox=dict(boxstyle='round', facecolor='#1a1a1a', edgecolor='#333'))
+
+            fig.tight_layout()
+
+            from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+            dialog = QDialog(self, Qt.Window)
+            dialog.setWindowTitle(f"Variacao Historica - {r.ativo}")
+            dialog.setMinimumSize(1050, 580)
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(8)
+
+            title = QLabel(
+                f"<b>{r.ativo}</b>  |  "
+                f"Spot: R$ {spot:.2f}  |  "
+                f"K: R$ {r.strike_call:.2f} / R$ {r.strike_put:.2f}"
+            )
+            title.setStyleSheet(f"font-size: 10pt; color: {Palette.TEXT_PRIMARY};")
+            layout.addWidget(title)
+
+            canvas = FigureCanvas(fig)
+            layout.addWidget(canvas, stretch=1)
+
+            btn_row = QHBoxLayout()
+            btn_row.addStretch()
+            btn_fechar = QPushButton("Fechar")
+            btn_fechar.setAutoDefault(False)
+            btn_fechar.clicked.connect(dialog.close)
+            btn_fechar.setProperty("class", "primary")
+            btn_row.addWidget(btn_fechar)
+            layout.addLayout(btn_row)
+
+            dialog.exec_()
+        except Exception as e:
+            logger.exception("Erro ao exibir variacao: %s", e)
+            QMessageBox.critical(self, "Erro", f"Falha ao carregar variação:\n{e}\n\n{traceback.format_exc()}")
 
     def _carregar_todos_ativos(self) -> list[str]:
         if not self._db_path:
@@ -671,6 +1130,9 @@ class ColarCalendarioDialog(QDialog):
         self._on_search_ativos_debounced()
 
     def atualizar_resultados(self, resultados: list):
+        pct_min = self.sp_pct_min.value()
+        if pct_min > 0:
+            resultados = [r for r in resultados if r.pct_cdi >= pct_min]
         self._resultados = resultados
         items = []
         for r in resultados:

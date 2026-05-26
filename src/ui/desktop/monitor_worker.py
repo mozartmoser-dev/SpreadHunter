@@ -47,6 +47,7 @@ class MonitorWorker(QThread):
         self._forcar_colar_cal = False
         self._colar_cal_auto = False
         self._colar_cal_ativos: list[str] | None = None
+        self._colar_cal_params: dict | None = None
         self._colar_cal_mutex = QMutex()
 
     def run(self):
@@ -122,12 +123,14 @@ class MonitorWorker(QThread):
                 # Varredura de Collar Calendário
                 forcar_cal = False
                 colar_cal_ativos: list[str] | None = None
+                colar_cal_params: dict | None = None
                 self._colar_cal_mutex.lock()
                 if self._forcar_colar_cal:
                     forcar_cal = True
                     self._forcar_colar_cal = False
                 colar_cal_auto = self._colar_cal_auto
                 colar_cal_ativos = self._colar_cal_ativos
+                colar_cal_params = self._colar_cal_params
                 self._colar_cal_mutex.unlock()
 
                 deve_escanear_cal = forcar_cal
@@ -140,7 +143,7 @@ class MonitorWorker(QThread):
                 if deve_escanear_cal:
                     try:
                         self.status_message.emit("🔄 Varredura de collar calendario...")
-                        cal_results = self._monitor_colares_cal_uc.varrer(rtd, ativos=colar_cal_ativos)
+                        cal_results = self._monitor_colares_cal_uc.varrer(rtd, params=colar_cal_params, ativos=colar_cal_ativos)
                         n = len(cal_results)
                         self.status_message.emit(f"✅ Collar Cal: {n} viaveis" if n else "✅ Collar Cal: nenhum viavel")
                         self.colares_calendario_atualizados.emit(cal_results)
@@ -239,12 +242,13 @@ class MonitorWorker(QThread):
         self._forcar_colar_cal = True
         self._colar_cal_mutex.unlock()
 
-    def iniciar_auto_colar_cal(self, ativos: list[str] | None = None):
+    def iniciar_auto_colar_cal(self, ativos: list[str] | None = None, params: dict | None = None):
         self._colar_cal_mutex.lock()
         self._colar_cal_auto = True
         self._forcar_colar_cal = True
         self._colar_cal_cycle = 0
         self._colar_cal_ativos = ativos
+        self._colar_cal_params = params
         self._colar_cal_mutex.unlock()
 
     def parar_auto_colar_cal(self):
