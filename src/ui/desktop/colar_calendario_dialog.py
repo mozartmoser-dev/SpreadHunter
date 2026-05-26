@@ -15,6 +15,7 @@ class ColarCalTableModel(QAbstractTableModel):
         ("Ativo", "ativo"),
         ("% CDI", "pct_cdi"),
         ("PNL Proj", "pnl_projetado"),
+        ("Custo", "capital_empregado"),
         ("Venc Call", "vencimento_call"),
         ("Venc Put", "vencimento_put"),
         ("K Call", "strike_call"),
@@ -59,7 +60,8 @@ class ColarCalTableModel(QAbstractTableModel):
             if val is None:
                 return "-"
             if col_key in ("strike_call", "strike_put", "premio_call", "premio_put",
-                           "net_credito", "valor_put_venc_call", "pnl_projetado"):
+                           "net_credito", "valor_put_venc_call", "pnl_projetado",
+                           "capital_empregado"):
                 return f"R$ {val:.2f}"
             if col_key in ("pct_cdi",):
                 return f"{val:.2f}x"
@@ -92,7 +94,8 @@ class ColarCalTableModel(QAbstractTableModel):
         if role == Qt.TextAlignmentRole:
             center_cols = {"strike_call", "strike_put", "premio_call", "premio_put", "net_credito",
                            "iv_call", "iv_put", "theta_call", "theta_put", "theta_liquido",
-                           "pct_cdi", "pnl_projetado", "tipo_str", "valor_put_venc_call"}
+                           "pct_cdi", "pnl_projetado", "tipo_str", "valor_put_venc_call",
+                           "capital_empregado"}
             if col_key in center_cols:
                 return Qt.AlignCenter | Qt.AlignVCenter
             return Qt.AlignLeft | Qt.AlignVCenter
@@ -627,6 +630,7 @@ class ColarCalendarioDialog(QDialog):
         add_row("Theta Líquido:", f"{r.theta_liquido:.3f} por dia",
                 cor=Palette.GREEN if r.theta_liquido > 0 else Palette.RED)
         add_row("Valor Put no VC Call:", f"R$ {r.valor_put_venc_call:.2f}", cor=Palette.CYAN)
+        add_row("Custo Montagem:", f"R$ {r.capital_empregado:.2f}")
         add_row("PNL Projetado:", f"R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}%)")
         add_row("% CDI:", f"{r.pct_cdi:.2f}x",
                 cor=Palette.GREEN if r.pct_cdi >= 1.0 else Palette.RED)
@@ -1154,6 +1158,7 @@ class ColarCalendarioDialog(QDialog):
                 "theta_liquido": r.theta_liquido,
                 "valor_put_venc_call": r.valor_put_venc_call,
                 "pnl_projetado": r.pnl_projetado,
+                "capital_empregado": r.capital_empregado,
                 "pct_retorno": r.pct_retorno,
                 "pct_cdi": r.pct_cdi,
                 "tipo_str": r.tipo.value,

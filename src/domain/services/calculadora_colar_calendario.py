@@ -33,6 +33,7 @@ class ResultadoColarCalendario:
     valor_put_venc_call: float
     pnl_stock: float
     pnl_projetado: float
+    capital_empregado: float
     pct_retorno: float
     pct_cdi: float
     theta_call: float
@@ -177,6 +178,7 @@ class CalculadoraColarCalendario:
             valor_put_venc_call=round(valor_put_vc, 4),
             pnl_stock=round(pnl_stock, 4),
             pnl_projetado=round(pnl_projetado, 4),
+            capital_empregado=round(capital_empregado, 4),
             pct_retorno=round(pct_retorno * 100, 4),
             pct_cdi=round(pct_cdi, 4),
             theta_call=round(theta_call * 100, 4),
