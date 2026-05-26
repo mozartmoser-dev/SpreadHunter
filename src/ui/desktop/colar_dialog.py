@@ -66,13 +66,16 @@ class ColarTableModel(QAbstractTableModel):
             val = item.get(col_key)
             if val is None:
                 return "-"
-            if col_key in ("strike_put", "strike_call", "custo_liquido", "pior_retorno"):
-                return "R$ {:.2f}".format(val)
-            if col_key == "pct_cdi":
-                return "{:.2f}x".format(val)
-            if col_key == "vencimento":
-                if hasattr(val, "strftime"):
-                    return val.strftime("%d/%m/%Y")
+            try:
+                if col_key in ("strike_put", "strike_call", "custo_liquido", "pior_retorno"):
+                    return "R$ {:.2f}".format(val)
+                if col_key == "pct_cdi":
+                    return "{:.2f}x".format(val)
+                if col_key == "vencimento":
+                    if hasattr(val, "strftime"):
+                        return val.strftime("%d/%m/%Y")
+                    return str(val)
+            except Exception:
                 return str(val)
             return str(val)
 
@@ -962,9 +965,7 @@ class ColarDialog(QDialog):
             })
 
         self.model.atualizar(items)
-
-        if self._auto_mode:
-            self._aplicar_filtro_lista()
+        self._aplicar_filtro_lista()
 
         if self.lista_ativos.count() == 0:
             todos_ativos = self._carregar_todos_ativos()

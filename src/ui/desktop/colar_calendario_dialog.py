@@ -1160,8 +1160,7 @@ class ColarCalendarioDialog(QDialog):
                 "viavel": r.viavel,
             })
         self.model.atualizar(items)
-        if self._auto_mode:
-            self._aplicar_filtro_lista()
+        self._aplicar_filtro_lista()
         if self.lista_ativos.count() == 0:
             todos_ativos = self._carregar_todos_ativos()
             if todos_ativos:
