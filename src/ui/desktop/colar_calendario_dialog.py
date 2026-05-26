@@ -13,6 +13,8 @@ from src.ui.desktop.theme import Palette
 class ColarCalTableModel(QAbstractTableModel):
     COLUMNS = [
         ("Ativo", "ativo"),
+        ("% CDI", "pct_cdi"),
+        ("PNL Proj", "pnl_projetado"),
         ("Venc Call", "vencimento_call"),
         ("Venc Put", "vencimento_put"),
         ("K Call", "strike_call"),
@@ -28,8 +30,6 @@ class ColarCalTableModel(QAbstractTableModel):
         ("θ Put", "theta_put"),
         ("θ Líq", "theta_liquido"),
         ("P Put VC", "valor_put_venc_call"),
-        ("PNL Proj", "pnl_projetado"),
-        ("% CDI", "pct_cdi"),
         ("Tipo", "tipo_str"),
     ]
 
