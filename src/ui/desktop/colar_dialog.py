@@ -109,9 +109,9 @@ class ColarTableModel(QAbstractTableModel):
         return None
 
     def atualizar(self, items):
-        self.layoutAboutToBeChanged.emit()
+        self.beginResetModel()
         self._items = items
-        self.layoutChanged.emit()
+        self.endResetModel()
 
 
 class ColarSortProxy(QSortFilterProxyModel):
