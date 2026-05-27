@@ -187,3 +187,159 @@ class CalculadoraColarCalendario:
             tipo=tipo,
             viavel=viavel,
         )
+
+    @staticmethod
+    def gerar_explicacao(r: 'ResultadoColarCalendario', taxa_cdi: float = 0.1450) -> str:
+        import numpy as np
+        from scipy.stats import norm
+
+        S0 = r.preco_ativo
+        Kc, Kp = r.strike_call, r.strike_put
+        Pc, Pp = r.premio_call, r.premio_put
+        T_rem = r.dte_extra / 365
+        iv_p = r.iv_put / 100
+
+        def bs_put(S, K, T, sigma):
+            if T <= 0 or sigma <= 0:
+                return max(K - S, 0)
+            d1 = (np.log(S / K) + (0.1325 + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+            d2 = d1 - sigma * np.sqrt(T)
+            return K * np.exp(-0.1325 * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+
+        cap = S0 + Pp - Pc
+        net = Pc - Pp
+
+        cenarios = []
+        for S_T, label in [(S0 * 0.7, "Queda forte (S=−30%)"),
+                           (S0 * 0.95, "Queda leve (S=−5%)"),
+                           (S0, "Estável (S=0%)"),
+                           (S0 * 1.05, "Alta leve (S=+5%)"),
+                           (S0 * 1.4, "Alta forte (S=+40%)")]:
+            if S_T > Kc:
+                s_pnl = Kc - S0
+                c_pnl = Pc
+                put_bs = bs_put(S_T, Kp, T_rem, iv_p)
+                p_pnl = put_bs - Pp
+            else:
+                put_bs = bs_put(S_T, Kp, T_rem, iv_p)
+                pnl_no_ex = (S_T - S0) + Pc + (put_bs - Pp)
+                pnl_ex = (Kp - S0) + Pc - Pp
+                if pnl_ex > pnl_no_ex:
+                    s_pnl, c_pnl, p_pnl = (Kp - S0), Pc, -Pp
+                else:
+                    s_pnl, c_pnl, p_pnl = (S_T - S0), Pc, (put_bs - Pp)
+            total = s_pnl + c_pnl + p_pnl
+            put_intrin = max(Kp - S_T, 0)
+            put_extrin = put_bs - put_intrin
+            cenarios.append((label, S_T, s_pnl, c_pnl, put_bs, put_intrin, put_extrin, p_pnl, total))
+
+        call_Itm = S0 > Kc
+        call_intrin = max(S0 - Kc, 0) if call_Itm else 0
+        call_extrin = Pc - call_intrin
+        if call_Itm:
+            call_premio_txt = f"(intrínseco R$ {call_intrin:.2f} + extrínseco R$ {call_extrin:.2f})"
+        else:
+            call_premio_txt = "(prêmio inteiramente extrínseco)"
+
+        lines = [
+            "<h3>📖 Explicação — Collar Calendário Coberto</h3>",
+            f"<p><b>{r.ativo}</b> &mdash; {r.tipo.value}</p>",
+            "<hr>",
+            "<p><b>O que é esta estratégia?</b><br>",
+            "Você compra a ação, vende uma CALL de curto prazo e compra uma PUT de prazo maior. ",
+            "O lucro vem da diferença de decaimento temporal: a CALL perde valor mais rápido que a PUT ",
+            f"nos primeiros {r.dte_call} dias, enquanto a PUT ainda tem {r.dte_extra}d de vida útil.</p>",
+            "<hr>",
+            "<p><b>Montagem:</b></p>",
+            "<ul>",
+            f"<li>Comprar ação: <b>−R$ {S0:.2f}</b></li>",
+            f"<li>Vender CALL {r.cod_call} K={Kc:.2f}: <b>+R$ {Pc:.2f}</b> {call_premio_txt}</li>",
+            f"<li>Comprar PUT {r.cod_put} K={Kp:.2f}: <b>−R$ {Pp:.2f}</b></li>",
+            f"<li><b>Capital empregado = R$ {cap:.2f}</b> ({S0:.2f} + {Pp:.2f} − {Pc:.2f})</li>",
+            f"<li>Débito/Crédito líquido: <b>R$ {net:.2f}</b></li>",
+            "</ul>",
+            "<hr>",
+            f"<p><b>Cenários no vencimento da CALL ({r.dte_call}d):</b></p>",
+            "<table border='1' cellpadding='4' cellspacing='0' style='border-collapse:collapse; font-size:9pt;'>",
+            "<tr style='background:#2d2d44;'>"
+            "<th>Cenário</th><th>S_T</th><th>Ação</th><th>CALL</th>"
+            "<th>PUT (BS)</th><th>Intrín</th><th>Extrín</th>"
+            "<th>PnL Total</th></tr>",
+        ]
+        for cenario, S_T, s_pnl, c_pnl, put_bs, pint, pext, p_pnl, total in cenarios:
+            cor = "#2ecc71" if total > 0 else "#e74c3c"
+            lines.append(
+                f"<tr>"
+                f"<td>{cenario}</td><td>R$ {S_T:.2f}</td><td>R$ {s_pnl:.2f}</td>"
+                f"<td>R$ {c_pnl:.2f}</td><td>R$ {put_bs:.2f}</td>"
+                f"<td>R$ {pint:.2f}</td><td>R$ {pext:.2f}</td>"
+                f"<td style='color:{cor};font-weight:bold;'>R$ {total:.2f}</td></tr>"
+            )
+        lines.append("</table>")
+        lines.append("<hr>")
+
+        c_baixa = cenarios[0]
+        tot_baixa = c_baixa[8]
+        sinal_b = "lucro" if tot_baixa >= 0 else "prejuízo"
+        lines.append(
+            f"<p><b>Se o ativo cai para R$ {c_baixa[1]:.2f}:</b><br>"
+            f"A CALL expira OTM → fica com +R$ {c_baixa[3]:.2f}.<br>"
+            f"A PUT vale R$ {c_baixa[4]:.2f} pelo modelo BS "
+            f"(intrínseco=R$ {c_baixa[5]:.2f}, extrínseco=R$ {c_baixa[6]:.2f}).<br>"
+            f"<b>Resultado: R$ {tot_baixa:.2f} ({sinal_b})</b> neste cenário.</p>"
+        )
+
+        c_proj = cenarios[2]
+        call_itm_proj = S0 > Kc  # call esta ITM no spot atual?
+        if call_itm_proj:
+            call_texto = f"A CALL está ITM → ação vendida a R$ {Kc:.2f}, perda de R$ {c_proj[2]:.2f} na ação"
+        else:
+            call_texto = f"A CALL expira OTM → fica com +R$ {c_proj[3]:.2f}"
+        lines.append(
+            f"<p><b>Se o ativo mantém R$ {c_proj[1]:.2f} (cenário projetado):</b><br>"
+            f"{call_texto}.<br>"
+            f"A PUT ainda tem {r.dte_extra}d de vida, valendo R$ {c_proj[4]:.2f} "
+            f"(intrínseco=R$ {c_proj[5]:.2f} + extrínseco=R$ {c_proj[6]:.2f}).<br>"
+            f"<b>PnL = R$ {c_proj[8]:.2f}</b> ({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI)</p>"
+        )
+
+        for idx, rotulo in [(4, "sobe para"), (3, "sobe levemente para")]:
+            c_alta = cenarios[idx]
+            tot_alta = c_alta[8]
+            sinal_a = "lucro" if tot_alta >= 0 else "prejuízo"
+            put_bs_a = c_alta[4]
+            if put_bs_a < 0.01:
+                put_texto = f"A PUT fica OTM → praticamente sem valor (BS=R$ {put_bs_a:.2f})"
+            else:
+                put_texto = f"A PUT fica OTM, mas ainda vale R$ {put_bs_a:.2f} (BS, {r.dte_extra}d restantes)"
+            lines.append(
+                f"<p><b>Se o ativo {rotulo} R$ {c_alta[1]:.2f}:</b><br>"
+                f"A CALL está ITM → ação é vendida a R$ {Kc:.2f}, "
+                f"{'lucro' if c_alta[2] >= 0 else 'perda'} de R$ {c_alta[2]:.2f} na ação.<br>"
+                f"{put_texto}<br>"
+                f"<b>Resultado: R$ {tot_alta:.2f} ({sinal_a}).</b></p>"
+            )
+
+        lines.append("<hr>")
+        resumo_pnl = "lucro" if r.pnl_projetado >= 0 else "prejuízo"
+        ext = abs(r.pnl_projetado)
+        if call_Itm:
+            lines.append(
+                f"<p><b>Resumo:</b><br>"
+                f"A CALL está ITM (acima do strike). O prêmio de R$ {Pc:.2f} "
+                f"cobre a perda de R$ {S0 - Kc:.2f} na venda da ação. "
+                f"O {resumo_pnl} projetado de R$ {ext:.2f} "
+                f"({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI) é o "
+                f"extrínseco da CALL menos o custo líquido da PUT.</p>"
+            )
+        else:
+            lines.append(
+                f"<p><b>Resumo:</b><br>"
+                f"Esta estratégia aposta que o ativo estará <b>próximo de R$ {Kc:.2f}</b> "
+                f"no vencimento da CALL. O {resumo_pnl} projetado de R$ {ext:.2f} "
+                f"({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI) vem do "
+                f"valor extrínseco residual da PUT. O resultado real "
+                f"depende de onde o ativo estará naquele dia.</p>"
+            )
+
+        return "\n".join(lines)

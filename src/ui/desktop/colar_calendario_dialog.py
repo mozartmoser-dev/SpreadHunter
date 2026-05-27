@@ -340,7 +340,7 @@ class ColarCalendarioDialog(QDialog):
         self.proxy = ColarCalSortProxy()
         self.proxy.setSourceModel(self.model)
         self.proxy.setDynamicSortFilter(True)
-        self.proxy.sort(17, Qt.DescendingOrder)
+        self.proxy.sort(1, Qt.DescendingOrder)
 
         self.table_view.setModel(self.proxy)
         self.table_view.setSortingEnabled(True)
@@ -441,10 +441,14 @@ class ColarCalendarioDialog(QDialog):
     def _atualizar_status(self):
         total = self.proxy.rowCount()
         filtro = self.txt_filtro.text().strip()
+        has_results = getattr(self, "_dados_carregados", False)
         if total == 0 and filtro:
-            self.lbl_status.setText(f"Nenhum collar para '{filtro}'")
+            self.lbl_status.setText(f"Nenhum colar para '{filtro}'")
         elif total == 0:
-            self.lbl_status.setText("Aguardando dados...")
+            if has_results:
+                self.lbl_status.setText("Nenhum colar viável para a seleção")
+            else:
+                self.lbl_status.setText("Aguardando dados...")
         elif filtro:
             self.lbl_status.setText(f"{total} oportunidades para '{filtro}'")
         else:
@@ -667,6 +671,19 @@ class ColarCalendarioDialog(QDialog):
         btn_variacao.clicked.connect(lambda: self._mostrar_variacao(r))
         btn_row.addWidget(btn_variacao)
 
+        btn_explicar = QPushButton("🔍 Explicar")
+        btn_explicar.setAutoDefault(False)
+        btn_explicar.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #2d2d44; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid {Palette.BORDER}; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #3d3d55; }}
+        """)
+        btn_explicar.clicked.connect(lambda: self._explicar_estrategia(r))
+        btn_row.addWidget(btn_explicar)
+
         btn_export = QPushButton("📋 Exportar Debug")
         btn_export.setAutoDefault(False)
         btn_export.setStyleSheet(f"""
@@ -762,6 +779,42 @@ class ColarCalendarioDialog(QDialog):
                                 "Dados de debug copiados para a área de transferência.\n"
                                 "Cole (Ctrl+V) aqui no chat.")
 
+    def _explicar_estrategia(self, r):
+        from src.domain.services.calculadora_colar_calendario import CalculadoraColarCalendario
+
+        html = CalculadoraColarCalendario.gerar_explicacao(r)
+        dialog = QDialog(self, Qt.Window)
+        dialog.setWindowTitle(f"Explicação — Collar Calendário {r.ativo}")
+        dialog.setMinimumSize(700, 500)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        texto = QTextEdit()
+        texto.setReadOnly(True)
+        texto.setHtml(html)
+        texto.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: #15152a;
+                color: #e0e0e0;
+                border: 1px solid {Palette.BORDER};
+                border-radius: 4px;
+                font-size: 10pt;
+                padding: 12px;
+            }}
+        """)
+        layout.addWidget(texto, stretch=1)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.setAutoDefault(False)
+        btn_fechar.clicked.connect(dialog.close)
+        btn_fechar.setProperty("class", "primary")
+        btn_row.addWidget(btn_fechar)
+        layout.addLayout(btn_row)
+        dialog.exec_()
+
     def _plot_payoff(self, r):
         from PyQt5.QtWidgets import QMessageBox
         import traceback
@@ -844,6 +897,25 @@ class ColarCalendarioDialog(QDialog):
             payoff_layout.setContentsMargins(8, 8, 8, 8)
             canvas = FigureCanvas(fig)
             payoff_layout.addWidget(canvas)
+
+            footer = QLabel(
+                f"{r.ativo}  |  "
+                f"Spot: R$ {S0:.2f}  |  "
+                f"Call {r.cod_call} K={Kc:.2f}: +R$ {Pc:.2f}  |  "
+                f"Put {r.cod_put} K={Kp:.2f}: −R$ {Pp:.2f}  |  "
+                f"Capital: R$ {S0 + Pp - Pc:.2f}  |  "
+                f"PnL Proj: R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI)"
+            )
+            footer.setStyleSheet(f"""
+                QLabel {{
+                    color: {Palette.TEXT_SECONDARY};
+                    font-size: 8pt;
+                    font-family: Consolas;
+                    padding: 4px 0;
+                }}
+            """)
+            payoff_layout.addWidget(footer)
+
             btn_close = QPushButton("Fechar")
             btn_close.setAutoDefault(False)
             btn_close.clicked.connect(payoff_dialog.close)
@@ -1134,6 +1206,7 @@ class ColarCalendarioDialog(QDialog):
         self._on_search_ativos_debounced()
 
     def atualizar_resultados(self, resultados: list):
+        self._dados_carregados = True
         pct_min = self.sp_pct_min.value()
         if pct_min > 0:
             resultados = [r for r in resultados if r.pct_cdi >= pct_min]
@@ -1165,6 +1238,22 @@ class ColarCalendarioDialog(QDialog):
                 "viavel": r.viavel,
             })
         self.model.atualizar(items)
+
+        ativos_atuais = set(
+            self.lista_ativos.item(i).text()
+            for i in range(1, self.lista_ativos.count())
+        )
+        novos_ativos = sorted(set(r.ativo for r in resultados if r.ativo not in ativos_atuais))
+        if novos_ativos:
+            self.lista_ativos.blockSignals(True)
+            for ativo in novos_ativos:
+                item = QListWidgetItem(ativo)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Checked)
+                item.setForeground(QColor(Palette.TEXT_PRIMARY))
+                self.lista_ativos.addItem(item)
+            self.lista_ativos.blockSignals(False)
+
         self._aplicar_filtro_lista()
         if self.lista_ativos.count() == 0:
             todos_ativos = self._carregar_todos_ativos()

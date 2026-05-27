@@ -347,6 +347,7 @@ class ColarDialog(QDialog):
 
     def _on_asset_check_changed(self, item):
         self._aplicar_filtro_lista()
+        self._restart_scan_if_auto()
 
     def _toggle_todos(self):
         algum_marcado = any(
@@ -359,6 +360,14 @@ class ColarDialog(QDialog):
             self.lista_ativos.item(i).setCheckState(estado)
         self.lista_ativos.blockSignals(False)
         self._aplicar_filtro_lista()
+        self._restart_scan_if_auto()
+
+    def _restart_scan_if_auto(self):
+        if self._auto_mode:
+            self._auto_mode = False
+            self._scanning = False
+            self.parar_scan_signal.emit()
+            self.iniciar_scan_signal.emit()
 
     def _aplicar_filtro_lista(self):
         selecionados = []
@@ -392,10 +401,14 @@ class ColarDialog(QDialog):
         total = self.proxy.rowCount()
         filtro = self.txt_filtro.text().strip()
         rtd_str = "RTD: ON" if getattr(self, "_rtd_ok", False) else "RTD: ---"
+        has_results = getattr(self, "_dados_carregados", False)
         if total == 0 and filtro:
             self.lbl_status.setText(f"Nenhum colar para '{filtro}' | {rtd_str}")
         elif total == 0:
-            self.lbl_status.setText(f"Aguardando dados... | {rtd_str}")
+            if has_results:
+                self.lbl_status.setText(f"Nenhum colar viável para a seleção | {rtd_str}")
+            else:
+                self.lbl_status.setText(f"Aguardando dados... | {rtd_str}")
         elif filtro:
             self.lbl_status.setText(f"{total} colares para '{filtro}' | {rtd_str}")
         else:
@@ -720,6 +733,25 @@ class ColarDialog(QDialog):
         payoff_layout.setContentsMargins(8, 8, 8, 8)
         canvas = FigureCanvas(fig)
         payoff_layout.addWidget(canvas)
+
+        footer = QLabel(
+            f"{r.ativo}  |  "
+            f"Spot: R$ {S:.2f}  |  "
+            f"Call {r.cod_call} K={Kc:.2f}: +R$ {Pc:.2f} (vendida)  |  "
+            f"Put {r.cod_put} K={Kp:.2f}: −R$ {Pp:.2f} (comprada)  |  "
+            f"Custo: R$ {custo:.2f}  |  "
+            f"Pior: {pct_pior:.2f}% / {r.pct_cdi:.2f}x CDI"
+        )
+        footer.setStyleSheet(f"""
+            QLabel {{
+                color: {Palette.TEXT_SECONDARY};
+                font-size: 8pt;
+                font-family: Consolas;
+                padding: 4px 0;
+            }}
+        """)
+        payoff_layout.addWidget(footer)
+
         btn_close = QPushButton("Fechar")
         btn_close.setAutoDefault(False)
         btn_close.clicked.connect(payoff_dialog.close)
@@ -945,6 +977,7 @@ class ColarDialog(QDialog):
         self._on_search_ativos_debounced()
 
     def atualizar_resultados(self, resultados: list):
+        self._dados_carregados = True
         self._resultados = resultados
         items = []
         for r in resultados:
@@ -965,6 +998,22 @@ class ColarDialog(QDialog):
             })
 
         self.model.atualizar(items)
+
+        ativos_atuais = set(
+            self.lista_ativos.item(i).text()
+            for i in range(1, self.lista_ativos.count())
+        )
+        novos_ativos = sorted(set(r.ativo for r in resultados if r.ativo not in ativos_atuais))
+        if novos_ativos:
+            self.lista_ativos.blockSignals(True)
+            for ativo in novos_ativos:
+                item = QListWidgetItem(ativo)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Checked)
+                item.setForeground(QColor(Palette.TEXT_PRIMARY))
+                self.lista_ativos.addItem(item)
+            self.lista_ativos.blockSignals(False)
+
         self._aplicar_filtro_lista()
 
         if self.lista_ativos.count() == 0:

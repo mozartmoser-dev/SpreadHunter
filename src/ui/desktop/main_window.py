@@ -678,9 +678,12 @@ class MainWindow(QMainWindow):
             return
         self._colar_dialog = ColarDialog(self, self.db_path)
         self._colar_dialog.iniciar_scan_signal.connect(self._worker.iniciar_auto_colar)
-        self._colar_dialog.parar_scan_signal.connect(self._worker.parar_auto_colar)
+        self._colar_dialog.parar_scan_signal.connect(self._on_parar_colar)
         self._colar_dialog.selecao_alterada.connect(self._salvar_selecao_colar)
-        if hasattr(self, "_colar_selecionados") and self._colar_selecionados:
+        ativo_main = self.cmb_filter_ativo.currentText()
+        if ativo_main and ativo_main != "TODOS":
+            self._colar_dialog.restaurar_selecao([ativo_main])
+        elif hasattr(self, "_colar_selecionados") and self._colar_selecionados:
             self._colar_dialog.restaurar_selecao(self._colar_selecionados)
         if getattr(self, "_colar_auto_active", False):
             self._colar_dialog.sync_auto_active()
@@ -690,15 +693,22 @@ class MainWindow(QMainWindow):
         self._colar_dialog.destroyed.connect(lambda: setattr(self, "_colar_dialog", None))
         self._colar_dialog.show()
 
+    def _on_parar_colar(self):
+        self._worker.parar_auto_colar()
+        self._status_colar.setText("")
+
     def _abrir_colar_calendario(self):
         if self._colar_cal_dialog and self._colar_cal_dialog.isVisible():
             self._colar_cal_dialog.raise_()
             return
         self._colar_cal_dialog = ColarCalendarioDialog(self, self.db_path)
         self._colar_cal_dialog.iniciar_scan_signal.connect(self._worker.iniciar_auto_colar_cal)
-        self._colar_cal_dialog.parar_scan_signal.connect(self._worker.parar_auto_colar_cal)
+        self._colar_cal_dialog.parar_scan_signal.connect(self._on_parar_colar_cal)
         self._colar_cal_dialog.selecao_alterada.connect(self._salvar_selecao_colar_cal)
-        if hasattr(self, "_colar_cal_selecionados") and self._colar_cal_selecionados:
+        ativo_main = self.cmb_filter_ativo.currentText()
+        if ativo_main and ativo_main != "TODOS":
+            self._colar_cal_dialog.restaurar_selecao([ativo_main])
+        elif hasattr(self, "_colar_cal_selecionados") and self._colar_cal_selecionados:
             self._colar_cal_dialog.restaurar_selecao(self._colar_cal_selecionados)
         if getattr(self, "_colar_cal_auto_active", False):
             self._colar_cal_dialog.sync_auto_active()
@@ -706,6 +716,10 @@ class MainWindow(QMainWindow):
         self._colar_cal_dialog.setAttribute(Qt.WA_DeleteOnClose, True)
         self._colar_cal_dialog.destroyed.connect(lambda: setattr(self, "_colar_cal_dialog", None))
         self._colar_cal_dialog.show()
+
+    def _on_parar_colar_cal(self):
+        self._worker.parar_auto_colar_cal()
+        self._status_colar_cal.setText("")
 
     def _salvar_selecao_colar_cal(self, ativos: list):
         self._colar_cal_selecionados = ativos
