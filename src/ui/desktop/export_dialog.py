@@ -1,4 +1,5 @@
 from PyQt5.QtWidgets import (
+    QApplication,
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QGroupBox, QFormLayout, QMessageBox,
     QDoubleSpinBox, QComboBox, QFrame, QTabWidget, QWidget,
@@ -410,13 +411,34 @@ class ExportDialog(QDialog):
             QMessageBox.critical(self, "Erro ao registrar", str(e))
 
     def _enviar_para_pnt(self):
-        """Aciona a integração visual com o PNT."""
+        """Aciona a integração visual com o PNT com feedback de progresso."""
+        from PyQt5.QtWidgets import QProgressDialog
+        progress = QProgressDialog("Enviando para PNT...", None, 0, 100, self)
+        progress.setWindowTitle("Automação PNT")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
+        progress.show()
+        QApplication.processEvents()
+
         try:
             from src.infrastructure.integrations.pnt import PNTIntegration
-            pnt = PNTIntegration(db_path=self.db_path)
+            pnt = PNTIntegration(
+                db_path=self.db_path,
+                progress_callback=lambda pct, msg: (
+                    progress.setValue(pct),
+                    progress.setLabelText(msg),
+                    QApplication.processEvents() if pct % 25 == 0 else None,
+                )
+            )
             pnt.enviar_oportunidade(self.oportunidade)
         except Exception as e:
-            print(f"Erro na automação PNT: {e}")
+            progress.close()
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Automação PNT",
+                f"Erro na automação PNT:\n{e}\n\nOs dados foram copiados para a área de transferência.")
+        finally:
+            progress.close()
 
     def _exportar_basket(self):
         opp_dict = self._make_opp_dict()

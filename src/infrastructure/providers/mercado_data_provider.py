@@ -40,6 +40,7 @@ class MercadoDataProvider:
         self._sem_ativo_skip: dict[str, int] = {}
         self._precos_ativo_cache: dict[str, float] = {}
         self._scan_count = 0
+        self._total_instrumentos_cache: int = 0
         self._lock = QMutex()
         self.recarregar_parametros()
 
@@ -232,6 +233,7 @@ class MercadoDataProvider:
             # (evita ler 52k linhas do SQLite a cada ciclo)
             if not self._registrado or not self._ativos_registrados:
                 instrumentos = self.inst_repo.get_all()
+                self._total_instrumentos_cache = len(instrumentos)
                 
                 # Primeiro ciclo: registra apenas ativos para pegar preços base
                 if not self._ativos_registrados:
@@ -271,6 +273,8 @@ class MercadoDataProvider:
                     if preco_ativo is None:
                         preco_ativo = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
                         if not preco_ativo or preco_ativo <= 0:
+                            if inst.ativo in self._sem_ativo_skip:
+                                continue  # evita chamada síncrona repetida ao Profit
                             preco_ativo = self.rtd.ler_campo(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
                             if not preco_ativo or preco_ativo <= 0:
                                 sem_ativo_atual[inst.ativo] = self.SEM_ATIVO_SKIP_CYCLES
@@ -313,7 +317,7 @@ class MercadoDataProvider:
         self._lock.lock()
         try:
             return {
-                "total": len(self.inst_repo.get_all()),
+                "total": self._total_instrumentos_cache,
                 "onda1": len(self._chaves_registradas),
                 "onda2": len(self._chaves_detalhes_completos),
                 "registrado": self._registrado,

@@ -111,6 +111,8 @@ class MonitorWorker(QThread):
                     if self._colar_cycle >= self._colar_interval:
                         deve_escanear = True
                         self._colar_cycle = 0
+
+                if deve_escanear:
                     try:
                         self.status_message.emit("🔄 Varredura de colares em andamento...")
                         colar_results = self._monitor_colares_uc.varrer(rtd)

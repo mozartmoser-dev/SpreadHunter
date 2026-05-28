@@ -1,3 +1,5 @@
+import logging
+
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QLineEdit, QFormLayout, QFrame,
@@ -8,6 +10,8 @@ from PyQt5.QtGui import QFont, QColor, QBrush
 
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.ui.desktop.theme import Palette
+
+logger = logging.getLogger(__name__)
 
 
 class ColarCalTableModel(QAbstractTableModel):

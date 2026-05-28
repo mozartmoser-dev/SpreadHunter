@@ -5,9 +5,18 @@ import logging
 from pathlib import Path
 
 try:
+    import win32gui
+    import win32con
+    HAS_WIN32 = True
+except ImportError:
+    HAS_WIN32 = False
+
+try:
     from src.application.dtos.dtos import OportunidadeMonitor
 except ImportError:
     OportunidadeMonitor = None
+
+PYNT_TITLES = ["PnT", "PlugNTrade", "FastTrader", "PnT_FastTrader", "Profit"]
 
 logger = logging.getLogger(__name__)
 
@@ -19,28 +28,63 @@ class PNTScreenManager:
         self.screens_dir.mkdir(exist_ok=True)
         
     def find_pnt_window(self):
-        """Encontra e foca a janela do PNT"""
+        """Encontra e foca a janela do PNT usando Win32 API (ou fallback pyautogui)."""
+        if HAS_WIN32:
+            return self._find_pnt_window_win32()
+        return self._find_pnt_window_pyautogui()
+
+    def _find_pnt_window_win32(self):
         try:
-            titles = ["PnT", "PlugNTrade", "FastTrader", "PnT_FastTrader", "Profit"]
-            win = None
-            for t in titles:
-                wins = pyautogui.getWindowsWithTitle(t)
-                if wins:
-                    win = wins[0]
-                    break
-            
-            if win:
-                if win.isMinimized:
-                    win.restore()
-                win.activate()
+            target_hwnd = [0]
+
+            def enum_callback(hwnd, _):
+                if not win32gui.IsWindowVisible(hwnd):
+                    return True
+                title = win32gui.GetWindowText(hwnd)
+                for t in PYNT_TITLES:
+                    if t.lower() in title.lower():
+                        target_hwnd[0] = hwnd
+                        return False
+                return True
+
+            win32gui.EnumWindows(enum_callback, None)
+
+            hwnd = target_hwnd[0]
+            if hwnd:
+                if win32gui.IsIconic(hwnd):
+                    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                win32gui.SetForegroundWindow(hwnd)
                 time.sleep(1.0)
-                logger.info("PNT focado com sucesso!")
+                logger.info("PNT focado com sucesso (Win32)!")
                 return True
             else:
                 logger.warning("Nenhuma janela do PNT encontrada")
                 return False
         except Exception as e:
-            logger.warning(f"Erro ao focar PNT: {e}")
+            logger.warning("Erro ao focar PNT (Win32): %s", e)
+            return False
+
+    def _find_pnt_window_pyautogui(self):
+        try:
+            win = None
+            for t in PYNT_TITLES:
+                wins = pyautogui.getWindowsWithTitle(t)
+                if wins:
+                    win = wins[0]
+                    break
+
+            if win:
+                if win.isMinimized:
+                    win.restore()
+                win.activate()
+                time.sleep(1.0)
+                logger.info("PNT focado com sucesso (pyautogui)!")
+                return True
+            else:
+                logger.warning("Nenhuma janela do PNT encontrada")
+                return False
+        except Exception as e:
+            logger.warning("Erro ao focar PNT (pyautogui): %s", e)
             return False
     
     def open_multileg_screen(self):
@@ -58,12 +102,18 @@ class PNTScreenManager:
 class PNTIntegration:
     """Integração com PlugNTrade via automação de interface (GUI) usando Clipboard."""
     
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: str = None, progress_callback=None):
         self.db_path = db_path
         self.screen_manager = PNTScreenManager()
+        self.progress_callback = progress_callback or (lambda pct, msg: None)
         
         pyautogui.PAUSE = 0.15
         pyautogui.FAILSAFE = True
+
+    def _report(self, pct: int, msg: str):
+        if self.progress_callback:
+            self.progress_callback(pct, msg)
+        logger.info("PNT [%d%%]: %s", pct, msg)
 
     def _get_param(self, chave: str):
         """Busca parâmetros operacionais no banco de dados."""
@@ -112,21 +162,23 @@ class PNTIntegration:
         """Envia a oportunidade usando o fluxo correto de importação do PNT."""
         if not opp: return
 
-        self.screen_manager.find_pnt_window()
+        self._report(10, "Buscando parâmetros da operação...")
         is_box = getattr(opp, 'operacao', '') in ("BOX", "BOXSBTH") or getattr(opp, 'is_box', False)
         suffix = "box" if is_box else "sbth"
         
-        logger.info("PNT: Iniciando integração...")
-        
-        # 1. Preparar dados no formato correto (tab separado)
+        self._report(30, "Preparando dados formatados...")
         dados = self._preparar_dados_clipboard(opp, is_box, suffix)
-        pyperclip.copy(dados)
-        logger.info(f"PNT: Dados copiados ({len(dados.split(chr(10)))} linha(s))")
         
-        # 2. Acessar a tela de importação (manualmente)
+        self._report(50, "Copiando para área de transferência...")
+        pyperclip.copy(dados)
+        
+        self._report(70, "Localizando janela do PNT...")
+        self.screen_manager.find_pnt_window()
+        
+        self._report(90, "Cole os dados no PNT (Ctrl+V)...")
         logger.info("PNT: Acesse manualmente:")
         logger.info("   Ferramentas > Importação de Ordens > Robô - Direcional")
         logger.info("PNT: Posicione o cursor no campo e pressione Ctrl+V")
         time.sleep(1)
         
-        logger.info("PNT: Dados enviados! Se aparecer 'Configurar e Executar…' no PNT, está OK.")
+        self._report(100, "Dados enviados para o PNT!")

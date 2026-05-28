@@ -635,6 +635,19 @@ class ColarDialog(QDialog):
         btn_variacao.clicked.connect(lambda: self._mostrar_variacao(r))
         btn_row.addWidget(btn_variacao)
 
+        btn_explicar = QPushButton("🔍 Explicar")
+        btn_explicar.setAutoDefault(False)
+        btn_explicar.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #2d2d44; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid {Palette.BORDER}; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #3d3d55; }}
+        """)
+        btn_explicar.clicked.connect(lambda: self._explicar_estrategia(r))
+        btn_row.addWidget(btn_explicar)
+
         btn_row.addStretch()
 
         btn_fechar = QPushButton("Fechar")
@@ -645,6 +658,80 @@ class ColarDialog(QDialog):
 
         layout.addLayout(btn_row)
 
+        dialog.exec_()
+
+    def _explicar_estrategia(self, r):
+        from src.domain.services.calculadora_colar import ResultadoColar
+
+        S0 = r.preco_ativo
+        Kc, Kp = r.strike_call, r.strike_put
+        Pc, Pp = r.premio_call, r.premio_put
+        custo = r.custo_liquido
+
+        cdi_per = r.pct_ganho / r.pct_cdi if r.pct_cdi > 0 else 0
+        pior = r.pior_retorno
+        melhor = Kc - custo
+
+        html = "\n".join([
+            "<h3>📖 Explicação — Colar Protetivo (Coberto)</h3>",
+            f"<p><b>{r.ativo}</b> &mdash; {r.tipo.value}</p>",
+            "<hr>",
+            "<p><b>O que é esta estratégia?</b><br>",
+            "Você compra a ação, compra uma PUT de proteção e vende uma CALL para financiar a PUT. ",
+            "O lucro máximo é limitado pelo strike da CALL, e a perda máxima é limitada pelo strike da PUT.</p>",
+            "<hr>",
+            "<p><b>Montagem:</b></p>",
+            "<ul>",
+            f"<li>Comprar ação: <b>−R$ {S0:.2f}</b></li>",
+            f"<li>Comprar PUT {r.cod_put} K={Kp:.2f}: <b>−R$ {Pp:.2f}</b></li>",
+            f"<li>Vender CALL {r.cod_call} K={Kc:.2f}: <b>+R$ {Pc:.2f}</b></li>",
+            f"<li><b>Custo líquido = R$ {custo:.2f}</b> ({S0:.2f} + {Pp:.2f} − {Pc:.2f})</li>",
+            "</ul>",
+            "<hr>",
+            "<p><b>Cenários no vencimento:</b></p>",
+            "<ul>",
+            f"<li><b>Se ativo &lt; R$ {Kp:.2f}:</b> PUT ITM → exerce, vende ação a R$ {Kp:.2f}. "
+            f"Perda máxima de <b>R$ {pior:.2f}</b> ({r.pct_ganho*100:.2f}% / {r.pct_cdi:.2f}x CDI)</li>",
+            f"<li><b>Se ativo entre R$ {Kp:.2f} e R$ {Kc:.2f}:</b> ambas OTM → lucro varia linearmente.</li>",
+            f"<li><b>Se ativo &gt; R$ {Kc:.2f}:</b> CALL ITM → ação vendida a R$ {Kc:.2f}. "
+            f"Lucro máximo de <b>R$ {melhor:.2f}</b>.</li>",
+            "</ul>",
+            "<hr>",
+            "<p><b>Risco de Leilão:</b> "
+            f"{r.risco_leilao.value} — "
+            f"{'Baixo risco de leilão' if r.risco_leilao.value == 'Baixo' else 'Pode haver dificuldade na execução'}</p>",
+            "<hr>",
+            f"<p><b>Resumo:</b><br>"
+            f"O pior retorno de R$ {pior:.2f} ocorre se o ativo fechar abaixo de R$ {Kp:.2f}. "
+            f"O melhor retorno de R$ {melhor:.2f} ocorre se o ativo fechar acima de R$ {Kc:.2f}. "
+            f"A relação CDI de {r.pct_cdi:.2f}x é calculada sobre o pior caso.",
+            "</p>",
+        ])
+        dialog = QDialog(self, Qt.Window)
+        dialog.setWindowTitle(f"Explicação — Colar {r.ativo}")
+        dialog.setMinimumSize(650, 450)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+        texto = QTextEdit()
+        texto.setReadOnly(True)
+        texto.setHtml(html)
+        texto.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: #15152a; color: #e0e0e0;
+                border: 1px solid {Palette.BORDER}; border-radius: 4px;
+                font-size: 10pt; padding: 12px;
+            }}
+        """)
+        layout.addWidget(texto, stretch=1)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.setAutoDefault(False)
+        btn_fechar.clicked.connect(dialog.close)
+        btn_fechar.setProperty("class", "primary")
+        btn_row.addWidget(btn_fechar)
+        layout.addLayout(btn_row)
         dialog.exec_()
 
     def _plot_payoff(self, r):

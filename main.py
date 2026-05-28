@@ -1,6 +1,7 @@
 import logging
 import shutil
 import sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from PyQt5.QtWidgets import QApplication
@@ -8,7 +9,19 @@ from PyQt5.QtWidgets import QApplication
 from src.infrastructure.persistence.bootstrap import bootstrap
 from src.ui.desktop.main_window import MainWindow
 
-logging.basicConfig(level=logging.DEBUG, format="%(name)s | %(levelname)s | %(message)s")
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(name)s | %(levelname)s | %(message)s",
+    handlers=[
+        RotatingFileHandler(
+            Path("logs") / "spreadhunter.log",
+            maxBytes=5 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        ),
+        logging.StreamHandler(),
+    ],
+)
 
 
 def _clear_pycache():
