@@ -418,7 +418,7 @@ class MainWindow(QMainWindow):
         cdi_anual_pct = taxa_cdi * 100
         cdi_mes = (1 + taxa_cdi) ** (1 / 12) - 1 if taxa_cdi > 0 else 0.0
         cdi_mes_pct = cdi_mes * 100
-        cdi_dia = (1 + taxa_cdi) ** (1 / 365) - 1 if taxa_cdi > 0 else 0.0
+        cdi_dia = (1 + taxa_cdi) ** (1 / 252) - 1 if taxa_cdi > 0 else 0.0
         cdi_dia_pct = cdi_dia * 100
         self._status_right.setText(
             "CDI: {:.2f}%a | {:.4f}%m | {:.4f}%d".format(cdi_anual_pct, cdi_mes_pct, cdi_dia_pct)

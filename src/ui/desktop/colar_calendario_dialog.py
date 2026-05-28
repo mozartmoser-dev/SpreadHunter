@@ -719,7 +719,8 @@ class ColarCalendarioDialog(QDialog):
         T_call = r.dte_call / 365
         T_put = r.dte_put / 365
         T_rem = r.dte_extra / 365
-        cdi_periodo = (1 + 0.145) ** (r.dte_call / 365) - 1
+        du = round(r.dte_call * 252 / 365)
+        cdi_periodo = (1 + 0.145) ** (du / 252) - 1
         # Modelo COBERTO: compra acao + short call + long put
         pnl_stk = min(r.preco_ativo, r.strike_call) - r.preco_ativo
         pnl_call = r.premio_call

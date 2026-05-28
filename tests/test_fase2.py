@@ -102,14 +102,14 @@ class TestCalculadoraBoxSbth:
         return CalculadoraBoxSbth(taxa_cdi=0.1450, premio_risco_box=1.5, premio_risco_sbth=1.2)
 
     def test_cdi_periodo(self, calc):
-        cdi = calc.calcular_cdi_periodo(365)
+        cdi = calc.calcular_cdi_periodo(252)
         assert abs(cdi - 0.1450) < 0.001
 
     def test_cdi_periodo_zero_dias(self, calc):
         assert calc.calcular_cdi_periodo(0) == 0.0
 
-    def test_cdi_periodo_20_dias(self, calc):
-        cdi = calc.calcular_cdi_periodo(20)
+    def test_cdi_periodo_14_dias_uteis(self, calc):
+        cdi = calc.calcular_cdi_periodo(14)
         assert cdi > 0
         assert cdi < 0.1450
 

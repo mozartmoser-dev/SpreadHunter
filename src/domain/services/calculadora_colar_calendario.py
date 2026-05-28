@@ -5,6 +5,8 @@ import numpy as np
 from scipy.stats import norm
 from scipy.optimize import brentq
 
+from src.domain.services.calendario_b3 import dc_to_du, frac_du
+
 
 class TipoColarCalendario(Enum):
     ALTA = "Alta"
@@ -83,10 +85,10 @@ class CalculadoraColarCalendario:
         except (ValueError, RuntimeError):
             return None
 
-    def calcular_cdi_periodo(self, dias: int) -> float:
-        if dias <= 0:
+    def calcular_cdi_periodo(self, dias_uteis: int) -> float:
+        if dias_uteis <= 0:
             return 0.0
-        return (1 + self.taxa_cdi) ** (dias / 365) - 1
+        return (1 + self.taxa_cdi) ** (dias_uteis / 252) - 1
 
     def classificar_tipo(self, preco_ativo: float, strike_call: float, strike_put: float) -> TipoColarCalendario:
         meio = (strike_call + strike_put) / 2
@@ -148,8 +150,8 @@ class CalculadoraColarCalendario:
         if pnl_projetado <= 0:
             return None
 
-        dias_total = dte_call
-        cdi_periodo = self.calcular_cdi_periodo(dias_total)
+        du_total = dc_to_du(None, None, dte_call)
+        cdi_periodo = self.calcular_cdi_periodo(du_total)
         if cdi_periodo <= 0:
             return None
 

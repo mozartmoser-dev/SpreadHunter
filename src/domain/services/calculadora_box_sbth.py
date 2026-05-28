@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from src.domain.services.calendario_b3 import dc_to_du
+
 
 @dataclass
 class DadosMercado:
@@ -49,13 +51,13 @@ class CalculadoraBoxSbth:
         self.premio_risco_box = premio_risco_box
         self.premio_risco_sbth = premio_risco_sbth
 
-    def calcular_cdi_periodo(self, dias: int) -> float:
-        if dias <= 0:
+    def calcular_cdi_periodo(self, dias_uteis: int) -> float:
+        if dias_uteis <= 0:
             return 0.0
-        return (1 + self.taxa_cdi) ** (dias / 365) - 1
+        return (1 + self.taxa_cdi) ** (dias_uteis / 252) - 1
 
     def calcular(self, dados: DadosMercado) -> ResultadoBOXSBTH:
-        cdi_periodo = self.calcular_cdi_periodo(dados.dias)
+        cdi_periodo = self.calcular_cdi_periodo(dc_to_du(None, None, dados.dias))
 
         custo_sbth = self._calcular_custo_sbth(dados)
         pct_ganho_sbth = self._calcular_pct_ganho_sbth(custo_sbth, dados.strike)

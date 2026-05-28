@@ -84,10 +84,10 @@ class TestImpliedVolatility:
 
 
 class TestCalcularCdiPeriodo:
-    def test_um_ano(self):
+    def test_um_ano_b3(self):
         cdi = 0.145
         calc = CalculadoraColarCalendario(taxa_cdi=cdi)
-        assert calc.calcular_cdi_periodo(365) == pytest.approx(cdi, rel=1e-3)
+        assert calc.calcular_cdi_periodo(252) == pytest.approx(cdi, rel=1e-3)
 
     def test_zero_dias(self):
         calc = CalculadoraColarCalendario(taxa_cdi=0.145)
@@ -97,9 +97,9 @@ class TestCalcularCdiPeriodo:
         calc = CalculadoraColarCalendario(taxa_cdi=0.145)
         assert calc.calcular_cdi_periodo(-10) == 0.0
 
-    def test_meio_ano(self):
+    def test_metade_ano_b3(self):
         calc = CalculadoraColarCalendario(taxa_cdi=0.145)
-        v = calc.calcular_cdi_periodo(182)
+        v = calc.calcular_cdi_periodo(126)
         assert 0 < v < 0.145
 
 

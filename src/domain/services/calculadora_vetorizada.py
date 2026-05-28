@@ -1,4 +1,6 @@
 import numpy as np
+
+from src.domain.services.calendario_b3 import dc_to_du_aproximado
 from dataclasses import dataclass
 
 @dataclass
@@ -41,7 +43,8 @@ class CalculadoraVetorizada:
         preco_compra_ativo = np.where(of_venda_ativo > 0, of_venda_ativo, preco_ativo + 0.01)
         
         # 2. Cálculos Financeiros
-        cdi_periodo = np.where(dias > 0, (1 + self.taxa_cdi) ** (dias / 365.0) - 1, 0.0)
+        dias_uteis = np.where(dias > 0, np.round(dias * 252.0 / 365.0).astype(int), 0)
+        cdi_periodo = np.where(dias_uteis > 0, (1 + self.taxa_cdi) ** (dias_uteis / 252.0) - 1, 0.0)
         
         # SBTH
         custo_sbth = preco_compra_ativo + of_venda_put

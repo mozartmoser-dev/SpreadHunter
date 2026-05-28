@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import date
 from enum import Enum
 
+from src.domain.services.calendario_b3 import dc_to_du
+
 
 class TipoColar(Enum):
     TRADICIONAL = "Tradicional"
@@ -54,10 +56,10 @@ class CalculadoraColar:
         self.taxa_cdi = taxa_cdi
         self.premio_risco_colar = premio_risco_colar
 
-    def calcular_cdi_periodo(self, dias: int) -> float:
-        if dias <= 0:
+    def calcular_cdi_periodo(self, dias_uteis: int) -> float:
+        if dias_uteis <= 0:
             return 0.0
-        return (1 + self.taxa_cdi) ** (dias / 365) - 1
+        return (1 + self.taxa_cdi) ** (dias_uteis / 252) - 1
 
     def classificar_tipo(self, preco_ativo: float, strike_put: float, strike_call: float) -> TipoColar:
         if preco_ativo < strike_put < strike_call:
@@ -107,7 +109,7 @@ class CalculadoraColar:
         if custo_liquido <= 0:
             return None
 
-        cdi_periodo = self.calcular_cdi_periodo(dias)
+        cdi_periodo = self.calcular_cdi_periodo(dc_to_du(None, None, dias))
         if cdi_periodo <= 0:
             return None
 
