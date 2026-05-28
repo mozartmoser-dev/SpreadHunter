@@ -552,3 +552,79 @@ class DividendoRepository:
             return cursor.rowcount
         finally:
             conn.close()
+
+
+class FeriadoB3Repository:
+    def __init__(self, db_path=None):
+        self.db_path = db_path
+
+    def save_batch(self, feriados: list[dict]) -> int:
+        conn = get_connection(self.db_path)
+        try:
+            conn.executemany(
+                """INSERT INTO feriados_b3 (data, nome, tipo, fonte)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(data) DO UPDATE SET
+                       nome=excluded.nome,
+                       tipo=excluded.tipo,
+                       fonte=excluded.fonte,
+                       atualizado_em=CURRENT_TIMESTAMP""",
+                [(f["data"], f["nome"], f.get("tipo", "nacional"), f.get("fonte", "brasilapi"))
+                 for f in feriados]
+            )
+            conn.commit()
+            return len(feriados)
+        finally:
+            conn.close()
+
+    def get_all(self) -> list[dict]:
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM feriados_b3 ORDER BY data"
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_by_ano(self, ano: int) -> list[dict]:
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM feriados_b3 WHERE data >= ? AND data <= ? ORDER BY data",
+                (f"{ano}-01-01", f"{ano}-12-31")
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_anos_disponiveis(self) -> list[int]:
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT DISTINCT CAST(substr(data, 1, 4) AS INTEGER) AS ano FROM feriados_b3 ORDER BY ano"
+            ).fetchall()
+            return [r["ano"] for r in rows]
+        finally:
+            conn.close()
+
+    def delete_by_ano(self, ano: int) -> int:
+        conn = get_connection(self.db_path)
+        try:
+            cursor = conn.execute(
+                "DELETE FROM feriados_b3 WHERE data >= ? AND data <= ?",
+                (f"{ano}-01-01", f"{ano}-12-31")
+            )
+            conn.commit()
+            return cursor.rowcount
+        finally:
+            conn.close()
+
+    def delete_all(self) -> int:
+        conn = get_connection(self.db_path)
+        try:
+            cursor = conn.execute("DELETE FROM feriados_b3")
+            conn.commit()
+            return cursor.rowcount
+        finally:
+            conn.close()

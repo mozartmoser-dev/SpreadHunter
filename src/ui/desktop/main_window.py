@@ -212,6 +212,10 @@ class MainWindow(QMainWindow):
         self.btn_dividendos.clicked.connect(self._abrir_dividendos)
         btn_layout.addWidget(self.btn_dividendos)
 
+        self.btn_feriados = QPushButton("🗓  Feriados")
+        self.btn_feriados.clicked.connect(self._abrir_feriados)
+        btn_layout.addWidget(self.btn_feriados)
+
         self.btn_colar = QPushButton("🛡  Collar")
         self.btn_colar.clicked.connect(self._abrir_colar)
         btn_layout.addWidget(self.btn_colar)
@@ -418,15 +422,21 @@ class MainWindow(QMainWindow):
         cdi_anual_pct = taxa_cdi * 100
         cdi_mes = (1 + taxa_cdi) ** (1 / 12) - 1 if taxa_cdi > 0 else 0.0
         cdi_mes_pct = cdi_mes * 100
-        cdi_dia = (1 + taxa_cdi) ** (1 / 252) - 1 if taxa_cdi > 0 else 0.0
-        cdi_dia_pct = cdi_dia * 100
+        cdi_dia_252 = (1 + taxa_cdi) ** (1 / 252) - 1 if taxa_cdi > 0 else 0.0
+        cdi_dia_252_pct = cdi_dia_252 * 100
+        cdi_dia_365 = (1 + taxa_cdi) ** (1 / 365) - 1 if taxa_cdi > 0 else 0.0
+        cdi_dia_365_pct = cdi_dia_365 * 100
         self._status_right.setText(
-            "CDI: {:.2f}%a | {:.4f}%m | {:.4f}%d".format(cdi_anual_pct, cdi_mes_pct, cdi_dia_pct)
+            "CDI {:.2f}%a | {:.4f}%m\n"
+            "DU {:.4f}%d | DC {:.4f}%d".format(
+                cdi_anual_pct, cdi_mes_pct,
+                cdi_dia_252_pct, cdi_dia_365_pct,
+            )
         )
         self._status_right.setStyleSheet(
             "background-color: #16213e; color: #00f2ff; border: 1px solid #2d2d44; "
-            "border-radius: 4px; padding: 3px 10px; font-family: 'JetBrains Mono', Consolas, monospace; "
-            "font-size: 8.5pt; font-weight: bold; margin-right: 8px;"
+            "border-radius: 4px; padding: 4px 10px; font-family: 'JetBrains Mono', Consolas, monospace; "
+            "font-size: 8pt; font-weight: bold; line-height: 1.4; margin-right: 8px;"
         )
 
     def _aplicar_tema_configurado(self):
@@ -654,6 +664,13 @@ class MainWindow(QMainWindow):
         from src.ui.desktop.dividendos_dialog import DividendosDialog
         dialog = DividendosDialog(self.db_path, self)
         dialog.exec_()
+
+    def _abrir_feriados(self):
+        from src.ui.desktop.feriados_dialog import FeriadosDialog
+        from src.domain.services.calendario_b3 import carregar_do_banco
+        dialog = FeriadosDialog(self.db_path, self)
+        dialog.exec_()
+        carregar_do_banco(self.db_path)
 
     def _salvar_selecao_colar(self, ativos: list):
         self._colar_selecionados = ativos

@@ -38,6 +38,8 @@ class MonitorColaresUseCase:
         if not preco_ativo or preco_ativo <= 0:
             return None
 
+        of_venda_ativo = rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
+
         strike_rtd = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_STRIKE)
         if not strike_rtd or strike_rtd <= 0:
             strike_rtd = rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_STRIKE)
@@ -59,6 +61,7 @@ class MonitorColaresUseCase:
             "cod_put": inst.cod_put,
             "cod_call": inst.cod_call,
             "preco_ativo": preco_ativo,
+            "preco_compra_ativo": of_venda_ativo if (of_venda_ativo and of_venda_ativo > 0) else preco_ativo,
             "premio_put": of_v_put,
             "premio_call": of_c_call,
             "vov_put": vov_put,
@@ -148,6 +151,7 @@ class MonitorColaresUseCase:
                         status_call=call_data["status_call"],
                         ativo=ativo,
                         vencimento=vencimento,
+                        preco_compra_ativo=put_data.get("preco_compra_ativo"),
                     )
 
                     if resultado and resultado.viavel:

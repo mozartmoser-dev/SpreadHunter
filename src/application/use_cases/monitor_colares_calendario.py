@@ -8,6 +8,7 @@ from src.domain.services.calculadora_colar_calendario import (
     ResultadoColarCalendario,
 )
 from src.infrastructure.persistence.repositories.repositories import (
+    DividendoRepository,
     InstrumentoRepository,
     ParametroRepository,
 )
@@ -144,6 +145,7 @@ class MonitorColaresCalendarioUseCase:
                                  c["cod_put"], c["strike"], c["dte"], c["preco_put"])
 
         resultados = []
+        _cache_dividendos_por_ativo: dict[str, list[tuple[date, float]]] = {}
 
         for ativo in calls_por_ativo:
             if ativo not in puts_por_ativo:
@@ -156,20 +158,46 @@ class MonitorColaresCalendarioUseCase:
             if preco_ativo <= 0:
                 continue
 
-            calls.sort(key=lambda c: abs(c["strike"] - preco_ativo))
+            of_venda_ativo = rtd.ler_campo_cache(ativo, "OVD")
+            preco_compra_ativo = of_venda_ativo if (of_venda_ativo and of_venda_ativo > 0) else preco_ativo
 
-            for call in calls:
+            if ativo not in _cache_dividendos_por_ativo:
+                divs = DividendoRepository(self.db_path).get_by_ativo(ativo)
+                divs_futuros = []
+                for d in divs:
+                    data_ex = d.get("data_ex") or d.get("data_com")
+                    valor = d.get("valor")
+                    if data_ex and valor and valor > 0:
+                        try:
+                            dex = date.fromisoformat(str(data_ex))
+                            if dex > date.today():
+                                divs_futuros.append((dex, valor))
+                        except (ValueError, TypeError):
+                            pass
+                _cache_dividendos_por_ativo[ativo] = divs_futuros
+            dividendos_ativo = _cache_dividendos_por_ativo.get(ativo) or []
+
+            strike_diff_max = preco_ativo * params.get("calendario_strike_diff_pct", 0.03)
+
+            # Filtra calls OTM (strike > spot) e ordena por proximidade ao ATM
+            calls_otm = [c for c in calls if c["strike"] > preco_ativo]
+            calls_otm.sort(key=lambda c: c["strike"] - preco_ativo)
+
+            for call in calls_otm:
                 sc = call["strike"]
                 dte_call = call["dte"]
 
-                # Ordena puts por |strike_diff| crescente (strike mais próximo)
+                # Filtra puts OTM (strike < spot) e ordena por |strike_call - strike_put|
+                puts_otm = [p for p in puts if p["strike"] < preco_ativo]
                 puts_ordenadas = sorted(
-                    puts,
+                    puts_otm,
                     key=lambda p: abs(p["strike"] - sc),
                 )
 
                 for put in puts_ordenadas:
                     sp = put["strike"]
+                    if abs(sp - sc) > strike_diff_max:
+                        continue
                     dte_extra = put["dte"] - dte_call
 
                     if dte_extra < params["dte_extra_min"] or dte_extra > params["dte_extra_max"]:
@@ -188,6 +216,8 @@ class MonitorColaresCalendarioUseCase:
                         ativo=ativo,
                         vencimento_call=call["vencimento"],
                         vencimento_put=put["vencimento"],
+                        preco_compra_ativo=preco_compra_ativo,
+                        dividendos=dividendos_ativo,
                     )
 
                     if resultado and resultado.viavel:

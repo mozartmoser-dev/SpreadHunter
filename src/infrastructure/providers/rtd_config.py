@@ -27,6 +27,8 @@ class DadosRTDInstrumento:
     preco_ativo: float | None
     strike: float | None
     vencimento_rtd: str | None
+    of_compra_ativo: float | None
+    of_venda_ativo: float | None
     of_venda_put: float | None
     of_compra_put: float | None
     of_venda_call: float | None
@@ -69,8 +71,8 @@ class DadosRTDInstrumento:
         return {
             "preco_ativo": self.preco_ativo or 0.0,
             "strike_rtd": self.strike,
-            "of_compra_ativo": 0.0,
-            "of_venda_ativo": 0.0,
+            "of_compra_ativo": self.of_compra_ativo or 0.0,
+            "of_venda_ativo": self.of_venda_ativo or 0.0,
             "of_compra_put": self.of_compra_put or 0.0,
             "of_venda_put": self.of_venda_put or 0.0,
             "of_compra_call": self.of_compra_call or 0.0,

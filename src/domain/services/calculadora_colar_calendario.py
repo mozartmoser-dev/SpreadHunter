@@ -90,6 +90,23 @@ class CalculadoraColarCalendario:
             return 0.0
         return (1 + self.taxa_cdi) ** (dias_uteis / 252) - 1
 
+    @staticmethod
+    def calcular_pv_dividendos(
+        dividendos: list[tuple[date, float]],
+        preco_ativo: float,
+        r: float,
+        dte_max: int,
+    ) -> float:
+        hoje = date.today()
+        total_pv = 0.0
+        for data_ex, valor in dividendos:
+            dias_ate_ex = (data_ex - hoje).days
+            if dias_ate_ex <= 0 or dias_ate_ex > dte_max:
+                continue
+            t = dias_ate_ex / 365
+            total_pv += valor * np.exp(-r * t)
+        return preco_ativo - total_pv
+
     def classificar_tipo(self, preco_ativo: float, strike_call: float, strike_put: float) -> TipoColarCalendario:
         meio = (strike_call + strike_put) / 2
         dist = abs(preco_ativo - meio)
@@ -115,6 +132,8 @@ class CalculadoraColarCalendario:
         vencimento_call: date,
         vencimento_put: date,
         r: float = 0.1325,
+        preco_compra_ativo: float | None = None,
+        dividendos: list[tuple[date, float]] | None = None,
     ) -> ResultadoColarCalendario | None:
         if preco_ativo <= 0 or dte_call <= 0 or dte_put <= 0:
             return None
@@ -125,8 +144,14 @@ class CalculadoraColarCalendario:
         T_put = dte_put / 365
         dte_extra = dte_put - dte_call
 
-        iv_call = self.implied_volatility(preco_ativo, strike_call, T_call, r, premio_call, 'call')
-        iv_put = self.implied_volatility(preco_ativo, strike_put, T_put, r, premio_put, 'put')
+        S_bs = preco_ativo
+        if dividendos:
+            S_bs = self.calcular_pv_dividendos(dividendos, preco_ativo, r, dte_put)
+            if S_bs <= 0:
+                return None
+
+        iv_call = self.implied_volatility(S_bs, strike_call, T_call, r, premio_call, 'call')
+        iv_put = self.implied_volatility(S_bs, strike_put, T_put, r, premio_put, 'put')
 
         if iv_call is None or iv_put is None:
             return None
@@ -134,12 +159,12 @@ class CalculadoraColarCalendario:
         net_credito = premio_call - premio_put
         tipo = self.classificar_tipo(preco_ativo, strike_call, strike_put)
 
-        theta_call = self.bs_theta(preco_ativo, strike_call, T_call, r, iv_call, 'call')
-        theta_put = self.bs_theta(preco_ativo, strike_put, T_put, r, iv_put, 'put')
+        theta_call = self.bs_theta(S_bs, strike_call, T_call, r, iv_call, 'call')
+        theta_put = self.bs_theta(S_bs, strike_put, T_put, r, iv_put, 'put')
         theta_liquido = abs(theta_call) - abs(theta_put)
 
         T_put_rem = dte_extra / 365 if dte_extra > 0 else 0
-        valor_put_vc = self.black_scholes(preco_ativo, strike_put, T_put_rem, r, iv_put, 'put') if T_put_rem > 0 else 0
+        valor_put_vc = self.black_scholes(S_bs, strike_put, T_put_rem, r, iv_put, 'put') if T_put_rem > 0 else 0
 
         # Modelo COBERTO: compra 100 acoes + short call + long put
         pnl_call = premio_call  # premio recebido, acao cobre exercicio
@@ -155,7 +180,8 @@ class CalculadoraColarCalendario:
         if cdi_periodo <= 0:
             return None
 
-        capital_empregado = preco_ativo + premio_put - premio_call
+        preco_compra = preco_compra_ativo if (preco_compra_ativo and preco_compra_ativo > 0) else preco_ativo
+        capital_empregado = preco_compra + premio_put - premio_call
         pct_retorno = pnl_projetado / capital_empregado if capital_empregado > 0 else 0
         pct_cdi = pct_retorno / cdi_periodo if cdi_periodo > 0 else 0
         viavel = pct_cdi >= self.premio_risco

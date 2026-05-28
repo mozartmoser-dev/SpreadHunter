@@ -48,4 +48,5 @@ class ParametroOperacional:
         "telegram_chat_id": {"valor": "0", "estrategia": "TELEGRAM", "descricao": "Chat ID Telegram"},
         "premio_risco_colar": {"valor": 1.0, "estrategia": "COLAR", "descricao": "Premio risco Colar (x CDI)"},
         "colar_dist_max_pct": {"valor": 0.3, "estrategia": "COLAR", "descricao": "Distancia maxima do strike (%)"},
+        "calendario_strike_diff_pct": {"valor": 0.03, "estrategia": "COLLAR_CALENDARIO", "descricao": "Max diff % entre strikes call e put"},
     }

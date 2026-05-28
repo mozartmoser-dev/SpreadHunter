@@ -2,7 +2,7 @@ from datetime import date
 
 import numpy as np
 
-FERIADOS_B3 = [
+FERIADOS_B3_PADRAO = [
     "2024-01-01", "2024-02-12", "2024-02-13", "2024-03-29",
     "2024-04-21", "2024-05-01", "2024-05-30", "2024-07-09",
     "2024-09-07", "2024-10-12", "2024-11-02", "2024-11-15",
@@ -15,7 +15,31 @@ FERIADOS_B3 = [
     "2026-11-02", "2026-11-15", "2026-11-20", "2026-12-25",
 ]
 
-_B3_CALENDAR = np.busdaycalendar(holidays=np.array(FERIADOS_B3, dtype="datetime64[D]"))
+_feriados_atuais = list(FERIADOS_B3_PADRAO)
+_B3_CALENDAR = np.busdaycalendar(holidays=np.array(_feriados_atuais, dtype="datetime64[D]"))
+
+
+def _reconstruir_calendario():
+    global _B3_CALENDAR
+    _B3_CALENDAR = np.busdaycalendar(holidays=np.array(_feriados_atuais, dtype="datetime64[D]"))
+
+
+def atualizar_calendario(feriados: list[str]):
+    _feriados_atuais.clear()
+    _feriados_atuais.extend(sorted(feriados))
+    _reconstruir_calendario()
+
+
+def carregar_do_banco(db_path: str | None = None):
+    try:
+        from src.infrastructure.persistence.repositories.repositories import FeriadoB3Repository
+        repo = FeriadoB3Repository(db_path)
+        rows = repo.get_all()
+        if rows:
+            feriados = sorted(r["data"] for r in rows if r.get("data"))
+            atualizar_calendario(feriados)
+    except Exception:
+        pass
 
 
 def dc_to_du_aproximado(dias_corridos: int) -> int:

@@ -101,6 +101,8 @@ class MercadoDataProvider:
         for inst in instrumentos:
             if inst.ativo not in self._ativos_registrados:
                 rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
+                rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
                 rtd.registrar_status(inst.ativo)
                 self._ativos_registrados.add(inst.ativo)
                 count += 1
@@ -142,6 +144,8 @@ class MercadoDataProvider:
             if inst.ativo in ativos_ex and inst.ativo not in ativos_registrados:
                 # Registra preco do ativo
                 self.rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                self.rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
+                self.rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
                 self.rtd.registrar_status(inst.ativo)
                 ativos_registrados.add(inst.ativo)
 
@@ -206,6 +210,8 @@ class MercadoDataProvider:
             
             if inst.ativo not in self._ativos_registrados:
                 rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
+                rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
                 rtd.registrar_status(inst.ativo)
                 self._ativos_registrados.add(inst.ativo)
             
@@ -345,6 +351,9 @@ class MercadoDataProvider:
         if not strike_rtd or strike_rtd <= 0:
             return None # Sem strike real, não calculamos para evitar erro
 
+        of_venda_ativo = rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
+        of_compra_ativo = rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
+
         status_put = rtd.ler_status_cache(inst.cod_put) or "Aberto"
         status_call = rtd.ler_status_cache(inst.cod_call) or "Aberto"
         status_ativo = rtd.ler_status_cache(inst.ativo) or "Aberto"
@@ -356,6 +365,8 @@ class MercadoDataProvider:
             preco_ativo=preco_ativo,
             strike=strike_rtd,
             vencimento_rtd=inst.vencimento.isoformat(),
+            of_compra_ativo=of_compra_ativo,
+            of_venda_ativo=of_venda_ativo,
             of_venda_put=of_venda_put,
             of_compra_put=of_compra_put,
             of_venda_call=of_venda_call,

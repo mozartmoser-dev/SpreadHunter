@@ -345,6 +345,7 @@ class TestDadosRTDInstrumento:
             status_put="Aberto", status_call="Aberto", status_ativo="Aberto",
             cab_put=None, qul_put=None, vov_put=None,
             cab_call=None, qul_call=None, voc_call=None,
+            of_compra_ativo=None, of_venda_ativo=None,
         )
         assert d.premio_put == 2.5
 
@@ -358,6 +359,7 @@ class TestDadosRTDInstrumento:
             status_put="Aberto", status_call="Aberto", status_ativo="Aberto",
             cab_put=None, qul_put=None, vov_put=None,
             cab_call=None, qul_call=None, voc_call=None,
+            of_compra_ativo=None, of_venda_ativo=None,
         )
         assert d.premio_put == 2.3
 
@@ -371,6 +373,7 @@ class TestDadosRTDInstrumento:
             status_put="Aberto", status_call="Aberto", status_ativo="Aberto",
             cab_put=None, qul_put=None, vov_put=None,
             cab_call=None, qul_call=None, voc_call=None,
+            of_compra_ativo=None, of_venda_ativo=None,
         )
         assert d.premio_call == 0.8
 
@@ -384,6 +387,7 @@ class TestDadosRTDInstrumento:
             status_put="Aberto", status_call="Aberto", status_ativo="Aberto",
             cab_put=None, qul_put=None, vov_put=None,
             cab_call=None, qul_call=None, voc_call=None,
+            of_compra_ativo=None, of_venda_ativo=None,
         )
         assert d.premio_call == 1.0
 
@@ -397,6 +401,7 @@ class TestDadosRTDInstrumento:
             status_put="Leilao", status_call="Aberto", status_ativo="Aberto",
             cab_put=None, qul_put=None, vov_put=None,
             cab_call=None, qul_call=None, voc_call=None,
+            of_compra_ativo=None, of_venda_ativo=None,
         )
         assert d.em_leilao is True
 
@@ -410,6 +415,7 @@ class TestDadosRTDInstrumento:
             status_put="Aberto", status_call="Aberto", status_ativo="Aberto",
             cab_put=None, qul_put=None, vov_put=None,
             cab_call=None, qul_call=None, voc_call=None,
+            of_compra_ativo=None, of_venda_ativo=None,
         )
         assert d.em_leilao is False
 
@@ -423,6 +429,7 @@ class TestDadosRTDInstrumento:
             status_put="Aberto", status_call="Aberto", status_ativo="Aberto",
             cab_put=None, qul_put=None, vov_put=None,
             cab_call=None, qul_call=None, voc_call=None,
+            of_compra_ativo=None, of_venda_ativo=None,
         )
         dm = d.to_dados_mercado()
         assert dm["preco_ativo"] == 38.0

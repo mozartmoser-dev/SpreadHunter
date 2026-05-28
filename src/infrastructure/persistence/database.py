@@ -23,6 +23,7 @@ def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
     conn.executescript(SCHEMA)
     _migrar_dividendos(conn)
     _seed_parametros_colar(conn)
+    _migrar_feriados_b3(conn)
     conn.commit()
     return conn
 
@@ -31,6 +32,7 @@ def _seed_parametros_colar(conn):
     params = [
         ("premio_risco_colar", "1.0", "COLAR", "Premio risco Colar (x CDI)"),
         ("colar_dist_max_pct", "0.3", "COLAR", "Distancia maxima do strike (%)"),
+        ("calendario_strike_diff_pct", "0.03", "COLLAR_CALENDARIO", "Max diff % entre strikes call e put"),
     ]
     for chave, valor, estrategia, descricao in params:
         try:
@@ -40,6 +42,62 @@ def _seed_parametros_colar(conn):
             )
         except sqlite3.OperationalError:
             pass
+
+
+def _migrar_feriados_b3(conn):
+    """Popula feriados_b3 com dados iniciais se vazia."""
+    try:
+        count = conn.execute("SELECT COUNT(*) FROM feriados_b3").fetchone()[0]
+        if count == 0:
+            feriados_iniciais = [
+                ("2024-01-01", "Confraternização Universal", "nacional"),
+                ("2024-02-12", "Carnaval", "nacional"),
+                ("2024-02-13", "Carnaval", "nacional"),
+                ("2024-03-29", "Sexta-feira Santa", "nacional"),
+                ("2024-04-21", "Tiradentes", "nacional"),
+                ("2024-05-01", "Dia do Trabalho", "nacional"),
+                ("2024-05-30", "Corpus Christi", "nacional"),
+                ("2024-07-09", "Revolução Constitucionalista", "estadual_sp"),
+                ("2024-09-07", "Independência do Brasil", "nacional"),
+                ("2024-10-12", "Nossa Sra. Aparecida", "nacional"),
+                ("2024-11-02", "Finados", "nacional"),
+                ("2024-11-15", "Proclamação da República", "nacional"),
+                ("2024-11-20", "Consciência Negra", "nacional"),
+                ("2024-12-25", "Natal", "nacional"),
+                ("2025-01-01", "Confraternização Universal", "nacional"),
+                ("2025-03-04", "Carnaval", "nacional"),
+                ("2025-04-18", "Sexta-feira Santa", "nacional"),
+                ("2025-04-21", "Tiradentes", "nacional"),
+                ("2025-05-01", "Dia do Trabalho", "nacional"),
+                ("2025-06-19", "Corpus Christi", "nacional"),
+                ("2025-07-09", "Revolução Constitucionalista", "estadual_sp"),
+                ("2025-09-07", "Independência do Brasil", "nacional"),
+                ("2025-10-12", "Nossa Sra. Aparecida", "nacional"),
+                ("2025-11-02", "Finados", "nacional"),
+                ("2025-11-15", "Proclamação da República", "nacional"),
+                ("2025-11-20", "Consciência Negra", "nacional"),
+                ("2025-12-25", "Natal", "nacional"),
+                ("2026-01-01", "Confraternização Universal", "nacional"),
+                ("2026-02-16", "Carnaval", "nacional"),
+                ("2026-02-17", "Carnaval", "nacional"),
+                ("2026-04-03", "Sexta-feira Santa", "nacional"),
+                ("2026-04-21", "Tiradentes", "nacional"),
+                ("2026-05-01", "Dia do Trabalho", "nacional"),
+                ("2026-06-04", "Corpus Christi", "nacional"),
+                ("2026-07-09", "Revolução Constitucionalista", "estadual_sp"),
+                ("2026-09-07", "Independência do Brasil", "nacional"),
+                ("2026-10-12", "Nossa Sra. Aparecida", "nacional"),
+                ("2026-11-02", "Finados", "nacional"),
+                ("2026-11-15", "Proclamação da República", "nacional"),
+                ("2026-11-20", "Consciência Negra", "nacional"),
+                ("2026-12-25", "Natal", "nacional"),
+            ]
+            conn.executemany(
+                "INSERT OR IGNORE INTO feriados_b3 (data, nome, tipo) VALUES (?, ?, ?)",
+                feriados_iniciais,
+            )
+    except Exception:
+        pass
 
 
 def _migrar_dividendos(conn):
@@ -159,9 +217,19 @@ CREATE TABLE IF NOT EXISTS dividendos (
     UNIQUE(ativo, data_com, tipo, data_pagamento)
 );
 
+CREATE TABLE IF NOT EXISTS feriados_b3 (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    data DATE NOT NULL UNIQUE,
+    nome TEXT NOT NULL,
+    tipo TEXT DEFAULT 'nacional',
+    fonte TEXT DEFAULT 'brasilapi',
+    atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_instrumentos_ativo ON instrumentos_base(ativo);
 CREATE INDEX IF NOT EXISTS idx_instrumentos_vencimento ON instrumentos_base(vencimento);
 CREATE INDEX IF NOT EXISTS idx_oportunidades_instrumento ON oportunidades(instrumento_id);
 CREATE INDEX IF NOT EXISTS idx_estruturas_oportunidade ON estruturas_operacionais(oportunidade_id);
 CREATE INDEX IF NOT EXISTS idx_pernas_estrutura ON pernas_operacao(estrutura_id);
+CREATE INDEX IF NOT EXISTS idx_feriados_b3_data ON feriados_b3(data);
 """

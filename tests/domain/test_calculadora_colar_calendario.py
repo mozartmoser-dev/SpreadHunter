@@ -185,6 +185,79 @@ class TestCalcular:
         assert bool(r.viavel) is False
 
 
+class TestCalcularPvDividendos:
+    def test_sem_dividendos_retorna_preco_original(self):
+        S = CalculadoraColarCalendario.calcular_pv_dividendos([], 100, 0.13, 365)
+        assert S == 100.0
+
+    def test_dividendo_futuro_reduz_preco(self):
+        hoje = date.today()
+        data_ex = date(hoje.year + 1, 1, 1)
+        S = CalculadoraColarCalendario.calcular_pv_dividendos(
+            [(data_ex, 5.0)], 100, 0.13, 365
+        )
+        assert S < 100.0
+        assert S > 94.0
+
+    def test_dividendo_passado_ignorado(self):
+        hoje = date.today()
+        data_ex = date(hoje.year - 1, 1, 1)
+        S = CalculadoraColarCalendario.calcular_pv_dividendos(
+            [(data_ex, 5.0)], 100, 0.13, 365
+        )
+        assert S == 100.0
+
+    def test_dividendo_fora_do_dte_max_ignorado(self):
+        hoje = date.today()
+        data_ex = date(hoje.year + 2, 1, 1)
+        S = CalculadoraColarCalendario.calcular_pv_dividendos(
+            [(data_ex, 5.0)], 100, 0.13, 30
+        )
+        assert S == 100.0
+
+    def test_multiplos_dividendos(self):
+        hoje = date.today()
+        d1 = date(hoje.year, hoje.month + 1, 1) if hoje.month < 12 else date(hoje.year + 1, 1, 1)
+        d2 = date(hoje.year, hoje.month + 4, 1) if hoje.month < 9 else date(hoje.year + 1, 4, 1)
+        S = CalculadoraColarCalendario.calcular_pv_dividendos(
+            [(d1, 2.0), (d2, 2.0)], 100, 0.13, 365
+        )
+        assert S < 98.0
+        assert S > 95.0
+
+    def test_zero_r_usado_corretamente(self):
+        hoje = date.today()
+        data_ex = date(hoje.year + 1, 1, 1)
+        S = CalculadoraColarCalendario.calcular_pv_dividendos(
+            [(data_ex, 5.0)], 100, 0.0, 365
+        )
+        assert S == pytest.approx(95.0)
+
+    def test_com_dividendos_calcular_retorna_resultado(self):
+        calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
+        hoje = date.today()
+        data_ex = date(hoje.year, hoje.month + 2, 1) if hoje.month < 10 else date(hoje.year + 1, 2, 1)
+        divs = [(data_ex, 1.5)]
+        r = calc.calcular(
+            preco_ativo=50,
+            strike_call=55,
+            strike_put=45,
+            premio_call=3.0,
+            premio_put=2.0,
+            cod_call="CL1",
+            cod_put="PT1",
+            dte_call=30,
+            dte_put=60,
+            ativo="TEST4",
+            vencimento_call=date(2026, 6, 27),
+            vencimento_put=date(2026, 7, 27),
+            dividendos=divs,
+        )
+        assert r is not None
+        assert isinstance(r, ResultadoColarCalendario)
+        assert r.iv_call > 0
+
+
 class TestGerarExplicacao:
     def test_gera_html(self):
         calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)

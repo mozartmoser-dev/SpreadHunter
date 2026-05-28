@@ -96,6 +96,7 @@ class CalculadoraColar:
         status_call: str,
         ativo: str,
         vencimento: date,
+        preco_compra_ativo: float | None = None,
     ) -> ResultadoColar | None:
         if preco_ativo <= 0 or dias <= 0:
             return None
@@ -105,7 +106,8 @@ class CalculadoraColar:
         tipo = self.classificar_tipo(preco_ativo, strike_put, strike_call)
         em_leilao = status_put != "Aberto" or status_call != "Aberto"
 
-        custo_liquido = preco_ativo + premio_put - premio_call
+        preco_compra = preco_compra_ativo if (preco_compra_ativo and preco_compra_ativo > 0) else preco_ativo
+        custo_liquido = preco_compra + premio_put - premio_call
         if custo_liquido <= 0:
             return None
 

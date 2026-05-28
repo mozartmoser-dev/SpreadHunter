@@ -85,6 +85,9 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("premio_risco_colar", "Premio risco Colar (x CDI)"),
         ("colar_dist_max_pct", "Distancia maxima do strike (%)"),
     ],
+    "COLLAR_CALENDARIO": [
+        ("calendario_strike_diff_pct", "Max diff % entre strikes"),
+    ],
 }
 
 
