@@ -412,11 +412,13 @@ class ParametrosWidget(QWidget):
                         lambda checked, c=chave, d=display: self._mostrar_info(c, d)
                     )
 
-                label_row = QHBoxLayout()
-                label_row.setSpacing(2)
-                label_row.addWidget(param_label)
-                label_row.addWidget(btn_info)
-                label_row.addStretch()
+                label_row = QWidget()
+                label_layout = QHBoxLayout(label_row)
+                label_layout.setContentsMargins(0, 0, 0, 0)
+                label_layout.setSpacing(2)
+                label_layout.addWidget(param_label)
+                label_layout.addWidget(btn_info)
+                label_layout.addStretch()
 
                 form.addRow(label_row, widget)
                 self._widgets[chave] = widget

@@ -28,6 +28,10 @@ class MonitorBoxUseCase:
         self._calculadora = None
         self.param_repo.invalidate_cache()
 
+    def _get_param(self, chave: str, default: float = 0.0) -> float:
+        param = self.param_repo.get_by_chave(chave)
+        return param.valor if param else default
+
     def _get_qtd_min_perna(self) -> int:
         param = self.param_repo.get_by_chave("box_qtd_min")
         return int(param.valor) if param else 100

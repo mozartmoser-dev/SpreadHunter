@@ -30,11 +30,11 @@ def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
 
 def _seed_parametros_colar(conn):
     params = [
-        ("premio_risco_colar", "1.05", "COLAR", "Premio risco Colar (x CDI)"),
+        ("premio_risco_colar", "0.7", "COLAR", "Premio risco Colar (x CDI)"),
         ("colar_dist_max_pct", "0.15", "COLAR", "Distancia maxima do strike (%)"),
-        ("calendario_strike_diff_pct", "0.03", "COLLAR_CALENDARIO", "Max diff % entre strikes call e put"),
-        ("premio_risco_colar_calendario", "1.2", "COLLAR_CALENDARIO", "Premio risco Collar Calendario (x CDI)"),
-        ("calendario_call_otm_max", "0.04", "COLLAR_CALENDARIO", "Max OTM da call (% do spot)"),
+        ("calendario_strike_diff_pct", "0.10", "COLLAR_CALENDARIO", "Max diff % entre strikes call e put"),
+        ("premio_risco_colar_calendario", "0.9", "COLLAR_CALENDARIO", "Premio risco Collar Calendario (x CDI)"),
+        ("calendario_call_otm_max", "0.08", "COLLAR_CALENDARIO", "Max OTM da call (% do spot)"),
         ("taxa_emolumento_pct", "0.00025", "GERAL", "Taxa de emolumento B3 (% do financeiro)"),
         ("taxa_liquidacao_pct", "0.000275", "GERAL", "Taxa de liquidacao B3 (% do financeiro)"),
         ("colar_qul_min_put", "100", "COLAR", "Qtd minima negociada (QUL) para PUT"),

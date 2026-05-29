@@ -74,6 +74,8 @@ class ColarTableModel(QAbstractTableModel):
                 if col_key == "pct_cdi":
                     return "{:.2f}x".format(val)
                 if col_key in ("pop_upside", "pop_downside"):
+                    if val is None:
+                        return "-"
                     return "{:.1f}%".format(val)
                 if col_key == "vencimento":
                     if hasattr(val, "strftime"):
@@ -746,6 +748,19 @@ class ColarDialog(QDialog):
         btn_explicar.clicked.connect(lambda: self._explicar_estrategia(r))
         btn_row.addWidget(btn_explicar)
 
+        btn_export = QPushButton("📋 Exportar Debug")
+        btn_export.setAutoDefault(False)
+        btn_export.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #2d2d44; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid {Palette.BORDER}; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #3d3d55; }}
+        """)
+        btn_export.clicked.connect(lambda: self._exportar_debug(r))
+        btn_row.addWidget(btn_export)
+
         btn_row.addStretch()
 
         btn_fechar = QPushButton("Fechar")
@@ -798,11 +813,11 @@ class ColarDialog(QDialog):
             f"{'Baixo risco de leilão' if r.risco_leilao.value == 'Baixo' else 'Pode haver dificuldade na execução'}</p>",
             "<hr>",
             f"<p><b>Probabilidades (IV médio {((r.iv_call + r.iv_put)/2):.1f}%):</b><br>"
-            f"📈 Alta > R$ {Kc:.2f}: <b>{r.pop_upside:.1f}%</b> "
+            f"📈 Alta > R$ {Kc:.2f}: <b>{f'{r.pop_upside:.1f}%' if r.pop_upside is not None else '-'}</b> "
             f"(call exercida, lucro máximo)<br>"
-            f"📉 Baixa < R$ {Kp:.2f}: <b>{r.pop_downside:.1f}%</b> "
+            f"📉 Baixa < R$ {Kp:.2f}: <b>{f'{r.pop_downside:.1f}%' if r.pop_downside is not None else '-'}</b> "
             f"(put exercida, pior caso)<br>"
-            f"📊 Meio (R$ {Kp:.2f}–{Kc:.2f}): <b>{max(0, 100 - r.pop_upside - r.pop_downside):.1f}%</b></p>",
+            f"📊 Meio (R$ {Kp:.2f}–{Kc:.2f}): <b>{f'{max(0, 100 - r.pop_upside - r.pop_downside):.1f}%' if r.pop_upside is not None and r.pop_downside is not None else '-'}</b></p>",
             "<hr>",
             f"<p><b>Resumo:</b><br>"
             f"O pior retorno de R$ {pior:.2f} ocorre se o ativo fechar abaixo de R$ {Kp:.2f}. "
@@ -836,6 +851,48 @@ class ColarDialog(QDialog):
         btn_row.addWidget(btn_fechar)
         layout.addLayout(btn_row)
         dialog.exec_()
+
+    def _exportar_debug(self, r):
+        from PyQt5.QtWidgets import QApplication, QMessageBox
+
+        lines = [
+            "=== DEBUG COLAR PROTETIVO ===",
+            "",
+            "--- INPUTS ---",
+            f"Ativo:          {r.ativo}",
+            f"Spot:           R$ {r.preco_ativo:.4f}",
+            f"Cod Call:       {r.cod_call}",
+            f"Strike Call:    R$ {r.strike_call:.4f}",
+            f"Cod Put:        {r.cod_put}",
+            f"Strike Put:     R$ {r.strike_put:.4f}",
+            f"Premio Call:    R$ {r.premio_call:.4f}  (OCP)",
+            f"Premio Put:     R$ {r.premio_put:.4f}  (OVD)",
+            f"DTE:            {r.dias}d",
+            f"IV Call:        {r.iv_call:.2f}%",
+            f"IV Put:         {r.iv_put:.2f}%",
+            f"Vencimento:     {r.vencimento}",
+            "",
+            "--- MONTAGEM ---",
+            f"Custo liquido:      R$ {r.custo_liquido:.4f}",
+            f"Pior retorno:       R$ {r.pior_retorno:.4f}",
+            f"Pct ganho:          {r.pct_ganho*100:.4f}%",
+            f"Pct CDI:            {r.pct_cdi:.2f}x",
+            "",
+            "--- PROBABILIDADES ---",
+            f"Pop Upside (>{r.strike_call:.2f}): {f'{r.pop_upside:.1f}%' if r.pop_upside is not None else 'N/D'}",
+            f"Pop Downside (<{r.strike_put:.2f}): {f'{r.pop_downside:.1f}%' if r.pop_downside is not None else 'N/D'}",
+            "",
+            "--- RISCO ---",
+            f"Risco Leilao:       {r.risco_leilao.value}",
+            f"Em leilao:          {r.em_leilao}",
+            f"Tipo:               {r.tipo.value}",
+            f"Viavel:             {r.viavel}",
+        ]
+        texto = "\n".join(lines)
+        QApplication.clipboard().setText(texto)
+        QMessageBox.information(self, "Debug Exportado",
+                                "Dados de debug copiados para a área de transferência.\n"
+                                "Cole (Ctrl+V) aqui no chat.")
 
     def _plot_payoff(self, r):
         import numpy as np
@@ -1185,6 +1242,8 @@ class ColarDialog(QDialog):
                 "risco_str": r.risco_leilao.value,
                 "dias": r.dias,
                 "viavel": r.viavel,
+                "pop_upside": r.pop_upside,
+                "pop_downside": r.pop_downside,
             })
 
         self.model.atualizar(items)

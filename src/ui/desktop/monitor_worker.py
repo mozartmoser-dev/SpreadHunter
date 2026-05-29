@@ -56,6 +56,7 @@ class MonitorWorker(QThread):
         self._box_auto = False
         self._box_mutex = QMutex()
         self._box_cycle = 0
+        self._ultimo_dados_mercado: dict | None = None
 
     def run(self):
         com_initialized = False
@@ -210,6 +211,7 @@ class MonitorWorker(QThread):
         dados_mercado = self._mercado_provider.capturar_dados_mercado()
         if not dados_mercado:
             return
+        self._ultimo_dados_mercado = dados_mercado
 
         resultados = self._monitor_uc.varrer(dados_mercado)
         if not self._mostrar_tp_op:
@@ -227,7 +229,12 @@ class MonitorWorker(QThread):
             self._forcar_colar = False
             self._colar_mutex.unlock()
 
-            resultados = self._monitor_colares_uc.varrer(rtd)
+            # Para varredura manual, captura dados frescos; caso contrario usa ultimo cache
+            dados_md = getattr(self, '_ultimo_dados_mercado', None)
+            if dados_md is None or len(dados_md) < 50:
+                dados_md = self._mercado_provider.capturar_dados_mercado()
+                self._ultimo_dados_mercado = dados_md
+            resultados = self._monitor_colares_uc.varrer(None, dados_mercado=dados_md)
             self.colares_atualizados.emit(resultados)
 
     def _processar_colar_calendario(self, rtd):

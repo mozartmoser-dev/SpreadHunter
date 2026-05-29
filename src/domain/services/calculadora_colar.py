@@ -43,8 +43,8 @@ class ResultadoColar:
     em_leilao: bool
     iv_call: float = 0.0
     iv_put: float = 0.0
-    pop_upside: float = 0.0
-    pop_downside: float = 0.0
+    pop_upside: float | None = None
+    pop_downside: float | None = None
 
 
 @dataclass
@@ -90,7 +90,29 @@ class CalculadoraColar:
                 if tipo_opcao == 'call':
                     return CalculadoraColar.black_scholes_call(S, K, T, r, sigma) - preco
                 return CalculadoraColar.black_scholes_put(S, K, T, r, sigma) - preco
-            return brentq(f, 1e-6, 5.0)
+
+            intrinsic = max(S - K, 0) if tipo_opcao == 'call' else max(K - S, 0)
+            if abs(preco - intrinsic) < 1e-10:
+                return 0.0
+
+            a, b = 1e-8, 5.0
+            fa, fb = f(a), f(b)
+            for _ in range(20):
+                if fa * fb < 0:
+                    return brentq(f, a, b)
+                if fa == 0:
+                    return 0.0
+                if fb == 0:
+                    b *= 2
+                    fb = f(b)
+                    continue
+                if abs(fa) < abs(fb):
+                    a = max(a / 2, 1e-12)
+                    fa = f(a)
+                else:
+                    b *= 2
+                    fb = f(b)
+            return None
         except (ValueError, RuntimeError):
             return None
 
@@ -177,11 +199,18 @@ class CalculadoraColar:
         r = self.taxa_cdi
         iv_call = self.calcular_iv(preco_ativo, strike_call, T, r, premio_call, 'call')
         iv_put = self.calcular_iv(preco_ativo, strike_put, T, r, premio_put, 'put')
-        if iv_call and iv_put:
-            pop_upside = self.calcular_probabilidade_upside(preco_ativo, strike_call, T, r, (iv_call + iv_put) / 2)
-            pop_downside = self.calcular_probabilidade_downside(preco_ativo, strike_put, T, r, (iv_call + iv_put) / 2)
-        else:
-            pop_upside = pop_downside = 0.0
+        pop_upside = pop_downside = None
+        if iv_call is not None and iv_put is not None:
+            sigma_medio = (iv_call + iv_put) / 2
+            if sigma_medio > 0:
+                pop_upside = self.calcular_probabilidade_upside(preco_ativo, strike_call, T, r, sigma_medio)
+                pop_downside = self.calcular_probabilidade_downside(preco_ativo, strike_put, T, r, sigma_medio)
+        elif iv_call is not None and iv_call > 0:
+            pop_upside = self.calcular_probabilidade_upside(preco_ativo, strike_call, T, r, iv_call)
+            pop_downside = self.calcular_probabilidade_downside(preco_ativo, strike_put, T, r, iv_call)
+        elif iv_put is not None and iv_put > 0:
+            pop_upside = self.calcular_probabilidade_upside(preco_ativo, strike_call, T, r, iv_put)
+            pop_downside = self.calcular_probabilidade_downside(preco_ativo, strike_put, T, r, iv_put)
 
         return ResultadoColar(
             ativo=ativo,
@@ -202,8 +231,8 @@ class CalculadoraColar:
             risco_leilao=risco,
             viavel=viavel,
             em_leilao=em_leilao,
-            iv_call=round(iv_call * 100, 2) if iv_call else 0.0,
-            iv_put=round(iv_put * 100, 2) if iv_put else 0.0,
-            pop_upside=round(pop_upside * 100, 1),
-            pop_downside=round(pop_downside * 100, 1),
+            iv_call=round(iv_call * 100, 2) if iv_call is not None else 0.0,
+            iv_put=round(iv_put * 100, 2) if iv_put is not None else 0.0,
+            pop_upside=round(pop_upside * 100, 1) if pop_upside is not None else None,
+            pop_downside=round(pop_downside * 100, 1) if pop_downside is not None else None,
         )

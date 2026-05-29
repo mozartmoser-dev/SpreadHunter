@@ -13,12 +13,10 @@ from PyQt5.QtGui import QFont, QColor, QBrush, QIcon, QPixmap, QPainter
 
 
 from src.infrastructure.persistence.database import get_db_path
-from src.application.use_cases.importar_base import ImportarBaseUseCase
 from src.application.use_cases.exportar_operacao import ExportarOperacaoUseCase
 from src.ui.desktop.theme import DARK_THEME_QSS, Palette, get_theme_qss
 from src.ui.desktop.monitor_table_model import MonitorTableModel
 from src.ui.desktop.monitor_worker import MonitorWorker
-from src.ui.desktop.import_dialog import ImportDialog
 from src.ui.desktop.export_dialog import ExportDialog
 from src.ui.desktop.parametros_widget import ParametrosWidget
 from src.ui.desktop.engine_dashboard import EngineDashboard
@@ -52,7 +50,6 @@ class MainWindow(QMainWindow):
         self._ultimos_colares_cal = []
         self._ultimos_boxes = []
 
-        self.importar_uc = ImportarBaseUseCase(self.db_path)
         self.exportar_uc = ExportarOperacaoUseCase(self.db_path)
 
         self._rtd_connected = False
@@ -80,7 +77,6 @@ class MainWindow(QMainWindow):
         self._scan_timer = QTimer(self)
         self._scan_timer.timeout.connect(self._update_scan_status)
         self._scan_timer.start(1000)
-        self._refresh_ativos_filter()
 
     def _setup_ui(self):
         self.setWindowTitle("SpreadHunter — Monitor de Oportunidades")
@@ -191,22 +187,10 @@ class MainWindow(QMainWindow):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(12)
 
-        self.btn_import = QPushButton("📥  Importar Base")
-        self.btn_import.setProperty("class", "primary")
-        self.btn_import.clicked.connect(self._abrir_importacao)
-        btn_layout.addWidget(self.btn_import)
-
-        self.btn_importflash = QPushButton("⚡  ImportFlash")
-        self.btn_importflash.clicked.connect(self._abrir_importflash)
-        self.btn_importflash.setStyleSheet(f"""
-            QPushButton {{
-                background-color: #1a3a5c; color: {Palette.TEXT_PRIMARY};
-                border: 1px solid #2c6fbb; border-radius: 4px;
-                padding: 6px 12px; font-size: 9pt; font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: #204a77; }}
-        """)
-        btn_layout.addWidget(self.btn_importflash)
+        self.btn_calc = QPushButton("🧮  Calculadora")
+        self.btn_calc.setProperty("class", "primary")
+        self.btn_calc.clicked.connect(self._abrir_calculadora)
+        btn_layout.addWidget(self.btn_calc)
 
         self.btn_historico = QPushButton("📊  Histórico")
         self.btn_historico.clicked.connect(self._abrir_historico)
@@ -266,57 +250,19 @@ class MainWindow(QMainWindow):
         self.chk_tp_op.toggled.connect(self._on_tp_op_toggled)
         btn_layout.addWidget(self.chk_tp_op)
 
-        self.lbl_count = QLabel("0 oportunidades | 0 viaveis")
+        self.lbl_count = QLabel("")
         self.lbl_count.setStyleSheet(
-            "color: {}; font-size: 10pt; font-weight: bold; padding: 0 8px;".format(Palette.TEXT_SECONDARY)
+            "color: {}; font-size: 9pt; font-weight: bold; padding: 0 6px;".format(Palette.TEXT_SECONDARY)
         )
-        btn_layout.addWidget(self.lbl_count)
 
         self._status_colar = QLabel("")
-        self._status_colar.setStyleSheet("color: {}; font-size: 10pt; font-weight: bold; padding: 0 8px;".format(Palette.GREEN))
-        btn_layout.addWidget(self._status_colar)
-
+        self._status_colar.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold; padding: 0 6px;".format(Palette.GREEN))
         self._status_colar_cal = QLabel("")
-        self._status_colar_cal.setStyleSheet("color: {}; font-size: 10pt; font-weight: bold; padding: 0 8px;".format(Palette.YELLOW))
-        btn_layout.addWidget(self._status_colar_cal)
-
+        self._status_colar_cal.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold; padding: 0 6px;".format(Palette.YELLOW))
         self._status_box = QLabel("")
-        self._status_box.setStyleSheet("color: {}; font-size: 10pt; font-weight: bold; padding: 0 8px;".format(Palette.RED))
-        btn_layout.addWidget(self._status_box)
+        self._status_box.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold; padding: 0 6px;".format(Palette.RED))
 
         btn_layout.addSpacing(16)
-
-        self.lbl_filter_ativo = QLabel("Filtrar Ativo:")
-        self.lbl_filter_ativo.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold;".format(Palette.TEXT_MUTED))
-        btn_layout.addWidget(self.lbl_filter_ativo)
-
-        self.cmb_filter_ativo = QComboBox()
-        self.cmb_filter_ativo.setStyleSheet("""
-            QComboBox {
-                background-color: #1e1e2f;
-                color: #e0e0e0;
-                border: 1px solid #2d2d44;
-                border-radius: 4px;
-                padding: 2px 8px;
-                min-width: 100px;
-                font-weight: bold;
-                font-size: 9pt;
-            }
-            QComboBox::drop-down {
-                border: 0;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #1e1e2f;
-                color: #e0e0e0;
-                selection-background-color: #2d2d44;
-                selection-color: #1abc9c;
-                border: 1px solid #2d2d44;
-            }
-        """)
-        self.cmb_filter_ativo.addItem("TODOS")
-        self.cmb_filter_ativo.currentIndexChanged.connect(self._on_filter_ativo_changed)
-        btn_layout.addWidget(self.cmb_filter_ativo)
-
         btn_layout.addStretch()
 
         self.lbl_rtd_indicator = QLabel(" RTD: --- ")
@@ -413,9 +359,18 @@ class MainWindow(QMainWindow):
     def _setup_status_bar(self):
         self._status_left = QLabel("Pronto")
         self._status_left.setProperty("class", "")
+        self.statusBar().addWidget(self._status_left, 1)
+
+        self.lbl_count.setVisible(True)
+        self._status_colar.setVisible(True)
+        self._status_colar_cal.setVisible(True)
+        self._status_box.setVisible(True)
+
+        for w in (self.lbl_count, self._status_colar, self._status_colar_cal, self._status_box):
+            self.statusBar().addPermanentWidget(w)
+
         self._status_right = QLabel("")
         self._status_right.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.statusBar().addWidget(self._status_left, 1)
         self.statusBar().addPermanentWidget(self._status_right)
         self._update_cdi_display()
 
@@ -497,7 +452,6 @@ class MainWindow(QMainWindow):
             self.btn_varrer.setProperty("class", "monitor-active")
             self.btn_varrer.style().unpolish(self.btn_varrer)
             self.btn_varrer.style().polish(self.btn_varrer)
-            self.btn_import.setEnabled(False)
             self._update_rtd_indicator(self._rtd_connected)
             if not self._worker.isRunning():
                 self._worker.start()
@@ -513,7 +467,6 @@ class MainWindow(QMainWindow):
             self.btn_varrer.setProperty("class", "success")
             self.btn_varrer.style().unpolish(self.btn_varrer)
             self.btn_varrer.style().polish(self.btn_varrer)
-            self.btn_import.setEnabled(True)
             self._update_rtd_indicator(False)
             if self._worker.isRunning():
                 self._worker.pausar()
@@ -534,55 +487,18 @@ class MainWindow(QMainWindow):
         self._filtrar_e_atualizar_tabela()
 
     def _filtrar_e_atualizar_tabela(self):
-        ativo_filtro = self.cmb_filter_ativo.currentText()
-        if ativo_filtro == "TODOS":
-            filtrados = self._resultados_brutos
+        self.table_model.atualizar(self._resultados_brutos)
+        self._total_opps = len(self._resultados_brutos)
+        self._total_viaveis = sum(1 for r in self._resultados_brutos if r.viavel)
+        if self._total_opps > 0:
+            cor = Palette.GREEN if self._total_viaveis > 0 else Palette.TEXT_MUTED
+            self.lbl_count.setStyleSheet(f"color: {Palette.TEXT_SECONDARY}; font-size: 9pt; font-weight: bold; padding: 0 6px;")
+            self.lbl_count.setText(f"{self._total_opps} opps | {self._total_viaveis} viav")
         else:
-            filtrados = [r for r in self._resultados_brutos if r.ativo == ativo_filtro]
-
-        self.table_model.atualizar(filtrados)
-        self._total_opps = len(filtrados)
-        self._total_viaveis = sum(1 for r in filtrados if r.viavel)
-        viaveis_color = Palette.GREEN if self._total_viaveis > 0 else Palette.TEXT_MUTED
-        self.lbl_count.setText(
-            '<span style="color:{}">{} oportunidades</span> | '
-            '<span style="color:{}; font-weight:bold">{} viaveis</span>'.format(
-                Palette.TEXT_SECONDARY, self._total_opps, viaveis_color, self._total_viaveis
-            )
-        )
-        self.lbl_count.repaint()
+            self.lbl_count.setText("")
         self._last_scan_time = datetime.now()
         self._update_rtd_indicator(self._rtd_connected)
         self._update_scan_status()
-
-    def _on_filter_ativo_changed(self, index):
-        self._filtrar_e_atualizar_tabela()
-
-    def _refresh_ativos_filter(self):
-        from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
-        repo = InstrumentoRepository(self.db_path)
-        try:
-            all_inst = repo.get_all()
-            ativos = sorted(list(set(i.ativo for i in all_inst if i.ativo)))
-        except Exception:
-            ativos = []
-
-        current_selection = self.cmb_filter_ativo.currentText()
-
-        self.cmb_filter_ativo.blockSignals(True)
-        self.cmb_filter_ativo.clear()
-        self.cmb_filter_ativo.addItem("TODOS")
-        for ativo in ativos:
-            if ativo:
-                self.cmb_filter_ativo.addItem(ativo)
-
-        idx = self.cmb_filter_ativo.findText(current_selection)
-        if idx >= 0:
-            self.cmb_filter_ativo.setCurrentIndex(idx)
-        else:
-            self.cmb_filter_ativo.setCurrentIndex(0)
-
-        self.cmb_filter_ativo.blockSignals(False)
 
     def _on_status_message(self, msg: str):
         self._status_left.setText(msg)
@@ -605,75 +521,10 @@ class MainWindow(QMainWindow):
         )
         self._status_left.setStyleSheet("color: {};".format(Palette.TEXT_SECONDARY))
 
-    def _abrir_importacao(self):
-        dialog = ImportDialog(self.importar_uc, self)
+    def _abrir_calculadora(self):
+        from src.ui.desktop.calculadora_dialog import CalculadoraDialog
+        dialog = CalculadoraDialog(self)
         dialog.exec_()
-        if dialog.result is not None:
-            self._status_left.setText(
-                "Importados {} instrumentos, {} ativos".format(
-                    dialog.result.total_importados, len(dialog.result.ativos)
-                )
-            )
-            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
-            self._worker.recarregar_instrumentos()
-            self._refresh_ativos_filter()
-
-    def _abrir_importflash(self):
-        from PyQt5.QtWidgets import QMessageBox
-        resp = QMessageBox.question(
-            self,
-            "ImportFlash",
-            "Isso vai SUBSTITUIR toda a base de instrumentos "
-            "pelos dados atuais do opcoes.net.br.\n\n"
-            "O processo leva ~5 minutos.\n"
-            "Continuar?",
-            QMessageBox.Yes | QMessageBox.No,
-        )
-        if resp != QMessageBox.Yes:
-            return
-
-        from PyQt5.QtCore import QProcess
-        script_dir = Path(__file__).resolve().parent.parent.parent.parent / "scripts" / "validar_opcoes"
-        self._importflash_process = QProcess(self)
-        self._importflash_process.setWorkingDirectory(str(script_dir))
-        script = str(script_dir / "importflash.py")
-
-        self._importflash_process.readyReadStandardOutput.connect(
-            lambda: self._on_importflash_output(
-                self._importflash_process.readAllStandardOutput().data().decode("utf-8", errors="replace")
-            )
-        )
-        self._importflash_process.readyReadStandardError.connect(
-            lambda: self._on_importflash_output(
-                self._importflash_process.readAllStandardError().data().decode("utf-8", errors="replace"),
-                is_error=True,
-            )
-        )
-        self._importflash_process.finished.connect(self._on_importflash_finished)
-
-        self.btn_importflash.setEnabled(False)
-        self.btn_importflash.setText("⏳  ImportFlash...")
-        self._status_left.setText("ImportFlash: varrendo opcoes.net.br...")
-        self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.YELLOW))
-
-        self._importflash_process.start(
-            sys.executable, [script, "--excluir", "IBOV11", "--delay", "1.0", "--incluir", "VALE3"]
-        )
-
-    def _on_importflash_output(self, text: str, is_error=False):
-        print(text, end="", flush=True)
-
-    def _on_importflash_finished(self, exit_code, exit_status):
-        self.btn_importflash.setEnabled(True)
-        self.btn_importflash.setText("⚡  ImportFlash")
-        if exit_code == 0:
-            self._worker.recarregar_instrumentos()
-            self._refresh_ativos_filter()
-            self._status_left.setText("ImportFlash: concluido com sucesso!")
-            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
-        else:
-            self._status_left.setText(f"ImportFlash: erro (codigo {exit_code})")
-            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.RED))
 
     def _abrir_historico(self):
         from src.ui.desktop.historico_dialog import HistoricoDialog
@@ -699,9 +550,9 @@ class MainWindow(QMainWindow):
         self._ultimos_colares = resultados
         n_viaveis = sum(1 for r in resultados if r.viavel)
         if n_viaveis > 0:
-            self._status_colar.setText(f"🛡 {n_viaveis} colar{'es' if n_viaveis > 1 else ''}")
+            self._status_colar.setText(f"🛡 {n_viaveis}")
             self._status_colar.setStyleSheet(
-                f"color: {Palette.GREEN}; font-weight: bold; padding: 0 8px;"
+                f"color: {Palette.GREEN}; font-weight: bold; padding: 0 6px;"
             )
         else:
             self._status_colar.setText("")
@@ -717,10 +568,7 @@ class MainWindow(QMainWindow):
         self._colar_dialog.iniciar_scan_signal.connect(self._worker.iniciar_auto_colar)
         self._colar_dialog.parar_scan_signal.connect(self._on_parar_colar)
         self._colar_dialog.selecao_alterada.connect(self._salvar_selecao_colar)
-        ativo_main = self.cmb_filter_ativo.currentText()
-        if ativo_main and ativo_main != "TODOS":
-            self._colar_dialog.restaurar_selecao([ativo_main])
-        elif hasattr(self, "_colar_selecionados") and self._colar_selecionados:
+        if hasattr(self, "_colar_selecionados") and self._colar_selecionados:
             self._colar_dialog.restaurar_selecao(self._colar_selecionados)
         if getattr(self, "_colar_auto_active", False):
             self._colar_dialog.sync_auto_active()
@@ -742,10 +590,7 @@ class MainWindow(QMainWindow):
         self._colar_cal_dialog.iniciar_scan_signal.connect(self._worker.iniciar_auto_colar_cal)
         self._colar_cal_dialog.parar_scan_signal.connect(self._on_parar_colar_cal)
         self._colar_cal_dialog.selecao_alterada.connect(self._salvar_selecao_colar_cal)
-        ativo_main = self.cmb_filter_ativo.currentText()
-        if ativo_main and ativo_main != "TODOS":
-            self._colar_cal_dialog.restaurar_selecao([ativo_main])
-        elif hasattr(self, "_colar_cal_selecionados") and self._colar_cal_selecionados:
+        if hasattr(self, "_colar_cal_selecionados") and self._colar_cal_selecionados:
             self._colar_cal_dialog.restaurar_selecao(self._colar_cal_selecionados)
         if getattr(self, "_colar_cal_auto_active", False):
             self._colar_cal_dialog.sync_auto_active()
@@ -767,7 +612,7 @@ class MainWindow(QMainWindow):
         if n_viaveis > 0:
             self._status_colar_cal.setText(f"📅 {n_viaveis}")
             self._status_colar_cal.setStyleSheet(
-                f"color: {Palette.YELLOW}; font-weight: bold; padding: 0 8px;"
+                f"color: {Palette.YELLOW}; font-weight: bold; padding: 0 6px;"
             )
         else:
             self._status_colar_cal.setText("")
@@ -780,7 +625,7 @@ class MainWindow(QMainWindow):
         if n_viaveis > 0:
             self._status_box.setText(f"📦 {n_viaveis}")
             self._status_box.setStyleSheet(
-                f"color: {Palette.RED}; font-weight: bold; padding: 0 8px;"
+                f"color: {Palette.RED}; font-weight: bold; padding: 0 6px;"
             )
         else:
             self._status_box.setText("")

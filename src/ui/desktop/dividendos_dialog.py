@@ -207,6 +207,37 @@ class DividendosDialog(QDialog):
         self.cmb_filtro.currentIndexChanged.connect(self._aplicar_filtro)
         header_layout.addWidget(self.cmb_filtro)
 
+        lbl_ordem = QLabel("Ordenar:")
+        lbl_ordem.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold;".format(Palette.TEXT_MUTED))
+        header_layout.addWidget(lbl_ordem)
+
+        self.cmb_ordem = QComboBox()
+        self.cmb_ordem.addItem("Data COM ↓", ("data_com", True))
+        self.cmb_ordem.addItem("Data COM ↑", ("data_com", False))
+        self.cmb_ordem.addItem("Ativo A-Z", ("ativo", False))
+        self.cmb_ordem.addItem("Valor ↓", ("valor", True))
+        self.cmb_ordem.setStyleSheet("""
+            QComboBox {
+                background-color: #1e1e2f;
+                color: #e0e0e0;
+                border: 1px solid #2d2d44;
+                border-radius: 4px;
+                padding: 2px 8px;
+                min-width: 120px;
+                font-size: 9pt;
+            }
+            QComboBox::drop-down { border: 0; }
+            QComboBox QAbstractItemView {
+                background-color: #1e1e2f;
+                color: #e0e0e0;
+                selection-background-color: #2d2d44;
+                selection-color: #1abc9c;
+                border: 1px solid #2d2d44;
+            }
+        """)
+        self.cmb_ordem.currentIndexChanged.connect(self._aplicar_filtro)
+        header_layout.addWidget(self.cmb_ordem)
+
         self.btn_atualizar = QPushButton("🔄 Atualizar")
         self.btn_atualizar.setProperty("class", "primary")
         self.btn_atualizar.clicked.connect(self._atualizar_proventos)
@@ -303,6 +334,16 @@ class DividendosDialog(QDialog):
             filtrados = [d for d in self._all_items if d.get("data_com") and hoje.isoformat() <= d["data_com"] <= fim]
         else:
             filtrados = self._all_items
+
+        ordem = self.cmb_ordem.currentData()
+        if ordem:
+            chave, desc = ordem
+            if chave == "valor":
+                filtrados = sorted(filtrados, key=lambda d: d.get(chave, 0) or 0, reverse=desc)
+            elif chave == "data_com":
+                filtrados = sorted(filtrados, key=lambda d: str(d.get(chave, "") or ""), reverse=desc)
+            else:
+                filtrados = sorted(filtrados, key=lambda d: str(d.get(chave, "") or ""), reverse=desc)
 
         self.model.atualizar(filtrados)
         self.lbl_status.setText(f"{len(filtrados)} registros")
