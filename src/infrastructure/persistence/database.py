@@ -39,6 +39,13 @@ def _seed_parametros_colar(conn):
         ("taxa_liquidacao_pct", "0.000275", "GERAL", "Taxa de liquidacao B3 (% do financeiro)"),
         ("colar_qul_min_put", "100", "COLAR", "Qtd minima negociada (QUL) para PUT"),
         ("colar_qul_min_call", "100", "COLAR", "Qtd minima negociada (QUL) para CALL"),
+        ("colar_risco_baixo_vov_min", "1000", "COLAR", "VOV/VOC mínimo para risco baixo de despernamento"),
+        ("elegibilidade_strike_max_pct", "0.70", "BOX_SINTETICO", "Strike máximo % do spot para elegibilidade de pescaria"),
+        ("dte_call_min", "29", "COLLAR_CALENDARIO", "DTE mínimo para call no collar calendário"),
+        ("dte_call_max", "60", "COLLAR_CALENDARIO", "DTE máximo para call no collar calendário"),
+        ("dte_extra_min", "30", "COLLAR_CALENDARIO", "Spread DTE mínimo entre put e call"),
+        ("dte_extra_max", "90", "COLLAR_CALENDARIO", "Spread DTE máximo entre put e call"),
+        ("dte_total_max", "120", "COLLAR_CALENDARIO", "DTE máximo total para qualquer perna"),
     ]
     for chave, valor, estrategia, descricao in params:
         try:

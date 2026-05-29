@@ -18,7 +18,7 @@ class MonitorBoxUseCase:
             param_cdi = self.param_repo.get_by_chave("taxa_cdi")
             taxa_cdi = param_cdi.valor if param_cdi else 0.1450
             param_risco = self.param_repo.get_by_chave("box_premio_risco")
-            premio = param_risco.valor if param_risco else 1.0
+            premio = param_risco.valor if param_risco else 1.08
             emol = self._get_param("taxa_emolumento_pct", 0.00025)
             liq = self._get_param("taxa_liquidacao_pct", 0.000275)
             self._calculadora = CalculadoraBox(taxa_cdi, premio, emol, liq)
@@ -34,7 +34,7 @@ class MonitorBoxUseCase:
 
     def _soh_europeia(self) -> bool:
         param = self.param_repo.get_by_chave("box_soh_europeia")
-        return bool(param.valor) if param else False
+        return bool(param.valor) if param else True
 
     def _extrair(self, inst: InstrumentoOpcional, rtd) -> dict | None:
         strike = rtd.ler_campo_cache(inst.cod_put, "PEX")

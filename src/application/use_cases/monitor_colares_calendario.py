@@ -47,11 +47,11 @@ class MonitorColaresCalendarioUseCase:
 
         if params is None:
             params = {
-                "dte_call_min": 29,
-                "dte_call_max": 60,
-                "dte_extra_min": 30,
-                "dte_extra_max": 90,
-                "dte_total_max": 120,
+                "dte_call_min": self._get_param("dte_call_min", 29),
+                "dte_call_max": self._get_param("dte_call_max", 60),
+                "dte_extra_min": self._get_param("dte_extra_min", 30),
+                "dte_extra_max": self._get_param("dte_extra_max", 90),
+                "dte_total_max": self._get_param("dte_total_max", 120),
             }
 
         hoje = date.today()

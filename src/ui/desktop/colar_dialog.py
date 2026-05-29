@@ -37,7 +37,7 @@ class ColarTableModel(QAbstractTableModel):
         ("Cód Call", "cod_call"),
         ("Custo Liq", "custo_liquido"),
         ("Pior Ret", "pior_retorno"),
-        ("Risco", "risco_str"),
+        ("Risco Desp.", "risco_str"),
         ("Dias", "dias"),
     ]
 

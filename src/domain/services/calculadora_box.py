@@ -36,7 +36,7 @@ class ResultadoBox:
 
 
 class CalculadoraBox:
-    def __init__(self, taxa_cdi: float = 0.1450, premio_risco: float = 1.0,
+    def __init__(self, taxa_cdi: float = 0.1450, premio_risco: float = 1.08,
                  taxa_emolumento: float | None = None, taxa_liquidacao: float | None = None):
         self.taxa_cdi = taxa_cdi
         self.premio_risco = premio_risco

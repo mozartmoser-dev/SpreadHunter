@@ -60,9 +60,10 @@ class DadosPata:
 
 
 class CalculadoraColar:
-    def __init__(self, taxa_cdi: float, premio_risco_colar: float = 1.0):
+    def __init__(self, taxa_cdi: float, premio_risco_colar: float = 1.05, colar_risco_baixo_vov_min: float = 1000.0):
         self.taxa_cdi = taxa_cdi
         self.premio_risco_colar = premio_risco_colar
+        self.colar_risco_baixo_vov_min = colar_risco_baixo_vov_min
 
     @staticmethod
     def black_scholes_call(S, K, T, r, sigma):
@@ -127,7 +128,7 @@ class CalculadoraColar:
             return RiscoLeilao.ALTO
         if vov_put <= 0 or voc_call <= 0:
             return RiscoLeilao.ALTO
-        if vov_put >= 1000 and voc_call >= 1000:
+        if vov_put >= self.colar_risco_baixo_vov_min and voc_call >= self.colar_risco_baixo_vov_min:
             return RiscoLeilao.BAIXO
         return RiscoLeilao.MEDIO
 

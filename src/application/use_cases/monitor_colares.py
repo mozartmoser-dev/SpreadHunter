@@ -19,8 +19,10 @@ class MonitorColaresUseCase:
             param = self.param_repo.get_by_chave("taxa_cdi")
             taxa_cdi = param.valor if param else 0.1450
             param_risco = self.param_repo.get_by_chave("premio_risco_colar")
-            premio = param_risco.valor if param_risco else 1.0
-            self._calculadora = CalculadoraColar(taxa_cdi, premio)
+            premio = param_risco.valor if param_risco else 1.05
+            param_vov = self.param_repo.get_by_chave("colar_risco_baixo_vov_min")
+            vov_min = param_vov.valor if param_vov else 1000.0
+            self._calculadora = CalculadoraColar(taxa_cdi, premio, colar_risco_baixo_vov_min=vov_min)
         return self._calculadora
 
     def recarregar_parametros(self):
@@ -128,7 +130,7 @@ class MonitorColaresUseCase:
 
             members.sort(key=lambda m: m["strike"])
             preco_ativo = members[0]["preco_ativo"]
-            dist_max = preco_ativo * params.get("dist_max_pct", 0.3)
+            dist_max = preco_ativo * params.get("dist_max_pct", 0.15)
 
             for i in range(len(members)):
                 for j in range(i + 1, len(members)):

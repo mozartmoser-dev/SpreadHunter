@@ -47,7 +47,7 @@ class ResultadoColarCalendario:
 
 
 class CalculadoraColarCalendario:
-    def __init__(self, taxa_cdi: float = 0.1450, premio_risco: float = 1.0):
+    def __init__(self, taxa_cdi: float = 0.1450, premio_risco: float = 1.2):
         self.taxa_cdi = taxa_cdi
         self.premio_risco = premio_risco
 

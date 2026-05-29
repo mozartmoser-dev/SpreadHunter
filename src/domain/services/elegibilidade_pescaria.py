@@ -14,8 +14,9 @@ class CandidatoPescaria:
 
 
 class ElegibilidadePescaria:
-    def __init__(self, taxa_ganho: float):
+    def __init__(self, taxa_ganho: float, strike_max_pct: float = 0.70):
         self.taxa_ganho = taxa_ganho
+        self.strike_max_pct = strike_max_pct
 
     def filtrar_candidatos(
         self,
@@ -45,7 +46,7 @@ class ElegibilidadePescaria:
     def _criterio_strike_itm(self, c: CandidatoPescaria) -> bool:
         if c.preco_ativo <= 0:
             return False
-        return c.strike_call_itm <= c.preco_ativo * 0.70
+        return c.strike_call_itm <= c.preco_ativo * self.strike_max_pct
 
     def _criterio_col31(self, c: CandidatoPescaria) -> bool:
         return c.col31_valor > 0

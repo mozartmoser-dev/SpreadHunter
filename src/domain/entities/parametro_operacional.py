@@ -58,4 +58,11 @@ class ParametroOperacional:
         "box_premio_risco": {"valor": 1.08, "estrategia": "BOX_4P", "descricao": "Premio risco Box 4P (x CDI)"},
         "box_qtd_min": {"valor": 100, "estrategia": "BOX_4P", "descricao": "Qtd min contratos por perna"},
         "box_soh_europeia": {"valor": 1.0, "estrategia": "BOX_4P", "descricao": "So aceitar opcoes europeias (1=sim, 0=aceita americanas)"},
+        "colar_risco_baixo_vov_min": {"valor": 1000.0, "estrategia": "COLAR", "descricao": "VOV/VOC mínimo para risco baixo de despernamento"},
+        "elegibilidade_strike_max_pct": {"valor": 0.70, "estrategia": "BOX_SINTETICO", "descricao": "Strike máximo % do spot para elegibilidade de pescaria"},
+        "dte_call_min": {"valor": 29.0, "estrategia": "COLLAR_CALENDARIO", "descricao": "DTE mínimo para call no collar calendário"},
+        "dte_call_max": {"valor": 60.0, "estrategia": "COLLAR_CALENDARIO", "descricao": "DTE máximo para call no collar calendário"},
+        "dte_extra_min": {"valor": 30.0, "estrategia": "COLLAR_CALENDARIO", "descricao": "Spread DTE mínimo entre put e call"},
+        "dte_extra_max": {"valor": 90.0, "estrategia": "COLLAR_CALENDARIO", "descricao": "Spread DTE máximo entre put e call"},
+        "dte_total_max": {"valor": 120.0, "estrategia": "COLLAR_CALENDARIO", "descricao": "DTE máximo total para qualquer perna"},
     }
