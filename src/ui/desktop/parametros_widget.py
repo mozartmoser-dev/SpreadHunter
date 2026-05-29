@@ -27,6 +27,7 @@ ESTRATEGIA_LABELS = {
     "PERFORMANCE": "Ajuste de Performance",
     "TELEGRAM": "Notificações Telegram",
     "COLAR": "Colar Protetivo",
+    "BOX_4P": "Box Spread 4 Pontas",
 }
 
 ESTRATEGIA_COLORS = {
@@ -37,6 +38,7 @@ ESTRATEGIA_COLORS = {
     "PERFORMANCE": Palette.YELLOW,
     "TELEGRAM": Palette.GREEN,
     "COLAR": "#1abc9c",
+    "BOX_4P": "#e74c3c",
 }
 
 PARAMETROS_POR_ESTRATEGIA = {
@@ -88,6 +90,11 @@ PARAMETROS_POR_ESTRATEGIA = {
     "COLLAR_CALENDARIO": [
         ("calendario_strike_diff_pct", "Max diff % entre strikes"),
     ],
+    "BOX_4P": [
+        ("box_premio_risco", "Premio risco (x CDI)"),
+        ("box_qtd_min", "Qtd min contratos por perna"),
+        ("box_soh_europeia", "So aceitar opcoes europeias"),
+    ],
 }
 
 
@@ -124,7 +131,7 @@ class ParametrosWidget(QWidget):
             form.setContentsMargins(12, 20, 12, 12)
 
             for chave, display in params:
-                if "perf_carga_inteligente" in chave or "notif_telegram_enable" in chave:
+                if "perf_carga_inteligente" in chave or "notif_telegram_enable" in chave or "box_soh_europeia" in chave:
                     widget = QCheckBox("Habilitado")
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
                 elif "tema_visual" in chave:

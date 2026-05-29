@@ -30,7 +30,9 @@ class MonitorOportunidadesUseCase:
             taxa_cdi = self._get_param("taxa_cdi", 0.1450)
             premio_box = self._get_param("premio_risco_box", 1.5)
             premio_sbth = self._get_param("premio_risco_sbth", 1.2)
-            self._calculadora = CalculadoraBoxSbth(taxa_cdi, premio_box, premio_sbth)
+            emol = self._get_param("taxa_emolumento_pct", 0.00025)
+            liq = self._get_param("taxa_liquidacao_pct", 0.000275)
+            self._calculadora = CalculadoraBoxSbth(taxa_cdi, premio_box, premio_sbth, emol, liq)
         return self._calculadora
 
     def _get_param(self, chave: str, default: float) -> float:
@@ -42,8 +44,10 @@ class MonitorOportunidadesUseCase:
             taxa_cdi = self._get_param("taxa_cdi", 0.1450)
             premio_box = self._get_param("premio_risco_box", 1.5)
             premio_sbth = self._get_param("premio_risco_sbth", 1.2)
-            self._calculadora = CalculadoraBoxSbth(taxa_cdi, premio_box, premio_sbth)
-            self._calc_vetorizada = CalculadoraVetorizada(taxa_cdi, premio_box, premio_sbth)
+            emol = self._get_param("taxa_emolumento_pct", 0.00025)
+            liq = self._get_param("taxa_liquidacao_pct", 0.000275)
+            self._calculadora = CalculadoraBoxSbth(taxa_cdi, premio_box, premio_sbth, emol, liq)
+            self._calc_vetorizada = CalculadoraVetorizada(taxa_cdi, premio_box, premio_sbth, emol, liq)
         return self._calculadora, self._calc_vetorizada
 
     def recarregar_parametros(self):
@@ -83,12 +87,16 @@ class MonitorOportunidadesUseCase:
         chaves = list(dados_mercado.keys())
         n = len(chaves)
         
-        # Filtra instrumentos válidos e não vencidos
+        # Filtra instrumentos válidos, não vencidos e com dias mínimos
+        dias_minimos = self._get_param("perf_dias_minimos", 10)
         indices_validos = []
         for i, k in enumerate(chaves):
             inst = inst_map.get(k)
-            if inst and (not inst.vencimento or inst.vencimento > hoje):
-                indices_validos.append(i)
+            if not inst or (inst.vencimento and inst.vencimento <= hoje):
+                continue
+            if inst.dias_ate_vencimento is not None and inst.dias_ate_vencimento < dias_minimos:
+                continue
+            indices_validos.append(i)
         
         if not indices_validos:
             return []

@@ -26,6 +26,9 @@ RISCO_CORES = {
 class ColarTableModel(QAbstractTableModel):
     COLUMNS = [
         ("Ativo", "ativo"),
+        ("Pop ↑", "pop_upside"),
+        ("Pop ↓", "pop_downside"),
+        ("x CDI", "pct_cdi"),
         ("Vencimento", "vencimento"),
         ("Tipo", "tipo_str"),
         ("K Put", "strike_put"),
@@ -34,7 +37,6 @@ class ColarTableModel(QAbstractTableModel):
         ("Cód Call", "cod_call"),
         ("Custo Liq", "custo_liquido"),
         ("Pior Ret", "pior_retorno"),
-        ("% CDI", "pct_cdi"),
         ("Risco", "risco_str"),
         ("Dias", "dias"),
     ]
@@ -71,6 +73,8 @@ class ColarTableModel(QAbstractTableModel):
                     return "R$ {:.2f}".format(val)
                 if col_key == "pct_cdi":
                     return "{:.2f}x".format(val)
+                if col_key in ("pop_upside", "pop_downside"):
+                    return "{:.1f}%".format(val)
                 if col_key == "vencimento":
                     if hasattr(val, "strftime"):
                         return val.strftime("%d/%m/%Y")
@@ -96,7 +100,7 @@ class ColarTableModel(QAbstractTableModel):
             return QBrush(QColor(Palette.TEXT_MUTED))
 
         if role == Qt.TextAlignmentRole:
-            center_cols = {"strike_put", "strike_call", "custo_liquido", "pior_retorno", "pct_cdi", "risco_str", "dias"}
+            center_cols = {"strike_put", "strike_call", "custo_liquido", "pior_retorno", "pct_cdi", "pop_upside", "pop_downside", "risco_str", "dias"}
             if col_key in center_cols:
                 return Qt.AlignCenter | Qt.AlignVCenter
             return Qt.AlignLeft | Qt.AlignVCenter
@@ -119,6 +123,8 @@ class ColarSortProxy(QSortFilterProxyModel):
         super().__init__(parent)
         self._filtro_ativo = ""
         self._filtro_lista = None
+        self._pop_upside_min = 0.0
+        self._pop_downside_min = 0.0
 
     def set_filtro_ativo(self, texto: str):
         self._filtro_ativo = texto.strip().upper()
@@ -130,15 +136,44 @@ class ColarSortProxy(QSortFilterProxyModel):
         self._filtro_ativo = ""
         self.invalidateFilter()
 
+    def set_filtro_pop_upside(self, minimo: float):
+        self._pop_upside_min = minimo
+        self.invalidateFilter()
+
+    def set_filtro_pop_downside(self, minimo: float):
+        self._pop_downside_min = minimo
+        self.invalidateFilter()
+
     def filterAcceptsRow(self, row, parent):
         src = self.sourceModel()
         idx = src.index(row, 0)
         ativo = src.data(idx, Qt.DisplayRole) or ""
 
         if self._filtro_lista is not None:
-            return ativo in self._filtro_lista
-        if self._filtro_ativo:
-            return self._filtro_ativo in ativo.upper()
+            if ativo not in self._filtro_lista:
+                return False
+        elif self._filtro_ativo:
+            if self._filtro_ativo not in ativo.upper():
+                return False
+
+        if self._pop_upside_min > 0:
+            col_upside = 1
+            val = src.data(src.index(row, col_upside), Qt.DisplayRole) or "0%"
+            try:
+                if float(val.replace("%", "")) < self._pop_upside_min:
+                    return False
+            except ValueError:
+                pass
+
+        if self._pop_downside_min > 0:
+            col_downside = 2
+            val = src.data(src.index(row, col_downside), Qt.DisplayRole) or "0%"
+            try:
+                if float(val.replace("%", "")) < self._pop_downside_min:
+                    return False
+            except ValueError:
+                pass
+
         return True
 
 
@@ -211,6 +246,55 @@ class ColarDialog(QDialog):
         self._debounce_timer.timeout.connect(self._on_search_ativos_debounced)
         self.txt_filtro.textChanged.connect(self._debounce_timer.start)
         left_panel.addWidget(self.txt_filtro)
+
+        sep_filtro_pop = QFrame()
+        sep_filtro_pop.setFrameShape(QFrame.HLine)
+        sep_filtro_pop.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
+        left_panel.addWidget(sep_filtro_pop)
+
+        lbl_filtro_pop = QLabel("Filtrar por Prob. Mín.:")
+        lbl_filtro_pop.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold;".format(Palette.TEXT_MUTED))
+        left_panel.addWidget(lbl_filtro_pop)
+
+        pop_row1 = QHBoxLayout()
+        pop_row1.setSpacing(4)
+        lbl_up = QLabel("Pop↑:")
+        lbl_up.setStyleSheet(f"color: {Palette.TEXT_MUTED}; font-size: 8pt;")
+        self.spin_pop_upside = QLineEdit("0")
+        self.spin_pop_upside.setFixedWidth(50)
+        self.spin_pop_upside.setPlaceholderText("%")
+        self.spin_pop_upside.setStyleSheet("""
+            QLineEdit { background-color: #1e1e2f; color: #e0e0e0;
+                border: 1px solid #2d2d44; border-radius: 3px;
+                padding: 2px 4px; font-size: 8pt;
+            }
+            QLineEdit:focus { border-color: #1abc9c; }
+        """)
+        self.spin_pop_upside.textChanged.connect(self._on_filtro_pop_changed)
+        pop_row1.addWidget(lbl_up)
+        pop_row1.addWidget(self.spin_pop_upside)
+        pop_row1.addStretch()
+        left_panel.addLayout(pop_row1)
+
+        pop_row2 = QHBoxLayout()
+        pop_row2.setSpacing(4)
+        lbl_dn = QLabel("Pop↓:")
+        lbl_dn.setStyleSheet(f"color: {Palette.TEXT_MUTED}; font-size: 8pt;")
+        self.spin_pop_downside = QLineEdit("0")
+        self.spin_pop_downside.setFixedWidth(50)
+        self.spin_pop_downside.setPlaceholderText("%")
+        self.spin_pop_downside.setStyleSheet("""
+            QLineEdit { background-color: #1e1e2f; color: #e0e0e0;
+                border: 1px solid #2d2d44; border-radius: 3px;
+                padding: 2px 4px; font-size: 8pt;
+            }
+            QLineEdit:focus { border-color: #1abc9c; }
+        """)
+        self.spin_pop_downside.textChanged.connect(self._on_filtro_pop_changed)
+        pop_row2.addWidget(lbl_dn)
+        pop_row2.addWidget(self.spin_pop_downside)
+        pop_row2.addStretch()
+        left_panel.addLayout(pop_row2)
 
         self.txt_sel_atual = QTextEdit()
         self.txt_sel_atual.setReadOnly(True)
@@ -291,7 +375,7 @@ class ColarDialog(QDialog):
         self.proxy = ColarSortProxy()
         self.proxy.setSourceModel(self.model)
         self.proxy.setDynamicSortFilter(True)
-        self.proxy.sort(9, Qt.DescendingOrder)
+        self.proxy.sort(3, Qt.DescendingOrder)
 
         self.table_view.setModel(self.proxy)
         self.table_view.setSortingEnabled(True)
@@ -333,6 +417,20 @@ class ColarDialog(QDialog):
         todos_ativos = self._carregar_todos_ativos()
         if todos_ativos:
             self._popular_lista_ativos(todos_ativos)
+
+    def _on_filtro_pop_changed(self):
+        up = self.spin_pop_upside.text().strip()
+        dn = self.spin_pop_downside.text().strip()
+        try:
+            up_val = float(up) if up else 0.0
+        except ValueError:
+            up_val = 0.0
+        try:
+            dn_val = float(dn) if dn else 0.0
+        except ValueError:
+            dn_val = 0.0
+        self.proxy.set_filtro_pop_upside(up_val)
+        self.proxy.set_filtro_pop_downside(dn_val)
 
     def _on_search_ativos_debounced(self):
         texto = self.txt_filtro.text()
@@ -393,7 +491,7 @@ class ColarDialog(QDialog):
         else:
             texto = "Todos os ativos"
         self.txt_sel_atual.setPlainText(texto)
-        self.btn_scan.setEnabled(not todos_marcados and n_sel > 0 and not self._scanning)
+        self.btn_scan.setEnabled(n_sel > 0 and not self._scanning)
         self.selecao_alterada.emit(selecionados if not todos_marcados else [])
         self._atualizar_status()
 
@@ -667,8 +765,6 @@ class ColarDialog(QDialog):
         Kc, Kp = r.strike_call, r.strike_put
         Pc, Pp = r.premio_call, r.premio_put
         custo = r.custo_liquido
-
-        cdi_per = r.pct_ganho / r.pct_cdi if r.pct_cdi > 0 else 0
         pior = r.pior_retorno
         melhor = Kc - custo
 
@@ -700,6 +796,13 @@ class ColarDialog(QDialog):
             "<p><b>Risco de Leilão:</b> "
             f"{r.risco_leilao.value} — "
             f"{'Baixo risco de leilão' if r.risco_leilao.value == 'Baixo' else 'Pode haver dificuldade na execução'}</p>",
+            "<hr>",
+            f"<p><b>Probabilidades (IV médio {((r.iv_call + r.iv_put)/2):.1f}%):</b><br>"
+            f"📈 Alta > R$ {Kc:.2f}: <b>{r.pop_upside:.1f}%</b> "
+            f"(call exercida, lucro máximo)<br>"
+            f"📉 Baixa < R$ {Kp:.2f}: <b>{r.pop_downside:.1f}%</b> "
+            f"(put exercida, pior caso)<br>"
+            f"📊 Meio (R$ {Kp:.2f}–{Kc:.2f}): <b>{max(0, 100 - r.pop_upside - r.pop_downside):.1f}%</b></p>",
             "<hr>",
             f"<p><b>Resumo:</b><br>"
             f"O pior retorno de R$ {pior:.2f} ocorre se o ativo fechar abaixo de R$ {Kp:.2f}. "

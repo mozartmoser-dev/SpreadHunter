@@ -84,6 +84,12 @@ class MonitorColaresUseCase:
             return False
         if dados["qul_put"] <= 0 or dados["qul_call"] <= 0:
             return False
+        qul_min_put = params.get("qul_min_put", 100)
+        qul_min_call = params.get("qul_min_call", 100)
+        if dados["qul_put"] < qul_min_put:
+            return False
+        if dados["qul_call"] < qul_min_call:
+            return False
         return True
 
     def varrer(self, rtd, params: dict | None = None) -> list[ResultadoColar]:
@@ -93,7 +99,9 @@ class MonitorColaresUseCase:
         if params is None:
             params = {
                 "dias_minimos": self._get_param("perf_dias_minimos", 0),
-                "dist_max_pct": self._get_param("colar_dist_max_pct", 0.3),
+                "dist_max_pct": self._get_param("colar_dist_max_pct", 0.15),
+                "qul_min_put": self._get_param("colar_qul_min_put", 100),
+                "qul_min_call": self._get_param("colar_qul_min_call", 100),
             }
 
         hoje = date.today()
@@ -163,3 +171,7 @@ class MonitorColaresUseCase:
     def _get_param(self, chave: str, default: float) -> float:
         param = self.param_repo.get_by_chave(chave)
         return param.valor if param else default
+
+    def recarregar_parametros(self):
+        self._calculadora = None
+        self.param_repo.invalidate_cache()

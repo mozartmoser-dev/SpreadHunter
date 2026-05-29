@@ -389,8 +389,6 @@ class ColarCalendarioDialog(QDialog):
 
     def _restart_scan_if_auto(self):
         if self._auto_mode:
-            self._auto_mode = False
-            self._scanning = False
             self.parar_scan_signal.emit()
             selecionados = [self.lista_ativos.item(i).text()
                             for i in range(1, self.lista_ativos.count())
@@ -438,7 +436,7 @@ class ColarCalendarioDialog(QDialog):
         else:
             texto = "Todos os ativos"
         self.txt_sel_atual.setPlainText(texto)
-        self.btn_scan.setEnabled(not todos_marcados and n_sel > 0 and not self._scanning)
+        self.btn_scan.setEnabled(n_sel > 0 and not self._scanning)
         self.selecao_alterada.emit(selecionados if not todos_marcados else [])
         self._atualizar_status()
 
@@ -722,18 +720,19 @@ class ColarCalendarioDialog(QDialog):
         du = round(r.dte_call * 252 / 365)
         cdi_periodo = (1 + 0.145) ** (du / 252) - 1
         # Modelo COBERTO: compra acao + short call + long put
+        rf = getattr(r, 'r', 0.1450)
         pnl_stk = min(r.preco_ativo, r.strike_call) - r.preco_ativo
         pnl_call = r.premio_call
         if T_rem > 0:
-            dp1 = (np.log(r.preco_ativo / r.strike_put) + (0.1325 + 0.5 * (r.iv_put / 100) ** 2) * T_rem) / ((r.iv_put / 100) * np.sqrt(T_rem))
+            dp1 = (np.log(r.preco_ativo / r.strike_put) + (rf + 0.5 * (r.iv_put / 100) ** 2) * T_rem) / ((r.iv_put / 100) * np.sqrt(T_rem))
             dp2 = dp1 - (r.iv_put / 100) * np.sqrt(T_rem)
-            put_val_vc = r.strike_put * np.exp(-0.1325 * T_rem) * norm.cdf(-dp2) - r.preco_ativo * norm.cdf(-dp1)
+            put_val_vc = r.strike_put * np.exp(-rf * T_rem) * norm.cdf(-dp2) - r.preco_ativo * norm.cdf(-dp1)
         else:
             put_val_vc = max(r.strike_put - r.preco_ativo, 0)
 
         pnl_put = put_val_vc - r.premio_put
         pnl_total = pnl_stk + pnl_call + pnl_put
-        cap = r.preco_ativo + r.premio_put - r.premio_call
+        cap = r.capital_empregado
         ret = pnl_total / cap if cap > 0 else 0
         pct_cdi = ret / cdi_periodo if cdi_periodo > 0 else 0
 
@@ -760,14 +759,14 @@ class ColarCalendarioDialog(QDialog):
             "--- MODELO COBERTO (acao + opcoes) ---",
             f"T_call (anos):  {T_call:.6f}",
             f"T_rem  (anos):  {T_rem:.6f}",
-            f"r (fixa):       0.1325",
-            f"CDI periodo:    {cdi_periodo*100:.4f}% = (1.145)^({r.dte_call}/365)-1",
+            f"r (fixa):       0.1450",
+            f"CDI periodo:    {cdi_periodo*100:.4f}% = (1.145)^({du}/252)-1",
             f"Acao comprada a R$ {r.preco_ativo:.2f}",
             f"Acao PnL:      min({r.preco_ativo:.2f}, {r.strike_call:.2f}) - {r.preco_ativo:.2f} = R$ {pnl_stk:.4f}",
             f"Short Call PnL: R$ {r.premio_call:.4f} (premio recebido, acao cobre)",
-            f"Put val @callVC: BS(S={r.preco_ativo:.2f}, K={r.strike_put:.2f}, T={T_rem:.4f}, r=0.1325, IV={r.iv_put:.2f}%) = R$ {put_val_vc:.4f}",
+            f"Put val @callVC: BS(S={r.preco_ativo:.2f}, K={r.strike_put:.2f}, T={T_rem:.4f}, r=0.1450, IV={r.iv_put:.2f}%) = R$ {put_val_vc:.4f}",
             f"Long Put PnL:   {put_val_vc:.4f} - {r.premio_put:.4f} = R$ {pnl_put:.4f}",
-            f"Capital empreg: {r.preco_ativo:.2f} + {r.premio_put:.2f} - {r.premio_call:.2f} = R$ {cap:.4f}",
+            f"Capital empreg: R$ {cap:.4f}",
             "",
             "--- RESULTADO ---",
             f"PnL Projetado:  R$ {pnl_total:.4f}",
@@ -845,13 +844,14 @@ class ColarCalendarioDialog(QDialog):
             x_max = max(Kc, S0) * 1.15
             x = np.linspace(x_min, x_max, 500)
 
+            rf = getattr(r, 'r', 0.1450)
             # Modelo COBERTO: acao + short call + long put
             stock_pnl = np.minimum(x, Kc) - S0  # acao vendida a Kc se ITM
             call_pnl = Pc  # premio recebido, acao cobre exercicio
             if T_rem > 0:
-                dp1 = (np.log(x / Kp) + (0.1325 + 0.5 * iv_p ** 2) * T_rem) / (iv_p * np.sqrt(T_rem))
+                dp1 = (np.log(x / Kp) + (rf + 0.5 * iv_p ** 2) * T_rem) / (iv_p * np.sqrt(T_rem))
                 dp2 = dp1 - iv_p * np.sqrt(T_rem)
-                put_val = Kp * np.exp(-0.1325 * T_rem) * norm.cdf(-dp2) - x * norm.cdf(-dp1)
+                put_val = Kp * np.exp(-rf * T_rem) * norm.cdf(-dp2) - x * norm.cdf(-dp1)
             else:
                 put_val = np.maximum(Kp - x, 0)
             put_pnl = put_val - Pp

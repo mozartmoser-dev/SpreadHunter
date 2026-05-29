@@ -280,11 +280,9 @@ class MercadoDataProvider:
                         preco_ativo = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
                         if not preco_ativo or preco_ativo <= 0:
                             if inst.ativo in self._sem_ativo_skip:
-                                continue  # evita chamada síncrona repetida ao Profit
-                            preco_ativo = self.rtd.ler_campo(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
-                            if not preco_ativo or preco_ativo <= 0:
-                                sem_ativo_atual[inst.ativo] = self.SEM_ATIVO_SKIP_CYCLES
                                 continue
+                            sem_ativo_atual[inst.ativo] = self.SEM_ATIVO_SKIP_CYCLES
+                            continue
                         self._precos_ativo_cache[inst.ativo] = preco_ativo
 
                     dados_rtd = self._ler_instrumento_cache(inst, preco_ativo)

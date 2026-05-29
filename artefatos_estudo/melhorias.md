@@ -28,6 +28,10 @@ Este documento detalha as oportunidades de melhoria identificadas após a análi
 *   **Cache Seletivo:** 
     *   *Sugestão:* Implementar um cache local (SQLite) para as opções de ativos favoritos (PETR4, VALE3), evitando reprocessar toda a base de instrumentos a cada abertura do diálogo.
 
+## 6. Documentação e Assistência de IA
+*   **Uso de Arquivos de Sugestões:** Adotar o uso de extensões como Cline ou Continue para manter este arquivo (`melhorias.md`) atualizado automaticamente após cada grande refatoração.
+*   **Sincronização de Worker:** Corrigida falha no `monitor_worker.py` onde chamadas de métodos de varredura estavam órfãs. Implementada modularização para facilitar a manutenção de novas estratégias.
+
 ## 5. Próximos Passos Prioritários (MVP 2.0)
 1. Implementar o Crawler AJAX (Adeus Playwright).
 2. Mapear IDs de controles do PNT via Inspect.exe para substituir cliques por imagem.

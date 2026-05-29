@@ -1,7 +1,9 @@
 import numpy as np
 
 from src.domain.services.calendario_b3 import dc_to_du_aproximado
+from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
 from dataclasses import dataclass
+
 
 @dataclass
 class ResultadoVetorizado:
@@ -14,11 +16,14 @@ class ResultadoVetorizado:
     ganho_sbth: np.ndarray
     cdi_periodo: np.ndarray
 
+
 class CalculadoraVetorizada:
-    def __init__(self, taxa_cdi: float, premio_risco_box: float, premio_risco_sbth: float):
+    def __init__(self, taxa_cdi: float, premio_risco_box: float, premio_risco_sbth: float,
+                 taxa_emolumento: float | None = None, taxa_liquidacao: float | None = None):
         self.taxa_cdi = taxa_cdi
         self.premio_risco_box = premio_risco_box
         self.premio_risco_sbth = premio_risco_sbth
+        self.custos_b3 = CalculadoraCustosB3(taxa_emolumento, taxa_liquidacao)
 
     def calcular(self, 
                  preco_ativo: np.ndarray,
@@ -46,15 +51,22 @@ class CalculadoraVetorizada:
         dias_uteis = np.where(dias > 0, np.round(dias * 252.0 / 365.0).astype(int), 0)
         cdi_periodo = np.where(dias_uteis > 0, (1 + self.taxa_cdi) ** (dias_uteis / 252.0) - 1, 0.0)
         
+        custo_b3_sbth = self.custos_b3.calcular_custos_vetor(strike, 2)
+        custo_b3_box = self.custos_b3.calcular_custos_vetor(strike, 3)
+        
         # SBTH
         custo_sbth = preco_compra_ativo + of_venda_put
-        ganho_sbth = np.where((custo_sbth > 0) & (of_venda_put > 0), (strike - custo_sbth) / custo_sbth, 0.0)
-        pct_cdi_sbth = np.where(cdi_periodo > 0, ganho_sbth / cdi_periodo, 0.0)
+        ganho_sbth_bruto = np.where((custo_sbth > 0) & (of_venda_put > 0), strike - custo_sbth, 0.0)
+        ganho_sbth = np.maximum(ganho_sbth_bruto - custo_b3_sbth, 0.0)
+        pct_ganho_sbth = np.where(custo_sbth > 0, ganho_sbth / custo_sbth, 0.0)
+        pct_cdi_sbth = np.where(cdi_periodo > 0, pct_ganho_sbth / cdi_periodo, 0.0)
         
         # BOX
         custo_box = preco_compra_ativo + of_venda_put - of_compra_call
-        ganho_box = np.where((custo_box > 0) & (of_venda_put > 0) & (of_compra_call > 0), (strike - custo_box) / custo_box, 0.0)
-        pct_cdi_box = np.where(cdi_periodo > 0, ganho_box / cdi_periodo, 0.0)
+        ganho_box_bruto = np.where((custo_box > 0) & (of_venda_put > 0) & (of_compra_call > 0), strike - custo_box, 0.0)
+        ganho_box = np.maximum(ganho_box_bruto - custo_b3_box, 0.0)
+        pct_ganho_box = np.where(custo_box > 0, ganho_box / custo_box, 0.0)
+        pct_cdi_box = np.where(cdi_periodo > 0, pct_ganho_box / cdi_periodo, 0.0)
         
         # 3. Verificação de Viabilidade e Classificação
         # Tem liquidez?

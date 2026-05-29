@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from src.domain.services.calendario_b3 import dc_to_du
+from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
 
 
 @dataclass
@@ -46,10 +47,12 @@ class ResultadoBOXSBTH:
 
 
 class CalculadoraBoxSbth:
-    def __init__(self, taxa_cdi: float, premio_risco_box: float, premio_risco_sbth: float):
+    def __init__(self, taxa_cdi: float, premio_risco_box: float, premio_risco_sbth: float,
+                 taxa_emolumento: float | None = None, taxa_liquidacao: float | None = None):
         self.taxa_cdi = taxa_cdi
         self.premio_risco_box = premio_risco_box
         self.premio_risco_sbth = premio_risco_sbth
+        self.custos_b3 = CalculadoraCustosB3(taxa_emolumento, taxa_liquidacao)
 
     def calcular_cdi_periodo(self, dias_uteis: int) -> float:
         if dias_uteis <= 0:
@@ -60,11 +63,17 @@ class CalculadoraBoxSbth:
         cdi_periodo = self.calcular_cdi_periodo(dc_to_du(None, None, dados.dias))
 
         custo_sbth = self._calcular_custo_sbth(dados)
-        pct_ganho_sbth = self._calcular_pct_ganho_sbth(custo_sbth, dados.strike)
+        ganho_sbth_bruto = dados.strike - custo_sbth if custo_sbth > 0 else 0
+        custo_b3_sbth = self.custos_b3.calcular_custos(dados.strike, n_pernas=2)
+        ganho_sbth = ganho_sbth_bruto - custo_b3_sbth
+        pct_ganho_sbth = ganho_sbth / custo_sbth if custo_sbth > 0 else 0.0
         pct_cdi_sbth = self._calcular_pct_cdi(pct_ganho_sbth, cdi_periodo)
 
         custo_box = self._calcular_custo_box(dados)
-        pct_ganho_box = self._calcular_pct_ganho_box(custo_box, dados.strike)
+        ganho_box_bruto = dados.strike - custo_box if custo_box > 0 else 0
+        custo_b3_box = self.custos_b3.calcular_custos(dados.strike, n_pernas=3)
+        ganho_box = ganho_box_bruto - custo_b3_box
+        pct_ganho_box = ganho_box / custo_box if custo_box > 0 else 0.0
         pct_cdi_box = self._calcular_pct_cdi(pct_ganho_box, cdi_periodo)
 
         classificacao = self._classificar(pct_cdi_box, pct_cdi_sbth)

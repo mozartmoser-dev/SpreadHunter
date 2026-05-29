@@ -8,6 +8,7 @@ from PyQt5.QtCore import QThread, pyqtSignal, QMutex, QWaitCondition
 from src.application.use_cases.monitor_oportunidades import MonitorOportunidadesUseCase
 from src.application.use_cases.monitor_colares import MonitorColaresUseCase
 from src.application.use_cases.monitor_colares_calendario import MonitorColaresCalendarioUseCase
+from src.application.use_cases.monitor_box import MonitorBoxUseCase
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
 from src.infrastructure.providers.rtd_profit import RTDProfit
 from src.application.dtos.dtos import EngineStatsDTO
@@ -22,6 +23,7 @@ class MonitorWorker(QThread):
     engine_stats_updated = pyqtSignal(object)
     colares_atualizados = pyqtSignal(list)
     colares_calendario_atualizados = pyqtSignal(list)
+    boxes_atualizados = pyqtSignal(list)
 
     def __init__(self, db_path: str, rtd: RTDProfit, parent=None):
         super().__init__(parent)
@@ -31,12 +33,13 @@ class MonitorWorker(QThread):
         self._monitor_uc = MonitorOportunidadesUseCase(db_path)
         self._monitor_colares_uc = MonitorColaresUseCase(db_path)
         self._monitor_colares_cal_uc = MonitorColaresCalendarioUseCase(db_path)
+        self._monitor_box_uc = MonitorBoxUseCase(db_path)
         self._running = False
         self._paused = False
         self._interval_ms = 2500
         self._mostrar_tp_op = False
         self._colar_cycle = 0
-        self._colar_interval = 24
+        self._colar_interval = 10
         self._colar_cal_cycle = 0
         self._colar_cal_interval = 3
         self._mutex = QMutex()
@@ -49,12 +52,16 @@ class MonitorWorker(QThread):
         self._colar_cal_ativos: list[str] | None = None
         self._colar_cal_params: dict | None = None
         self._colar_cal_mutex = QMutex()
+        self._forcar_box = False
+        self._box_auto = False
+        self._box_mutex = QMutex()
+        self._box_cycle = 0
 
     def run(self):
         com_initialized = False
         try:
             import pythoncom
-            pythoncom.CoInitialize()
+            pythoncom.CoInitializeEx(pythoncom.COINIT_APARTMENTTHREADED)
             com_initialized = True
         except ImportError:
             logger.warning("MonitorWorker: pythoncom não disponível. Thread rodará sem inicializar COM.")
@@ -82,97 +89,21 @@ class MonitorWorker(QThread):
 
             try:
                 t_start_cycle = time.perf_counter()
-                dados_mercado = {}
-                if rtd.disponivel:
-                    dados_mercado = self._mercado_provider.capturar_dados_mercado()
+                # 1. Varredura Geral de Oportunidades (Monitor Principal)
+                self._processar_monitor_geral(rtd)
 
-                resultados = self._monitor_uc.varrer(dados_mercado)
-                if not self._mostrar_tp_op:
-                    resultados = [r for r in resultados if r.classificacao != "TP.Op"]
-                self.oportunidades_atualizadas.emit(resultados)
+                # 2. Varredura de Colares
+                self._processar_colares(rtd)
 
-                viaveis = sum(1 for r in resultados if r.viavel)
-                self.status_message.emit(
-                    "Varredura: {} oportunidades, {} viaveis".format(len(resultados), viaveis)
-                )
+                # 3. Varredura de Collar Calendário
+                self._processar_colar_calendario(rtd)
 
-                # Varredura de Colares (auto a cada ~60s quando ativado, ou sob demanda)
-                forcar = False
-                self._colar_mutex.lock()
-                if self._forcar_colar:
-                    forcar = True
-                    self._forcar_colar = False
-                colar_auto = self._colar_auto
-                self._colar_mutex.unlock()
+                # 4. Varredura de Box Spread 4 Pontas
+                self._processar_box_4p(rtd)
 
-                deve_escanear = forcar
-                if colar_auto:
-                    self._colar_cycle += 1
-                    if self._colar_cycle >= self._colar_interval:
-                        deve_escanear = True
-                        self._colar_cycle = 0
+                # 5. Coleta Estatísticas do Motor
+                self._emitir_estatisticas_engine(t_start_cycle)
 
-                if deve_escanear:
-                    try:
-                        self.status_message.emit("🔄 Varredura de colares em andamento...")
-                        colar_results = self._monitor_colares_uc.varrer(rtd)
-                        n = len(colar_results)
-                        self.status_message.emit(f"✅ Colares: {n} viáveis" if n else "✅ Colares: nenhum viável no momento")
-                        self.colares_atualizados.emit(colar_results)
-                    except Exception as e:
-                        logger.error("Colar scan error: %s", e)
-
-                # Varredura de Collar Calendário
-                forcar_cal = False
-                colar_cal_ativos: list[str] | None = None
-                colar_cal_params: dict | None = None
-                self._colar_cal_mutex.lock()
-                if self._forcar_colar_cal:
-                    forcar_cal = True
-                    self._forcar_colar_cal = False
-                colar_cal_auto = self._colar_cal_auto
-                colar_cal_ativos = self._colar_cal_ativos
-                colar_cal_params = self._colar_cal_params
-                self._colar_cal_mutex.unlock()
-
-                deve_escanear_cal = forcar_cal
-                if colar_cal_auto:
-                    self._colar_cal_cycle += 1
-                    if self._colar_cal_cycle >= self._colar_cal_interval:
-                        deve_escanear_cal = True
-                        self._colar_cal_cycle = 0
-
-                if deve_escanear_cal:
-                    try:
-                        self.status_message.emit("🔄 Varredura de collar calendario...")
-                        cal_results = self._monitor_colares_cal_uc.varrer(rtd, params=colar_cal_params, ativos=colar_cal_ativos)
-                        n = len(cal_results)
-                        self.status_message.emit(f"✅ Collar Cal: {n} viaveis" if n else "✅ Collar Cal: nenhum viavel")
-                        self.colares_calendario_atualizados.emit(cal_results)
-                    except Exception as e:
-                        logger.error("Collar Cal scan error: %s", e)
-
-                # Coleta Estatísticas do Motor
-                t_end = time.perf_counter()
-                scan_ms = int((t_end - t_start_cycle) * 1000)
-                
-                process = psutil.Process(os.getpid())
-                cpu_pct = psutil.cpu_percent() # Simplificado
-                mem_mb = process.memory_info().rss / 1024 / 1024
-                
-                e_stats = self._mercado_provider.get_engine_stats()
-                
-                stats_dto = EngineStatsDTO(
-                    scan_time_ms=scan_ms,
-                    cpu_pct=cpu_pct,
-                    mem_mb=mem_mb,
-                    total_instrumentos=e_stats["total"],
-                    monitored_onda1=e_stats["onda1"],
-                    monitored_onda2=e_stats["onda2"],
-                    registrado=e_stats.get("registrado", False),
-                    progresso_idx=e_stats.get("progresso_idx", 0)
-                )
-                self.engine_stats_updated.emit(stats_dto)
             except Exception as e:
                 logger.error("MonitorWorker: erro na varredura: %s", e)
                 self.status_message.emit("Erro na varredura: {}".format(str(e)))
@@ -212,6 +143,7 @@ class MonitorWorker(QThread):
         self._monitor_uc.recarregar_parametros()
         self._monitor_colares_uc.recarregar_parametros()
         self._monitor_colares_cal_uc.recarregar_parametros()
+        self._monitor_box_uc.recarregar_parametros()
         if self._mercado_provider:
             self._mercado_provider.recarregar_parametros()
 
@@ -259,8 +191,96 @@ class MonitorWorker(QThread):
         self._colar_cal_cycle = 0
         self._colar_cal_mutex.unlock()
 
+    def iniciar_auto_box(self):
+        self._box_mutex.lock()
+        self._box_auto = True
+        self._forcar_box = True
+        self._box_mutex.unlock()
+
+    def parar_auto_box(self):
+        self._box_mutex.lock()
+        self._box_auto = False
+        self._forcar_box = False
+        self._box_mutex.unlock()
+
     def set_mostrar_tp_op(self, mostrar: bool):
         self._mostrar_tp_op = mostrar
+
+    def _processar_monitor_geral(self, rtd):
+        dados_mercado = self._mercado_provider.capturar_dados_mercado()
+        if not dados_mercado:
+            return
+
+        resultados = self._monitor_uc.varrer(dados_mercado)
+        if not self._mostrar_tp_op:
+            resultados = [r for r in resultados if not (hasattr(r, 'classificacao') and r.classificacao == 'TP.Op')]
+        self.oportunidades_atualizadas.emit(resultados)
+
+    def _processar_colares(self, rtd):
+        self._colar_cycle += 1
+        deve_escanear = self._forcar_colar
+        if not deve_escanear and self._colar_auto:
+            deve_escanear = (self._colar_cycle % self._colar_interval == 0)
+
+        if deve_escanear:
+            self._colar_mutex.lock()
+            self._forcar_colar = False
+            self._colar_mutex.unlock()
+
+            resultados = self._monitor_colares_uc.varrer(rtd)
+            self.colares_atualizados.emit(resultados)
+
+    def _processar_colar_calendario(self, rtd):
+        self._colar_cal_cycle += 1
+        deve_escanear = self._forcar_colar_cal
+        if not deve_escanear and self._colar_cal_auto:
+            deve_escanear = (self._colar_cal_cycle % self._colar_cal_interval == 0)
+
+        if deve_escanear:
+            self._colar_cal_mutex.lock()
+            self._forcar_colar_cal = False
+            ativos = self._colar_cal_ativos
+            params = self._colar_cal_params
+            self._colar_cal_mutex.unlock()
+
+            resultados = self._monitor_colares_cal_uc.varrer(rtd, params, ativos)
+            self.colares_calendario_atualizados.emit(resultados)
+
+    def _processar_box_4p(self, rtd):
+        self._box_cycle += 1
+        deve_escanear = self._forcar_box
+        if not deve_escanear and self._box_auto:
+            deve_escanear = (self._box_cycle % 5 == 0)
+
+        if deve_escanear:
+            self._box_mutex.lock()
+            self._forcar_box = False
+            self._box_mutex.unlock()
+
+            resultados = self._monitor_box_uc.varrer(rtd)
+            self.boxes_atualizados.emit(resultados)
+
+    def _emitir_estatisticas_engine(self, t_start_cycle):
+        t_elapsed_ms = int((time.perf_counter() - t_start_cycle) * 1000)
+        try:
+            cpu = psutil.cpu_percent(interval=None)
+            mem = psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024)
+        except Exception:
+            cpu = 0.0
+            mem = 0.0
+
+        engine_stats = self._mercado_provider.get_engine_stats() if self._mercado_provider else {}
+        stats = EngineStatsDTO(
+            scan_time_ms=t_elapsed_ms,
+            cpu_pct=cpu,
+            mem_mb=mem,
+            total_instrumentos=engine_stats.get('total', 0),
+            monitored_onda1=engine_stats.get('onda1', 0),
+            monitored_onda2=engine_stats.get('onda2', 0),
+            registrado=engine_stats.get('registrado', False),
+            progresso_idx=engine_stats.get('progresso_idx', 0),
+        )
+        self.engine_stats_updated.emit(stats)
 
     def _verificar_e_forcar_refresh_ex_dividendo(self):
         """Nível 2: Verifica ativos ex-dividendo do dia e força refresh RTD."""

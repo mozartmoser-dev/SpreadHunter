@@ -187,13 +187,13 @@ class TestCalcular:
 
 class TestCalcularPvDividendos:
     def test_sem_dividendos_retorna_preco_original(self):
-        S = CalculadoraColarCalendario.calcular_pv_dividendos([], 100, 0.13, 365)
+        S = CalculadoraColarCalendario.calcular_preco_ajustado_dividendos([], 100, 0.13, 365)
         assert S == 100.0
 
     def test_dividendo_futuro_reduz_preco(self):
         hoje = date.today()
         data_ex = date(hoje.year + 1, 1, 1)
-        S = CalculadoraColarCalendario.calcular_pv_dividendos(
+        S = CalculadoraColarCalendario.calcular_preco_ajustado_dividendos(
             [(data_ex, 5.0)], 100, 0.13, 365
         )
         assert S < 100.0
@@ -202,7 +202,7 @@ class TestCalcularPvDividendos:
     def test_dividendo_passado_ignorado(self):
         hoje = date.today()
         data_ex = date(hoje.year - 1, 1, 1)
-        S = CalculadoraColarCalendario.calcular_pv_dividendos(
+        S = CalculadoraColarCalendario.calcular_preco_ajustado_dividendos(
             [(data_ex, 5.0)], 100, 0.13, 365
         )
         assert S == 100.0
@@ -210,7 +210,7 @@ class TestCalcularPvDividendos:
     def test_dividendo_fora_do_dte_max_ignorado(self):
         hoje = date.today()
         data_ex = date(hoje.year + 2, 1, 1)
-        S = CalculadoraColarCalendario.calcular_pv_dividendos(
+        S = CalculadoraColarCalendario.calcular_preco_ajustado_dividendos(
             [(data_ex, 5.0)], 100, 0.13, 30
         )
         assert S == 100.0
@@ -219,7 +219,7 @@ class TestCalcularPvDividendos:
         hoje = date.today()
         d1 = date(hoje.year, hoje.month + 1, 1) if hoje.month < 12 else date(hoje.year + 1, 1, 1)
         d2 = date(hoje.year, hoje.month + 4, 1) if hoje.month < 9 else date(hoje.year + 1, 4, 1)
-        S = CalculadoraColarCalendario.calcular_pv_dividendos(
+        S = CalculadoraColarCalendario.calcular_preco_ajustado_dividendos(
             [(d1, 2.0), (d2, 2.0)], 100, 0.13, 365
         )
         assert S < 98.0
@@ -228,7 +228,7 @@ class TestCalcularPvDividendos:
     def test_zero_r_usado_corretamente(self):
         hoje = date.today()
         data_ex = date(hoje.year + 1, 1, 1)
-        S = CalculadoraColarCalendario.calcular_pv_dividendos(
+        S = CalculadoraColarCalendario.calcular_preco_ajustado_dividendos(
             [(data_ex, 5.0)], 100, 0.0, 365
         )
         assert S == pytest.approx(95.0)

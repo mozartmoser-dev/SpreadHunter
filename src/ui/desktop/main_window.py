@@ -24,6 +24,7 @@ from src.ui.desktop.parametros_widget import ParametrosWidget
 from src.ui.desktop.engine_dashboard import EngineDashboard
 from src.ui.desktop.colar_dialog import ColarDialog
 from src.ui.desktop.colar_calendario_dialog import ColarCalendarioDialog
+from src.ui.desktop.box_dialog import BoxDialog
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 
 
@@ -49,6 +50,7 @@ class MainWindow(QMainWindow):
         self._resultados_brutos = []
         self._ultimos_colares = []
         self._ultimos_colares_cal = []
+        self._ultimos_boxes = []
 
         self.importar_uc = ImportarBaseUseCase(self.db_path)
         self.exportar_uc = ExportarOperacaoUseCase(self.db_path)
@@ -62,10 +64,12 @@ class MainWindow(QMainWindow):
         self._worker.colares_atualizados.connect(self._on_colares_atualizados)
 
         self._worker.colares_calendario_atualizados.connect(self._on_colares_calendario_atualizados)
+        self._worker.boxes_atualizados.connect(self._on_boxes_atualizados)
 
         self._engine_dialog = EngineDashboard(self)
         self._colar_dialog = None
         self._colar_cal_dialog = None
+        self._box_dialog = None
 
         self._aplicar_tema_configurado()
 
@@ -232,6 +236,18 @@ class MainWindow(QMainWindow):
         """)
         btn_layout.addWidget(self.btn_colar_cal)
 
+        self.btn_box = QPushButton("📦  Box 4P")
+        self.btn_box.clicked.connect(self._abrir_box)
+        self.btn_box.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #3d0e0e; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid #e74c3c; border-radius: 4px;
+                padding: 6px 12px; font-size: 9pt; font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: #5d1e1e; }}
+        """)
+        btn_layout.addWidget(self.btn_box)
+
         self.btn_varrer = QPushButton("▶  Iniciar Monitor")
         self.btn_varrer.setCheckable(True)
         self.btn_varrer.setChecked(False)
@@ -263,6 +279,10 @@ class MainWindow(QMainWindow):
         self._status_colar_cal = QLabel("")
         self._status_colar_cal.setStyleSheet("color: {}; font-size: 10pt; font-weight: bold; padding: 0 8px;".format(Palette.YELLOW))
         btn_layout.addWidget(self._status_colar_cal)
+
+        self._status_box = QLabel("")
+        self._status_box.setStyleSheet("color: {}; font-size: 10pt; font-weight: bold; padding: 0 8px;".format(Palette.RED))
+        btn_layout.addWidget(self._status_box)
 
         btn_layout.addSpacing(16)
 
@@ -753,6 +773,35 @@ class MainWindow(QMainWindow):
             self._status_colar_cal.setText("")
         if self._colar_cal_dialog and self._colar_cal_dialog.isVisible():
             self._colar_cal_dialog.atualizar_resultados(resultados)
+
+    def _on_boxes_atualizados(self, resultados: list):
+        self._ultimos_boxes = resultados
+        n_viaveis = sum(1 for r in resultados if r.viavel)
+        if n_viaveis > 0:
+            self._status_box.setText(f"📦 {n_viaveis}")
+            self._status_box.setStyleSheet(
+                f"color: {Palette.RED}; font-weight: bold; padding: 0 8px;"
+            )
+        else:
+            self._status_box.setText("")
+        if self._box_dialog and self._box_dialog.isVisible():
+            self._box_dialog.atualizar_resultados(resultados)
+
+    def _abrir_box(self):
+        if self._box_dialog and self._box_dialog.isVisible():
+            self._box_dialog.raise_()
+            return
+        self._box_dialog = BoxDialog(self, self.db_path)
+        self._box_dialog.iniciar_scan_signal.connect(self._worker.iniciar_auto_box)
+        self._box_dialog.parar_scan_signal.connect(self._on_parar_box)
+        self._box_dialog.atualizar_resultados(self._ultimos_boxes)
+        self._box_dialog.setAttribute(Qt.WA_DeleteOnClose, True)
+        self._box_dialog.destroyed.connect(lambda: setattr(self, "_box_dialog", None))
+        self._box_dialog.show()
+
+    def _on_parar_box(self):
+        self._worker.parar_auto_box()
+        self._status_box.setText("")
 
     def _on_row_double_clicked(self, index):
         opp = self.table_model.get_oportunidade(index.row())

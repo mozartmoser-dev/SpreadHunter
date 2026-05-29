@@ -2,6 +2,10 @@ from dataclasses import dataclass
 from datetime import date
 from enum import Enum
 
+import numpy as np
+from scipy.stats import norm
+from scipy.optimize import brentq
+
 from src.domain.services.calendario_b3 import dc_to_du
 
 
@@ -37,6 +41,10 @@ class ResultadoColar:
     risco_leilao: RiscoLeilao
     viavel: bool
     em_leilao: bool
+    iv_call: float = 0.0
+    iv_put: float = 0.0
+    pop_upside: float = 0.0
+    pop_downside: float = 0.0
 
 
 @dataclass
@@ -56,6 +64,49 @@ class CalculadoraColar:
         self.taxa_cdi = taxa_cdi
         self.premio_risco_colar = premio_risco_colar
 
+    @staticmethod
+    def black_scholes_call(S, K, T, r, sigma):
+        if T <= 0 or sigma <= 0:
+            return max(S - K, 0)
+        d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
+        return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+
+    @staticmethod
+    def black_scholes_put(S, K, T, r, sigma):
+        if T <= 0 or sigma <= 0:
+            return max(K - S, 0)
+        d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
+        return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+
+    @staticmethod
+    def calcular_iv(S, K, T, r, preco, tipo_opcao):
+        if T <= 0 or preco <= 0:
+            return None
+        try:
+            def f(sigma):
+                if tipo_opcao == 'call':
+                    return CalculadoraColar.black_scholes_call(S, K, T, r, sigma) - preco
+                return CalculadoraColar.black_scholes_put(S, K, T, r, sigma) - preco
+            return brentq(f, 1e-6, 5.0)
+        except (ValueError, RuntimeError):
+            return None
+
+    @staticmethod
+    def calcular_probabilidade_upside(S, K, T, r, sigma):
+        if T <= 0 or sigma <= 0:
+            return 0.0 if S < K else 1.0
+        d2 = (np.log(S / K) + (r - 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        return float(norm.cdf(d2))
+
+    @staticmethod
+    def calcular_probabilidade_downside(S, K, T, r, sigma):
+        if T <= 0 or sigma <= 0:
+            return 1.0 if S < K else 0.0
+        d2 = (np.log(S / K) + (r - 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        return float(norm.cdf(-d2))
+
     def calcular_cdi_periodo(self, dias_uteis: int) -> float:
         if dias_uteis <= 0:
             return 0.0
@@ -68,7 +119,7 @@ class CalculadoraColar:
             return TipoColar.STRIKES_ABAIXO
         return TipoColar.TRADICIONAL
 
-    def calcular_pior_retorno(self, tipo: TipoColar, custo_liquido: float, strike_put: float, strike_call: float) -> float:
+    def calcular_pior_retorno(self, custo_liquido: float, strike_put: float, strike_call: float) -> float:
         return min(strike_put, strike_call) - custo_liquido
 
     def calcular_risco_leilao(self, vov_put: float, voc_call: float, status_put: str, status_call: str) -> RiscoLeilao:
@@ -115,11 +166,21 @@ class CalculadoraColar:
         if cdi_periodo <= 0:
             return None
 
-        pior_retorno = self.calcular_pior_retorno(tipo, custo_liquido, strike_put, strike_call)
+        pior_retorno = self.calcular_pior_retorno(custo_liquido, strike_put, strike_call)
         pct_ganho = pior_retorno / custo_liquido
         pct_cdi = pct_ganho / cdi_periodo
         risco = self.calcular_risco_leilao(vov_put, voc_call, status_put, status_call)
         viavel = pct_cdi >= self.premio_risco_colar and not em_leilao
+
+        T = dias / 365
+        r = self.taxa_cdi
+        iv_call = self.calcular_iv(preco_ativo, strike_call, T, r, premio_call, 'call')
+        iv_put = self.calcular_iv(preco_ativo, strike_put, T, r, premio_put, 'put')
+        if iv_call and iv_put:
+            pop_upside = self.calcular_probabilidade_upside(preco_ativo, strike_call, T, r, (iv_call + iv_put) / 2)
+            pop_downside = self.calcular_probabilidade_downside(preco_ativo, strike_put, T, r, (iv_call + iv_put) / 2)
+        else:
+            pop_upside = pop_downside = 0.0
 
         return ResultadoColar(
             ativo=ativo,
@@ -140,4 +201,8 @@ class CalculadoraColar:
             risco_leilao=risco,
             viavel=viavel,
             em_leilao=em_leilao,
+            iv_call=round(iv_call * 100, 2) if iv_call else 0.0,
+            iv_put=round(iv_put * 100, 2) if iv_put else 0.0,
+            pop_upside=round(pop_upside * 100, 1),
+            pop_downside=round(pop_downside * 100, 1),
         )

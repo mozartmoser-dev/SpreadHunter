@@ -28,12 +28,17 @@ class MonitorColaresCalendarioUseCase:
         if self._calculadora is None:
             param = self.param_repo.get_by_chave("taxa_cdi")
             taxa_cdi = param.valor if param else 0.1450
-            self._calculadora = CalculadoraColarCalendario(taxa_cdi, premio_risco=0.0)
+            premio_risco = self._get_param("premio_risco_colar_calendario", 1.2)
+            self._calculadora = CalculadoraColarCalendario(taxa_cdi, premio_risco=premio_risco)
         return self._calculadora
 
     def recarregar_parametros(self):
         self._calculadora = None
         self.param_repo.invalidate_cache()
+
+    def _get_param(self, chave: str, default: float) -> float:
+        param = self.param_repo.get_by_chave(chave)
+        return param.valor if param else default
 
     def varrer(self, rtd, params: dict | None = None, ativos: list[str] | None = None) -> list[ResultadoColarCalendario]:
         calc = self._get_calculadora()
@@ -177,10 +182,17 @@ class MonitorColaresCalendarioUseCase:
                 _cache_dividendos_por_ativo[ativo] = divs_futuros
             dividendos_ativo = _cache_dividendos_por_ativo.get(ativo) or []
 
-            strike_diff_max = preco_ativo * params.get("calendario_strike_diff_pct", 0.03)
+            cal_diff_pct = params.get("calendario_strike_diff_pct")
+            if cal_diff_pct is None:
+                cal_diff_pct = self._get_param("calendario_strike_diff_pct", 0.03)
+            strike_diff_max = preco_ativo * cal_diff_pct
 
-            # Filtra calls OTM (strike > spot) e ordena por proximidade ao ATM
-            calls_otm = [c for c in calls if c["strike"] > preco_ativo]
+            call_otm_max = params.get("calendario_call_otm_max")
+            if call_otm_max is None:
+                call_otm_max = self._get_param("calendario_call_otm_max", 0.04)
+            call_otm_limite = preco_ativo * (1 + call_otm_max)
+
+            calls_otm = [c for c in calls if c["strike"] > preco_ativo and c["strike"] <= call_otm_limite]
             calls_otm.sort(key=lambda c: c["strike"] - preco_ativo)
 
             for call in calls_otm:

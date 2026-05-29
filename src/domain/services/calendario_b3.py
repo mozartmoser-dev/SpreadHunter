@@ -37,7 +37,8 @@ def carregar_do_banco(db_path: str | None = None):
         rows = repo.get_all()
         if rows:
             feriados = sorted(r["data"] for r in rows if r.get("data"))
-            atualizar_calendario(feriados)
+            if feriados:
+                atualizar_calendario(feriados)
     except Exception:
         pass
 
