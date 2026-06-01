@@ -46,6 +46,8 @@ def _seed_parametros_colar(conn):
         ("dte_extra_min", "30", "COLLAR_CALENDARIO", "Spread DTE mínimo entre put e call"),
         ("dte_extra_max", "90", "COLLAR_CALENDARIO", "Spread DTE máximo entre put e call"),
         ("dte_total_max", "120", "COLLAR_CALENDARIO", "DTE máximo total para qualquer perna"),
+        ("import_max_months", "9", "IMPORTACAO", "Meses a frente da data para importar series"),
+        ("white_list_box4p", "", "BOX_4P", "Whitelist de ativos para Box 4P"),
     ]
     for chave, valor, estrategia, descricao in params:
         try:

@@ -41,6 +41,7 @@ ESTRATEGIA_COLORS = {
     "COLAR": "#1abc9c",
     "COLLAR_CALENDARIO": "#f39c12",
     "BOX_4P": "#e74c3c",
+    "IMPORTACAO": "#8e44ad",
 }
 
 PARAMETROS_POR_ESTRATEGIA = {
@@ -96,6 +97,10 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("box_premio_risco", "Premio risco (x CDI)"),
         ("box_qtd_min", "Qtd min contratos por perna"),
         ("box_soh_europeia", "So aceitar opcoes europeias"),
+    ],
+    "IMPORTACAO": [
+        ("import_max_months", "Meses a frente para importar series"),
+        ("black_list_import", "Blacklist de ativos (separados por virgula)"),
     ],
 }
 
@@ -383,7 +388,7 @@ class ParametrosWidget(QWidget):
                 elif "tema_visual" in chave:
                     widget = QComboBox()
                     widget.addItems(["Azul Marinho", "Grafite / Slate", "True Dark / Charcoal"])
-                elif "telegram_bot_token" in chave or "telegram_chat_id" in chave:
+                elif "telegram_bot_token" in chave or "telegram_chat_id" in chave or "black_list_import" in chave:
                     widget = QLineEdit()
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
                 else:

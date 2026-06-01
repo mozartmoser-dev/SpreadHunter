@@ -65,4 +65,6 @@ class ParametroOperacional:
         "dte_extra_min": {"valor": 30.0, "estrategia": "COLLAR_CALENDARIO", "descricao": "Spread DTE mínimo entre put e call"},
         "dte_extra_max": {"valor": 90.0, "estrategia": "COLLAR_CALENDARIO", "descricao": "Spread DTE máximo entre put e call"},
         "dte_total_max": {"valor": 120.0, "estrategia": "COLLAR_CALENDARIO", "descricao": "DTE máximo total para qualquer perna"},
+        "import_max_months": {"valor": 9.0, "estrategia": "IMPORTACAO", "descricao": "Meses a frente da data para importar series"},
+        "white_list_box4p": {"valor": "", "estrategia": "BOX_4P", "descricao": "Whitelist de ativos para Box 4P"},
     }

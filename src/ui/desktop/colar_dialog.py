@@ -464,8 +464,6 @@ class ColarDialog(QDialog):
 
     def _restart_scan_if_auto(self):
         if self._auto_mode:
-            self._auto_mode = False
-            self._scanning = False
             self.parar_scan_signal.emit()
             self.iniciar_scan_signal.emit()
 

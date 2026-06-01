@@ -1,114 +1,178 @@
 """
 ImportFlash: varre opcoes.net.br e atualiza o banco do SpreadHunter.
 
+Captura o modelo (A=Americana / E=Europeia) de cada opção via API.
+
 Uso:
     python scripts/validar_opcoes/importflash.py [--excluir IBOV11 ...] [--delay 1.0]
 """
 
 import sys
 import time
-import subprocess
 import sqlite3
+from collections import defaultdict
 from pathlib import Path
+from datetime import date
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPTS_DIR.parent.parent
 
+sys.path.insert(0, str(PROJECT_DIR))
+
 REAL_DB = PROJECT_DIR / "config" / "spreadhunter.db"
-TEST_DB = SCRIPTS_DIR / "teste_opcoes_completo.db"
 
 
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="ImportFlash: atualiza base via opcoes.net.br")
     parser.add_argument("--excluir", nargs="*", default=["IBOV11"], help="Ativos a excluir")
-    parser.add_argument("--delay", type=float, default=1.0, help="Delay entre reqs (s)")
-    parser.add_argument("--incluir", action="append", default=None, help="Ativo extra para incluir (pode repetir)")
+    parser.add_argument("--delay", type=float, default=0.35, help="Delay entre reqs (s)")
     args = parser.parse_args()
 
-    if args.incluir is None:
-        args.incluir = ["VALE3"]
+    from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
+    from src.domain.entities.instrumento_opcional import TipoOpcao
+
+    client = OpcoesNetClient()
+    ativos = client.fetch_available_assets()
+    if not ativos:
+        print("ERRO: nao foi possivel obter lista de ativos de opcoes.net.br")
+        return 1
+    print(f"Ativos encontrados: {len(ativos)}")
+
+    excluir = [e.upper() for e in (args.excluir or [])]
+
+    import_max_months = 9
+    try:
+        conn_cfg = sqlite3.connect(str(REAL_DB))
+        row_black = conn_cfg.execute(
+            "SELECT valor FROM parametros_operacionais WHERE chave = 'black_list_import'"
+        ).fetchone()
+        row_meses = conn_cfg.execute(
+            "SELECT valor FROM parametros_operacionais WHERE chave = 'import_max_months'"
+        ).fetchone()
+        conn_cfg.close()
+        if row_black and row_black[0]:
+            black_ativos = [a.strip().upper() for a in str(row_black[0]).split(",") if a.strip()]
+            for a in black_ativos:
+                if a not in excluir:
+                    excluir.append(a)
+            print(f"Blacklist do banco: {', '.join(black_ativos)}")
+        if row_meses and row_meses[0]:
+            try:
+                import_max_months = int(float(row_meses[0]))
+            except (ValueError, TypeError):
+                pass
+    except Exception as e:
+        print(f"Aviso: nao foi possivel ler parametros do banco: {e}")
+
+    from dateutil.relativedelta import relativedelta
+
+    data_limite = date.today() + relativedelta(months=import_max_months)
+    print(f"Limite de vencimento: {data_limite} ({import_max_months} meses)")
 
     t0 = time.perf_counter()
 
-    # --- Passo 1: Varredura ---
     print("=" * 50)
-    print("IMPORTFLASH - PASSO 1/2: Varrendo opcoes.net.br...")
+    print("IMPORTFLASH - Varrendo opcoes.net.br com captura MOD (A/E)...")
     print("=" * 50)
 
-    incluir_args = []
-    for a in args.incluir:
-        incluir_args += ["--incluir", a]
+    todos_pares = []
 
-    result = subprocess.run(
-        [sys.executable, str(SCRIPTS_DIR / "varrer_todos.py"),
-         "--delay", str(args.delay),
-         "--saida", str(TEST_DB)]
-        + incluir_args,
-        capture_output=False,
-        cwd=str(PROJECT_DIR),
-    )
-    if result.returncode != 0:
-        print(f"\n[ERRO] Varredura falhou (codigo {result.returncode})")
+    for idx, ativo in enumerate(ativos, 1):
+        if ativo.upper() in excluir:
+            print(f"[{idx:>3d}/{len(ativos)}] {ativo:<10s} EXCLUIDO")
+            continue
+
+        print(f"[{idx:>3d}/{len(ativos)}] {ativo:<10s}...", end=" ", flush=True)
+        try:
+            opcoes = client.fetch_all_options(ativo, delay=args.delay)
+        except Exception as e:
+            print(f"ERRO: {e}")
+            continue
+
+        if not opcoes:
+            print("0 opcoes")
+            continue
+
+        opcoes_filtradas = [r for r in opcoes if r.get("vencimento", "") <= data_limite.isoformat()]
+        if not opcoes_filtradas:
+            print("0 opcoes (todas fora do limite)")
+            continue
+        qtd_removidas = len(opcoes) - len(opcoes_filtradas)
+
+        grupos: dict = defaultdict(lambda: {"PUT": "", "CALL": "", "MOD": ""})
+        for r in opcoes_filtradas:
+            key = (r["ativo"], r["vencimento"], r["strike"])
+            if r["tipo"] == "PUT":
+                grupos[key]["PUT"] = r["ticker"]
+            else:
+                grupos[key]["CALL"] = r["ticker"]
+            if r.get("mod"):
+                grupos[key]["MOD"] = r["mod"]
+
+        pares = []
+        for (ativo_key, ven, strike), p in grupos.items():
+            cod_put = p["PUT"]
+            cod_call = p["CALL"]
+            if not cod_put or not cod_call:
+                continue
+            mod = p.get("MOD", "")
+            if mod == "E":
+                tipo = TipoOpcao.EUROPEIA
+            elif mod == "A":
+                tipo = TipoOpcao.AMERICANA
+            else:
+                continue
+            pares.append((ativo_key, cod_put, cod_call, ven, strike, tipo.value))
+
+        todos_pares.extend(pares)
+        suffix = f" ({qtd_removidas} fora do limite)" if qtd_removidas else ""
+        print(f"{len(pares)} pares{suffix}")
+
+    if not todos_pares:
+        print("\nNenhum par encontrado.")
         return 1
 
-    # --- Passo 2: Reimportar ---
+    print(f"\nTotal de pares: {len(todos_pares)}")
+
+    # --- Grava no banco real ---
     print("\n" + "=" * 50)
-    print("IMPORTFLASH - PASSO 2/2: Reimportando no SpreadHunter...")
+    print("Gravando no banco do SpreadHunter...")
     print("=" * 50)
 
-    excluir = args.excluir
-    test_conn = sqlite3.connect(str(TEST_DB))
-    rows = test_conn.execute(
-        "SELECT ativo, vencimento, strike, cod_put, cod_call FROM instrumentos_base WHERE fonte='opcoes.net.br'"
-    ).fetchall()
-    test_conn.close()
-
-    from collections import defaultdict
-    grupos = defaultdict(lambda: {"PUT": "", "CALL": ""})
-    for r in rows:
-        key = (r[0], str(r[1])[:10], r[2])
-        if r[3]:
-            grupos[key]["PUT"] = r[3]
-        if r[4]:
-            grupos[key]["CALL"] = r[4]
-
-    pares = [(a, p["PUT"], p["CALL"], v) for (a, v, s), p in grupos.items()
-             if a not in excluir and p["PUT"] and p["CALL"]]
-
-    real_conn = sqlite3.connect(str(REAL_DB))
-    real_conn.row_factory = sqlite3.Row
+    conn = sqlite3.connect(str(REAL_DB))
+    conn.row_factory = sqlite3.Row
 
     preservados = []
     if excluir:
         ph = ",".join("?" for _ in excluir)
-        preservados = real_conn.execute(
+        preservados = conn.execute(
             f"SELECT * FROM instrumentos_base WHERE ativo IN ({ph})", tuple(excluir)
         ).fetchall()
 
-    real_conn.execute("DELETE FROM instrumentos_base")
-    real_conn.commit()
+    conn.execute("DELETE FROM instrumentos_base")
+    conn.commit()
 
     for r in preservados:
-        real_conn.execute(
+        conn.execute(
             "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao) VALUES (?, ?, ?, ?, ?)",
             (r["ativo"], r["cod_put"], r["cod_call"], str(r["vencimento"])[:10] if r["vencimento"] else None, r["tipo_opcao"]),
         )
 
     inseridas = 0
-    for ativo, cod_put, cod_call, ven in pares:
+    for ativo, cod_put, cod_call, ven, strike, tipo in todos_pares:
         try:
-            real_conn.execute(
-                "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao) VALUES (?, ?, ?, ?, 'E')",
-                (ativo, cod_put, cod_call, ven),
+            conn.execute(
+                "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao) VALUES (?, ?, ?, ?, ?)",
+                (ativo, cod_put, cod_call, ven, tipo),
             )
             inseridas += 1
         except sqlite3.IntegrityError:
             pass
 
-    real_conn.commit()
-    total = real_conn.execute("SELECT COUNT(*) FROM instrumentos_base").fetchone()[0]
-    real_conn.close()
+    conn.commit()
+    total = conn.execute("SELECT COUNT(*) FROM instrumentos_base").fetchone()[0]
+    conn.close()
 
     dur = time.perf_counter() - t0
     print(f"\n{'=' * 50}")
@@ -119,6 +183,7 @@ def main():
     excl_str = ", ".join(excluir) if excluir else "nenhum"
     print(f"Ativos excluidos: {excl_str}")
     print(f"Total no banco: {total} registros")
+    print(f"MOD capturado: A=Americana / E=Europeia")
     return 0
 
 

@@ -9,6 +9,7 @@ from PyQt5.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer,
 from PyQt5.QtGui import QFont, QColor, QBrush
 
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
+from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 from src.ui.desktop.theme import Palette
 
 logger = logging.getLogger(__name__)
@@ -718,9 +719,10 @@ class ColarCalendarioDialog(QDialog):
         T_put = r.dte_put / 365
         T_rem = r.dte_extra / 365
         du = round(r.dte_call * 252 / 365)
-        cdi_periodo = (1 + 0.145) ** (du / 252) - 1
-        # Modelo COBERTO: compra acao + short call + long put
-        rf = getattr(r, 'r', 0.1450)
+        repo = ParametroRepository(self._db_path)
+        param = repo.get_by_chave("taxa_cdi")
+        rf = param.valor if param else 0.1450
+        cdi_periodo = (1 + rf) ** (du / 252) - 1
         pnl_stk = min(r.preco_ativo, r.strike_call) - r.preco_ativo
         pnl_call = r.premio_call
         if T_rem > 0:
@@ -759,12 +761,12 @@ class ColarCalendarioDialog(QDialog):
             "--- MODELO COBERTO (acao + opcoes) ---",
             f"T_call (anos):  {T_call:.6f}",
             f"T_rem  (anos):  {T_rem:.6f}",
-            f"r (fixa):       0.1450",
-            f"CDI periodo:    {cdi_periodo*100:.4f}% = (1.145)^({du}/252)-1",
+            f"r (fixa):       {rf:.4f}",
+            f"CDI periodo:    {cdi_periodo*100:.4f}% = (1+{rf})^({du}/252)-1",
             f"Acao comprada a R$ {r.preco_ativo:.2f}",
             f"Acao PnL:      min({r.preco_ativo:.2f}, {r.strike_call:.2f}) - {r.preco_ativo:.2f} = R$ {pnl_stk:.4f}",
             f"Short Call PnL: R$ {r.premio_call:.4f} (premio recebido, acao cobre)",
-            f"Put val @callVC: BS(S={r.preco_ativo:.2f}, K={r.strike_put:.2f}, T={T_rem:.4f}, r=0.1450, IV={r.iv_put:.2f}%) = R$ {put_val_vc:.4f}",
+            f"Put val @callVC: BS(S={r.preco_ativo:.2f}, K={r.strike_put:.2f}, T={T_rem:.4f}, r={rf:.4f}, IV={r.iv_put:.2f}%) = R$ {put_val_vc:.4f}",
             f"Long Put PnL:   {put_val_vc:.4f} - {r.premio_put:.4f} = R$ {pnl_put:.4f}",
             f"Capital empreg: R$ {cap:.4f}",
             "",
@@ -844,8 +846,9 @@ class ColarCalendarioDialog(QDialog):
             x_max = max(Kc, S0) * 1.15
             x = np.linspace(x_min, x_max, 500)
 
-            rf = getattr(r, 'r', 0.1450)
-            # Modelo COBERTO: acao + short call + long put
+            repo = ParametroRepository(self._db_path)
+            param = repo.get_by_chave("taxa_cdi")
+            rf = param.valor if param else 0.1450
             stock_pnl = np.minimum(x, Kc) - S0  # acao vendida a Kc se ITM
             call_pnl = Pc  # premio recebido, acao cobre exercicio
             if T_rem > 0:

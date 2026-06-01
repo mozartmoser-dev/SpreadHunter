@@ -1,7 +1,10 @@
 import logging
+import math
 import re
 import time
+import urllib.parse
 from typing import Optional
+from datetime import datetime
 
 import requests
 from bs4 import BeautifulSoup
@@ -141,9 +144,205 @@ class OpcoesNetClient:
             logger.error(f"Falha ao obter CSRF: {e}")
         return None
 
-    # ------------------------------------------------------------------
-    # Consulta de variação
-    # ------------------------------------------------------------------
+# ------------------------------------------------------------------
+# Busca de opções (matrix + MOD)
+# ------------------------------------------------------------------
+    MATRIZ_TPL = "https://opcoes.net.br/matriz-opcoes-strike-x-vencimento/{tipo}s/{ativo}"
+    API_BASE = "https://opcoes.net.br/api/v1"
+
+    def _session_anon(self) -> requests.Session:
+        s = requests.Session()
+        s.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+            "Referer": "https://opcoes.net.br/",
+        })
+        return s
+
+    @staticmethod
+    def _parse_valor(texto: str) -> float:
+        return float(texto.replace(".", "").replace(",", ".").strip())
+
+    @staticmethod
+    def _parse_data(texto: str) -> str:
+        return datetime.strptime(texto.strip(), "%d/%m/%Y").date().isoformat()
+
+    def fetch_matriz(
+        self, ativo: str, tipo: str, session: requests.Session | None = None
+    ) -> list[dict]:
+        """
+        Busca grade de opções (strike x vencimento) do opcoes.net.br.
+        tipo: 'CALL' ou 'PUT'
+        Retorna lista de {ticker, strike, vencimento, tipo, ativo}
+        """
+        fechar = session is None
+        if session is None:
+            session = self._session_anon()
+
+        url = self.MATRIZ_TPL.format(tipo=tipo, ativo=ativo.upper())
+        try:
+            resp = session.get(url, timeout=30)
+            resp.raise_for_status()
+        except requests.RequestException:
+            return []
+        finally:
+            if fechar:
+                session.close()
+
+        soup = BeautifulSoup(resp.text, "html.parser")
+        table = soup.find("table", class_="table")
+        if not table:
+            return []
+
+        thead = table.find("thead")
+        tbody = table.find("tbody")
+        if not thead or not tbody:
+            return []
+
+        headers = thead.find_all("th")[1:]
+        vencimentos = [self._parse_data(th.get_text(strip=True)) for th in headers]
+
+        resultados = []
+        for tr in tbody.find_all("tr"):
+            tds = tr.find_all("td")
+            if len(tds) < 2:
+                continue
+            strike = self._parse_valor(tds[0].get_text(strip=True))
+            for i, td in enumerate(tds[1:]):
+                a = td.find("a")
+                if a and a.get("href"):
+                    ticker = a.get_text(strip=True)
+                    if i < len(vencimentos):
+                        resultados.append({
+                            "ticker": ticker,
+                            "strike": strike,
+                            "vencimento": vencimentos[i],
+                            "tipo": tipo.upper(),
+                            "ativo": ativo.upper(),
+                        })
+        return resultados
+
+    def fetch_mod_mapping(
+        self, ativo: str, session: requests.Session | None = None
+    ) -> dict[str, str]:
+        """
+        Busca o mapping {ticker: 'A'/'E'} (MOD = modelo Americano/Europeu)
+        via API do opcoes.net.br.
+        """
+        fechar = session is None
+        if session is None:
+            s = self._session_anon()
+        else:
+            s = session
+
+        z = str(math.floor(time.time() / 10))
+        r0 = "r0t=LastQuotesInfo"
+        params = {
+            "underlying_asset_id": ativo.upper(),
+            "skip": "0",
+            "columns_info": "true",
+            "underlying_quotes": "true",
+        }
+        r1 = "r1t=OptionsChain"
+        for k, v in sorted(params.items()):
+            r1 += "&r1p." + k + "=" + urllib.parse.quote(v)
+        qs = "z=" + z + "&" + r0 + "&" + r1
+        url = self.API_BASE + "?" + qs
+
+        # API endpoint expects JSON; ensure correct Accept header
+        old_accept = s.headers.get("Accept", "")
+        s.headers["Accept"] = "application/json"
+        result: dict[str, str] = {}
+        try:
+            resp = s.get(url, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception:
+            return result
+        finally:
+            s.headers["Accept"] = old_accept
+            if fechar:
+                s.close()
+
+        if not data.get("success"):
+            return result
+
+        for req in (data.get("requests") or []):
+            if req.get("type") == "OptionsChain" and not req.get("error"):
+                for exp in ((req.get("results") or {}).get("expirations") or []):
+                    for opt in (exp.get("calls") or []):
+                        if len(opt) >= 3 and opt[0]:
+                            result[str(opt[0]).strip()] = str(opt[2]).strip().upper()
+                    for opt in (exp.get("puts") or []):
+                        if len(opt) >= 3 and opt[0]:
+                            result[str(opt[0]).strip()] = str(opt[2]).strip().upper()
+        return result
+
+    def fetch_available_assets(self) -> list[str]:
+        """Retorna lista de todos os ativos com opções disponíveis em opcoes.net.br."""
+        s = self._session_anon()
+        try:
+            resp = s.get("https://opcoes.net.br/opcoes/bovespa", timeout=30)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, "html.parser")
+            # Tenta primeiro o data-acoes do "Todos ativos" (lista completa)
+            select_lista = soup.find("select", {"name": "IdLista"})
+            if select_lista:
+                for opt in select_lista.find_all("option"):
+                    if opt.get("value") == "TA":
+                        acoes = opt.get("data-acoes", "")
+                        if acoes:
+                            return [a.strip().upper() for a in acoes.split(",") if a.strip()]
+            # Fallback: options do select IdAcao
+            select = soup.find("select", {"name": "IdAcao"})
+            if not select:
+                return []
+            return [opt["value"].upper() for opt in select.find_all("option") if opt.get("value")]
+        except Exception:
+            return []
+        finally:
+            s.close()
+
+    def fetch_all_options(
+        self, ativo: str, delay: float = 0.5
+    ) -> list[dict]:
+        """
+        Busca todas as opções (CALL + PUT) de um ativo com MOD incluso.
+        Retorna lista de {ticker, strike, vencimento, tipo, ativo, mod}
+        """
+        session = self._session_anon()
+        try:
+            calls = self.fetch_matriz(ativo, "CALL", session)
+            if calls:
+                time.sleep(delay)
+            puts = self.fetch_matriz(ativo, "PUT", session)
+            mod_map = self.fetch_mod_mapping(ativo, session)
+
+            # API returns suffix keys like "F380W1" (month+strike+week),
+            # matrix returns full tickers like "PETRF380". Strip the
+            # trailing week code and match via stem.
+            cleaned_mod: dict[str, str] = {}
+            for k, v in mod_map.items():
+                stem = re.sub(r'W\d+$', '', k)
+                if stem not in cleaned_mod:
+                    cleaned_mod[stem] = v
+
+            # Option ticker prefix = first 4 chars of asset (PETR4 → PETR)
+            asset_prefix = ativo[:4].upper()
+
+            combinados = calls + puts
+            for r in combinados:
+                t = r["ticker"]
+                suffix = t[len(asset_prefix):] if t.startswith(asset_prefix) else t
+                r["mod"] = cleaned_mod.get(suffix, "")
+            return combinados
+        finally:
+            session.close()
+
+# ------------------------------------------------------------------
+# Consulta de variação
+# ------------------------------------------------------------------
     def get_variacao(
         self,
         ativo: str,

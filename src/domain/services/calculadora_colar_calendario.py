@@ -6,6 +6,7 @@ from scipy.stats import norm
 from scipy.optimize import brentq
 
 from src.domain.services.calendario_b3 import dc_to_du, frac_du
+from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
 
 
 class TipoColarCalendario(Enum):
@@ -41,15 +42,17 @@ class ResultadoColarCalendario:
     theta_call: float
     theta_put: float
     theta_liquido: float
-    tipo: TipoColarCalendario
     viavel: bool
+    tipo: TipoColarCalendario
     r: float = 0.1450
+    custo_b3: float = 0.0
 
 
 class CalculadoraColarCalendario:
-    def __init__(self, taxa_cdi: float = 0.1450, premio_risco: float = 1.2):
+    def __init__(self, taxa_cdi: float = 0.1450, premio_risco: float = 1.2, custos_b3: CalculadoraCustosB3 | None = None):
         self.taxa_cdi = taxa_cdi
         self.premio_risco = premio_risco
+        self.custos_b3 = custos_b3 or CalculadoraCustosB3()
 
     @staticmethod
     def black_scholes(S: float, K: float, T: float, r: float, sigma: float, option_type: str) -> float:
@@ -188,7 +191,12 @@ class CalculadoraColarCalendario:
 
         preco_compra = preco_compra_ativo if (preco_compra_ativo and preco_compra_ativo > 0) else preco_ativo
         capital_empregado = preco_compra + premio_put - premio_call
-        pct_retorno = pnl_projetado / capital_empregado if capital_empregado > 0 else 0
+
+        strike_medio = (strike_call + strike_put) / 2
+        custo_b3 = self.custos_b3.calcular_custos(strike_medio, n_pernas=2)
+        pnl_projetado_liquido = max(pnl_projetado - custo_b3, 0.0)
+
+        pct_retorno = pnl_projetado_liquido / capital_empregado if capital_empregado > 0 else 0
         pct_cdi = pct_retorno / cdi_periodo if cdi_periodo > 0 else 0
         viavel = pct_cdi >= self.premio_risco
 
@@ -207,6 +215,7 @@ class CalculadoraColarCalendario:
             premio_call=premio_call,
             premio_put=premio_put,
             net_credito=round(net_credito, 4),
+            custo_b3=round(custo_b3, 4),
             iv_call=round(iv_call * 100, 2),
             iv_put=round(iv_put * 100, 2),
             valor_put_venc_call=round(valor_put_vc, 4),

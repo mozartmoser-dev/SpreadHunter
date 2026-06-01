@@ -192,6 +192,18 @@ class MainWindow(QMainWindow):
         self.btn_calc.clicked.connect(self._abrir_calculadora)
         btn_layout.addWidget(self.btn_calc)
 
+        self.btn_importflash = QPushButton("⚡  ImportFlash")
+        self.btn_importflash.clicked.connect(self._abrir_importflash)
+        self.btn_importflash.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #1a3a5c; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid #2c6fbb; border-radius: 4px;
+                padding: 6px 12px; font-size: 9pt; font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: #204a77; }}
+        """)
+        btn_layout.addWidget(self.btn_importflash)
+
         self.btn_historico = QPushButton("📊  Histórico")
         self.btn_historico.clicked.connect(self._abrir_historico)
         btn_layout.addWidget(self.btn_historico)
@@ -231,6 +243,18 @@ class MainWindow(QMainWindow):
             QPushButton:hover {{ background-color: #5d1e1e; }}
         """)
         btn_layout.addWidget(self.btn_box)
+
+        self.btn_whitelist_box = QPushButton("📋  Whitelist Box")
+        self.btn_whitelist_box.clicked.connect(self._abrir_whitelist_box)
+        self.btn_whitelist_box.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #1a3a1a; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid #2ecc71; border-radius: 4px;
+                padding: 6px 12px; font-size: 9pt; font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: #2a4a2a; }}
+        """)
+        btn_layout.addWidget(self.btn_whitelist_box)
 
         self.btn_varrer = QPushButton("▶  Iniciar Monitor")
         self.btn_varrer.setCheckable(True)
@@ -349,12 +373,16 @@ class MainWindow(QMainWindow):
             self._save_column_visibility()
 
     def _setup_toolbar(self):
-        toolbar = QToolBar("Arquivo")
-        toolbar.setIconSize(QSize(20, 20))
-        toolbar.setMovable(False)
-        self.addToolBar(toolbar)
+        menubar = self.menuBar()
+        arquivo_menu = menubar.addMenu("&Arquivo")
 
-        # Toolbar actions moved to UI; parameters now in footer
+        import_action = QAction("Importar do Opcoes.Net.Br...", self)
+        import_action.triggered.connect(self._abrir_import_opcoesnet)
+        arquivo_menu.addAction(import_action)
+
+        import_xlsx_action = QAction("Importar de planilha XLSX...", self)
+        import_xlsx_action.triggered.connect(self._abrir_import_xlsx)
+        arquivo_menu.addAction(import_xlsx_action)
 
     def _setup_status_bar(self):
         self._status_left = QLabel("Pronto")
@@ -444,6 +472,24 @@ class MainWindow(QMainWindow):
     def _fechar_disclaimer(self):
         self._stack.setCurrentIndex(2)
 
+    def _abrir_import_opcoesnet(self):
+        from src.ui.desktop.import_opcoesnet_dialog import ImportOpcoesNetDialog
+        dialog = ImportOpcoesNetDialog(self.db_path, self)
+        dialog.exec_()
+        if dialog.result:
+            from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
+            InstrumentoRepository.invalidate_cache()
+
+    def _abrir_import_xlsx(self):
+        from src.ui.desktop.import_dialog import ImportDialog
+        from src.application.use_cases.importar_base import ImportarBaseUseCase
+        use_case = ImportarBaseUseCase(self.db_path)
+        dialog = ImportDialog(use_case, self)
+        dialog.exec_()
+        if dialog.result:
+            from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
+            InstrumentoRepository.invalidate_cache()
+
     def _toggle_monitor(self, checked):
         if checked:
             self._stack.setCurrentIndex(1)
@@ -525,6 +571,53 @@ class MainWindow(QMainWindow):
         from src.ui.desktop.calculadora_dialog import CalculadoraDialog
         dialog = CalculadoraDialog(self)
         dialog.exec_()
+
+    def _abrir_importflash(self):
+        from src.ui.desktop.blacklist_import_dialog import BlacklistImportDialog
+        dlg = BlacklistImportDialog(self.db_path, self)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+
+        script_dir = Path(__file__).resolve().parent.parent.parent.parent / "scripts" / "validar_opcoes"
+        self._importflash_process = QProcess(self)
+        self._importflash_process.setWorkingDirectory(str(script_dir))
+        script = str(script_dir / "importflash.py")
+
+        self._importflash_process.readyReadStandardOutput.connect(
+            lambda: self._on_importflash_output(
+                self._importflash_process.readAllStandardOutput().data().decode("utf-8", errors="replace")
+            )
+        )
+        self._importflash_process.readyReadStandardError.connect(
+            lambda: self._on_importflash_output(
+                self._importflash_process.readAllStandardError().data().decode("utf-8", errors="replace"),
+                is_error=True,
+            )
+        )
+        self._importflash_process.finished.connect(self._on_importflash_finished)
+
+        self.btn_importflash.setEnabled(False)
+        self.btn_importflash.setText("⏳  ImportFlash...")
+        self._status_left.setText("ImportFlash: varrendo opcoes.net.br...")
+        self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.YELLOW))
+
+        self._importflash_process.start(
+            sys.executable, [script, "--excluir", "IBOV11", "--delay", "0.35"]
+        )
+
+    def _on_importflash_output(self, text: str, is_error=False):
+        print(text, end="", flush=True)
+
+    def _on_importflash_finished(self, exit_code, exit_status):
+        self.btn_importflash.setEnabled(True)
+        self.btn_importflash.setText("⚡  ImportFlash")
+        if exit_code == 0:
+            self._worker.recarregar_instrumentos()
+            self._status_left.setText("ImportFlash: concluido com sucesso!")
+            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
+        else:
+            self._status_left.setText(f"ImportFlash: erro (codigo {exit_code})")
+            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.RED))
 
     def _abrir_historico(self):
         from src.ui.desktop.historico_dialog import HistoricoDialog
@@ -643,6 +736,14 @@ class MainWindow(QMainWindow):
         self._box_dialog.setAttribute(Qt.WA_DeleteOnClose, True)
         self._box_dialog.destroyed.connect(lambda: setattr(self, "_box_dialog", None))
         self._box_dialog.show()
+
+    def _abrir_whitelist_box(self):
+        from src.ui.desktop.whitelist_box4p_dialog import WhitelistBox4PDialog
+        dlg = WhitelistBox4PDialog(self.db_path, self)
+        if dlg.exec_() == QDialog.Accepted:
+            self._worker.recarregar_parametros()
+            self._status_left.setText("Whitelist Box 4P atualizada.")
+            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
 
     def _on_parar_box(self):
         self._worker.parar_auto_box()

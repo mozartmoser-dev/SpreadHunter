@@ -25,7 +25,11 @@ class MonitorColaresUseCase:
             premio = param_risco.valor if param_risco else 0.7
             param_vov = self.param_repo.get_by_chave("colar_risco_baixo_vov_min")
             vov_min = param_vov.valor if param_vov else 1000.0
-            self._calculadora = CalculadoraColar(taxa_cdi, premio, colar_risco_baixo_vov_min=vov_min)
+            emol = self._get_param("taxa_emolumento_pct", 0.00025)
+            liq = self._get_param("taxa_liquidacao_pct", 0.000275)
+            from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
+            custos_b3 = CalculadoraCustosB3(emol, liq)
+            self._calculadora = CalculadoraColar(taxa_cdi, premio, colar_risco_baixo_vov_min=vov_min, custos_b3=custos_b3)
         return self._calculadora
 
     def varrer(self, rtd=None, dados_mercado: dict | None = None, params: dict | None = None) -> list[ResultadoColar]:

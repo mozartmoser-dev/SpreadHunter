@@ -29,7 +29,11 @@ class MonitorColaresCalendarioUseCase:
             param = self.param_repo.get_by_chave("taxa_cdi")
             taxa_cdi = param.valor if param else 0.1450
             premio_risco = self._get_param("premio_risco_colar_calendario", 1.2)
-            self._calculadora = CalculadoraColarCalendario(taxa_cdi, premio_risco=premio_risco)
+            emol = self._get_param("taxa_emolumento_pct", 0.00025)
+            liq = self._get_param("taxa_liquidacao_pct", 0.000275)
+            from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
+            custos_b3 = CalculadoraCustosB3(emol, liq)
+            self._calculadora = CalculadoraColarCalendario(taxa_cdi, premio_risco=premio_risco, custos_b3=custos_b3)
         return self._calculadora
 
     def recarregar_parametros(self):
@@ -45,14 +49,20 @@ class MonitorColaresCalendarioUseCase:
         inst_map = self.inst_repo.get_all_mapped()
         ativos_set = set(ativos) if ativos else None
 
+        defaults = {
+            "dte_call_min": self._get_param("dte_call_min", 29),
+            "dte_call_max": self._get_param("dte_call_max", 60),
+            "dte_extra_min": self._get_param("dte_extra_min", 30),
+            "dte_extra_max": self._get_param("dte_extra_max", 90),
+            "dte_total_max": self._get_param("dte_total_max", 120),
+            "qul_min_put": self._get_param("colar_qul_min_put", 100),
+            "qul_min_call": self._get_param("colar_qul_min_call", 100),
+        }
         if params is None:
-            params = {
-                "dte_call_min": self._get_param("dte_call_min", 29),
-                "dte_call_max": self._get_param("dte_call_max", 60),
-                "dte_extra_min": self._get_param("dte_extra_min", 30),
-                "dte_extra_max": self._get_param("dte_extra_max", 90),
-                "dte_total_max": self._get_param("dte_total_max", 120),
-            }
+            params = defaults
+        else:
+            for k, v in defaults.items():
+                params.setdefault(k, v)
 
         hoje = date.today()
         calls_por_ativo: dict[str, list] = defaultdict(list)
@@ -115,7 +125,9 @@ class MonitorColaresCalendarioUseCase:
 
             qul_put = rtd.ler_campo_cache(inst.cod_put, "QUL") or 0
             qul_call = rtd.ler_campo_cache(inst.cod_call, "QUL") or 0
-            if qul_put <= 0 and qul_call <= 0:
+            qul_min_put = params.get("qul_min_put", 100)
+            qul_min_call = params.get("qul_min_call", 100)
+            if qul_put < qul_min_put or qul_call < qul_min_call:
                 stats["sem_qul"] += 1
                 continue
 

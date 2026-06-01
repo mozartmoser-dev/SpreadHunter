@@ -7,6 +7,7 @@ from scipy.stats import norm
 from scipy.optimize import brentq
 
 from src.domain.services.calendario_b3 import dc_to_du
+from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
 
 
 class TipoColar(Enum):
@@ -41,6 +42,7 @@ class ResultadoColar:
     risco_leilao: RiscoLeilao
     viavel: bool
     em_leilao: bool
+    custo_b3: float = 0.0
     iv_call: float = 0.0
     iv_put: float = 0.0
     pop_upside: float | None = None
@@ -60,10 +62,11 @@ class DadosPata:
 
 
 class CalculadoraColar:
-    def __init__(self, taxa_cdi: float, premio_risco_colar: float = 1.05, colar_risco_baixo_vov_min: float = 1000.0):
+    def __init__(self, taxa_cdi: float, premio_risco_colar: float = 1.05, colar_risco_baixo_vov_min: float = 1000.0, custos_b3: CalculadoraCustosB3 | None = None):
         self.taxa_cdi = taxa_cdi
         self.premio_risco_colar = premio_risco_colar
         self.colar_risco_baixo_vov_min = colar_risco_baixo_vov_min
+        self.custos_b3 = custos_b3 or CalculadoraCustosB3()
 
     @staticmethod
     def black_scholes_call(S, K, T, r, sigma):
@@ -190,7 +193,12 @@ class CalculadoraColar:
             return None
 
         pior_retorno = self.calcular_pior_retorno(custo_liquido, strike_put, strike_call)
-        pct_ganho = pior_retorno / custo_liquido
+
+        strike_medio = (strike_put + strike_call) / 2
+        custo_b3 = self.custos_b3.calcular_custos(strike_medio, n_pernas=2)
+        pior_retorno_liquido = max(pior_retorno - custo_b3, 0.0)
+
+        pct_ganho = pior_retorno_liquido / custo_liquido
         pct_cdi = pct_ganho / cdi_periodo
         risco = self.calcular_risco_leilao(vov_put, voc_call, status_put, status_call)
         viavel = pct_cdi >= self.premio_risco_colar and not em_leilao
@@ -224,6 +232,7 @@ class CalculadoraColar:
             premio_put=premio_put,
             premio_call=premio_call,
             custo_liquido=round(custo_liquido, 4),
+            custo_b3=round(custo_b3, 4),
             pior_retorno=round(pior_retorno, 4),
             pct_ganho=round(pct_ganho, 6),
             pct_cdi=round(pct_cdi, 4),

@@ -40,6 +40,14 @@ class MonitorBoxUseCase:
         param = self.param_repo.get_by_chave("box_soh_europeia")
         return bool(param.valor) if param else True
 
+    def _get_whitelist(self) -> set[str] | None:
+        param = self.param_repo.get_by_chave("white_list_box4p")
+        if param and param.valor:
+            raw = str(param.valor)
+            ativos = [a.strip().upper() for a in raw.split(",") if a.strip()]
+            return set(ativos) if ativos else None
+        return None
+
     def _extrair(self, inst: InstrumentoOpcional, rtd) -> dict | None:
         strike = rtd.ler_campo_cache(inst.cod_put, "PEX")
         if not strike or strike <= 0:
@@ -86,6 +94,7 @@ class MonitorBoxUseCase:
         inst_map = self.inst_repo.get_all_mapped()
         qtd_min = self._get_qtd_min_perna()
         soh_europeia = self._soh_europeia()
+        whitelist = self._get_whitelist()
 
         hoje = date.today()
         grupos: dict[tuple[str, date], list[dict]] = defaultdict(list)
@@ -94,6 +103,8 @@ class MonitorBoxUseCase:
             if not inst.vencimento or inst.vencimento <= hoje:
                 continue
             if soh_europeia and inst.tipo_opcao != TipoOpcao.EUROPEIA:
+                continue
+            if whitelist is not None and inst.ativo.upper() not in whitelist:
                 continue
 
             dados = self._extrair(inst, rtd)
