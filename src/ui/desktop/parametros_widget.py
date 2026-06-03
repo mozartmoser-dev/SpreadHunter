@@ -97,6 +97,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("box_premio_risco", "Premio risco (x CDI)"),
         ("box_qtd_min", "Qtd min contratos por perna"),
         ("box_soh_europeia", "So aceitar opcoes europeias"),
+        ("white_list_box4p", "Whitelist de ativos (separados por virgula)"),
     ],
     "IMPORTACAO": [
         ("import_max_months", "Meses a frente para importar series"),
@@ -388,7 +389,7 @@ class ParametrosWidget(QWidget):
                 elif "tema_visual" in chave:
                     widget = QComboBox()
                     widget.addItems(["Azul Marinho", "Grafite / Slate", "True Dark / Charcoal"])
-                elif "telegram_bot_token" in chave or "telegram_chat_id" in chave or "black_list_import" in chave:
+                elif "telegram_bot_token" in chave or "telegram_chat_id" in chave or "_list_" in chave:
                     widget = QLineEdit()
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
                 else:

@@ -81,6 +81,7 @@ class MainWindow(QMainWindow):
     def _setup_ui(self):
         self.setWindowTitle("SpreadHunter — Monitor de Oportunidades")
         self.setMinimumSize(1200, 700)
+        self.resize(1400, 800)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -187,12 +188,12 @@ class MainWindow(QMainWindow):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(12)
 
-        self.btn_calc = QPushButton("🧮  Calculadora")
+        self.btn_calc = QPushButton("🧮  B&S")
         self.btn_calc.setProperty("class", "primary")
         self.btn_calc.clicked.connect(self._abrir_calculadora)
         btn_layout.addWidget(self.btn_calc)
 
-        self.btn_importflash = QPushButton("⚡  ImportFlash")
+        self.btn_importflash = QPushButton("⚡  Importar")
         self.btn_importflash.clicked.connect(self._abrir_importflash)
         self.btn_importflash.setStyleSheet(f"""
             QPushButton {{
@@ -244,19 +245,7 @@ class MainWindow(QMainWindow):
         """)
         btn_layout.addWidget(self.btn_box)
 
-        self.btn_whitelist_box = QPushButton("📋  Whitelist Box")
-        self.btn_whitelist_box.clicked.connect(self._abrir_whitelist_box)
-        self.btn_whitelist_box.setStyleSheet(f"""
-            QPushButton {{
-                background-color: #1a3a1a; color: {Palette.TEXT_PRIMARY};
-                border: 1px solid #2ecc71; border-radius: 4px;
-                padding: 6px 12px; font-size: 9pt; font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: #2a4a2a; }}
-        """)
-        btn_layout.addWidget(self.btn_whitelist_box)
-
-        self.btn_varrer = QPushButton("▶  Iniciar Monitor")
+        self.btn_varrer = QPushButton("▶  Ligar")
         self.btn_varrer.setCheckable(True)
         self.btn_varrer.setChecked(False)
         self.btn_varrer.setProperty("class", "success")
@@ -494,7 +483,7 @@ class MainWindow(QMainWindow):
         if checked:
             self._stack.setCurrentIndex(1)
             QTimer.singleShot(1500, self._fade_anim.start)
-            self.btn_varrer.setText("⏸  Pausar Monitor")
+            self.btn_varrer.setText("⏸  Desligar")
             self.btn_varrer.setProperty("class", "monitor-active")
             self.btn_varrer.style().unpolish(self.btn_varrer)
             self.btn_varrer.style().polish(self.btn_varrer)
@@ -509,7 +498,7 @@ class MainWindow(QMainWindow):
         else:
             self._stack.setCurrentIndex(0)
             self._transicao_opacity.setOpacity(1.0)
-            self.btn_varrer.setText("▶  Iniciar Monitor")
+            self.btn_varrer.setText("▶  Ligar")
             self.btn_varrer.setProperty("class", "success")
             self.btn_varrer.style().unpolish(self.btn_varrer)
             self.btn_varrer.style().polish(self.btn_varrer)
@@ -597,7 +586,7 @@ class MainWindow(QMainWindow):
         self._importflash_process.finished.connect(self._on_importflash_finished)
 
         self.btn_importflash.setEnabled(False)
-        self.btn_importflash.setText("⏳  ImportFlash...")
+        self.btn_importflash.setText("⏳  Importar...")
         self._status_left.setText("ImportFlash: varrendo opcoes.net.br...")
         self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.YELLOW))
 
@@ -610,7 +599,7 @@ class MainWindow(QMainWindow):
 
     def _on_importflash_finished(self, exit_code, exit_status):
         self.btn_importflash.setEnabled(True)
-        self.btn_importflash.setText("⚡  ImportFlash")
+        self.btn_importflash.setText("⚡  Importar")
         if exit_code == 0:
             self._worker.recarregar_instrumentos()
             self._status_left.setText("ImportFlash: concluido com sucesso!")
@@ -736,14 +725,6 @@ class MainWindow(QMainWindow):
         self._box_dialog.setAttribute(Qt.WA_DeleteOnClose, True)
         self._box_dialog.destroyed.connect(lambda: setattr(self, "_box_dialog", None))
         self._box_dialog.show()
-
-    def _abrir_whitelist_box(self):
-        from src.ui.desktop.whitelist_box4p_dialog import WhitelistBox4PDialog
-        dlg = WhitelistBox4PDialog(self.db_path, self)
-        if dlg.exec_() == QDialog.Accepted:
-            self._worker.recarregar_parametros()
-            self._status_left.setText("Whitelist Box 4P atualizada.")
-            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
 
     def _on_parar_box(self):
         self._worker.parar_auto_box()
