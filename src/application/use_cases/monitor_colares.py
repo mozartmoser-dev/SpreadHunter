@@ -32,9 +32,16 @@ class MonitorColaresUseCase:
             self._calculadora = CalculadoraColar(taxa_cdi, premio, colar_risco_baixo_vov_min=vov_min, custos_b3=custos_b3)
         return self._calculadora
 
+    def _get_whitelist(self) -> set[str] | None:
+        param = self.param_repo.get_by_chave("white_list_colar")
+        if not param or not param.valor:
+            return None
+        return {a.strip().upper() for a in str(param.valor).split(",") if a.strip()}
+
     def varrer(self, rtd=None, dados_mercado: dict | None = None, params: dict | None = None) -> list[ResultadoColar]:
         calc = self._get_calculadora()
         inst_map = self.inst_repo.get_all_mapped()
+        self._whitelist_cache = self._get_whitelist()
 
         if params is None:
             params = {
@@ -55,9 +62,12 @@ class MonitorColaresUseCase:
 
     def _extrair_de_dados_mercado(self, dados_mercado, inst_map, params, hoje):
         grupos = defaultdict(list)
+        whitelist = getattr(self, '_whitelist_cache', None)
         for key, dm in dados_mercado.items():
             inst = inst_map.get(key)
             if not inst or not inst.vencimento or inst.vencimento <= hoje:
+                continue
+            if whitelist is not None and inst.ativo.upper() not in whitelist:
                 continue
 
             preco_ativo = dm.get("preco_ativo", 0.0)
@@ -88,7 +98,7 @@ class MonitorColaresUseCase:
                 "cod_put": inst.cod_put,
                 "cod_call": inst.cod_call,
                 "preco_ativo": preco_ativo,
-                "preco_compra_ativo": dm.get("of_venda_ativo", preco_ativo) or preco_ativo,
+                "preco_compra_ativo": dm.get("of_venda_ativo", 0.0) or 0.0,
                 "premio_put": premio_put,
                 "premio_call": premio_call,
                 "vov_put": dm.get("vov_put_boca", 0.0) or 0.0,
@@ -114,9 +124,12 @@ class MonitorColaresUseCase:
 
     def _ler_dados_rtd_all(self, inst_map, rtd, params, hoje):
         grupos = defaultdict(list)
+        whitelist = getattr(self, '_whitelist_cache', None)
 
         for key, inst in inst_map.items():
             if not inst.vencimento or inst.vencimento <= hoje:
+                continue
+            if whitelist is not None and inst.ativo.upper() not in whitelist:
                 continue
 
             dados = self._ler_dados_rtd(inst, rtd)
@@ -172,7 +185,7 @@ class MonitorColaresUseCase:
             "cod_put": inst.cod_put,
             "cod_call": inst.cod_call,
             "preco_ativo": preco_ativo,
-            "preco_compra_ativo": of_venda_ativo if (of_venda_ativo and of_venda_ativo > 0) else preco_ativo,
+            "preco_compra_ativo": of_venda_ativo if (of_venda_ativo and of_venda_ativo > 0) else 0.0,
             "premio_put": of_v_put,
             "premio_call": of_c_call,
             "vov_put": vov_put,

@@ -14,6 +14,17 @@ from src.ui.desktop.theme import Palette
 
 logger = logging.getLogger(__name__)
 
+WHITELIST_CHAVE = "white_list_colar_calendario"
+
+
+def ler_whitelist_colar_calendario(db_path: str | None = None) -> list[str]:
+    repo = ParametroRepository(db_path)
+    param = repo.get_by_chave(WHITELIST_CHAVE)
+    if param and param.valor:
+        raw = str(param.valor)
+        return [a.strip().upper() for a in raw.split(",") if a.strip()]
+    return []
+
 
 class ColarCalTableModel(QAbstractTableModel):
     COLUMNS = [
@@ -260,62 +271,6 @@ class ColarCalendarioDialog(QDialog):
         sep.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
         left_panel.addWidget(sep)
 
-        filtros_label = QLabel("Filtros DTE / %CDI")
-        filtros_label.setStyleSheet(f"color: {Palette.TEXT_MUTED}; font-size: 8pt; font-weight: bold;")
-        left_panel.addWidget(filtros_label)
-
-        def _mk_spin(row_lbl, min_v, max_v, default, step=1):
-            h = QHBoxLayout()
-            h.setSpacing(4)
-            lbl = QLabel(row_lbl)
-            lbl.setStyleSheet(f"color: {Palette.TEXT_MUTED}; font-size: 7pt;")
-            h.addWidget(lbl)
-            sp = QSpinBox()
-            sp.setMinimum(min_v)
-            sp.setMaximum(max_v)
-            sp.setValue(default)
-            sp.setSingleStep(step)
-            sp.setFixedWidth(55)
-            sp.setStyleSheet("background:#1e1e2f; color:#e0e0e0; border:1px solid #2d2d44; border-radius:3px; padding:1px 3px; font-size:7pt;")
-            h.addWidget(sp)
-            h.addStretch()
-            return sp, h
-
-        self.sp_call_min, h1 = _mk_spin("Call min:", 1, 120, 29)
-        left_panel.addLayout(h1)
-        self.sp_call_max, h2 = _mk_spin("Call max:", 1, 120, 60)
-        left_panel.addLayout(h2)
-        self.sp_extra_min, h3 = _mk_spin("Extra min:", 1, 180, 30)
-        left_panel.addLayout(h3)
-        self.sp_extra_max, h4 = _mk_spin("Extra max:", 1, 180, 90)
-        left_panel.addLayout(h4)
-        self.sp_total_max, h5 = _mk_spin("Total max:", 1, 365, 120)
-        left_panel.addLayout(h5)
-
-        h_pct = QHBoxLayout()
-        h_pct.setSpacing(4)
-        lbl_pct = QLabel("%CDI min:")
-        lbl_pct.setStyleSheet(f"color: {Palette.TEXT_MUTED}; font-size: 7pt;")
-        h_pct.addWidget(lbl_pct)
-        self.sp_pct_min = QDoubleSpinBox()
-        self.sp_pct_min.setMinimum(0)
-        self.sp_pct_min.setMaximum(9999)
-        self.sp_pct_min.setValue(0)
-        self.sp_pct_min.setSingleStep(10)
-        self.sp_pct_min.setDecimals(0)
-        self.sp_pct_min.setFixedWidth(55)
-        self.sp_pct_min.setStyleSheet("background:#1e1e2f; color:#e0e0e0; border:1px solid #2d2d44; border-radius:3px; padding:1px 3px; font-size:7pt;")
-        h_pct.addWidget(self.sp_pct_min)
-        h_pct.addStretch()
-        left_panel.addLayout(h_pct)
-
-        self.sp_call_min.valueChanged.connect(self._restart_scan_if_auto)
-        self.sp_call_max.valueChanged.connect(self._restart_scan_if_auto)
-        self.sp_extra_min.valueChanged.connect(self._restart_scan_if_auto)
-        self.sp_extra_max.valueChanged.connect(self._restart_scan_if_auto)
-        self.sp_total_max.valueChanged.connect(self._restart_scan_if_auto)
-        self.sp_pct_min.valueChanged.connect(self._restart_scan_if_auto)
-
         self.lbl_selecionados = QLabel("Selecionados: 0 ativos")
         self.lbl_selecionados.setStyleSheet(f"color: {Palette.YELLOW}; font-size: 8pt; font-weight: bold;")
         left_panel.addWidget(self.lbl_selecionados)
@@ -394,7 +349,7 @@ class ColarCalendarioDialog(QDialog):
             selecionados = [self.lista_ativos.item(i).text()
                             for i in range(1, self.lista_ativos.count())
                             if self.lista_ativos.item(i).checkState() == Qt.Checked]
-            self.iniciar_scan_signal.emit(selecionados, self._get_dte_params())
+            self.iniciar_scan_signal.emit(selecionados, {})
 
     def _on_asset_check_changed(self, item):
         self._aplicar_filtro_lista()
@@ -479,16 +434,6 @@ class ColarCalendarioDialog(QDialog):
             item.setCheckState(Qt.Checked if item.text() in ativos else Qt.Unchecked)
         self._aplicar_filtro_lista()
 
-    def _get_dte_params(self) -> dict:
-        return {
-            "dte_call_min": self.sp_call_min.value(),
-            "dte_call_max": self.sp_call_max.value(),
-            "dte_extra_min": self.sp_extra_min.value(),
-            "dte_extra_max": self.sp_extra_max.value(),
-            "dte_total_max": self.sp_total_max.value(),
-            "pct_cdi_min": self.sp_pct_min.value(),
-        }
-
     def _toggle_scan(self):
         if self._auto_mode:
             self._auto_mode = False
@@ -542,7 +487,7 @@ class ColarCalendarioDialog(QDialog):
             selecionados = [self.lista_ativos.item(i).text()
                              for i in range(1, self.lista_ativos.count())
                              if self.lista_ativos.item(i).checkState() == Qt.Checked]
-            self.iniciar_scan_signal.emit(selecionados, self._get_dte_params())
+            self.iniciar_scan_signal.emit(selecionados, {})
 
     def set_scan_completed(self, n_resultados: int, auto: bool = False):
         if auto and self._auto_mode:
@@ -641,6 +586,14 @@ class ColarCalendarioDialog(QDialog):
         add_row("PNL Projetado:", f"R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}%)")
         add_row("% CDI:", f"{r.pct_cdi:.2f}x",
                 cor=Palette.GREEN if r.pct_cdi >= 1.0 else Palette.RED)
+        if r.be_baixa is not None:
+            add_row("BE Baixa (B&S):", f"R$ {r.be_baixa:.2f}", cor=Palette.CYAN)
+        if r.be_alta is not None:
+            add_row("BE Alta (B&S):", f"R$ {r.be_alta:.2f}", cor=Palette.CYAN)
+        if r.be_baixa_intrinseco is not None:
+            add_row("BE Baixa (Intrínseco):", f"R$ {r.be_baixa_intrinseco:.2f}", cor=Palette.GREEN)
+        if r.be_alta_intrinseco is not None:
+            add_row("BE Alta (Intrínseco):", f"R$ {r.be_alta_intrinseco:.2f}", cor=Palette.RED)
 
         layout.addLayout(form)
         layout.addStretch()
@@ -779,6 +732,11 @@ class ColarCalendarioDialog(QDialog):
             f"Tipo:           {r.tipo.value}",
             f"Viavel:         {r.viavel}",
         ]
+        be_baixa_bs = f"BE Baixa B&S:   R$ {r.be_baixa:.2f}" if r.be_baixa is not None else "BE Baixa B&S:   N/D"
+        be_alta_bs = f"BE Alta B&S:    R$ {r.be_alta:.2f}" if r.be_alta is not None else "BE Alta B&S:    N/D"
+        be_baixa_int = f"BE Baixa Intr:  R$ {r.be_baixa_intrinseco:.2f}" if r.be_baixa_intrinseco is not None else "BE Baixa Intr:  N/D"
+        be_alta_int = f"BE Alta Intr:   R$ {r.be_alta_intrinseco:.2f}" if r.be_alta_intrinseco is not None else "BE Alta Intr:   N/D"
+        lines.extend(["", "--- BREAKEVENS ---", be_baixa_bs, be_alta_bs, be_baixa_int, be_alta_int])
         texto = "\n".join(lines)
         QApplication.clipboard().setText(texto)
         QMessageBox.information(self, "Debug Exportado",
@@ -872,6 +830,24 @@ class ColarCalendarioDialog(QDialog):
 
             ax.plot(x, pnl, color=ACCENT, linewidth=2.0, label='Payoff')
 
+            hover_annot = ax.annotate(
+                '', xy=(0, 0), fontsize=8, color='#fff',
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=ACCENT, alpha=0.9),
+                ha='center', va='bottom', visible=False,
+            )
+            def _on_hover(event):
+                if event.inaxes != ax or not event.xdata:
+                    hover_annot.set_visible(False)
+                    fig.canvas.draw_idle()
+                    return
+                idx = np.argmin(np.abs(x - event.xdata))
+                xv, yv = x[idx], pnl[idx]
+                hover_annot.xy = (xv, yv)
+                hover_annot.set_text(f'R$ {xv:.2f} → R$ {yv:+.2f}')
+                hover_annot.set_visible(True)
+                fig.canvas.draw_idle()
+            fig.canvas.mpl_connect('motion_notify_event', _on_hover)
+
             ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
             ax.axvline(S0, color='#2196f3', linewidth=0.7, linestyle='--', alpha=0.8, label=f'Entrada {S0:.2f}')
             ax.axvline(Kp, color=RED, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Put {Kp:.2f}')
@@ -883,6 +859,43 @@ class ColarCalendarioDialog(QDialog):
                     ax.axvline(px, color=SIGMA_C, linewidth=0.5, linestyle=':', alpha=0.5)
                     ax.text(px, ax.get_ylim()[0], f'{n:+d}σ\n{px:.2f}',
                             color=SIGMA_C, fontsize=6, ha='center', va='bottom')
+
+            # Breakevens
+            be_color_bs = '#6c5ce7'
+            be_color_int = '#fd79a8'
+            ylim_bottom, ylim_top = ax.get_ylim()
+            y_bs = ylim_top * 0.05
+            y_int = ylim_top * 0.14
+            if r.be_baixa is not None:
+                ax.axvline(r.be_baixa, color=be_color_bs, linewidth=1.2, linestyle='--', alpha=0.9)
+                dx_bs = (r.be_alta - r.be_baixa) * 0.02 if r.be_alta is not None else 0
+                ax.annotate(f'BE B&S {r.be_baixa:.2f}', xy=(r.be_baixa, 0),
+                            xytext=(r.be_baixa - dx_bs, y_bs),
+                            color=be_color_bs, fontsize=7, ha='center',
+                            arrowprops=dict(arrowstyle='->', color=be_color_bs, lw=0.8))
+            if r.be_alta is not None:
+                ax.axvline(r.be_alta, color=be_color_bs, linewidth=1.2, linestyle='--', alpha=0.9,
+                           label='BE B&S')
+                dx_bs = (r.be_alta - r.be_baixa) * 0.02 if r.be_baixa is not None else 0
+                ax.annotate(f'BE B&S {r.be_alta:.2f}', xy=(r.be_alta, 0),
+                            xytext=(r.be_alta + dx_bs, y_bs),
+                            color=be_color_bs, fontsize=7, ha='center',
+                            arrowprops=dict(arrowstyle='->', color=be_color_bs, lw=0.8))
+            if r.be_baixa_intrinseco is not None:
+                ax.axvline(r.be_baixa_intrinseco, color=be_color_int, linewidth=1.2, linestyle=':', alpha=0.9)
+                dx_int = (r.be_alta_intrinseco - r.be_baixa_intrinseco) * 0.02 if r.be_alta_intrinseco is not None else 0
+                ax.annotate(f'BE Intr {r.be_baixa_intrinseco:.2f}', xy=(r.be_baixa_intrinseco, 0),
+                            xytext=(r.be_baixa_intrinseco - dx_int, y_int),
+                            color=be_color_int, fontsize=7, ha='center',
+                            arrowprops=dict(arrowstyle='->', color=be_color_int, lw=0.8))
+            if r.be_alta_intrinseco is not None:
+                ax.axvline(r.be_alta_intrinseco, color=be_color_int, linewidth=1.2, linestyle=':', alpha=0.9,
+                           label='BE Intrínseco')
+                dx_int = (r.be_alta_intrinseco - r.be_baixa_intrinseco) * 0.02 if r.be_baixa_intrinseco is not None else 0
+                ax.annotate(f'BE Intr {r.be_alta_intrinseco:.2f}', xy=(r.be_alta_intrinseco, 0),
+                            xytext=(r.be_alta_intrinseco + dx_int, y_int),
+                            color=be_color_int, fontsize=7, ha='center',
+                            arrowprops=dict(arrowstyle='->', color=be_color_int, lw=0.8))
 
             ax.fill_between(x, 0, pnl, where=(pnl >= 0), color=FILL_BLUE, alpha=0.12)
             ax.fill_between(x, 0, pnl, where=(pnl < 0), color=RED, alpha=0.1)
@@ -906,6 +919,21 @@ class ColarCalendarioDialog(QDialog):
             canvas = FigureCanvas(fig)
             payoff_layout.addWidget(canvas)
 
+            be_parts = []
+            if r.be_baixa is not None and r.be_alta is not None:
+                be_parts.append(f"BE B&S: R$ {r.be_baixa:.2f} — R$ {r.be_alta:.2f}")
+            elif r.be_baixa is not None:
+                be_parts.append(f"BE Baixa B&S: R$ {r.be_baixa:.2f}")
+            elif r.be_alta is not None:
+                be_parts.append(f"BE Alta B&S: R$ {r.be_alta:.2f}")
+            if r.be_baixa_intrinseco is not None and r.be_alta_intrinseco is not None:
+                be_parts.append(f"BE Intr: R$ {r.be_baixa_intrinseco:.2f} — R$ {r.be_alta_intrinseco:.2f}")
+            elif r.be_baixa_intrinseco is not None:
+                be_parts.append(f"BE Baixa Intr: R$ {r.be_baixa_intrinseco:.2f}")
+            elif r.be_alta_intrinseco is not None:
+                be_parts.append(f"BE Alta Intr: R$ {r.be_alta_intrinseco:.2f}")
+            be_str = "  |  " + "  |  ".join(be_parts) if be_parts else ""
+
             footer = QLabel(
                 f"{r.ativo}  |  "
                 f"Spot: R$ {S0:.2f}  |  "
@@ -913,6 +941,7 @@ class ColarCalendarioDialog(QDialog):
                 f"Put {r.cod_put} K={Kp:.2f}: −R$ {Pp:.2f}  |  "
                 f"Capital: R$ {S0 + Pp - Pc:.2f}  |  "
                 f"PnL Proj: R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI)"
+                f"{be_str}"
             )
             footer.setStyleSheet(f"""
                 QLabel {{
@@ -1193,6 +1222,8 @@ class ColarCalendarioDialog(QDialog):
             return []
 
     def _popular_lista_ativos(self, ativos: list[str]):
+        whitelist = ler_whitelist_colar_calendario(self._db_path)
+        usar_whitelist = bool(whitelist)
         self.lista_ativos.blockSignals(True)
         self.lista_ativos.clear()
         item_todos = QListWidgetItem("TODOS")
@@ -1206,7 +1237,10 @@ class ColarCalendarioDialog(QDialog):
         for ativo in ativos:
             item = QListWidgetItem(ativo)
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Checked)
+            if usar_whitelist:
+                item.setCheckState(Qt.Checked if ativo in whitelist else Qt.Unchecked)
+            else:
+                item.setCheckState(Qt.Checked)
             item.setForeground(QColor(Palette.TEXT_PRIMARY))
             self.lista_ativos.addItem(item)
         self.lista_ativos.blockSignals(False)
@@ -1215,9 +1249,6 @@ class ColarCalendarioDialog(QDialog):
 
     def atualizar_resultados(self, resultados: list):
         self._dados_carregados = True
-        pct_min = self.sp_pct_min.value()
-        if pct_min > 0:
-            resultados = [r for r in resultados if r.pct_cdi >= pct_min]
         self._resultados = resultados
         items = []
         for r in resultados:
@@ -1253,11 +1284,16 @@ class ColarCalendarioDialog(QDialog):
         )
         novos_ativos = sorted(set(r.ativo for r in resultados if r.ativo not in ativos_atuais))
         if novos_ativos:
+            whitelist = ler_whitelist_colar_calendario(self._db_path)
+            usar_whitelist = bool(whitelist)
             self.lista_ativos.blockSignals(True)
             for ativo in novos_ativos:
                 item = QListWidgetItem(ativo)
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-                item.setCheckState(Qt.Checked)
+                if usar_whitelist:
+                    item.setCheckState(Qt.Checked if ativo in whitelist else Qt.Unchecked)
+                else:
+                    item.setCheckState(Qt.Checked)
                 item.setForeground(QColor(Palette.TEXT_PRIMARY))
                 self.lista_ativos.addItem(item)
             self.lista_ativos.blockSignals(False)

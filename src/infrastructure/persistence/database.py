@@ -48,6 +48,8 @@ def _seed_parametros_colar(conn):
         ("dte_total_max", "120", "COLLAR_CALENDARIO", "DTE máximo total para qualquer perna"),
         ("import_max_months", "9", "IMPORTACAO", "Meses a frente da data para importar series"),
         ("white_list_box4p", "", "BOX_4P", "Whitelist de ativos para Box 4P"),
+        ("white_list_colar_calendario", "", "COLLAR_CALENDARIO", "Whitelist de ativos para Collar Calendario"),
+        ("white_list_colar", "", "COLAR", "Whitelist de ativos para Colar Protetivo"),
     ]
     for chave, valor, estrategia, descricao in params:
         try:

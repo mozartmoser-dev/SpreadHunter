@@ -10,10 +10,23 @@ from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.ui.desktop.theme import Palette
 
 
+WHITELIST_CHAVE_COLAR = "white_list_colar"
+
+
+def ler_whitelist_colar(db_path: str | None = None) -> list[str]:
+    from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+    repo = ParametroRepository(db_path)
+    param = repo.get_by_chave(WHITELIST_CHAVE_COLAR)
+    if param and param.valor:
+        raw = str(param.valor)
+        return [a.strip().upper() for a in raw.split(",") if a.strip()]
+    return []
+
+
 CLASSIF_CORES = {
-    "Tradicional": QColor("#1abc9c"),
-    "Strikes Abaixo": QColor("#9b59b6"),
-    "Strikes Acima": QColor("#e67e22"),
+    "Viés Neutro": QColor("#1abc9c"),
+    "Viés Baixa": QColor("#9b59b6"),
+    "Viés Alta": QColor("#e67e22"),
 }
 
 RISCO_CORES = {
@@ -28,7 +41,8 @@ class ColarTableModel(QAbstractTableModel):
         ("Ativo", "ativo"),
         ("Pop ↑", "pop_upside"),
         ("Pop ↓", "pop_downside"),
-        ("x CDI", "pct_cdi"),
+        ("Pior%xCDI", "pct_cdi"),
+        ("Melhor%xCDI", "pct_cdi_melhor"),
         ("Vencimento", "vencimento"),
         ("Tipo", "tipo_str"),
         ("K Put", "strike_put"),
@@ -71,7 +85,7 @@ class ColarTableModel(QAbstractTableModel):
             try:
                 if col_key in ("strike_put", "strike_call", "custo_liquido", "pior_retorno"):
                     return "R$ {:.2f}".format(val)
-                if col_key == "pct_cdi":
+                if col_key in ("pct_cdi", "pct_cdi_melhor"):
                     return "{:.2f}x".format(val)
                 if col_key in ("pop_upside", "pop_downside"):
                     if val is None:
@@ -95,14 +109,14 @@ class ColarTableModel(QAbstractTableModel):
             if col_key == "risco_str":
                 risco = item.get("risco_str", "")
                 return RISCO_CORES.get(risco, QBrush(QColor(Palette.TEXT_MUTED)))
-            if col_key == "pct_cdi":
+            if col_key in ("pct_cdi", "pct_cdi_melhor"):
                 return QBrush(QColor(Palette.YELLOW))
             if col_key in ("strike_put", "strike_call", "custo_liquido", "pior_retorno"):
                 return QBrush(QColor(Palette.TEXT_PRIMARY))
             return QBrush(QColor(Palette.TEXT_MUTED))
 
         if role == Qt.TextAlignmentRole:
-            center_cols = {"strike_put", "strike_call", "custo_liquido", "pior_retorno", "pct_cdi", "pop_upside", "pop_downside", "risco_str", "dias"}
+            center_cols = {"strike_put", "strike_call", "custo_liquido", "pior_retorno", "pct_cdi", "pct_cdi_melhor", "pop_upside", "pop_downside", "risco_str", "dias"}
             if col_key in center_cols:
                 return Qt.AlignCenter | Qt.AlignVCenter
             return Qt.AlignLeft | Qt.AlignVCenter
@@ -930,6 +944,24 @@ class ColarDialog(QDialog):
 
         ax.plot(x, total_pnl, color=ACCENT, linewidth=2.0, label='Payoff')
 
+        hover_annot = ax.annotate(
+            '', xy=(0, 0), fontsize=8, color='#fff',
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=ACCENT, alpha=0.9),
+            ha='center', va='bottom', visible=False,
+        )
+        def _on_hover(event):
+            if event.inaxes != ax or not event.xdata:
+                hover_annot.set_visible(False)
+                fig.canvas.draw_idle()
+                return
+            idx = np.argmin(np.abs(x - event.xdata))
+            xv, yv = x[idx], total_pnl[idx]
+            hover_annot.xy = (xv, yv)
+            hover_annot.set_text(f'R$ {xv:.2f} → R$ {yv:+.2f}')
+            hover_annot.set_visible(True)
+            fig.canvas.draw_idle()
+        fig.canvas.mpl_connect('motion_notify_event', _on_hover)
+
         ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
         ax.axvline(S, color=BLUE, linewidth=0.7, linestyle='--', alpha=0.8, label='Entrada')
         ax.axvline(Kp, color=RED, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Put {Kp:.2f}')
@@ -1198,6 +1230,8 @@ class ColarDialog(QDialog):
             return []
 
     def _popular_lista_ativos(self, ativos: list[str]):
+        whitelist = ler_whitelist_colar(self._db_path)
+        usar_whitelist = bool(whitelist)
         self.lista_ativos.blockSignals(True)
         self.lista_ativos.clear()
 
@@ -1213,7 +1247,10 @@ class ColarDialog(QDialog):
         for ativo in ativos:
             item = QListWidgetItem(ativo)
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Checked)
+            if usar_whitelist:
+                item.setCheckState(Qt.Checked if ativo in whitelist else Qt.Unchecked)
+            else:
+                item.setCheckState(Qt.Checked)
             item.setForeground(QColor(Palette.TEXT_PRIMARY))
             self.lista_ativos.addItem(item)
 
@@ -1237,6 +1274,7 @@ class ColarDialog(QDialog):
                 "custo_liquido": r.custo_liquido,
                 "pior_retorno": r.pior_retorno,
                 "pct_cdi": r.pct_cdi,
+                "pct_cdi_melhor": r.pct_cdi_melhor,
                 "risco_str": r.risco_leilao.value,
                 "dias": r.dias,
                 "viavel": r.viavel,
@@ -1252,11 +1290,16 @@ class ColarDialog(QDialog):
         )
         novos_ativos = sorted(set(r.ativo for r in resultados if r.ativo not in ativos_atuais))
         if novos_ativos:
+            whitelist = ler_whitelist_colar(self._db_path)
+            usar_whitelist = bool(whitelist)
             self.lista_ativos.blockSignals(True)
             for ativo in novos_ativos:
                 item = QListWidgetItem(ativo)
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-                item.setCheckState(Qt.Checked)
+                if usar_whitelist:
+                    item.setCheckState(Qt.Checked if ativo in whitelist else Qt.Unchecked)
+                else:
+                    item.setCheckState(Qt.Checked)
                 item.setForeground(QColor(Palette.TEXT_PRIMARY))
                 self.lista_ativos.addItem(item)
             self.lista_ativos.blockSignals(False)

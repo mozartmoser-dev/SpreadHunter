@@ -89,9 +89,11 @@ PARAMETROS_POR_ESTRATEGIA = {
     "COLAR": [
         ("premio_risco_colar", "Premio risco Colar (x CDI)"),
         ("colar_dist_max_pct", "Distancia maxima do strike (%)"),
+        ("white_list_colar", "Whitelist de ativos (separados por virgula)"),
     ],
     "COLLAR_CALENDARIO": [
         ("calendario_strike_diff_pct", "Max diff % entre strikes"),
+        ("white_list_colar_calendario", "Whitelist de ativos (separados por virgula)"),
     ],
     "BOX_4P": [
         ("box_premio_risco", "Premio risco (x CDI)"),
@@ -346,6 +348,11 @@ PARAMETROS_INFO = {
         "descricao": "Dias maximos ate o vencimento para QUALQUER perna no Collar Calendario. Opcoes com DTE acima disto sao ignoradas completamente.",
         "usado_em": "Monitor de Collar Calendario (filtro DTE inicial).",
         "precedencia": "Spinner da Tela -> Banco de Dados -> 120 (padrao)",
+    },
+    "white_list_colar_calendario": {
+        "descricao": "Lista de ativos que aparecem marcados por padrao ao abrir o Collar Calendario. Se vazia, todos os ativos disponiveis aparecem marcados. Separar por virgula (ex: PETR4,VALE3,ITUB4).",
+        "usado_em": "Interface do Collar Calendario (pre-selecao de ativos).",
+        "precedencia": "Banco de Dados -> Vazio (todos marcados)",
     },
 }
 

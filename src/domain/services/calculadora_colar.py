@@ -11,9 +11,9 @@ from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
 
 
 class TipoColar(Enum):
-    TRADICIONAL = "Tradicional"
-    STRIKES_ABAIXO = "Strikes Abaixo"
-    STRIKES_ACIMA = "Strikes Acima"
+    TRADICIONAL = "Viés Neutro"
+    STRIKES_ABAIXO = "Viés Baixa"
+    STRIKES_ACIMA = "Viés Alta"
 
 
 class RiscoLeilao(Enum):
@@ -36,8 +36,10 @@ class ResultadoColar:
     premio_call: float
     custo_liquido: float
     pior_retorno: float
+    melhor_retorno: float
     pct_ganho: float
     pct_cdi: float
+    pct_cdi_melhor: float
     tipo: TipoColar
     risco_leilao: RiscoLeilao
     viavel: bool
@@ -183,7 +185,9 @@ class CalculadoraColar:
         tipo = self.classificar_tipo(preco_ativo, strike_put, strike_call)
         em_leilao = status_put != "Aberto" or status_call != "Aberto"
 
-        preco_compra = preco_compra_ativo if (preco_compra_ativo and preco_compra_ativo > 0) else preco_ativo
+        preco_compra = preco_compra_ativo if (preco_compra_ativo and preco_compra_ativo > 0) else 0.0
+        if preco_compra <= 0:
+            return None
         custo_liquido = preco_compra + premio_put - premio_call
         if custo_liquido <= 0:
             return None
@@ -193,13 +197,16 @@ class CalculadoraColar:
             return None
 
         pior_retorno = self.calcular_pior_retorno(custo_liquido, strike_put, strike_call)
+        melhor_retorno = max(strike_put, strike_call) - custo_liquido
 
         strike_medio = (strike_put + strike_call) / 2
         custo_b3 = self.custos_b3.calcular_custos(strike_medio, n_pernas=2)
         pior_retorno_liquido = max(pior_retorno - custo_b3, 0.0)
+        melhor_retorno_liquido = max(melhor_retorno - custo_b3, 0.0)
 
         pct_ganho = pior_retorno_liquido / custo_liquido
         pct_cdi = pct_ganho / cdi_periodo
+        pct_cdi_melhor = (melhor_retorno_liquido / custo_liquido) / cdi_periodo if cdi_periodo > 0 else 0
         risco = self.calcular_risco_leilao(vov_put, voc_call, status_put, status_call)
         viavel = pct_cdi >= self.premio_risco_colar and not em_leilao
 
@@ -234,8 +241,10 @@ class CalculadoraColar:
             custo_liquido=round(custo_liquido, 4),
             custo_b3=round(custo_b3, 4),
             pior_retorno=round(pior_retorno, 4),
+            melhor_retorno=round(melhor_retorno, 4),
             pct_ganho=round(pct_ganho, 6),
             pct_cdi=round(pct_cdi, 4),
+            pct_cdi_melhor=round(pct_cdi_melhor, 4),
             tipo=tipo,
             risco_leilao=risco,
             viavel=viavel,

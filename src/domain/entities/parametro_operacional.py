@@ -67,4 +67,6 @@ class ParametroOperacional:
         "dte_total_max": {"valor": 120.0, "estrategia": "COLLAR_CALENDARIO", "descricao": "DTE máximo total para qualquer perna"},
         "import_max_months": {"valor": 9.0, "estrategia": "IMPORTACAO", "descricao": "Meses a frente da data para importar series"},
         "white_list_box4p": {"valor": "", "estrategia": "BOX_4P", "descricao": "Whitelist de ativos para Box 4P"},
+        "white_list_colar_calendario": {"valor": "", "estrategia": "COLLAR_CALENDARIO", "descricao": "Whitelist de ativos para Collar Calendario"},
+        "white_list_colar": {"valor": "", "estrategia": "COLAR", "descricao": "Whitelist de ativos para Colar Protetivo"},
     }

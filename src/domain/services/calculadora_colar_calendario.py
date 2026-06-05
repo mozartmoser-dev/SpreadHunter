@@ -46,6 +46,10 @@ class ResultadoColarCalendario:
     tipo: TipoColarCalendario
     r: float = 0.1450
     custo_b3: float = 0.0
+    be_baixa: float | None = None
+    be_alta: float | None = None
+    be_baixa_intrinseco: float | None = None
+    be_alta_intrinseco: float | None = None
 
 
 class CalculadoraColarCalendario:
@@ -120,6 +124,77 @@ class CalculadoraColarCalendario:
         if preco_ativo < meio:
             return TipoColarCalendario.ALTA
         return TipoColarCalendario.BAIXA
+
+    @staticmethod
+    def _pnl_at_call_expiry(
+        S: float, S0: float, Kc: float, Kp: float,
+        Pc: float, Pp: float, T_rem: float, rf: float, iv_p: float,
+    ) -> float:
+        stock_pnl = min(S, Kc) - S0
+        call_pnl = Pc
+        if T_rem > 0 and iv_p > 1e-10:
+            d1 = (np.log(S / Kp) + (rf + 0.5 * iv_p ** 2) * T_rem) / (iv_p * np.sqrt(T_rem))
+            d2 = d1 - iv_p * np.sqrt(T_rem)
+            put_val = Kp * np.exp(-rf * T_rem) * norm.cdf(-d2) - S * norm.cdf(-d1)
+        else:
+            put_val = max(Kp - S, 0)
+        return stock_pnl + call_pnl + (put_val - Pp)
+
+    @staticmethod
+    def _calcular_breakevens(
+        S0: float, Kc: float, Kp: float,
+        Pc: float, Pp: float, dte_extra: int, rf: float, iv_p: float,
+    ) -> tuple[float | None, float | None]:
+        from scipy.optimize import brentq
+        T_rem = dte_extra / 365 if dte_extra > 0 else 0
+        def _f(S):
+            return CalculadoraColarCalendario._pnl_at_call_expiry(S, S0, Kc, Kp, Pc, Pp, T_rem, rf, iv_p)
+        x_min = min(Kp, S0) * 0.85
+        x_max = max(Kc, S0) * 1.15
+        f_min = _f(x_min)
+        f_kc = _f(Kc)
+        f_max = _f(x_max)
+        be_baixa = be_alta = None
+        if f_min < 0 < f_kc:
+            try:
+                be_baixa = brentq(_f, x_min, Kc)
+            except (ValueError, RuntimeError):
+                pass
+        if f_kc > 0 > f_max:
+            try:
+                be_alta = brentq(_f, Kc, x_max)
+            except (ValueError, RuntimeError):
+                pass
+        return round(be_baixa, 2) if be_baixa else None, round(be_alta, 2) if be_alta else None
+
+    @staticmethod
+    def _calcular_breakevens_intrinseco(
+        S0: float, Kc: float, Kp: float,
+        Pc: float, Pp: float,
+    ) -> tuple[float | None, float | None]:
+        from scipy.optimize import brentq
+        def _pnl_intrinseco(S):
+            stock_pnl = min(S, Kc) - S0
+            call_pnl = Pc
+            put_val = max(Kp - S, 0)
+            return stock_pnl + call_pnl + (put_val - Pp)
+        x_min = min(Kp, S0) * 0.85
+        x_max = max(Kc, S0) * 1.15
+        f_min = _pnl_intrinseco(x_min)
+        f_kc = _pnl_intrinseco(Kc)
+        f_max = _pnl_intrinseco(x_max)
+        be_baixa = be_alta = None
+        if f_min < 0 < f_kc:
+            try:
+                be_baixa = brentq(_pnl_intrinseco, x_min, Kc)
+            except (ValueError, RuntimeError):
+                pass
+        if f_kc > 0 > f_max:
+            try:
+                be_alta = brentq(_pnl_intrinseco, Kc, x_max)
+            except (ValueError, RuntimeError):
+                pass
+        return round(be_baixa, 2) if be_baixa else None, round(be_alta, 2) if be_alta else None
 
     def calcular(
         self,
@@ -200,6 +275,15 @@ class CalculadoraColarCalendario:
         pct_cdi = pct_retorno / cdi_periodo if cdi_periodo > 0 else 0
         viavel = pct_cdi >= self.premio_risco
 
+        be_baixa, be_alta = self._calcular_breakevens(
+            preco_ativo, strike_call, strike_put,
+            premio_call, premio_put, dte_extra, r, iv_put,
+        )
+        be_baixa_int, be_alta_int = self._calcular_breakevens_intrinseco(
+            preco_ativo, strike_call, strike_put,
+            premio_call, premio_put,
+        )
+
         return ResultadoColarCalendario(
             ativo=ativo,
             vencimento_call=vencimento_call,
@@ -230,6 +314,10 @@ class CalculadoraColarCalendario:
             tipo=tipo,
             viavel=viavel,
             r=r,
+            be_baixa=be_baixa,
+            be_alta=be_alta,
+            be_baixa_intrinseco=be_baixa_int,
+            be_alta_intrinseco=be_alta_int,
         )
 
     @staticmethod
@@ -366,7 +454,30 @@ class CalculadoraColarCalendario:
                 f"<b>Resultado: R$ {tot_alta:.2f} ({sinal_a}).</b></p>"
             )
 
-        lines.append("<hr>")
+        # Breakevens
+        if r.be_baixa is not None or r.be_alta is not None:
+            lines.append("<p><b>Breakevens B&S (com valor extrínseco da PUT):</b><br>")
+            if r.be_baixa is not None:
+                lines.append(f"BE Baixa: R$ {r.be_baixa:.2f}<br>")
+            if r.be_alta is not None:
+                lines.append(f"BE Alta: R$ {r.be_alta:.2f}<br>")
+            if r.be_baixa is not None and r.be_alta is not None:
+                lines.append("Considera o valor extrínseco residual da PUT no vencimento da CALL.</p>")
+            else:
+                lines.append("</p>")
+        if r.be_baixa_intrinseco is not None or r.be_alta_intrinseco is not None:
+            lines.append("<p><b>Breakevens Intrínseco (só valor intrínseco da PUT):</b><br>")
+            if r.be_baixa_intrinseco is not None:
+                lines.append(f"BE Baixa: R$ {r.be_baixa_intrinseco:.2f}<br>")
+            if r.be_alta_intrinseco is not None:
+                lines.append(f"BE Alta: R$ {r.be_alta_intrinseco:.2f}<br>")
+            if r.be_baixa_intrinseco is not None and r.be_alta_intrinseco is not None:
+                lines.append("Ignora valor extrínseco — cenário conservador (PUT vale só intrínseco).</p>")
+            else:
+                lines.append("</p>")
+        if r.be_baixa is not None or r.be_alta is not None or r.be_baixa_intrinseco is not None or r.be_alta_intrinseco is not None:
+            lines.append("<hr>")
+
         resumo_pnl = "lucro" if r.pnl_projetado >= 0 else "prejuízo"
         ext = abs(r.pnl_projetado)
         if call_Itm:
