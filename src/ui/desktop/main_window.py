@@ -23,6 +23,7 @@ from src.ui.desktop.engine_dashboard import EngineDashboard
 from src.ui.desktop.colar_dialog import ColarDialog
 from src.ui.desktop.colar_calendario_dialog import ColarCalendarioDialog
 from src.ui.desktop.box_dialog import BoxDialog
+from src.ui.desktop.mpp_dialog import MppDialog
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 
 
@@ -49,6 +50,8 @@ class MainWindow(QMainWindow):
         self._ultimos_colares = []
         self._ultimos_colares_cal = []
         self._ultimos_boxes = []
+        self._ultimos_mpp = []
+        self._ultimos_mre = []
 
         self.exportar_uc = ExportarOperacaoUseCase(self.db_path)
 
@@ -62,11 +65,14 @@ class MainWindow(QMainWindow):
 
         self._worker.colares_calendario_atualizados.connect(self._on_colares_calendario_atualizados)
         self._worker.boxes_atualizados.connect(self._on_boxes_atualizados)
+        self._worker.mpp_atualizados.connect(self._on_mpp_atualizados)
+        self._worker.mre_atualizados.connect(self._on_mre_atualizados)
 
         self._engine_dialog = EngineDashboard(self)
         self._colar_dialog = None
         self._colar_cal_dialog = None
         self._box_dialog = None
+        self._mpp_dialog = None
 
         self._aplicar_tema_configurado()
 
@@ -81,7 +87,7 @@ class MainWindow(QMainWindow):
     def _setup_ui(self):
         self.setWindowTitle("SpreadHunter — Monitor de Oportunidades")
         self.setMinimumSize(1200, 700)
-        self.resize(1400, 800)
+        self.resize(1280, 720)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -245,6 +251,18 @@ class MainWindow(QMainWindow):
         """)
         btn_layout.addWidget(self.btn_box)
 
+        self.btn_mpp = QPushButton("🎯  MPP")
+        self.btn_mpp.clicked.connect(self._abrir_mpp)
+        self.btn_mpp.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #0e2d1e; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid #22c55e; border-radius: 4px;
+                padding: 6px 12px; font-size: 9pt; font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: #1a3d2e; }}
+        """)
+        btn_layout.addWidget(self.btn_mpp)
+
         self.btn_varrer = QPushButton("▶  Ligar")
         self.btn_varrer.setCheckable(True)
         self.btn_varrer.setChecked(False)
@@ -254,11 +272,28 @@ class MainWindow(QMainWindow):
 
         btn_layout.addSpacing(16)
 
-        self.chk_tp_op = QCheckBox("Exibir Todas Operações")
+        self.chk_tp_op = QCheckBox("Exibir Todas")
         self.chk_tp_op.setChecked(False)
         self.chk_tp_op.setStyleSheet(
             "QCheckBox {{ color: {}; spacing: 4px; font-size: 9pt; }}"
-            "QCheckBox::indicator {{ width: 14px; height: 14px; }}".format(Palette.TEXT_MUTED)
+            "QCheckBox::indicator {{"
+            "  width: 14px; height: 14px;"
+            "  border: 1px solid {}; border-radius: 2px;"
+            "  background-color: transparent;"
+            "}}"
+            "QCheckBox::indicator:checked {{"
+            "  background-color: {};"
+            "  border: 1px solid {};"
+            "}}"
+            "QCheckBox:hover {{ color: {}; }}"
+            "QCheckBox::indicator:hover {{"
+            "  border: 1px solid {};"
+            "}}".format(
+                Palette.TEXT_MUTED,
+                Palette.BORDER, Palette.ACCENT_BLUE_BRIGHT, Palette.ACCENT_BLUE_BRIGHT,
+                Palette.TEXT_PRIMARY,
+                Palette.TEXT_PRIMARY,
+            )
         )
         self.chk_tp_op.toggled.connect(self._on_tp_op_toggled)
         btn_layout.addWidget(self.chk_tp_op)
@@ -631,13 +666,10 @@ class MainWindow(QMainWindow):
     def _on_colares_atualizados(self, resultados: list):
         self._ultimos_colares = resultados
         n_viaveis = sum(1 for r in resultados if r.viavel)
-        if n_viaveis > 0:
-            self._status_colar.setText(f"🛡 {n_viaveis}")
-            self._status_colar.setStyleSheet(
-                f"color: {Palette.GREEN}; font-weight: bold; padding: 0 6px;"
-            )
-        else:
-            self._status_colar.setText("")
+        self._status_colar.setText(f"🛡 {n_viaveis}")
+        self._status_colar.setStyleSheet(
+            f"color: {Palette.GREEN}; font-weight: bold; padding: 0 6px;"
+        )
         if self._colar_dialog and self._colar_dialog.isVisible():
             self._colar_dialog.atualizar_resultados(resultados)
             self._colar_dialog.set_rtd_status(self._rtd_connected)
@@ -662,7 +694,7 @@ class MainWindow(QMainWindow):
 
     def _on_parar_colar(self):
         self._worker.parar_auto_colar()
-        self._status_colar.setText("")
+        self._status_colar.setText("🛡 0")
 
     def _abrir_colar_calendario(self):
         if self._colar_cal_dialog and self._colar_cal_dialog.isVisible():
@@ -683,7 +715,7 @@ class MainWindow(QMainWindow):
 
     def _on_parar_colar_cal(self):
         self._worker.parar_auto_colar_cal()
-        self._status_colar_cal.setText("")
+        self._status_colar_cal.setText("📅 0")
 
     def _salvar_selecao_colar_cal(self, ativos: list):
         self._colar_cal_selecionados = ativos
@@ -691,26 +723,20 @@ class MainWindow(QMainWindow):
     def _on_colares_calendario_atualizados(self, resultados: list):
         self._ultimos_colares_cal = resultados
         n_viaveis = sum(1 for r in resultados if r.viavel)
-        if n_viaveis > 0:
-            self._status_colar_cal.setText(f"📅 {n_viaveis}")
-            self._status_colar_cal.setStyleSheet(
-                f"color: {Palette.YELLOW}; font-weight: bold; padding: 0 6px;"
-            )
-        else:
-            self._status_colar_cal.setText("")
+        self._status_colar_cal.setText(f"📅 {n_viaveis}")
+        self._status_colar_cal.setStyleSheet(
+            f"color: {Palette.YELLOW}; font-weight: bold; padding: 0 6px;"
+        )
         if self._colar_cal_dialog and self._colar_cal_dialog.isVisible():
             self._colar_cal_dialog.atualizar_resultados(resultados)
 
     def _on_boxes_atualizados(self, resultados: list):
         self._ultimos_boxes = resultados
         n_viaveis = sum(1 for r in resultados if r.viavel)
-        if n_viaveis > 0:
-            self._status_box.setText(f"📦 {n_viaveis}")
-            self._status_box.setStyleSheet(
-                f"color: {Palette.RED}; font-weight: bold; padding: 0 6px;"
-            )
-        else:
-            self._status_box.setText("")
+        self._status_box.setText(f"📦 {n_viaveis}")
+        self._status_box.setStyleSheet(
+            f"color: {Palette.RED}; font-weight: bold; padding: 0 6px;"
+        )
         if self._box_dialog and self._box_dialog.isVisible():
             self._box_dialog.atualizar_resultados(resultados)
 
@@ -728,7 +754,27 @@ class MainWindow(QMainWindow):
 
     def _on_parar_box(self):
         self._worker.parar_auto_box()
-        self._status_box.setText("")
+        self._status_box.setText("📦 0")
+
+    def _on_mpp_atualizados(self, resultados: list):
+        self._ultimos_mpp = resultados
+        if self._mpp_dialog and self._mpp_dialog.isVisible():
+            self._mpp_dialog.atualizar(resultados, self._ultimos_mre)
+
+    def _on_mre_atualizados(self, resultados: list):
+        self._ultimos_mre = resultados
+        if self._mpp_dialog and self._mpp_dialog.isVisible():
+            self._mpp_dialog.atualizar(self._ultimos_mpp, resultados)
+
+    def _abrir_mpp(self):
+        if self._mpp_dialog and self._mpp_dialog.isVisible():
+            self._mpp_dialog.raise_()
+            return
+        self._mpp_dialog = MppDialog(self, self.db_path)
+        self._mpp_dialog.atualizar(self._ultimos_mpp, self._ultimos_mre)
+        self._mpp_dialog.setAttribute(Qt.WA_DeleteOnClose, True)
+        self._mpp_dialog.destroyed.connect(lambda: setattr(self, "_mpp_dialog", None))
+        self._mpp_dialog.show()
 
     def _on_row_double_clicked(self, index):
         opp = self.table_model.get_oportunidade(index.row())

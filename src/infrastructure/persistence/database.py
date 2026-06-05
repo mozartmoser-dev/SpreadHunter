@@ -249,4 +249,99 @@ CREATE INDEX IF NOT EXISTS idx_oportunidades_instrumento ON oportunidades(instru
 CREATE INDEX IF NOT EXISTS idx_estruturas_oportunidade ON estruturas_operacionais(oportunidade_id);
 CREATE INDEX IF NOT EXISTS idx_pernas_estrutura ON pernas_operacao(estrutura_id);
 CREATE INDEX IF NOT EXISTS idx_feriados_b3_data ON feriados_b3(data);
+
+CREATE TABLE IF NOT EXISTS mpp_cache_opcoesnet (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ativo TEXT NOT NULL,
+    opcao TEXT NOT NULL,
+    strike REAL NOT NULL,
+    tipo TEXT NOT NULL,
+    vencimento DATE NOT NULL,
+    oi INTEGER DEFAULT 0,
+    volume_financeiro REAL DEFAULT 0,
+    num_negocios INTEGER DEFAULT 0,
+    iv REAL,
+    delta REAL,
+    gamma REAL,
+    ultimo_preco REAL,
+    mod TEXT,
+    data_ref DATE NOT NULL,
+    UNIQUE(ativo, opcao, data_ref)
+);
+
+CREATE TABLE IF NOT EXISTS mpp_score_estrutural (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ativo TEXT NOT NULL,
+    opcao TEXT NOT NULL,
+    strike REAL NOT NULL,
+    vencimento DATE NOT NULL,
+    score_oi REAL DEFAULT 0,
+    score_volume REAL DEFAULT 0,
+    score_curvatura_iv REAL DEFAULT 0,
+    score_estrutural REAL DEFAULT 0,
+    data_ref DATE NOT NULL,
+    UNIQUE(ativo, opcao, data_ref)
+);
+
+CREATE TABLE IF NOT EXISTS mpp_box_score (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ativo TEXT NOT NULL,
+    strike1 REAL NOT NULL,
+    strike2 REAL NOT NULL,
+    vencimento DATE NOT NULL,
+    score_estrutural REAL DEFAULT 0,
+    score_instantaneo REAL DEFAULT 0,
+    score_final REAL DEFAULT 0,
+    erro_paridade_box REAL,
+    spread_medio REAL,
+    profundidade_min REAL,
+    persistencia_ciclos INTEGER DEFAULT 0,
+    nivel_risco TEXT DEFAULT 'baixo',
+    justificativa TEXT DEFAULT '',
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_mpp_box_score ON mpp_box_score(score_final DESC);
+
+CREATE TABLE IF NOT EXISTS mre_recomendacao (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ativo TEXT NOT NULL,
+    strike1 REAL NOT NULL,
+    strike2 REAL NOT NULL,
+    vencimento DATE NOT NULL,
+    score_box REAL DEFAULT 0,
+    isca_recomendada TEXT,
+    ip_isca REAL DEFAULT 0,
+    lote_sugerido INTEGER DEFAULT 0,
+    confianca_completar REAL DEFAULT 0,
+    ganho_estimado REAL DEFAULT 0,
+    custo_montagem REAL DEFAULT 0,
+    relacao_custo_ganho REAL DEFAULT 0,
+    nivel_recomendacao TEXT DEFAULT 'baixa',
+    justificativa TEXT DEFAULT '',
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS mpp_snapshot (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ativo TEXT NOT NULL,
+    strike1 REAL NOT NULL,
+    strike2 REAL NOT NULL,
+    vencimento DATE NOT NULL,
+    score_final REAL DEFAULT 0,
+    score_estrutural REAL DEFAULT 0,
+    score_instantaneo REAL DEFAULT 0,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS mpp_historico_distorcoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ativo TEXT NOT NULL,
+    strike1 REAL,
+    strike2 REAL,
+    data DATE NOT NULL,
+    score_box REAL DEFAULT 0,
+    box_encontrado INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """

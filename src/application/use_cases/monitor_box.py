@@ -7,11 +7,12 @@ from src.infrastructure.persistence.repositories.repositories import Instrumento
 
 
 class MonitorBoxUseCase:
-    def __init__(self, db_path=None):
+    def __init__(self, db_path=None, mpp_use_case=None):
         self.db_path = db_path
         self.inst_repo = InstrumentoRepository(db_path)
         self.param_repo = ParametroRepository(db_path)
         self._calculadora = None
+        self._mpp_use_case = mpp_use_case
 
     def _get_calculadora(self) -> CalculadoraBox:
         if self._calculadora is None:
@@ -153,6 +154,11 @@ class MonitorBoxUseCase:
 
                     if resultado and resultado.viavel:
                         resultados.append(resultado)
+                        if self._mpp_use_case:
+                            self._mpp_use_case.registrar_box_encontrado(
+                                ativo, k1_data["strike"], k2_data["strike"],
+                                resultado.pct_cdi, encontrado=True
+                            )
 
         resultados.sort(key=lambda r: -r.lucro_pct)
         return resultados

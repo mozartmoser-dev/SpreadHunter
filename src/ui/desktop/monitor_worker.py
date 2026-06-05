@@ -9,6 +9,7 @@ from src.application.use_cases.monitor_oportunidades import MonitorOportunidades
 from src.application.use_cases.monitor_colares import MonitorColaresUseCase
 from src.application.use_cases.monitor_colares_calendario import MonitorColaresCalendarioUseCase
 from src.application.use_cases.monitor_box import MonitorBoxUseCase
+from src.application.use_cases.mpp_use_case import MPPUseCase
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
 from src.infrastructure.providers.rtd_profit import RTDProfit
 from src.application.dtos.dtos import EngineStatsDTO
@@ -24,6 +25,8 @@ class MonitorWorker(QThread):
     colares_atualizados = pyqtSignal(list)
     colares_calendario_atualizados = pyqtSignal(list)
     boxes_atualizados = pyqtSignal(list)
+    mpp_atualizados = pyqtSignal(list)
+    mre_atualizados = pyqtSignal(list)
 
     def __init__(self, db_path: str, rtd: RTDProfit, parent=None):
         super().__init__(parent)
@@ -33,7 +36,12 @@ class MonitorWorker(QThread):
         self._monitor_uc = MonitorOportunidadesUseCase(db_path)
         self._monitor_colares_uc = MonitorColaresUseCase(db_path)
         self._monitor_colares_cal_uc = MonitorColaresCalendarioUseCase(db_path)
-        self._monitor_box_uc = MonitorBoxUseCase(db_path)
+        self._monitor_mpp_uc = MPPUseCase(db_path)
+        self._mpp_habilitado = True
+        self._mpp_cycle = 0
+        self._mpp_estrutural_carregado = False
+
+        self._monitor_box_uc = MonitorBoxUseCase(db_path, self._monitor_mpp_uc)
         self._running = False
         self._paused = False
         self._interval_ms = 2500
@@ -80,6 +88,10 @@ class MonitorWorker(QThread):
         self._running = True
         logger.info("MonitorWorker: thread iniciada (COM inicializado).")
 
+        if not self._mpp_estrutural_carregado and self._mpp_habilitado:
+            self._carregar_mpp_estrutural()
+            self._mpp_estrutural_carregado = True
+
         while self._running:
             if self._paused:
                 self._mutex.lock()
@@ -102,7 +114,11 @@ class MonitorWorker(QThread):
                 # 4. Varredura de Box Spread 4 Pontas
                 self._processar_box_4p(rtd)
 
-                # 5. Coleta Estatísticas do Motor
+                # 5. MPP — Motor de Priorização de Pescaria (processo zumbi, a cada 60s)
+                if self._mpp_habilitado:
+                    self._processar_mpp(rtd)
+
+                # 6. Coleta Estatísticas do Motor
                 self._emitir_estatisticas_engine(t_start_cycle)
 
             except Exception as e:
@@ -169,6 +185,7 @@ class MonitorWorker(QThread):
     def parar_auto_colar(self):
         self._colar_mutex.lock()
         self._colar_auto = False
+        self._forcar_colar = False
         self._colar_cycle = 0
         self._colar_mutex.unlock()
 
@@ -189,6 +206,7 @@ class MonitorWorker(QThread):
     def parar_auto_colar_cal(self):
         self._colar_cal_mutex.lock()
         self._colar_cal_auto = False
+        self._forcar_colar_cal = False
         self._colar_cal_cycle = 0
         self._colar_cal_mutex.unlock()
 
@@ -288,6 +306,26 @@ class MonitorWorker(QThread):
             progresso_idx=engine_stats.get('progresso_idx', 0),
         )
         self.engine_stats_updated.emit(stats)
+
+    def _carregar_mpp_estrutural(self):
+        try:
+            self._monitor_mpp_uc.carregar_estrutural()
+            logger.info("MPP estrutural carregado com sucesso")
+            self.status_message.emit("MPP: dados estruturais carregados")
+        except Exception as e:
+            logger.error(f"Falha ao carregar MPP estrutural: {e}")
+            self.status_message.emit(f"MPP: erro ao carregar dados estruturais ({e})")
+
+    def _processar_mpp(self, rtd):
+        self._mpp_cycle += 1
+        if self._mpp_cycle % 24 != 0:
+            return
+        try:
+            resultados_box, recomendacoes = self._monitor_mpp_uc.calcular_instantaneo(rtd)
+            self.mpp_atualizados.emit(resultados_box)
+            self.mre_atualizados.emit(recomendacoes)
+        except Exception as e:
+            logger.error(f"Erro no MPP: {e}")
 
     def _verificar_e_forcar_refresh_ex_dividendo(self):
         """Nível 2: Verifica ativos ex-dividendo do dia e força refresh RTD."""
