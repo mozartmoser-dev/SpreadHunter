@@ -51,6 +51,26 @@ def _seed_parametros_colar(conn):
         ("white_list_colar_calendario", "", "COLLAR_CALENDARIO", "Whitelist de ativos para Collar Calendario"),
         ("white_list_colar", "", "COLAR", "Whitelist de ativos para Colar Protetivo"),
     ]
+    mpp_params = [
+        ("mpp_habilitado",           "1",    "MPP", "Habilitar Motor de Priorizacao de Pescaria"),
+        ("mpp_peso_oi",              "0.15", "MPP", "Peso concentracao OI no score estrutural"),
+        ("mpp_peso_volume",          "0.10", "MPP", "Peso baixo volume no score estrutural"),
+        ("mpp_peso_curvatura_iv",    "0.10", "MPP", "Peso curvatura IV no score estrutural"),
+        ("mpp_peso_paridade",        "0.25", "MPP", "Peso erro de paridade no score instantaneo"),
+        ("mpp_peso_spread",          "0.20", "MPP", "Peso spread medio no score instantaneo"),
+        ("mpp_peso_profundidade",    "0.10", "MPP", "Peso profundidade no score instantaneo"),
+        ("mpp_peso_imbalance",       "0.05", "MPP", "Peso book imbalance no score instantaneo"),
+        ("mpp_peso_spread_anomalia", "0.05", "MPP", "Peso anomalia de spread no score instantaneo"),
+        ("mpp_spread_history_len",   "200",  "MPP", "Tamanho do deque de historico de spread"),
+        ("mpp_spread_min_anomalia",  "0.02", "MPP", "Spread minimo para considerar anomalia (2%)"),
+        ("mpp_persistencia_max_mult","0.50", "MPP", "Multiplicador maximo da persistencia"),
+        ("mpp_persistencia_divisor", "20",   "MPP", "Ciclos para atingir 1x de bonus de persistencia"),
+        ("mpp_bonus_max",            "0.15", "MPP", "Bonus maximo historico"),
+        ("mpp_bonus_taxa",           "0.25", "MPP", "Taxa de conversao sucesso em bonus"),
+        ("mre_lote_base",            "100",  "MRE", "Lote base para calculo de lote sugerido"),
+        ("mre_profundidade_max_pct", "0.20", "MRE", "Maximo %% da profundidade a consumir"),
+    ]
+    params.extend(mpp_params)
     for chave, valor, estrategia, descricao in params:
         try:
             conn.execute(

@@ -2,6 +2,21 @@ from PyQt5.QtCore import QAbstractTableModel, QVariant, Qt
 from PyQt5.QtGui import QColor
 
 
+COLUMN_TOOLTIPS = {
+    "ativo": "Ativo negociado na B3 (ex: PETR4, VALE3)",
+    "box": "Par de strikes do Box Spread (K1 x K2)",
+    "score": "Score final (0-100). Combina score estrutural (35%) + instantâneo (65%), ajustado por persistência e bônus histórico",
+    "nivel": "Nível de risco baseado no score: crítico (≥85), alto (≥70), médio (≥50), baixo (<50)",
+    "isca": "Perna recomendada para iniciar a montagem (maior Índice de Pescabilidade)",
+    "ip": "Índice de Pescabilidade (0-1). Combina spread (40%), profundidade (30%), persistência (20%) e imbalance (10%)",
+    "lote": "Lote sugerido em contratos — baseado no lado mais fraco do book",
+    "confianca": "Confiança de completar as 3 pernas restantes após a isca (0-100%)",
+    "persistencia": "Ciclos consecutivos com erro de paridade acima do limite (2%)",
+    "spread": "Spread médio das 4 pernas do box (bid-ask) em percentual",
+    "prof_qtd": "Quantidade mínima de contratos disponíveis entre as 4 pernas (lado mais fraco do book)",
+}
+
+
 class MppTableModel(QAbstractTableModel):
     COLUMNS = [
         ("Ativo", "ativo"),
@@ -14,6 +29,7 @@ class MppTableModel(QAbstractTableModel):
         ("Confiança", "confianca"),
         ("Persistência", "persistencia"),
         ("Spread Médio", "spread"),
+        ("Prof Mín", "prof_qtd"),
     ]
 
     def __init__(self, parent=None):
@@ -39,7 +55,7 @@ class MppTableModel(QAbstractTableModel):
             return str(val)
 
         if role == Qt.TextAlignmentRole:
-            if col_key in ("score", "ip", "confianca", "lote", "persistencia", "spread"):
+            if col_key in ("score", "ip", "confianca", "lote", "persistencia", "spread", "prof_qtd"):
                 return Qt.AlignRight | Qt.AlignVCenter
             return Qt.AlignLeft | Qt.AlignVCenter
 
@@ -56,8 +72,11 @@ class MppTableModel(QAbstractTableModel):
         return QVariant()
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return self.COLUMNS[section][0]
+        if orientation == Qt.Horizontal:
+            if role == Qt.DisplayRole:
+                return self.COLUMNS[section][0]
+            if role == Qt.ToolTipRole:
+                return COLUMN_TOOLTIPS.get(self.COLUMNS[section][1], self.COLUMNS[section][0])
         return QVariant()
 
     def atualizar(self, boxes: list, mres: list):
@@ -91,6 +110,7 @@ class MppTableModel(QAbstractTableModel):
                 "confianca": f"{m.confianca_completar:.0%}" if m else "",
                 "persistencia": f"{b.persistencia_ciclos}c" if b.persistencia_ciclos > 0 else "",
                 "spread": f"{b.spread_medio:.1%}" if b.spread_medio > 0 else "",
+                "prof_qtd": str(b.qtd_min_box) if b.qtd_min_box > 0 else "",
                 "_box": b,
                 "_mre": m,
             })

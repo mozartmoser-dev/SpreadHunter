@@ -35,6 +35,7 @@ class BoxScore:
     erro_paridade_box: float = 0.0
     spread_medio: float = 0.0
     profundidade_min: float = 0.0
+    qtd_min_box: int = 0
     persistencia_ciclos: int = 0
     nivel_risco: str = "baixo"
     justificativa: str = ""
@@ -87,7 +88,12 @@ class MPPUseCase:
         return self._get_param("taxa_cdi", 0.145)
 
     def precisa_atualizar_cache(self) -> bool:
+        from src.domain.services.calendario_b3 import CalendarioB3
         hoje = date.today()
+        if hoje.weekday() >= 5:
+            return False
+        if CalendarioB3.eh_feriado(hoje):
+            return False
         conn = get_connection(self.db_path)
         try:
             row = conn.execute("SELECT MAX(data_ref) FROM mpp_cache_opcoesnet").fetchone()
@@ -230,9 +236,16 @@ class MPPUseCase:
 
     def _calcular_score_oi(self, strike: float, strikes_oi: dict[float, int]) -> float:
         oi_atual = strikes_oi.get(strike, 0)
-        vizinhos = [strike + d for d in (-2, -1, 1, 2)]
-        oi_viz = [strikes_oi.get(v, 0) for v in vizinhos]
-        media = sum(oi_viz) / max(len(oi_viz), 1)
+        strikes_sorted = sorted(strikes_oi.keys())
+        try:
+            idx = strikes_sorted.index(strike)
+        except ValueError:
+            return 0.0
+        vizinhos_idx = [idx + d for d in (-2, -1, 1, 2) if 0 <= idx + d < len(strikes_sorted)]
+        oi_viz = [strikes_oi[strikes_sorted[i]] for i in vizinhos_idx]
+        if not oi_viz:
+            return 0.0
+        media = sum(oi_viz) / len(oi_viz)
         ratio = oi_atual / max(media, 1)
         return min(ratio / 5.0, 1.0)
 
@@ -245,10 +258,16 @@ class MPPUseCase:
             return 0.0
         if num_neg < 10 and oi < 500:
             return 0.0
+        strikes_sorted = sorted(strikes_iv.keys())
+        try:
+            idx = strikes_sorted.index(strike)
+        except ValueError:
+            return 0.0
         iv_vizinhos = []
-        for v in (strike - 1, strike + 1):
-            if v in strikes_iv:
-                iv_vizinhos.append(strikes_iv[v]["iv"])
+        for d in (-1, 1):
+            ni = idx + d
+            if 0 <= ni < len(strikes_sorted):
+                iv_vizinhos.append(strikes_iv[strikes_sorted[ni]]["iv"])
         if not iv_vizinhos:
             return 0.0
         media_iv = sum(iv_vizinhos) / len(iv_vizinhos)
@@ -283,7 +302,7 @@ class MPPUseCase:
         if not ativos:
             return [], []
 
-        inst_map = self._obter_instrumentos_mapa()
+        inst_map = self._obter_instrumentos_mapa(ativos)
         hoje = date.today()
         grupos: dict[tuple[str, date], list[dict]] = defaultdict(list)
 
@@ -357,16 +376,24 @@ class MPPUseCase:
                         continue
 
                     resultados_box.append(score)
+                    self.salvar_snapshot(score)
                     mre = self._calcular_mre(k1, k2, score, cdi, dias_uteis, spot)
                     resultados_mre.append(mre)
 
         resultados_box.sort(key=lambda b: -b.score_final_pct)
         return resultados_box, resultados_mre
 
-    def _obter_instrumentos_mapa(self) -> dict:
+    def _obter_instrumentos_mapa(self, ativos: list[str] | None = None) -> dict:
         conn = get_connection(self.db_path)
         try:
-            rows = conn.execute("SELECT * FROM instrumentos_base").fetchall()
+            if ativos:
+                placeholders = ",".join("?" * len(ativos))
+                rows = conn.execute(
+                    f"SELECT * FROM instrumentos_base WHERE UPPER(ativo) IN ({placeholders})",
+                    [a.upper() for a in ativos]
+                ).fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM instrumentos_base").fetchall()
             mapa = {}
             for r in rows:
                 cod_put = r["cod_put"]
@@ -390,16 +417,21 @@ class MPPUseCase:
         t = dias_uteis / 252.0
         r = cdi
 
+        call_k1_mid = (k1["bid_call"] + k1["ask_call"]) / 2
+        put_k1_mid  = (k1["bid_put"]  + k1["ask_put"])  / 2
+        call_k2_mid = (k2["bid_call"] + k2["ask_call"]) / 2
+        put_k2_mid  = (k2["bid_put"]  + k2["ask_put"])  / 2
+
         call_k1, put_k1 = k1["bid_call"], k1["ask_put"]
         call_k2, put_k2 = k2["ask_call"], k2["bid_put"]
 
         paridade_k1 = spot - k1["strike"] * math.exp(-r * t)
-        erro_k1 = abs((call_k1 - put_k1) - paridade_k1)
-        erro_k1_pct = erro_k1 / max(call_k1, put_k1, 0.01)
+        erro_k1 = abs((call_k1_mid - put_k1_mid) - paridade_k1)
+        erro_k1_pct = erro_k1 / max(call_k1_mid, put_k1_mid, 0.01)
 
         paridade_k2 = spot - k2["strike"] * math.exp(-r * t)
-        erro_k2 = abs((call_k2 - put_k2) - paridade_k2)
-        erro_k2_pct = erro_k2 / max(call_k2, put_k2, 0.01)
+        erro_k2 = abs((call_k2_mid - put_k2_mid) - paridade_k2)
+        erro_k2_pct = erro_k2 / max(call_k2_mid, put_k2_mid, 0.01)
 
         erro_box = max(erro_k1_pct, erro_k2_pct)
         fator_premio = self._calcular_fator_premio_cdi(
@@ -445,6 +477,13 @@ class MPPUseCase:
 
         profundidade_min = min(profundidades)
 
+        qtd_min_box = min(
+            k1["qtd_bid_call"] + k1["qtd_ask_call"],
+            k1["qtd_bid_put"]  + k1["qtd_ask_put"],
+            k2["qtd_bid_call"] + k2["qtd_ask_call"],
+            k2["qtd_bid_put"]  + k2["qtd_ask_put"],
+        )
+
         imbalance_medio = sum(imbalances) / len(imbalances)
         score_anomalia_medio = sum(anomalias) / len(anomalias) if anomalias else 0.0
 
@@ -486,6 +525,7 @@ class MPPUseCase:
             erro_paridade_box=round(erro_box, 4),
             spread_medio=round(spread_medio, 4),
             profundidade_min=round(profundidade_min, 4),
+            qtd_min_box=qtd_min_box,
             persistencia_ciclos=pers_ciclos,
             nivel_risco=nivel,
             justificativa=just,
@@ -599,10 +639,10 @@ class MPPUseCase:
         lote_base = int(self._get_param("mre_lote_base", 100))
         max_pct = self._get_param("mre_profundidade_max_pct", 0.20)
         profundidades_box = [
-            k1["qtd_bid_call"] + k1["qtd_ask_call"],
-            k1["qtd_bid_put"] + k1["qtd_ask_put"],
-            k2["qtd_bid_call"] + k2["qtd_ask_call"],
-            k2["qtd_bid_put"] + k2["qtd_ask_put"],
+            min(k1["qtd_bid_call"], k1["qtd_ask_call"]),
+            min(k1["qtd_bid_put"],  k1["qtd_ask_put"]),
+            min(k2["qtd_bid_call"], k2["qtd_ask_call"]),
+            min(k2["qtd_bid_put"],  k2["qtd_ask_put"]),
         ]
         prof_min_box = min(profundidades_box)
         lote_sug = min(lote_base, int(prof_min_box * max_pct))
@@ -649,7 +689,7 @@ class MPPUseCase:
         if profundidade_min_box <= 0 or lote <= 0:
             return 0.0
         prof_suf = min(profundidade_min_box / (lote * 3), 1.0)
-        spread_fav = max(1.0 - spread_medio_box * 10.0, 0.0)
+        spread_fav = max(1.0 - spread_medio_box * 5.0, 0.0)
         return prof_suf * spread_fav
 
     def salvar_snapshot(self, box: BoxScore):

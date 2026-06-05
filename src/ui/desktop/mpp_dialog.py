@@ -148,34 +148,89 @@ class MppDialog(QDialog):
         mre = self._model.get_mre(row)
         self._exibir_detalhes(box, mre)
 
+    FIELD_DESC = {
+        "Score Final": "Score final (0-100) = estrutural×35% + instantâneo×65%, ajustado por persistência e bônus histórico",
+        "Score Estrutural": "Score estrutural (0-1) — média dos scores OI, volume e curvatura IV. Calculado 1x/dia via opcoes.net.br",
+        "Score Instantâneo": "Score instantâneo (0-1) — combina erro de paridade, spread, profundidade, imbalance e anomalia. Atualizado a cada 60s via RTD",
+        "Nível de Risco": "crítico (≥85), alto (≥70), médio (≥50), baixo (<50)",
+        "Erro de Paridade": "Desvio da put-call parity (C-P vs S-K*e^-rt) usando preços mid. Maior erro = maior distorção",
+        "Spread Médio": "Média do spread bid-ask das 4 pernas. Spread alto = book menos eficiente = mais espaço para pescar",
+        "Profundidade Mínima": "Score de profundidade (0-1). Menor profundidade = maior score = mais chance de impacto ao entrar",
+        "Profundidade (qtd)": "Quantidade mínima de contratos disponíveis entre as 4 pernas (lado mais fraco do book)",
+        "Persistência": "Ciclos consecutivos (60s cada) que este par de strikes mantém erro de paridade >2%. Multiplica score final em até 1.5x",
+        "Justificativa": "Fatores que mais contribuíram para o score final",
+    }
+
+    MRE_DESC = {
+        "Isca Recomendada": "Perna com maior Índice de Pescabilidade (IP). É a ordem recomendada para pendurar primeiro",
+        "IP da Isca": "Índice de Pescabilidade (0-1). Ponderado: spread (40%), profundidade (30%), persistência (20%), imbalance (10%)",
+        "Lote Sugerido": "Lote em contratos = min(lote_base, profundidade_min × 20%). Usa o lado mais fraco do book",
+        "Confiança de Completar": "Probabilidade estimada de conseguir montar as 3 pernas restantes. Baseado em profundidade × spread favorável",
+        "Nível": "baixa (<30%), média (30-70%), alta (>70%)",
+    }
+
     def _exibir_detalhes(self, box, mre):
         if not box:
             self._details_edit.setText("Nenhum box selecionado.")
             return
 
         lines = []
-        lines.append(f"Ativo: {box.ativo}")
-        lines.append(f"Box: {box.strike1:.0f} x {box.strike2:.0f}")
-        lines.append(f"Vencimento: {box.vencimento}")
-        lines.append(f"Score Final: {box.score_final_pct:.0f}")
-        lines.append(f"Score Estrutural: {box.score_estrutural_box:.4f}")
-        lines.append(f"Score Instantâneo: {box.score_instantaneo_box:.4f}")
-        lines.append(f"Nível de Risco: {box.nivel_risco}")
-        lines.append(f"Erro de Paridade: {box.erro_paridade_box:.4f}")
-        lines.append(f"Spread Médio: {box.spread_medio:.4f}")
-        lines.append(f"Profundidade Mínima: {box.profundidade_min:.4f}")
-        lines.append(f"Persistência: {box.persistencia_ciclos} ciclos")
-        lines.append(f"Justificativa: {box.justificativa}")
+        lines.append(f"{'='*50}")
+        lines.append(f"  Ativo: {box.ativo}")
+        lines.append(f"  Box: {box.strike1:.0f} x {box.strike2:.0f}")
+        lines.append(f"  Vencimento: {box.vencimento}")
+        lines.append(f"{'='*50}")
         lines.append("")
 
+        items = [
+            ("Score Final",       f"{box.score_final_pct:.0f}"),
+            ("Score Estrutural",  f"{box.score_estrutural_box:.4f}"),
+            ("Score Instantâneo", f"{box.score_instantaneo_box:.4f}"),
+            ("Nível de Risco",    f"{box.nivel_risco}"),
+            ("Erro de Paridade",  f"{box.erro_paridade_box:.4f}"),
+            ("Spread Médio",      f"{box.spread_medio:.1%}"),
+            ("Profundidade Mínima", f"{box.profundidade_min:.4f}"),
+            ("Profundidade (qtd)", f"{box.qtd_min_box} contratos"),
+            ("Persistência",      f"{box.persistencia_ciclos} ciclos"),
+        ]
+
+        for label, value in items:
+            lines.append(f"  {label}:")
+            lines.append(f"    Valor: {value}")
+            lines.append(f"    -> {self.FIELD_DESC.get(label, '')}")
+            lines.append("")
+
+        if box.justificativa:
+            lines.append("  Justificativa:")
+            lines.append(f"    {box.justificativa}")
+            lines.append(f"    -> {self.FIELD_DESC['Justificativa']}")
+            lines.append("")
+
         if mre:
-            lines.append("--- RECOMENDAÇÃO MRE ---")
-            lines.append(f"Isca Recomendada: {mre.isca_recomendada}")
-            lines.append(f"IP da Isca: {mre.ip_isca:.2f}")
-            lines.append(f"Lote Sugerido: {mre.lote_sugerido}")
-            lines.append(f"Confiança de Completar: {mre.confianca_completar:.1%}")
-            lines.append(f"Nível: {mre.nivel_recomendacao}")
-            lines.append(f"Justificativa: {mre.justificativa}")
+            lines.append(f"{'='*50}")
+            lines.append("  RECOMENDAÇÃO MRE")
+            lines.append(f"{'='*50}")
+            lines.append("")
+
+            mre_items = [
+                ("Isca Recomendada", mre.isca_recomendada),
+                ("IP da Isca",       f"{mre.ip_isca:.2f}"),
+                ("Lote Sugerido",    str(mre.lote_sugerido)),
+                ("Confiança de Completar", f"{mre.confianca_completar:.1%}"),
+                ("Nível",            mre.nivel_recomendacao),
+            ]
+
+            for label, value in mre_items:
+                lines.append(f"  {label}:")
+                lines.append(f"    Valor: {value}")
+                lines.append(f"    -> {self.MRE_DESC.get(label, '')}")
+                lines.append("")
+
+            if mre.justificativa:
+                lines.append(f"  Justificativa: {mre.justificativa}")
+                lines.append("")
+
+        lines.append(f"{'='*50}")
 
         self._details_edit.setText("\n".join(lines))
 
