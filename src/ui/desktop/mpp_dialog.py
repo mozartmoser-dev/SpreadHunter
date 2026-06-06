@@ -1,3 +1,5 @@
+import winsound
+
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QTableView, QHeaderView, QAbstractItemView, QTextEdit, QSplitter,
@@ -35,6 +37,7 @@ class MppDialog(QDialog):
         """)
 
         self._model = MppTableModel()
+        self._som_ativado = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -42,9 +45,35 @@ class MppDialog(QDialog):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(8)
 
+        header_row = QHBoxLayout()
+        header_row.setSpacing(8)
         header = QLabel("Ranking de Pescaria — Boxes ordenados por Score Final")
         header.setStyleSheet(f"color: {Palette.CYAN}; font-size: 11pt; font-weight: bold;")
-        layout.addWidget(header)
+        header_row.addWidget(header)
+
+        self.btn_bell = QPushButton("🔔")
+        self.btn_bell.setFixedSize(26, 24)
+        self.btn_bell.setToolTip("Som: desligado (clique para ligar)")
+        self.btn_bell.setCursor(Qt.PointingHandCursor)
+        self.btn_bell.setCheckable(True)
+        self.btn_bell.setStyleSheet("""
+            QPushButton {
+                background-color: #3d1a1a; color: #ef4444;
+                border: 1px solid #ef4444; border-radius: 4px;
+                font-size: 11pt; padding: 0;
+            }
+            QPushButton:hover { background-color: #5d2a2a; }
+            QPushButton:checked {
+                background-color: #1a3d1a; color: #22c55e;
+                border: 1px solid #22c55e;
+            }
+            QPushButton:checked:hover { background-color: #2a5d2a; }
+        """)
+        self.btn_bell.toggled.connect(self._toggle_som)
+        header_row.addWidget(self.btn_bell)
+
+        header_row.addStretch()
+        layout.addLayout(header_row)
 
         splitter = QSplitter(Qt.Vertical)
 
@@ -138,6 +167,12 @@ class MppDialog(QDialog):
 
     def atualizar(self, boxes: list, mres: list):
         self._model.atualizar(boxes, mres)
+        if self._som_ativado and boxes:
+            winsound.Beep(1000, 200)
+
+    def _toggle_som(self, ativo: bool):
+        self._som_ativado = ativo
+        self.btn_bell.setToolTip("Som: ligado" if ativo else "Som: desligado")
 
     def _on_selecao(self, selected, deselected):
         indexes = selected.indexes()
@@ -174,65 +209,60 @@ class MppDialog(QDialog):
             self._details_edit.setText("Nenhum box selecionado.")
             return
 
-        lines = []
-        lines.append(f"{'='*50}")
-        lines.append(f"  Ativo: {box.ativo}")
-        lines.append(f"  Box: {box.strike1:.0f} x {box.strike2:.0f}")
-        lines.append(f"  Vencimento: {box.vencimento}")
-        lines.append(f"{'='*50}")
-        lines.append("")
+        html = []
+        html.append(f"<h3 style='color:{Palette.CYAN}; margin:0 0 4px 0;'>{box.ativo} — {box.strike1:.0f} x {box.strike2:.0f}</h3>")
+        html.append(f"<p style='color:{Palette.TEXT_MUTED}; font-size:8pt; margin:0 0 8px 0;'>Venc: {box.vencimento}</p>")
+        html.append("<hr style='border-color:#2d2d44;'>")
+
+        html.append("<table style='width:100%; font-size:9pt;'>")
 
         items = [
-            ("Score Final",       f"{box.score_final_pct:.0f}"),
-            ("Score Estrutural",  f"{box.score_estrutural_box:.4f}"),
-            ("Score Instantâneo", f"{box.score_instantaneo_box:.4f}"),
-            ("Nível de Risco",    f"{box.nivel_risco}"),
-            ("Erro de Paridade",  f"{box.erro_paridade_box:.4f}"),
-            ("Spread Médio",      f"{box.spread_medio:.1%}"),
-            ("Profundidade Mínima", f"{box.profundidade_min:.4f}"),
-            ("Profundidade (qtd)", f"{box.qtd_min_box} contratos"),
-            ("Persistência",      f"{box.persistencia_ciclos} ciclos"),
+            ("Score Final",             f"<b style='color:{Palette.CYAN};'>{box.score_final_pct:.0f}</b> / 100", self.FIELD_DESC.get("Score Final", "")),
+            ("Score Estrutural",        f"{box.score_estrutural_box:.4f}", self.FIELD_DESC.get("Score Estrutural", "")),
+            ("Score Instantâneo",       f"{box.score_instantaneo_box:.4f}", self.FIELD_DESC.get("Score Instantâneo", "")),
+            ("Nível de Risco",          f"{box.nivel_risco}", self.FIELD_DESC.get("Nível de Risco", "")),
+            ("Erro de Paridade",        f"{box.erro_paridade_box:.4f}", self.FIELD_DESC.get("Erro de Paridade", "")),
+            ("Spread Médio",            f"{box.spread_medio:.1%}", self.FIELD_DESC.get("Spread Médio", "")),
+            ("Profundidade Mínima",     f"{box.profundidade_min:.4f}", self.FIELD_DESC.get("Profundidade Mínima", "")),
+            ("Profundidade (qtd)",      f"{box.qtd_min_box} contratos", self.FIELD_DESC.get("Profundidade (qtd)", "")),
+            ("Persistência",            f"{box.persistencia_ciclos} ciclos", self.FIELD_DESC.get("Persistência", "")),
         ]
 
-        for label, value in items:
-            lines.append(f"  {label}:")
-            lines.append(f"    Valor: {value}")
-            lines.append(f"    -> {self.FIELD_DESC.get(label, '')}")
-            lines.append("")
+        for label, value, desc in items:
+            html.append(f"<tr style='border-bottom:1px solid #1a1a2e;'>")
+            html.append(f"  <td style='color:{Palette.TEXT_SECONDARY}; font-weight:bold; padding:3px 8px 3px 0; white-space:nowrap;'>{label}</td>")
+            html.append(f"  <td style='color:{Palette.TEXT_PRIMARY}; padding:3px 8px;'>{value}</td>")
+            html.append(f"  <td style='color:{Palette.TEXT_MUTED}; font-size:8pt; padding:3px 0;'><i>{desc}</i></td>")
+            html.append(f"</tr>")
+
+        html.append("</table>")
 
         if box.justificativa:
-            lines.append("  Justificativa:")
-            lines.append(f"    {box.justificativa}")
-            lines.append(f"    -> {self.FIELD_DESC['Justificativa']}")
-            lines.append("")
+            html.append("<hr style='border-color:#2d2d44;'>")
+            html.append(f"<p style='color:{Palette.TEXT_MUTED}; font-size:8pt; margin:4px 0;'><b>Justificativa:</b> {box.justificativa} <i>({self.FIELD_DESC.get('Justificativa', '')})</i></p>")
 
         if mre:
-            lines.append(f"{'='*50}")
-            lines.append("  RECOMENDAÇÃO MRE")
-            lines.append(f"{'='*50}")
-            lines.append("")
-
+            html.append("<hr style='border-color:#2d2d44;'>")
+            html.append(f"<h4 style='color:{Palette.CYAN}; margin:4px 0;'>🎯 Recomendação MRE</h4>")
+            html.append("<table style='width:100%; font-size:9pt;'>")
             mre_items = [
-                ("Isca Recomendada", mre.isca_recomendada),
-                ("IP da Isca",       f"{mre.ip_isca:.2f}"),
-                ("Lote Sugerido",    str(mre.lote_sugerido)),
-                ("Confiança de Completar", f"{mre.confianca_completar:.1%}"),
-                ("Nível",            mre.nivel_recomendacao),
+                ("Isca Recomendada",       mre.isca_recomendada, self.MRE_DESC.get("Isca Recomendada", "")),
+                ("IP da Isca",             f"{mre.ip_isca:.2f}", self.MRE_DESC.get("IP da Isca", "")),
+                ("Lote Sugerido",          str(mre.lote_sugerido), self.MRE_DESC.get("Lote Sugerido", "")),
+                ("Confiança de Completar", f"{mre.confianca_completar:.1%}", self.MRE_DESC.get("Confiança de Completar", "")),
+                ("Nível",                  mre.nivel_recomendacao, self.MRE_DESC.get("Nível", "")),
             ]
-
-            for label, value in mre_items:
-                lines.append(f"  {label}:")
-                lines.append(f"    Valor: {value}")
-                lines.append(f"    -> {self.MRE_DESC.get(label, '')}")
-                lines.append("")
-
+            for label, value, desc in mre_items:
+                html.append(f"<tr style='border-bottom:1px solid #1a1a2e;'>")
+                html.append(f"  <td style='color:{Palette.TEXT_SECONDARY}; font-weight:bold; padding:3px 8px 3px 0; white-space:nowrap;'>{label}</td>")
+                html.append(f"  <td style='color:{Palette.TEXT_PRIMARY}; padding:3px 8px;'>{value}</td>")
+                html.append(f"  <td style='color:{Palette.TEXT_MUTED}; font-size:8pt; padding:3px 0;'><i>{desc}</i></td>")
+                html.append(f"</tr>")
+            html.append("</table>")
             if mre.justificativa:
-                lines.append(f"  Justificativa: {mre.justificativa}")
-                lines.append("")
+                html.append(f"<p style='color:{Palette.TEXT_MUTED}; font-size:8pt; margin:4px 0;'>{mre.justificativa}</p>")
 
-        lines.append(f"{'='*50}")
-
-        self._details_edit.setText("\n".join(lines))
+        self._details_edit.setHtml("\n".join(html))
 
     def _forcar_atualizacao(self):
         if hasattr(self, 'parent') and self.parent():

@@ -1,4 +1,5 @@
 import sys
+import winsound
 from datetime import datetime
 from pathlib import Path
 
@@ -73,6 +74,7 @@ class MainWindow(QMainWindow):
         self._colar_cal_dialog = None
         self._box_dialog = None
         self._mpp_dialog = None
+        self._som_ativado = False
 
         self._aplicar_tema_configurado()
 
@@ -309,6 +311,27 @@ class MainWindow(QMainWindow):
         self._status_colar_cal.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold; padding: 0 6px;".format(Palette.YELLOW))
         self._status_box = QLabel("")
         self._status_box.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold; padding: 0 6px;".format(Palette.RED))
+
+        self.btn_bell = QPushButton("🔔")
+        self.btn_bell.setFixedSize(26, 24)
+        self.btn_bell.setToolTip("Som: desligado (clique para ligar)")
+        self.btn_bell.setCursor(Qt.PointingHandCursor)
+        self.btn_bell.setCheckable(True)
+        self.btn_bell.setStyleSheet("""
+            QPushButton {
+                background-color: #3d1a1a; color: #ef4444;
+                border: 1px solid #ef4444; border-radius: 4px;
+                font-size: 11pt; padding: 0;
+            }
+            QPushButton:hover { background-color: #5d2a2a; }
+            QPushButton:checked {
+                background-color: #1a3d1a; color: #22c55e;
+                border: 1px solid #22c55e;
+            }
+            QPushButton:checked:hover { background-color: #2a5d2a; }
+        """)
+        self.btn_bell.toggled.connect(self._toggle_som_global)
+        btn_layout.addWidget(self.btn_bell)
 
         btn_layout.addSpacing(16)
         btn_layout.addStretch()
@@ -569,6 +592,14 @@ class MainWindow(QMainWindow):
         self._last_scan_time = datetime.now()
         self._update_rtd_indicator(self._rtd_connected)
         self._update_scan_status()
+
+        if self._som_ativado and self._total_viaveis > 0:
+            winsound.Beep(1000, 200)
+            winsound.Beep(1200, 150)
+
+    def _toggle_som_global(self, ativo: bool):
+        self._som_ativado = ativo
+        self.btn_bell.setToolTip("Som: ligado" if ativo else "Som: desligado")
 
     def _on_status_message(self, msg: str):
         self._status_left.setText(msg)

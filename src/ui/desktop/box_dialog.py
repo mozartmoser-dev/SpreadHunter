@@ -1,3 +1,5 @@
+import winsound
+
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QFrame, QWidget,
@@ -145,6 +147,7 @@ class BoxDialog(QDialog):
         self.setMinimumSize(1100, 500)
         self._resultados = []
         self._scanning = False
+        self._som_ativado = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -167,6 +170,27 @@ class BoxDialog(QDialog):
         self.lbl_viaveis = QLabel("0 viáveis")
         self.lbl_viaveis.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold; padding: 0 8px;".format(Palette.YELLOW))
         header.addWidget(self.lbl_viaveis)
+
+        self.btn_bell = QPushButton("🔔")
+        self.btn_bell.setFixedSize(26, 24)
+        self.btn_bell.setToolTip("Som: desligado (clique para ligar)")
+        self.btn_bell.setCursor(Qt.PointingHandCursor)
+        self.btn_bell.setCheckable(True)
+        self.btn_bell.setStyleSheet("""
+            QPushButton {
+                background-color: #3d1a1a; color: #ef4444;
+                border: 1px solid #ef4444; border-radius: 4px;
+                font-size: 11pt; padding: 0;
+            }
+            QPushButton:hover { background-color: #5d2a2a; }
+            QPushButton:checked {
+                background-color: #1a3d1a; color: #22c55e;
+                border: 1px solid #22c55e;
+            }
+            QPushButton:checked:hover { background-color: #2a5d2a; }
+        """)
+        self.btn_bell.toggled.connect(self._toggle_som)
+        header.addWidget(self.btn_bell)
 
         self.btn_scan = QPushButton("🔍 Iniciar Scanner")
         self.btn_scan.setStyleSheet("""
@@ -292,6 +316,14 @@ class BoxDialog(QDialog):
         viaveis = sum(1 for r in resultados if r.viavel)
         self.lbl_status.setText("{} boxes ({} viáveis)".format(n, viaveis))
         self.lbl_viaveis.setText("{} viáveis".format(viaveis))
+
+        if self._som_ativado and viaveis > 0:
+            winsound.Beep(1000, 200)
+            winsound.Beep(1200, 150)
+
+    def _toggle_som(self, ativo: bool):
+        self._som_ativado = ativo
+        self.btn_bell.setToolTip("Som: ligado" if ativo else "Som: desligado")
 
     def _on_row_double_clicked(self, index):
         proxy_idx = self.proxy.mapToSource(index)

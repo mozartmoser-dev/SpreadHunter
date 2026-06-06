@@ -3,6 +3,8 @@ from PyQt5.QtWidgets import (
     QAbstractItemView, QLabel, QHeaderView, QLineEdit, QFormLayout, QFrame,
     QListWidget, QListWidgetItem, QWidget, QTextEdit,
 )
+import winsound
+
 from PyQt5.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, QStringListModel, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QBrush
 
@@ -206,6 +208,7 @@ class ColarDialog(QDialog):
         self._db_path = db_path
         self._scanning = False
         self._auto_mode = False
+        self._som_ativado = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -227,6 +230,27 @@ class ColarDialog(QDialog):
         self.lbl_status = QLabel("0 colares")
         self.lbl_status.setStyleSheet("color: {}; font-size: 9pt;".format(Palette.TEXT_MUTED))
         header_layout.addWidget(self.lbl_status)
+
+        self.btn_bell = QPushButton("🔔")
+        self.btn_bell.setFixedSize(26, 24)
+        self.btn_bell.setToolTip("Som: desligado (clique para ligar)")
+        self.btn_bell.setCursor(Qt.PointingHandCursor)
+        self.btn_bell.setCheckable(True)
+        self.btn_bell.setStyleSheet("""
+            QPushButton {
+                background-color: #3d1a1a; color: #ef4444;
+                border: 1px solid #ef4444; border-radius: 4px;
+                font-size: 11pt; padding: 0;
+            }
+            QPushButton:hover { background-color: #5d2a2a; }
+            QPushButton:checked {
+                background-color: #1a3d1a; color: #22c55e;
+                border: 1px solid #22c55e;
+            }
+            QPushButton:checked:hover { background-color: #2a5d2a; }
+        """)
+        self.btn_bell.toggled.connect(self._toggle_som)
+        header_layout.addWidget(self.btn_bell)
 
         layout.addLayout(header_layout)
 
@@ -908,8 +932,6 @@ class ColarDialog(QDialog):
 
     def _plot_payoff(self, r):
         import numpy as np
-        import matplotlib
-        matplotlib.use('Agg')
         from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.figure import Figure
 
@@ -947,18 +969,27 @@ class ColarDialog(QDialog):
         hover_annot = ax.annotate(
             '', xy=(0, 0), fontsize=8, color='#fff',
             bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=ACCENT, alpha=0.9),
-            ha='center', va='bottom', visible=False,
+            ha='center', va='bottom', visible=False, zorder=10,
         )
+        hover_vline = ax.axvline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
+        hover_hline = ax.axhline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
         def _on_hover(event):
-            if event.inaxes != ax or not event.xdata:
+            if event.inaxes != ax or event.xdata is None:
                 hover_annot.set_visible(False)
+                hover_vline.set_visible(False)
+                hover_hline.set_visible(False)
                 fig.canvas.draw_idle()
                 return
             idx = np.argmin(np.abs(x - event.xdata))
             xv, yv = x[idx], total_pnl[idx]
             hover_annot.xy = (xv, yv)
+            hover_annot.set_va('bottom' if yv >= 0 else 'top')
             hover_annot.set_text(f'R$ {xv:.2f} → R$ {yv:+.2f}')
             hover_annot.set_visible(True)
+            hover_vline.set_xdata([xv, xv])
+            hover_vline.set_visible(True)
+            hover_hline.set_ydata([yv, yv])
+            hover_hline.set_visible(True)
             fig.canvas.draw_idle()
         fig.canvas.mpl_connect('motion_notify_event', _on_hover)
 
@@ -1035,16 +1066,17 @@ class ColarDialog(QDialog):
         payoff_layout.addWidget(btn_close, alignment=Qt.AlignRight)
         payoff_dialog.exec_()
 
-    def _mostrar_variacao(self, r):
+    def _mostrar_variacao(self, r, n_sessoes=None):
         from PyQt5.QtWidgets import QMessageBox
         from datetime import date, timedelta
         import re as re2
         import numpy as np
         from scipy.stats import norm
-        import matplotlib
-        matplotlib.use('Agg')
         from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.figure import Figure
+
+        if n_sessoes is None:
+            n_sessoes = max(5, int(r.dias * 5 / 7))
 
         client = OpcoesNetClient()
         hoje = date.today()
@@ -1060,11 +1092,20 @@ class ColarDialog(QDialog):
         dados = raw.get("data", {})
         chave_alvo = None
         for k in dados:
-            if "20" in k:
+            if str(n_sessoes) in k:
                 chave_alvo = k
                 break
         if not chave_alvo:
-            chave_alvo = list(dados.keys())[0]
+            max_n = 0
+            for k in dados:
+                nums = re2.findall(r'\d+', k)
+                if nums:
+                    n = int(nums[-1])
+                    if n > max_n:
+                        max_n = n
+                        chave_alvo = k
+            if not chave_alvo:
+                chave_alvo = list(dados.keys())[0]
         bins = dados[chave_alvo]
         total_obs = sum(b["quantidade"] for b in bins)
         dias_neg = raw.get("diasComNegociacao", 0)
@@ -1096,7 +1137,7 @@ class ColarDialog(QDialog):
         spot = r.preco_ativo
 
         def preco_no_sigma(n_sigma):
-            return spot * (1 + (media + n_sigma * desvio) / 100)
+            return spot * (1 + n_sigma * desvio / 100)
 
         BG = '#0d0d0d'; TEXT = '#c0c0c0'; ACCENT = '#ffc107'
         BLUE = '#2196f3'; GREEN = '#4caf50'; RED = '#ff3355'; PURPLE = '#9c27b0'
@@ -1112,7 +1153,7 @@ class ColarDialog(QDialog):
         ax1.set_xticks(range(len(vals)))
         ax1.set_xticklabels(rotulos, color=TEXT, fontsize=7)
         ax1.set_ylabel("% das observacoes", color=TEXT, fontsize=9)
-        ax1.set_title(f"{r.ativo} - Variacao em ~20 pregoes\n{dias_neg} dias de amostra", color='#e0e0e0', fontsize=10, fontweight='bold')
+        ax1.set_title(f"{r.ativo} - Variacao em ~{n_sessoes} pregoes\n{dias_neg} dias de amostra", color='#e0e0e0', fontsize=10, fontweight='bold')
         ax1.set_facecolor(BG)
         ax1.tick_params(colors=TEXT, labelsize=8)
         ax1.set_ylim(0, max(vals) * 1.25)
@@ -1125,35 +1166,35 @@ class ColarDialog(QDialog):
         ax2 = fig.add_subplot(122, facecolor=BG)
         x_lim = max(desvio * 4, 12)
         x = np.linspace(-x_lim, x_lim, 800)
-        y = norm.pdf(x, media, desvio) if desvio > 0 else np.zeros_like(x)
+        y = norm.pdf(x, 0, desvio) if desvio > 0 else np.zeros_like(x)
         y_max = max(y) * 1.45
         ax2.plot(x, y, color=ACCENT, linewidth=2.5, label='Dist. Normal')
         ax2.set_facecolor(BG)
         ax2.set_xlim(-x_lim, x_lim)
         ax2.set_ylim(-y_max * 0.3, y_max)
-        ax2.fill_between(x, 0, y, where=(x >= media - desvio) & (x <= media + desvio), color=BLUE, alpha=0.12)
-        ax2.fill_between(x, 0, y, where=(x >= media + desvio) & (x <= media + 2 * desvio), color=GREEN, alpha=0.07)
-        ax2.fill_between(x, 0, y, where=(x >= media - 2 * desvio) & (x <= media - desvio), color=GREEN, alpha=0.07)
-        ax2.fill_between(x, 0, y, where=(x >= media + 2 * desvio) & (x <= media + 3 * desvio), color=RED, alpha=0.04)
-        ax2.fill_between(x, 0, y, where=(x >= media - 3 * desvio) & (x <= media - 2 * desvio), color=RED, alpha=0.04)
+        ax2.fill_between(x, 0, y, where=(x >= -desvio) & (x <= desvio), color=BLUE, alpha=0.12)
+        ax2.fill_between(x, 0, y, where=(x >= desvio) & (x <= 2 * desvio), color=GREEN, alpha=0.07)
+        ax2.fill_between(x, 0, y, where=(x >= -2 * desvio) & (x <= -desvio), color=GREEN, alpha=0.07)
+        ax2.fill_between(x, 0, y, where=(x >= 2 * desvio) & (x <= 3 * desvio), color=RED, alpha=0.04)
+        ax2.fill_between(x, 0, y, where=(x >= -3 * desvio) & (x <= -2 * desvio), color=RED, alpha=0.04)
 
-        ax2.text(media, y_max * 0.88, "68%", ha='center', va='center', color=BLUE, fontsize=12, fontweight='bold',
+        ax2.text(0, y_max * 0.88, "68%", ha='center', va='center', color=BLUE, fontsize=12, fontweight='bold',
                  bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=BLUE, alpha=0.9))
-        ax2.text(media + 1.5 * desvio, y_max * 0.62, "13.5%", ha='center', color=GREEN, fontsize=8)
-        ax2.text(media - 1.5 * desvio, y_max * 0.62, "13.5%", ha='center', color=GREEN, fontsize=8)
-        ax2.text(media + 2.5 * desvio, y_max * 0.35, "2.35%", ha='center', color=RED, fontsize=7)
-        ax2.text(media - 2.5 * desvio, y_max * 0.35, "2.35%", ha='center', color=RED, fontsize=7)
+        ax2.text(1.5 * desvio, y_max * 0.62, "13.5%", ha='center', color=GREEN, fontsize=8)
+        ax2.text(-1.5 * desvio, y_max * 0.62, "13.5%", ha='center', color=GREEN, fontsize=8)
+        ax2.text(2.5 * desvio, y_max * 0.35, "2.35%", ha='center', color=RED, fontsize=7)
+        ax2.text(-2.5 * desvio, y_max * 0.35, "2.35%", ha='center', color=RED, fontsize=7)
 
-        ax2.axvline(media, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.2)
+        ax2.axvline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.2)
         for i in range(1, 4):
             cor = [BLUE, GREEN, RED][i - 1]
-            ax2.axvline(media + i * desvio, color=cor, linewidth=0.6, linestyle='--', alpha=0.3)
-            ax2.axvline(media - i * desvio, color=cor, linewidth=0.6, linestyle='--', alpha=0.3)
+            ax2.axvline(i * desvio, color=cor, linewidth=0.6, linestyle='--', alpha=0.3)
+            ax2.axvline(-i * desvio, color=cor, linewidth=0.6, linestyle='--', alpha=0.3)
 
         eixo_y_seta = -y_max * 0.08
         eixo_y_texto = -y_max * 0.15
         for i in range(-3, 4):
-            variacao_pct = media if i == 0 else media + i * desvio
+            variacao_pct = i * desvio
             cor = ACCENT if i == 0 else ([BLUE, GREEN, RED][abs(i) - 1] if abs(i) <= 3 else TEXT)
             preco_r = preco_no_sigma(i)
             ax2.annotate('', xy=(variacao_pct, 0), xytext=(variacao_pct, eixo_y_seta),
@@ -1167,7 +1208,7 @@ class ColarDialog(QDialog):
 
         if abs(pct_call - pct_put) < 0.1:
             pct_k = (pct_call + pct_put) / 2
-            z_k = abs(pct_k - media) / desvio if desvio > 0 else 0
+            z_k = abs(pct_k) / desvio if desvio > 0 else 0
             ax2.axvline(pct_k, color=PURPLE, linewidth=2.5, linestyle='-', alpha=0.95,
                         label=f'K R${r.strike_call:.2f} (Z={z_k:.2f})')
             ax2.axvspan(pct_k - 0.5, pct_k + 0.5, color=PURPLE, alpha=0.08)
@@ -1192,7 +1233,17 @@ class ColarDialog(QDialog):
                  bbox=dict(boxstyle='round', facecolor='#1a1a1a', edgecolor='#333'))
         fig.tight_layout()
 
-        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit
+
+        input_style = """
+            QLineEdit {
+                background-color: #1e1e2f; color: #e0e0e0;
+                border: 1px solid #2d2d44; border-radius: 4px;
+                padding: 4px 8px; font-size: 9pt;
+            }
+            QLineEdit:focus { border-color: #1abc9c; }
+        """
+
         dialog = QDialog(self, Qt.Window)
         dialog.setWindowTitle(f"Variacao - {r.ativo}")
         dialog.setMinimumSize(1050, 580)
@@ -1202,6 +1253,39 @@ class ColarDialog(QDialog):
         title = QLabel(f"<b>{r.ativo}</b>  |  Spot: R${spot:.2f}  |  K: R${r.strike_call:.2f} / R${r.strike_put:.2f}")
         title.setStyleSheet(f"font-size: 10pt; color: {Palette.TEXT_PRIMARY};")
         layout.addWidget(title)
+
+        control_row = QHBoxLayout()
+        control_row.setSpacing(8)
+        lbl_periodo = QLabel("Período (pregões):")
+        lbl_periodo.setStyleSheet(f"color: {Palette.TEXT_SECONDARY}; font-size: 9pt; font-weight: bold;")
+        inp_periodo = QLineEdit(str(n_sessoes))
+        inp_periodo.setFixedWidth(60)
+        inp_periodo.setStyleSheet(input_style)
+        btn_atualizar = QPushButton("Atualizar")
+        btn_atualizar.setAutoDefault(False)
+        btn_atualizar.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #2d2d44; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid {Palette.BORDER}; border-radius: 4px;
+                padding: 4px 14px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #3d3d55; }}
+        """)
+        def _reload():
+            try:
+                novo_n = int(inp_periodo.text().strip())
+                if novo_n >= 5:
+                    dialog.accept()
+                    self._mostrar_variacao(r, novo_n)
+            except ValueError:
+                pass
+        btn_atualizar.clicked.connect(_reload)
+        control_row.addWidget(lbl_periodo)
+        control_row.addWidget(inp_periodo)
+        control_row.addWidget(btn_atualizar)
+        control_row.addStretch()
+        layout.addLayout(control_row)
+
         canvas = FigureCanvas(fig)
         layout.addWidget(canvas, stretch=1)
         btn_row = QHBoxLayout()
@@ -1315,3 +1399,12 @@ class ColarDialog(QDialog):
                 self._popular_lista_ativos(ativos_vistos)
         self.set_scan_completed(len(resultados), auto=self._auto_mode)
         self._atualizar_status()
+
+        n_viaveis = sum(1 for r in resultados if r.viavel)
+        if self._som_ativado and n_viaveis > 0:
+            winsound.Beep(1000, 200)
+            winsound.Beep(1200, 150)
+
+    def _toggle_som(self, ativo: bool):
+        self._som_ativado = ativo
+        self.btn_bell.setToolTip("Som: ligado" if ativo else "Som: desligado")

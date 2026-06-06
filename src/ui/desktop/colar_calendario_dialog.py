@@ -1,4 +1,5 @@
 import logging
+import winsound
 
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
@@ -47,7 +48,7 @@ class ColarCalTableModel(QAbstractTableModel):
         ("θ Put", "theta_put"),
         ("θ Líq", "theta_liquido"),
         ("P Put VC", "valor_put_venc_call"),
-        ("Tipo", "tipo_str"),
+        ("Viés", "tipo_str"),
     ]
 
     def __init__(self, items=None):
@@ -167,6 +168,7 @@ class ColarCalendarioDialog(QDialog):
         self._db_path = db_path
         self._scanning = False
         self._auto_mode = False
+        self._som_ativado = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -188,6 +190,27 @@ class ColarCalendarioDialog(QDialog):
         self.lbl_status = QLabel("0 oportunidades")
         self.lbl_status.setStyleSheet(f"color: {Palette.TEXT_MUTED}; font-size: 9pt;")
         header_layout.addWidget(self.lbl_status)
+
+        self.btn_bell = QPushButton("🔔")
+        self.btn_bell.setFixedSize(26, 24)
+        self.btn_bell.setToolTip("Som: desligado (clique para ligar)")
+        self.btn_bell.setCursor(Qt.PointingHandCursor)
+        self.btn_bell.setCheckable(True)
+        self.btn_bell.setStyleSheet("""
+            QPushButton {
+                background-color: #3d1a1a; color: #ef4444;
+                border: 1px solid #ef4444; border-radius: 4px;
+                font-size: 11pt; padding: 0;
+            }
+            QPushButton:hover { background-color: #5d2a2a; }
+            QPushButton:checked {
+                background-color: #1a3d1a; color: #22c55e;
+                border: 1px solid #22c55e;
+            }
+            QPushButton:checked:hover { background-color: #2a5d2a; }
+        """)
+        self.btn_bell.toggled.connect(self._toggle_som)
+        header_layout.addWidget(self.btn_bell)
 
         layout.addLayout(header_layout)
 
@@ -785,8 +808,6 @@ class ColarCalendarioDialog(QDialog):
         try:
             import numpy as np
             from scipy.stats import norm
-            import matplotlib
-            matplotlib.use('Agg')
             from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
             from matplotlib.figure import Figure
 
@@ -962,17 +983,18 @@ class ColarCalendarioDialog(QDialog):
             logger.exception("Erro no payoff: %s", e)
             QMessageBox.critical(self, "Erro", f"Falha ao gerar payoff:\n{e}\n\n{traceback.format_exc()}")
 
-    def _mostrar_variacao(self, r):
+    def _mostrar_variacao(self, r, n_sessoes=None):
         from PyQt5.QtWidgets import QMessageBox
         from datetime import date, timedelta
         import re as re2
         import numpy as np
         from scipy.stats import norm
-        import matplotlib
-        matplotlib.use('Agg')
         from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.figure import Figure
         import traceback
+
+        if n_sessoes is None:
+            n_sessoes = max(5, r.dte_call)
 
         try:
             client = OpcoesNetClient()
@@ -994,7 +1016,7 @@ class ColarCalendarioDialog(QDialog):
             dados = raw.get("data", {})
             chave_alvo = None
             for k in dados:
-                if "20" in k:
+                if str(n_sessoes) in k:
                     chave_alvo = k
                     break
             if not chave_alvo:
@@ -1040,7 +1062,7 @@ class ColarCalendarioDialog(QDialog):
             spot = r.preco_ativo
 
             def preco_no_sigma(n_sigma):
-                return spot * (1 + (media + n_sigma * desvio) / 100)
+                return spot * (1 + n_sigma * desvio / 100)
 
             BG = '#0d0d0d'; TEXT = '#c0c0c0'; ACCENT = '#ffc107'
             BLUE = '#2196f3'; GREEN = '#4caf50'; RED = '#ff3355'; PURPLE = '#9c27b0'
@@ -1056,7 +1078,7 @@ class ColarCalendarioDialog(QDialog):
             ax1.set_xticks(range(len(vals)))
             ax1.set_xticklabels(rotulos, color=TEXT, fontsize=7)
             ax1.set_ylabel("% das observacoes", color=TEXT, fontsize=9)
-            ax1.set_title(f"{r.ativo} - Variacao em ~20 pregoes\n{dias_neg} dias de amostra",
+            ax1.set_title(f"{r.ativo} - Variacao em ~{n_sessoes} pregoes\n{dias_neg} dias de amostra",
                           color='#e0e0e0', fontsize=10, fontweight='bold')
             ax1.set_facecolor(BG)
             ax1.tick_params(colors=TEXT, labelsize=8)
@@ -1073,7 +1095,7 @@ class ColarCalendarioDialog(QDialog):
             ax2 = fig.add_subplot(122, facecolor=BG)
             x_lim = max(desvio * 4, 12)
             x = np.linspace(-x_lim, x_lim, 800)
-            y = norm.pdf(x, media, desvio) if desvio > 0 else np.zeros_like(x)
+            y = norm.pdf(x, 0, desvio) if desvio > 0 else np.zeros_like(x)
             y_max = max(y) * 1.45
 
             ax2.plot(x, y, color=ACCENT, linewidth=2.5, label='Dist. Normal')
@@ -1081,44 +1103,40 @@ class ColarCalendarioDialog(QDialog):
             ax2.set_xlim(-x_lim, x_lim)
             ax2.set_ylim(-y_max * 0.3, y_max)
 
-            ax2.fill_between(x, 0, y, where=(x >= media - desvio) & (x <= media + desvio),
+            ax2.fill_between(x, 0, y, where=(x >= -desvio) & (x <= desvio),
                              color=BLUE, alpha=0.12)
-            ax2.fill_between(x, 0, y, where=(x >= media + desvio) & (x <= media + 2 * desvio),
+            ax2.fill_between(x, 0, y, where=(x >= desvio) & (x <= 2 * desvio),
                              color=GREEN, alpha=0.07)
-            ax2.fill_between(x, 0, y, where=(x >= media - 2 * desvio) & (x <= media - desvio),
+            ax2.fill_between(x, 0, y, where=(x >= -2 * desvio) & (x <= -desvio),
                              color=GREEN, alpha=0.07)
-            ax2.fill_between(x, 0, y, where=(x >= media + 2 * desvio) & (x <= media + 3 * desvio),
+            ax2.fill_between(x, 0, y, where=(x >= 2 * desvio) & (x <= 3 * desvio),
                              color=RED, alpha=0.04)
-            ax2.fill_between(x, 0, y, where=(x >= media - 3 * desvio) & (x <= media - 2 * desvio),
+            ax2.fill_between(x, 0, y, where=(x >= -3 * desvio) & (x <= -2 * desvio),
                              color=RED, alpha=0.04)
 
-            ax2.text(media, y_max * 0.88, "68%", ha='center', va='center', color=BLUE,
+            ax2.text(0, y_max * 0.88, "68%", ha='center', va='center', color=BLUE,
                      fontsize=12, fontweight='bold',
                      bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=BLUE, alpha=0.9))
-            ax2.text(media + 1.5 * desvio, y_max * 0.62, "13.5%", ha='center', va='center',
+            ax2.text(1.5 * desvio, y_max * 0.62, "13.5%", ha='center', va='center',
                      color=GREEN, fontsize=8)
-            ax2.text(media - 1.5 * desvio, y_max * 0.62, "13.5%", ha='center', va='center',
+            ax2.text(-1.5 * desvio, y_max * 0.62, "13.5%", ha='center', va='center',
                      color=GREEN, fontsize=8)
-            ax2.text(media + 2.5 * desvio, y_max * 0.35, "2.35%", ha='center', va='center',
+            ax2.text(2.5 * desvio, y_max * 0.35, "2.35%", ha='center', va='center',
                      color=RED, fontsize=7)
-            ax2.text(media - 2.5 * desvio, y_max * 0.35, "2.35%", ha='center', va='center',
+            ax2.text(-2.5 * desvio, y_max * 0.35, "2.35%", ha='center', va='center',
                      color=RED, fontsize=7)
 
-            ax2.axvline(media, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.2)
+            ax2.axvline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.2)
             for i in range(1, 4):
                 cor = [BLUE, GREEN, RED][i - 1]
-                ax2.axvline(media + i * desvio, color=cor, linewidth=0.6, linestyle='--', alpha=0.3)
-                ax2.axvline(media - i * desvio, color=cor, linewidth=0.6, linestyle='--', alpha=0.3)
+                ax2.axvline(i * desvio, color=cor, linewidth=0.6, linestyle='--', alpha=0.3)
+                ax2.axvline(-i * desvio, color=cor, linewidth=0.6, linestyle='--', alpha=0.3)
 
             eixo_y_seta = -y_max * 0.08
             eixo_y_texto = -y_max * 0.15
             for i in range(-3, 4):
-                if i == 0:
-                    variacao_pct = media
-                    cor = ACCENT
-                else:
-                    variacao_pct = media + i * desvio
-                    cor = [BLUE, GREEN, RED][abs(i) - 1] if abs(i) <= 3 else TEXT
+                variacao_pct = i * desvio
+                cor = ACCENT if i == 0 else ([BLUE, GREEN, RED][abs(i) - 1] if abs(i) <= 3 else TEXT)
                 preco_r = preco_no_sigma(i)
                 ax2.annotate('', xy=(variacao_pct, 0), xytext=(variacao_pct, eixo_y_seta),
                              arrowprops=dict(arrowstyle='->', color=cor, lw=1.5, alpha=0.8))
@@ -1134,12 +1152,12 @@ class ColarCalendarioDialog(QDialog):
                          ha='center', va='top', color=TEXT, fontsize=6.5, alpha=0.6)
 
             # Linha vertical do spot (variação 0%)
-            ax2.axvline(media, color='#2196f3', linewidth=1.2, linestyle='--', alpha=0.7,
+            ax2.axvline(0, color='#2196f3', linewidth=1.2, linestyle='--', alpha=0.7,
                         label=f'Spot R${spot:.2f} (0%)')
 
             if abs(pct_call - pct_put) < 0.1:
                 pct_k = (pct_call + pct_put) / 2
-                z_k = abs(pct_k - media) / desvio if desvio > 0 else 0
+                z_k = abs(pct_k) / desvio if desvio > 0 else 0
                 percentil = norm.cdf(z_k) * 100
                 ax2.axvline(pct_k, color=PURPLE, linewidth=2.5, linestyle='-', alpha=0.95,
                             label=f'K R${r.strike_call:.2f} (Z={z_k:.2f})')
@@ -1176,7 +1194,17 @@ class ColarCalendarioDialog(QDialog):
 
             fig.tight_layout()
 
-            from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+            from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit
+
+            input_style = """
+                QLineEdit {
+                    background-color: #1e1e2f; color: #e0e0e0;
+                    border: 1px solid #2d2d44; border-radius: 4px;
+                    padding: 4px 8px; font-size: 9pt;
+                }
+                QLineEdit:focus { border-color: #1abc9c; }
+            """
+
             dialog = QDialog(self, Qt.Window)
             dialog.setWindowTitle(f"Variacao Historica - {r.ativo}")
             dialog.setMinimumSize(1050, 580)
@@ -1191,6 +1219,38 @@ class ColarCalendarioDialog(QDialog):
             )
             title.setStyleSheet(f"font-size: 10pt; color: {Palette.TEXT_PRIMARY};")
             layout.addWidget(title)
+
+            control_row = QHBoxLayout()
+            control_row.setSpacing(8)
+            lbl_periodo = QLabel("Período (pregões):")
+            lbl_periodo.setStyleSheet(f"color: {Palette.TEXT_SECONDARY}; font-size: 9pt; font-weight: bold;")
+            inp_periodo = QLineEdit(str(n_sessoes))
+            inp_periodo.setFixedWidth(60)
+            inp_periodo.setStyleSheet(input_style)
+            btn_atualizar = QPushButton("Atualizar")
+            btn_atualizar.setAutoDefault(False)
+            btn_atualizar.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: #2d2d44; color: {Palette.TEXT_PRIMARY};
+                    border: 1px solid {Palette.BORDER}; border-radius: 4px;
+                    padding: 4px 14px; font-size: 9pt;
+                }}
+                QPushButton:hover {{ background-color: #3d3d55; }}
+            """)
+            def _reload():
+                try:
+                    novo_n = int(inp_periodo.text().strip())
+                    if novo_n >= 5:
+                        dialog.accept()
+                        self._mostrar_variacao(r, novo_n)
+                except ValueError:
+                    pass
+            btn_atualizar.clicked.connect(_reload)
+            control_row.addWidget(lbl_periodo)
+            control_row.addWidget(inp_periodo)
+            control_row.addWidget(btn_atualizar)
+            control_row.addStretch()
+            layout.addLayout(control_row)
 
             canvas = FigureCanvas(fig)
             layout.addWidget(canvas, stretch=1)
@@ -1308,3 +1368,12 @@ class ColarCalendarioDialog(QDialog):
                 self._popular_lista_ativos(ativos_vistos)
         self.set_scan_completed(len(resultados), auto=self._auto_mode)
         self._atualizar_status()
+
+        n_viaveis = sum(1 for r in resultados if r.viavel)
+        if self._som_ativado and n_viaveis > 0:
+            winsound.Beep(1000, 200)
+            winsound.Beep(1200, 150)
+
+    def _toggle_som(self, ativo: bool):
+        self._som_ativado = ativo
+        self.btn_bell.setToolTip("Som: ligado" if ativo else "Som: desligado")
