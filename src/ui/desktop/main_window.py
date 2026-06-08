@@ -716,7 +716,14 @@ class MainWindow(QMainWindow):
     def _on_colares_atualizados(self, resultados: list):
         self._ultimos_colares = resultados
         n_viaveis = sum(1 for r in resultados if r.viavel)
+        n_total = len(resultados)
+        agora = datetime.now().strftime("%H:%M:%S")
         self._status_colar.setText(f"🛡 {n_viaveis}")
+        self._status_colar.setToolTip(
+            f"Collar Protetivo\n"
+            f"Viáveis: {n_viaveis} / {n_total}\n"
+            f"Última: {agora}"
+        )
         self._status_colar.setStyleSheet(
             f"color: {Palette.GREEN}; font-weight: bold; padding: 0 6px;"
         )
@@ -773,7 +780,14 @@ class MainWindow(QMainWindow):
     def _on_colares_calendario_atualizados(self, resultados: list):
         self._ultimos_colares_cal = resultados
         n_viaveis = sum(1 for r in resultados if r.viavel)
+        n_total = len(resultados)
+        agora = datetime.now().strftime("%H:%M:%S")
         self._status_colar_cal.setText(f"📅 {n_viaveis}")
+        self._status_colar_cal.setToolTip(
+            f"Collar Calendário\n"
+            f"Viáveis: {n_viaveis} / {n_total}\n"
+            f"Última: {agora}"
+        )
         self._status_colar_cal.setStyleSheet(
             f"color: {Palette.YELLOW}; font-weight: bold; padding: 0 6px;"
         )
@@ -783,7 +797,14 @@ class MainWindow(QMainWindow):
     def _on_boxes_atualizados(self, resultados: list):
         self._ultimos_boxes = resultados
         n_viaveis = sum(1 for r in resultados if r.viavel)
+        n_total = len(resultados)
+        agora = datetime.now().strftime("%H:%M:%S")
         self._status_box.setText(f"📦 {n_viaveis}")
+        self._status_box.setToolTip(
+            f"Box 4 Pontas\n"
+            f"Viáveis: {n_viaveis} / {n_total}\n"
+            f"Última: {agora}"
+        )
         self._status_box.setStyleSheet(
             f"color: {Palette.RED}; font-weight: bold; padding: 0 6px;"
         )
