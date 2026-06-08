@@ -44,6 +44,7 @@ class MercadoDataProvider:
         self._ultimo_refresh_timestamp: float = 0.0
         self._ciclos_sem_dados: int = 0
         self._lock = QMutex()
+        self._registro_remaining_idx: int = 0
         self._prioridade_set: set[str] = self._carregar_prioridades()
         self._prioridade_salva: set[str] = set()
         self._caminho_prioridade = self._resolver_caminho_prioridade()
@@ -91,6 +92,7 @@ class MercadoDataProvider:
         try:
             self._registrado = False
             self._registro_idx = 0
+            self._registro_remaining_idx = 0
             self._ativos_registrados.clear()
             self._chaves_registradas.clear()
             self._chaves_com_book.clear()
@@ -275,6 +277,43 @@ class MercadoDataProvider:
             logger.info("RTD: Lote Onda 1 %d/%d (Registros: %d) em %.2fs.",
                          self._registro_idx, len(instrumentos), count_processados, time.perf_counter() - t0)
 
+    def _registrar_novos_entrantes(self):
+        instrumentos = self.inst_repo.get_all()
+        total = len(instrumentos)
+        if self._registro_remaining_idx >= total:
+            self._registro_remaining_idx = 0
+
+        batch = 500
+        start = self._registro_remaining_idx
+        end = min(start + batch, total)
+        count = 0
+
+        for i in range(start, end):
+            inst = instrumentos[i]
+            key = inst.cod_put
+            if key in self._chaves_registradas:
+                continue
+
+            rtd = self.rtd
+            rtd.registrar_topico(inst.cod_put, RTD_CAMPO_STRIKE)
+            rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
+            rtd.registrar_topico(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
+            if inst.ativo not in self._ativos_registrados:
+                rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
+                rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
+                rtd.registrar_status(inst.ativo)
+                self._ativos_registrados.add(inst.ativo)
+            self._chaves_registradas.add(key)
+            count += 1
+
+        self._registro_remaining_idx = end
+        if count > 0:
+            logger.info("Background scan: %d novos instrumentos registrados", count)
+        if self._registro_remaining_idx >= total:
+            self._registro_remaining_idx = 0
+            logger.info("Background scan: ciclo completo. Total monitorados: %d", len(self._chaves_registradas))
+
     def capturar_dados_mercado(self) -> dict[str, dict]:
         if not self.rtd.disponivel:
             logger.warning("RTD nao disponivel — retornando dados vazios.")
@@ -288,17 +327,21 @@ class MercadoDataProvider:
                 if not self._registrado or not self._ativos_registrados:
                     instrumentos = self.inst_repo.get_all()
                     self._total_instrumentos_cache = len(instrumentos)
-                    if self._prioridade_set:
-                        instrumentos.sort(key=lambda inst: inst.cod_put not in self._prioridade_set)
-                        logger.info("Onda 1 ordenada: %d prioritarios primeiro", len(self._prioridade_set))
-                    
+
                     # Primeiro ciclo: registra apenas ativos para pegar preços base
                     if not self._ativos_registrados:
                         self._registrar_ativos_prioritarios(instrumentos)
 
-                    # Registro em lotes com filtro de proximidade
+                    # Onda 1
                     if not self._registrado:
-                        self._registrar_batch_inteligente(instrumentos, batch_size=2000)
+                        if self._prioridade_set:
+                            prio = [inst for inst in instrumentos if inst.cod_put in self._prioridade_set]
+                            self._registrar_batch_inteligente(prio, batch_size=2000)
+                            if self._registrado:
+                                self._registro_remaining_idx = len(prio)
+                                logger.info("Onda 1 prioritária concluída: %d instrumentos monitorados. Background scan ativo para novos entrantes.", len(self._chaves_registradas))
+                        else:
+                            self._registrar_batch_inteligente(instrumentos, batch_size=2000)
 
                 t0 = time.perf_counter()
                 try:
@@ -310,6 +353,10 @@ class MercadoDataProvider:
                 self._ultimo_refresh_timestamp = time.time()
 
                 is_global_scan = (self._scan_count % 10 == 0)
+
+                # Background scan: registra novos entrantes (não-prioritários)
+                if is_global_scan and self._registrado and self._prioridade_set:
+                    self._registrar_novos_entrantes()
 
                 if self._scan_count % 10 == 0:
                     if self._chaves_com_book and self._chaves_com_book != self._prioridade_salva:
