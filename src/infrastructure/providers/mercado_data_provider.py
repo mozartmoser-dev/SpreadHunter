@@ -53,19 +53,24 @@ class MercadoDataProvider:
         if self.db_path:
             import os
             base = os.path.splitext(str(self.db_path))[0]
-            return base + "_prioridade.json"
-        return "rtd_prioridade.json"
+            return os.path.abspath(base + "_prioridade.json")
+        return os.path.abspath("rtd_prioridade.json")
 
     def _carregar_prioridades(self) -> set[str]:
         try:
             import json, os
             path = self._resolver_caminho_prioridade() if self.db_path else "rtd_prioridade.json"
+            logger.info("Procurando prioridades em: %s", path)
             if os.path.exists(path):
                 with open(path, "r") as f:
                     data = json.load(f)
                 if isinstance(data, list):
                     logger.info("Prioridades carregadas: %d instrumentos", len(data))
                     return set(data)
+                else:
+                    logger.warning("Prioridades: formato inesperado (%s)", type(data).__name__)
+            else:
+                logger.info("Prioridades: arquivo nao encontrado")
         except Exception as e:
             logger.warning("Erro ao carregar prioridades: %s", e)
         return set()
@@ -285,6 +290,7 @@ class MercadoDataProvider:
                     self._total_instrumentos_cache = len(instrumentos)
                     if self._prioridade_set:
                         instrumentos.sort(key=lambda inst: inst.cod_put not in self._prioridade_set)
+                        logger.info("Onda 1 ordenada: %d prioritarios primeiro", len(self._prioridade_set))
                     
                     # Primeiro ciclo: registra apenas ativos para pegar preços base
                     if not self._ativos_registrados:
