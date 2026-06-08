@@ -419,6 +419,18 @@ class ColarDialog(QDialog):
         self.btn_scan.clicked.connect(self._toggle_scan)
         left_panel.addWidget(self.btn_scan)
 
+        self.btn_regras = QPushButton("📋 Regras")
+        self.btn_regras.setStyleSheet("""
+            QPushButton {
+                background-color: transparent; color: #8b8be0;
+                border: 1px solid #8b8be066; border-radius: 4px;
+                padding: 4px; font-size: 8pt;
+            }
+            QPushButton:hover { background-color: #8b8be022; }
+        """)
+        self.btn_regras.clicked.connect(self._abrir_regras)
+        left_panel.addWidget(self.btn_regras)
+
         self.lbl_scan_status = QLabel("✅ Pronto")
         self.lbl_scan_status.setStyleSheet(f"color: {Palette.GREEN}; font-size: 8pt;")
         left_panel.addWidget(self.lbl_scan_status)
@@ -1425,6 +1437,11 @@ class ColarDialog(QDialog):
         if self._som_ativado and n_viaveis > 0:
             winsound.Beep(1000, 200)
             winsound.Beep(1200, 150)
+
+    def _abrir_regras(self):
+        from src.ui.desktop.regras_dialog import RegrasDialog
+        dlg = RegrasDialog("COLAR", self._db_path, self)
+        dlg.exec_()
 
     def _toggle_som(self, ativo: bool):
         self._som_ativado = ativo

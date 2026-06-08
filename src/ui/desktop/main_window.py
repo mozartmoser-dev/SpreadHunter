@@ -360,6 +360,20 @@ class MainWindow(QMainWindow):
         self.btn_engine.clicked.connect(self._abrir_engine_dashboard)
         btn_layout.addWidget(self.btn_engine)
 
+        self.btn_regras = QPushButton("📋")
+        self.btn_regras.setToolTip("Regras e Filtros (Monitor BOX/SBTH)")
+        self.btn_regras.setFixedSize(26, 24)
+        self.btn_regras.setStyleSheet("""
+            QPushButton {
+                background-color: transparent; color: #8a8ae0;
+                border: 1px solid #8a8ae066; border-radius: 4px;
+                font-size: 11pt;
+            }
+            QPushButton:hover { background-color: #8a8ae022; color: #b0b0ff; }
+        """)
+        self.btn_regras.clicked.connect(self._abrir_regras_monitor)
+        btn_layout.addWidget(self.btn_regras)
+
         self.btn_parametros = QPushButton("⚙")
         self.btn_parametros.setToolTip("Parametros Operacionais")
         self.btn_parametros.setFixedSize(28, 24)
@@ -494,6 +508,11 @@ class MainWindow(QMainWindow):
         param = param_repo.get_by_chave("tema_visual")
         theme_id = param.valor if param else 0.0
         self.setStyleSheet(get_theme_qss(theme_id))
+
+    def _abrir_regras_monitor(self):
+        from src.ui.desktop.regras_dialog import RegrasDialog
+        dlg = RegrasDialog("BOX", self.db_path, self)
+        dlg.exec_()
 
     def _abrir_parametros(self):
         dialog = QDialog(self)

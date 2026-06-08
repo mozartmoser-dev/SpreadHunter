@@ -153,6 +153,7 @@ class BoxDialog(QDialog):
         self._resultados = []
         self._scanning = False
         self._som_ativado = False
+        self._db_path = db_path
         self._setup_ui()
 
     def _setup_ui(self):
@@ -208,6 +209,18 @@ class BoxDialog(QDialog):
         """)
         self.btn_scan.clicked.connect(self._toggle_scan)
         header.addWidget(self.btn_scan)
+
+        self.btn_regras = QPushButton("📋 Regras")
+        self.btn_regras.setStyleSheet("""
+            QPushButton {
+                background-color: transparent; color: #8b8be0;
+                border: 1px solid #8b8be066; border-radius: 4px;
+                padding: 4px 10px; font-size: 9pt;
+            }
+            QPushButton:hover { background-color: #8b8be022; }
+        """)
+        self.btn_regras.clicked.connect(self._abrir_regras)
+        header.addWidget(self.btn_regras)
 
         layout.addLayout(header)
 
@@ -270,6 +283,11 @@ class BoxDialog(QDialog):
 
         body.addWidget(self.table_view, stretch=1)
         layout.addLayout(body)
+
+    def _abrir_regras(self):
+        from src.ui.desktop.regras_dialog import RegrasDialog
+        dlg = RegrasDialog("BOX_4P", self._db_path, self)
+        dlg.exec_()
 
     def _toggle_scan(self):
         if self._scanning:

@@ -147,6 +147,18 @@ class MppDialog(QDialog):
         self.btn_forcar.clicked.connect(self._forcar_atualizacao)
         btn_layout.addWidget(self.btn_forcar)
 
+        self.btn_regras = QPushButton("📋 Regras")
+        self.btn_regras.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent; color: #8b8be0;
+                border: 1px solid #8b8be066; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #8b8be022; }}
+        """)
+        self.btn_regras.clicked.connect(self._abrir_regras)
+        btn_layout.addWidget(self.btn_regras)
+
         self.btn_fechar = QPushButton("Fechar")
         self.btn_fechar.setStyleSheet(f"""
             QPushButton {{
@@ -169,6 +181,11 @@ class MppDialog(QDialog):
         self._model.atualizar(boxes, mres)
         if self._som_ativado and boxes:
             winsound.Beep(1000, 200)
+
+    def _abrir_regras(self):
+        from src.ui.desktop.regras_dialog import RegrasDialog
+        dlg = RegrasDialog("MPP", self.db_path, self)
+        dlg.exec_()
 
     def _toggle_som(self, ativo: bool):
         self._som_ativado = ativo
