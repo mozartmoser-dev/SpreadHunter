@@ -303,7 +303,7 @@ class MercadoDataProvider:
                 self._scan_count += 1
                 self._ultimo_refresh_timestamp = time.time()
 
-                is_global_scan = (self._scan_count % 5 == 0)
+                is_global_scan = (self._scan_count % 10 == 0)
 
                 if self._scan_count % 10 == 0:
                     if self._chaves_com_book and self._chaves_com_book != self._prioridade_salva:
