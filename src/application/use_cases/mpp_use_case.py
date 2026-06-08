@@ -716,10 +716,10 @@ class MPPUseCase:
         lote_base = int(self._get_param("mre_lote_base", 100))
         max_pct = self._get_param("mre_profundidade_max_pct", 0.20)
         profundidades_box = [
-            min(k1["qtd_bid_call"], k1["qtd_ask_call"]),
-            min(k1["qtd_bid_put"],  k1["qtd_ask_put"]),
-            min(k2["qtd_bid_call"], k2["qtd_ask_call"]),
-            min(k2["qtd_bid_put"],  k2["qtd_ask_put"]),
+            k1["qtd_bid_call"] + k1["qtd_ask_call"],
+            k1["qtd_bid_put"] + k1["qtd_ask_put"],
+            k2["qtd_bid_call"] + k2["qtd_ask_call"],
+            k2["qtd_bid_put"] + k2["qtd_ask_put"],
         ]
         prof_min_box = min(profundidades_box)
         lote_sug = min(lote_base, int(prof_min_box * max_pct))

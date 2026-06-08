@@ -80,6 +80,7 @@ class TestMonitorOportunidadesUseCase:
         dados_mercado = {
             "BOVAT180": {
                 "preco_ativo": 18.0,
+                "strike_rtd": 18.0,
                 "of_compra_ativo": 17.9, "of_venda_ativo": 18.1,
                 "of_compra_put": 2.0, "of_venda_put": 2.1,
                 "of_compra_call": 2.5, "of_venda_call": 2.6,

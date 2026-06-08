@@ -66,23 +66,23 @@ class CalculadoraVetorizada:
         custo_sbth = preco_compra_ativo + of_venda_put
         ganho_sbth_bruto = np.where((custo_sbth > 0) & (of_venda_put > 0), strike - custo_sbth, 0.0)
         ganho_sbth = np.maximum(ganho_sbth_bruto - custo_b3_sbth, 0.0)
-        pct_ganho_sbth = np.where(custo_sbth > 0, ganho_sbth / custo_sbth, 0.0)
-        pct_cdi_sbth = np.where(cdi_periodo > 0, pct_ganho_sbth / cdi_periodo, 0.0)
+        pct_ganho_sbth = np.divide(ganho_sbth, custo_sbth, out=np.zeros_like(ganho_sbth), where=custo_sbth > 0)
+        pct_cdi_sbth = np.divide(pct_ganho_sbth, cdi_periodo, out=np.zeros_like(pct_ganho_sbth), where=cdi_periodo > 0)
         
         # BOX
         custo_box = preco_compra_ativo + of_venda_put - of_compra_call
         ganho_box_bruto = np.where((of_venda_put > 0) & (of_compra_call > 0), strike - custo_box, 0.0)
         ganho_box = np.maximum(ganho_box_bruto - custo_b3_box, 0.0)
-        pct_ganho_box = np.where(custo_box > 0, ganho_box / custo_box, np.where(custo_box != 0, ganho_box / 0.01, 0.0))
-        pct_cdi_box = np.where(cdi_periodo > 0, pct_ganho_box / cdi_periodo, 0.0)
-        
+        pct_ganho_box = np.divide(ganho_box, custo_box, out=np.zeros_like(ganho_box), where=custo_box > 0)
+        pct_cdi_box = np.divide(pct_ganho_box, cdi_periodo, out=np.zeros_like(pct_ganho_box), where=cdi_periodo > 0)
+
         # IR
         ir_sbth = self.custos_b3.ajustar_ir_vetor(ganho_sbth)
         ir_box = self.custos_b3.ajustar_ir_vetor(ganho_box)
         ganho_sbth_liq = ganho_sbth - ir_sbth
         ganho_box_liq = ganho_box - ir_box
-        pct_ganho_sbth_liq = np.where(custo_sbth > 0, ganho_sbth_liq / custo_sbth, 0.0)
-        pct_ganho_box_liq = np.where(custo_box > 0, ganho_box_liq / custo_box, np.where(custo_box != 0, ganho_box_liq / 0.01, 0.0))
+        pct_ganho_sbth_liq = np.divide(ganho_sbth_liq, custo_sbth, out=np.zeros_like(ganho_sbth_liq), where=custo_sbth > 0)
+        pct_ganho_box_liq = np.divide(ganho_box_liq, custo_box, out=np.zeros_like(ganho_box_liq), where=custo_box > 0)
         pct_cdi_sbth_liquido = np.where(cdi_periodo > 0, pct_ganho_sbth_liq / cdi_periodo, 0.0)
         pct_cdi_box_liquido = np.where(cdi_periodo > 0, pct_ganho_box_liq / cdi_periodo, 0.0)
         

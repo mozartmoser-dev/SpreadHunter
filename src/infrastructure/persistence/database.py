@@ -193,7 +193,6 @@ CREATE TABLE IF NOT EXISTS instrumentos_base (
     cod_call TEXT NOT NULL,
     vencimento DATE NOT NULL,
     tipo_opcao TEXT NOT NULL,
-    strike REAL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 from datetime import date
 
@@ -12,6 +13,8 @@ from src.infrastructure.persistence.repositories.repositories import (
     ParametroRepository,
 )
 from src.infrastructure.notifications.telegram_service import TelegramService
+
+logger = logging.getLogger(__name__)
 
 
 class MonitorOportunidadesUseCase:
@@ -265,9 +268,11 @@ class MonitorOportunidadesUseCase:
         if mercado is None:
             return None
         p_ref = mercado["preco_ativo"]
-        
-        # Prioridade Única: RTD (Ajustado pelo Profit)
-        strike = mercado.get("strike_rtd") or 0.0
+
+        strike = mercado.get("strike_rtd")
+        if not strike or strike <= 0:
+            logger.warning("Strike RTD invalido para %s — ignorando", inst.cod_put)
+            return None
 
         dados = DadosMercado(
             preco_ativo=mercado["preco_ativo"],

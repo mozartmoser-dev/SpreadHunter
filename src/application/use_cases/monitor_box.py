@@ -56,9 +56,9 @@ class MonitorBoxUseCase:
         if not strike or strike <= 0:
             return None
 
-        status_put = rtd.ler_status_cache(inst.cod_put) or "Aberto"
-        status_call = rtd.ler_status_cache(inst.cod_call) or "Aberto"
-        status_ativo = rtd.ler_status_cache(inst.ativo) or "Aberto"
+        status_put = rtd.ler_status_cache(inst.cod_put)
+        status_call = rtd.ler_status_cache(inst.cod_call)
+        status_ativo = rtd.ler_status_cache(inst.ativo)
 
         return {
             "strike": strike,

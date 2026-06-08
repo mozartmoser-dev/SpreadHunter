@@ -15,7 +15,7 @@ class InstrumentoOpcional:
     cod_call: str
     vencimento: date
     tipo_opcao: TipoOpcao
-    strike: float | None = None
+    strike: float | None = None  # RTD-only (ajustado). NUNCA persistir no SQLite — ver AGENTS.md
     id: int | None = None
 
     @property

@@ -18,7 +18,6 @@ _REGRAS_CODIGO: dict[str, list[dict]] = {
         {"regra": "Rejeita strikes K1 >= K2", "origem": "calculadora_box.py"},
         {"regra": "Rejeita precos <= 0 em qualquer perna", "origem": "calculadora_box.py"},
         {"regra": "Rejeita em_leilao = True", "origem": "calculadora_box.py"},
-        {"regra": "Soh aceita opcoes europeias se box_soh_europeia=1", "origem": "parametro_operacional.py"},
     ],
     "BOX_SINTETICO": [
         {"regra": "Strike maximo = elegibilidade_strike_max_pct do spot", "origem": "elegibilidade_pescaria.py"},
@@ -77,7 +76,7 @@ class RegrasDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(f"Regras Ativas — {estrategia}")
         self.setMinimumSize(580, 400)
-        self.setStyleSheet(f"background-color: {Palette.BG_PRIMARY}; color: {Palette.TEXT_PRIMARY};")
+        self.setStyleSheet(f"background-color: {Palette.BG_BASE}; color: {Palette.TEXT_PRIMARY};")
         self._estrategia = estrategia
         self._db_path = db_path
         self._setup_ui()
@@ -96,7 +95,7 @@ class RegrasDialog(QDialog):
 
         custos = QLabel(f"Custos: {_CUSTOS_FIXOS}")
         custos.setStyleSheet(f"font-size: 9pt; color: {Palette.YELLOW}; padding: 4px 8px; "
-                             f"background-color: {Palette.BG_SECONDARY}; border-radius: 4px;")
+                             f"background-color: {Palette.BG_SURFACE}; border-radius: 4px;")
         custos.setWordWrap(True)
         layout.addWidget(custos)
 
@@ -110,13 +109,13 @@ class RegrasDialog(QDialog):
         tabela.setAlternatingRowColors(True)
         tabela.setStyleSheet(f"""
             QTableWidget {{
-                background-color: {Palette.BG_SECONDARY}; color: {Palette.TEXT_PRIMARY};
+                background-color: {Palette.BG_SURFACE}; color: {Palette.TEXT_PRIMARY};
                 border: 1px solid {Palette.BORDER}; border-radius: 4px;
                 font-size: 9pt;
             }}
             QTableWidget::item {{ padding: 4px 8px; }}
             QHeaderView::section {{
-                background-color: {Palette.BG_TERTIARY}; color: {Palette.TEXT_MUTED};
+                background-color: {Palette.BG_RAISED}; color: {Palette.TEXT_MUTED};
                 font-weight: bold; border: none; padding: 6px;
             }}
         """)
@@ -132,7 +131,7 @@ class RegrasDialog(QDialog):
         regras_texto = self._montar_regras_codigo()
         txt_regras = QLabel(regras_texto)
         txt_regras.setStyleSheet(f"font-size: 9pt; color: {Palette.TEXT_SECONDARY}; "
-                                  f"background-color: {Palette.BG_SECONDARY}; "
+                                  f"background-color: {Palette.BG_SURFACE}; "
                                   f"border: 1px solid {Palette.BORDER}; border-radius: 4px; padding: 8px;")
         txt_regras.setWordWrap(True)
         layout.addWidget(txt_regras)

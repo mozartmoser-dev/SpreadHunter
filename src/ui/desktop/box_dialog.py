@@ -23,6 +23,8 @@ BOX_4P_COLUMNS = [
     ("Dist", "distancia"),
     ("CLR", "clr"),
     ("Lucro", "lucro"),
+    ("Lucro B3", "lucro_b3"),
+    ("Lucro Líq", "lucro_final"),
     ("Lucro%", "lucro_pct"),
     ("x CDI", "pct_cdi"),
     ("Call K1", "cod_call_k1"),
@@ -71,6 +73,7 @@ class BoxTableModel(QAbstractTableModel):
             if val is None:
                 return "-"
             if col_key in ("strike_k1", "strike_k2", "distancia", "clr", "lucro",
+                          "lucro_b3", "lucro_final",
                           "bid_call_k1", "ask_put_k1", "ask_call_k2", "bid_put_k2"):
                 return "R$ {:.2f}".format(val)
             if col_key == "lucro_pct":
@@ -84,11 +87,13 @@ class BoxTableModel(QAbstractTableModel):
             return str(val)
 
         if role == Qt.ForegroundRole:
-            if col_key in ("lucro", "lucro_pct", "pct_cdi"):
+            if col_key in ("lucro", "lucro_b3", "lucro_final", "lucro_pct", "pct_cdi"):
                 val = item.get(col_key, 0)
                 if val > 0:
                     return QBrush(QColor(Palette.GREEN))
-                return QBrush(QColor(Palette.RED))
+                if val < 0:
+                    return QBrush(QColor(Palette.RED))
+                return QBrush(QColor(Palette.TEXT_MUTED))
             if col_key in ("qtd_bid_call_k1", "qtd_ask_put_k1", "qtd_ask_call_k2", "qtd_bid_put_k2"):
                 val = item.get(col_key, 0)
                 if val <= 0:
@@ -98,6 +103,7 @@ class BoxTableModel(QAbstractTableModel):
 
         if role == Qt.TextAlignmentRole:
             center_cols = {"strike_k1", "strike_k2", "distancia", "clr", "lucro",
+                          "lucro_b3", "lucro_final",
                           "lucro_pct", "pct_cdi", "dias", "qtd_bid_call_k1", "qtd_ask_put_k1",
                           "qtd_ask_call_k2", "qtd_bid_put_k2",
                           "bid_call_k1", "ask_put_k1", "ask_call_k2", "bid_put_k2"}
@@ -316,8 +322,13 @@ class BoxDialog(QDialog):
                 "clr": r.clr,
                 "lucro": r.lucro,
                 "custo_b3": r.custo_b3,
+                "custo_ir": r.custo_ir,
+                "lucro_b3": r.lucro - r.custo_b3,
+                "lucro_final": r.lucro - r.custo_b3 - r.custo_ir,
                 "lucro_liquido": r.lucro_liquido,
                 "lucro_pct": r.lucro_pct,
+                "pct_cdi": r.pct_cdi,
+                "pct_cdi_liquido": r.pct_cdi_liquido,
                 "cod_call_k1": r.cod_call_k1,
                 "cod_put_k1": r.cod_put_k1,
                 "cod_call_k2": r.cod_call_k2,
@@ -465,34 +476,45 @@ class BoxDialog(QDialog):
         val.setStyleSheet(f"color: {lucro_color}; font-size: 11pt; font-weight: bold; font-family: Consolas;")
         form.addRow(lbl, val)
 
-        lbl = QLabel("Custos B3 (4 pernas):")
+        pnl_b3 = r.lucro - r.custo_b3
+        pnl_final = pnl_b3 - r.custo_ir
+
+        lbl = QLabel("− Custos B3 (4 pernas):")
         lbl.setStyleSheet(label_style)
-        val = QLabel(f"-R$ {r.custo_b3:.4f}")
+        val = QLabel(f"−R$ {r.custo_b3:.4f}")
         val.setToolTip("Taxas B3: emolumento (0,025%) + liquidação (0,0275%) × strike médio × 4 pernas.")
-        val.setStyleSheet(f"color: {Palette.RED}; font-size: 10pt; font-family: Consolas;")
+        val.setStyleSheet(f"color: {Palette.ORANGE}; font-size: 10pt; font-family: Consolas;")
         form.addRow(lbl, val)
 
-        lbl = QLabel("Custo IR (15%):")
+        lbl = QLabel("= Lucro pós-B3:")
         lbl.setStyleSheet(label_style)
-        ir_color = Palette.RED if r.custo_ir > 0 else Palette.TEXT_MUTED
-        val_ir = QLabel(f"-R$ {r.custo_ir:.4f}" if r.custo_ir > 0 else "R$ 0,00")
-        val_ir.setToolTip("Imposto de Renda (15%) sobre o lucro líquido, conforme regras de day trade em opções." + CUSTOS_DISCLOSURE)
-        val_ir.setStyleSheet(f"color: {ir_color}; font-size: 10pt; font-family: Consolas;")
-        form.addRow(lbl, val_ir)
+        val = QLabel(f"R$ {pnl_b3:.2f}")
+        val.setToolTip("Lucro após deduzir custos B3 (antes do IR)." + CUSTOS_DISCLOSURE)
+        b3_color = Palette.GREEN if pnl_b3 > 0 else Palette.RED
+        val.setStyleSheet(f"color: {b3_color}; font-size: 10pt; font-family: Consolas;")
+        form.addRow(lbl, val)
 
-        lbl = QLabel("Lucro Liquido:")
+        if r.custo_ir > 0:
+            lbl = QLabel("− IR (15%):")
+            lbl.setStyleSheet(label_style)
+            val_ir = QLabel(f"−R$ {r.custo_ir:.4f}")
+            val_ir.setToolTip("Imposto de Renda (15%) sobre o lucro líquido." + CUSTOS_DISCLOSURE)
+            val_ir.setStyleSheet(f"color: {Palette.ORANGE}; font-size: 10pt; font-family: Consolas;")
+            form.addRow(lbl, val_ir)
+
+        lbl = QLabel("= Lucro Líquido:")
         lbl.setStyleSheet(label_style)
-        liq_color = Palette.GREEN if r.lucro_liquido > 0 else Palette.RED
-        val = QLabel(f"R$ {r.lucro_liquido:.2f}")
+        liq_color = Palette.GREEN if pnl_final > 0 else Palette.RED
+        val = QLabel(f"R$ {pnl_final:.2f}")
         val.setToolTip("Lucro líquido após descontar custos B3 e IR." + CUSTOS_DISCLOSURE)
         val.setStyleSheet(f"color: {liq_color}; font-size: 11pt; font-weight: bold; font-family: Consolas;")
         form.addRow(lbl, val)
 
-        lbl = QLabel("Retorno liquido:")
+        lbl = QLabel("Retorno líquido:")
         lbl.setStyleSheet(label_style)
-        val = QLabel(f"{r.lucro_pct*100:.2f}% / {r.pct_cdi:.2f}x CDI")
+        val = QLabel(f"{r.lucro_pct*100:.2f}% / {r.pct_cdi:.2f}x CDI ({r.pct_cdi_liquido:.2f}x CDI líquido)")
         val.setToolTip(
-            "Percentual de retorno sobre o capital empregado e múltiplo do CDI do período."
+            "Percentual de retorno e múltiplos do CDI (bruto e líquido de IR)."
             + CUSTOS_DISCLOSURE
         )
         val.setStyleSheet(value_style)

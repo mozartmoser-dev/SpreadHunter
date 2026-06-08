@@ -40,6 +40,7 @@ class MonitorWorker(QThread):
         self._mpp_habilitado = True
         self._mpp_cycle = 0
         self._mpp_estrutural_carregado = False
+        self._mpp_interval_cache: int | None = None
 
         self._monitor_box_uc = MonitorBoxUseCase(db_path, self._monitor_mpp_uc)
         self._running = False
@@ -163,6 +164,7 @@ class MonitorWorker(QThread):
         self._monitor_colares_cal_uc.recarregar_parametros()
         self._monitor_box_uc.recarregar_parametros()
         self._monitor_mpp_uc._param_repo.invalidate_cache()
+        self.invalidar_cache_mpp_interval()
         if self._mercado_provider:
             self._mercado_provider.recarregar_parametros()
 
@@ -229,9 +231,9 @@ class MonitorWorker(QThread):
 
     def _processar_monitor_geral(self, rtd):
         dados_mercado = self._mercado_provider.capturar_dados_mercado()
+        self._ultimo_dados_mercado = dados_mercado
         if not dados_mercado:
             return
-        self._ultimo_dados_mercado = dados_mercado
 
         resultados = self._monitor_uc.varrer(dados_mercado)
         if not self._mostrar_tp_op:
@@ -249,11 +251,9 @@ class MonitorWorker(QThread):
             self._forcar_colar = False
             self._colar_mutex.unlock()
 
-            # Para varredura manual, captura dados frescos; caso contrario usa ultimo cache
             dados_md = getattr(self, '_ultimo_dados_mercado', None)
-            if dados_md is None or len(dados_md) < 50:
-                dados_md = self._mercado_provider.capturar_dados_mercado()
-                self._ultimo_dados_mercado = dados_md
+            if not dados_md or len(dados_md) < 50:
+                return
             resultados = self._monitor_colares_uc.varrer(None, dados_mercado=dados_md)
             self.colares_atualizados.emit(resultados)
 
@@ -330,8 +330,7 @@ class MonitorWorker(QThread):
 
     def _processar_mpp(self, rtd):
         self._mpp_cycle += 1
-        mpp_interval = int(self._get_param("mpp_instantaneo_interval", 4))
-        if self._mpp_cycle % mpp_interval != 0:
+        if self._mpp_cycle % self._mpp_interval != 0:
             return
         try:
             resultados_box, recomendacoes = self._monitor_mpp_uc.calcular_instantaneo(rtd)
@@ -340,11 +339,17 @@ class MonitorWorker(QThread):
         except Exception as e:
             logger.error(f"Erro no MPP: {e}")
 
-    def _get_param(self, chave: str, default: int = 0) -> float:
-        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
-        repo = ParametroRepository(self.db_path)
-        param = repo.get_by_chave(chave)
-        return param.valor if param else default
+    @property
+    def _mpp_interval(self) -> int:
+        if self._mpp_interval_cache is None:
+            from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+            repo = ParametroRepository(self.db_path)
+            param = repo.get_by_chave("mpp_instantaneo_interval")
+            self._mpp_interval_cache = int(param.valor) if param else 24
+        return self._mpp_interval_cache
+
+    def invalidar_cache_mpp_interval(self):
+        self._mpp_interval_cache = None
 
     def _verificar_e_forcar_refresh_ex_dividendo(self):
         """Nível 2: Verifica ativos ex-dividendo do dia e força refresh RTD."""

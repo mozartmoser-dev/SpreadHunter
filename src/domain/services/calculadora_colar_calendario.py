@@ -491,6 +491,8 @@ class CalculadoraColarCalendario:
         if r.be_baixa is not None or r.be_alta is not None or r.be_baixa_intrinseco is not None or r.be_alta_intrinseco is not None:
             lines.append("<hr>")
 
+        pnl_b3 = r.pnl_projetado - r.custo_b3
+        pnl_liquido = pnl_b3 - r.custo_ir
         resumo_pnl = "lucro" if r.pnl_projetado >= 0 else "prejuízo"
         ext = abs(r.pnl_projetado)
         if call_Itm:
@@ -498,7 +500,7 @@ class CalculadoraColarCalendario:
                 f"<p><b>Resumo:</b><br>"
                 f"A CALL está ITM (acima do strike). O prêmio de R$ {Pc:.2f} "
                 f"cobre a perda de R$ {S0 - Kc:.2f} na venda da ação. "
-                f"O {resumo_pnl} projetado de R$ {ext:.2f} "
+                f"O {resumo_pnl} bruto de R$ {ext:.2f} "
                 f"({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI) é o "
                 f"extrínseco da CALL menos o custo líquido da PUT.</p>"
             )
@@ -506,10 +508,20 @@ class CalculadoraColarCalendario:
             lines.append(
                 f"<p><b>Resumo:</b><br>"
                 f"Esta estratégia aposta que o ativo estará <b>próximo de R$ {Kc:.2f}</b> "
-                f"no vencimento da CALL. O {resumo_pnl} projetado de R$ {ext:.2f} "
+                f"no vencimento da CALL. O {resumo_pnl} bruto de R$ {ext:.2f} "
                 f"({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI) vem do "
                 f"valor extrínseco residual da PUT. O resultado real "
                 f"depende de onde o ativo estará naquele dia.</p>"
             )
+
+        lines.append(
+            "<p><b>Custos aplicados:</b><br>"
+            f"PnL Bruto: <b>R$ {r.pnl_projetado:.2f}</b><br>"
+            f"− Custos B3 (emol+liq+reg+ISS): <b>−R$ {r.custo_b3:.2f}</b><br>"
+            f"= PnL pós-B3: <b>R$ {pnl_b3:.2f}</b><br>"
+            f"− IR (15%): <b>−R$ {r.custo_ir:.2f}</b><br>"
+            f"<b>= PnL Líquido: R$ {pnl_liquido:.2f}</b>  ({r.pct_cdi_liquido:.2f}x CDI líquido)"
+            "</p>"
+        )
 
         return "\n".join(lines)

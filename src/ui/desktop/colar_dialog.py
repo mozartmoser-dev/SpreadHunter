@@ -58,6 +58,8 @@ class ColarTableModel(QAbstractTableModel):
         ("Cód Call", "cod_call"),
         ("Custo Liq", "custo_liquido"),
         ("Pior Ret", "pior_retorno"),
+        ("Pior B3", "pior_b3"),
+        ("Pior Líq", "pior_liquido"),
         ("Risco Desp.", "risco_str"),
         ("Dias", "dias"),
     ]
@@ -101,7 +103,8 @@ class ColarTableModel(QAbstractTableModel):
             if val is None:
                 return "-"
             try:
-                if col_key in ("strike_put", "strike_call", "custo_liquido", "pior_retorno"):
+                if col_key in ("strike_put", "strike_call", "custo_liquido", "pior_retorno",
+                               "pior_b3", "pior_liquido"):
                     return "R$ {:.2f}".format(val)
                 if col_key in ("pct_cdi", "pct_cdi_melhor"):
                     return "{:.2f}x".format(val)
@@ -131,10 +134,20 @@ class ColarTableModel(QAbstractTableModel):
                 return QBrush(QColor(Palette.YELLOW))
             if col_key in ("strike_put", "strike_call", "custo_liquido", "pior_retorno"):
                 return QBrush(QColor(Palette.TEXT_PRIMARY))
+            if col_key in ("pior_b3", "pior_liquido"):
+                val = item.get(col_key, 0)
+                if val > 0:
+                    return QBrush(QColor(Palette.GREEN))
+                if val < 0:
+                    return QBrush(QColor(Palette.RED))
+                return QBrush(QColor(Palette.TEXT_MUTED))
             return QBrush(QColor(Palette.TEXT_MUTED))
 
         if role == Qt.TextAlignmentRole:
-            center_cols = {"strike_put", "strike_call", "custo_liquido", "pior_retorno", "pct_cdi", "pct_cdi_melhor", "pop_upside", "pop_downside", "risco_str", "dias"}
+            center_cols = {"strike_put", "strike_call", "custo_liquido", "pior_retorno",
+                           "pior_b3", "pior_liquido",
+                           "pct_cdi", "pct_cdi_melhor", "pop_upside", "pop_downside",
+                           "risco_str", "dias"}
             if col_key in center_cols:
                 return Qt.AlignCenter | Qt.AlignVCenter
             return Qt.AlignLeft | Qt.AlignVCenter
@@ -748,20 +761,62 @@ class ColarDialog(QDialog):
         val.setStyleSheet(f"color: {Palette.YELLOW}; font-size: 11pt; font-weight: bold; font-family: Consolas;")
         form.addRow(lbl, val)
 
-        lbl = QLabel("Pior Retorno:")
+        pnl_b3 = r.pior_retorno - r.custo_b3
+        pnl_final = pnl_b3 - r.custo_ir
+
+        lbl = QLabel("Pior Retorno (bruto):")
         lbl.setStyleSheet(label_style)
-        val = QLabel(f"R$ {r.pior_retorno:.2f} ({r.pct_ganho*100:.2f}% / {r.pct_cdi:.2f}x CDI)")
+        val = QLabel(f"R$ {r.pior_retorno:.2f}")
         val.setToolTip(
-            "Resultado no pior cenário (ativo abaixo do strike PUT no vencimento). "
-            "Já descontados custos B3 e IR." + CUSTOS_DISCLOSURE
+            "Resultado no pior cenário (ativo abaixo do strike PUT no vencimento), antes de custos."
         )
         val.setStyleSheet(value_style)
         form.addRow(lbl, val)
 
-        val_color = Palette.GREEN if r.pct_cdi >= 1.0 else Palette.RED
-        lbl = QLabel("Pior caso vs CDI:")
+        lbl = QLabel("− Custos B3:")
         lbl.setStyleSheet(label_style)
-        val = QLabel(f"{'✅ Paga CDI+' if r.viavel else '❌ Abaixo do CDI'}")
+        val = QLabel(f"−R$ {r.custo_b3:.4f}")
+        val.setToolTip("Emolumento + liquidação (2 pernas)." + CUSTOS_DISCLOSURE)
+        val.setStyleSheet(f"color: {Palette.ORANGE}; font-size: 10pt; font-family: Consolas;")
+        form.addRow(lbl, val)
+
+        lbl = QLabel("= Pior pós-B3:")
+        lbl.setStyleSheet(label_style)
+        b3_color = Palette.GREEN if pnl_b3 > 0 else Palette.RED
+        val = QLabel(f"R$ {pnl_b3:.2f}")
+        val.setToolTip("Pior resultado após deduzir custos B3." + CUSTOS_DISCLOSURE)
+        val.setStyleSheet(f"color: {b3_color}; font-size: 10pt; font-family: Consolas;")
+        form.addRow(lbl, val)
+
+        if r.custo_ir > 0:
+            lbl = QLabel("− IR (15%):")
+            lbl.setStyleSheet(label_style)
+            val = QLabel(f"−R$ {r.custo_ir:.4f}")
+            val.setToolTip("Imposto de Renda (15%) sobre o lucro líquido." + CUSTOS_DISCLOSURE)
+            val.setStyleSheet(f"color: {Palette.ORANGE}; font-size: 10pt; font-family: Consolas;")
+            form.addRow(lbl, val)
+
+        lbl = QLabel("= Pior Líquido:")
+        lbl.setStyleSheet(label_style)
+        liq_color = Palette.GREEN if pnl_final > 0 else Palette.RED
+        val = QLabel(f"R$ {pnl_final:.2f}")
+        val.setToolTip("Pior resultado líquido final (B3 + IR deduzidos)." + CUSTOS_DISCLOSURE)
+        val.setStyleSheet(f"color: {liq_color}; font-size: 11pt; font-weight: bold; font-family: Consolas;")
+        form.addRow(lbl, val)
+
+        lbl = QLabel("Retorno vs CDI:")
+        lbl.setStyleSheet(label_style)
+        val = QLabel(f"{r.pct_ganho*100:.2f}% / {r.pct_cdi:.2f}x CDI ({r.pct_cdi_liquido:.2f}x CDI líquido)")
+        val.setToolTip(
+            "Percentual de retorno e múltiplos do CDI (bruto e líquido de IR)." + CUSTOS_DISCLOSURE
+        )
+        val.setStyleSheet(value_style)
+        form.addRow(lbl, val)
+
+        val_color = Palette.GREEN if r.pct_cdi_liquido >= 1.0 else Palette.RED
+        lbl = QLabel("Status:")
+        lbl.setStyleSheet(label_style)
+        val = QLabel(f"{'✅ VIÁVEL (paga CDI+)' if r.viavel else '❌ Abaixo do CDI'}")
         val.setStyleSheet(f"color: {val_color}; font-size: 10pt; font-weight: bold;")
         form.addRow(lbl, val)
 
@@ -1024,7 +1079,6 @@ class ColarDialog(QDialog):
             hover_hline.set_ydata([yv, yv])
             hover_hline.set_visible(True)
             fig.canvas.draw_idle()
-        fig.canvas.mpl_connect('motion_notify_event', _on_hover)
 
         ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
         ax.axvline(S, color=BLUE, linewidth=0.7, linestyle='--', alpha=0.8, label='Entrada')
@@ -1073,6 +1127,7 @@ class ColarDialog(QDialog):
         payoff_layout = QVBoxLayout(payoff_dialog)
         payoff_layout.setContentsMargins(8, 8, 8, 8)
         canvas = FigureCanvas(fig)
+        fig.canvas.mpl_connect('motion_notify_event', _on_hover)
         payoff_layout.addWidget(canvas)
 
         footer = QLabel(
@@ -1380,6 +1435,8 @@ class ColarDialog(QDialog):
         self._resultados = resultados
         items = []
         for r in resultados:
+            pior_b3 = r.pior_retorno - r.custo_b3
+            pior_liquido = pior_b3 - r.custo_ir
             items.append({
                 "ativo": r.ativo,
                 "vencimento": r.vencimento,
@@ -1390,8 +1447,14 @@ class ColarDialog(QDialog):
                 "cod_call": r.cod_call,
                 "custo_liquido": r.custo_liquido,
                 "pior_retorno": r.pior_retorno,
+                "custo_b3": r.custo_b3,
+                "custo_ir": r.custo_ir,
+                "pior_b3": pior_b3,
+                "pior_liquido": pior_liquido,
                 "pct_cdi": r.pct_cdi,
                 "pct_cdi_melhor": r.pct_cdi_melhor,
+                "pct_cdi_liquido": r.pct_cdi_liquido,
+                "pct_cdi_melhor_liquido": r.pct_cdi_melhor_liquido,
                 "risco_str": r.risco_leilao.value,
                 "dias": r.dias,
                 "viavel": r.viavel,

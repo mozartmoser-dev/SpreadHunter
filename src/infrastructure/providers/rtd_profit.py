@@ -99,42 +99,42 @@ class RTDProfit:
         except Exception as e:
             logger.debug("RTD RefreshData erro: %s", e)
             return {}
-        if isinstance(resultado, int):
-            return {}
         try:
-            data, update_count = resultado[0], resultado[1]
-            update_count = int(update_count)
-        except Exception:
-            return {}
-        if update_count == 0:
-            return {}
-
-        try:
-            topics = data[0]
-            values = data[1]
-        except Exception:
-            logger.debug("RTD: RefreshData format unexpected (no values array).")
-            return {}
-
-        mudancas: dict[str, object] = {}
-        # Itera sobre os tópicos atualizados e seus respectivos valores
-        for i in range(min(len(topics), len(values), update_count)):
+            if isinstance(resultado, int):
+                return {}
             try:
-                raw_tid = topics[i]
-                tid = int(raw_tid[0]) if isinstance(raw_tid, (tuple, list)) else int(raw_tid)
-                
-                valor = values[i]
-                if isinstance(valor, (tuple, list)):
-                    valor = valor[0]
-                
-                self._valores[tid] = valor
-                chave = self._topic_reverse.get(tid)
-                if chave:
-                    mudancas[chave] = valor
-            except (ValueError, TypeError, IndexError):
-                continue
-                
-        return mudancas
+                data, update_count = resultado[0], resultado[1]
+                update_count = int(update_count)
+            except Exception:
+                return {}
+            if update_count == 0:
+                return {}
+
+            try:
+                topics = data[0]
+                values = data[1]
+            except Exception:
+                logger.debug("RTD: RefreshData format unexpected (no values array).")
+                return {}
+
+            mudancas: dict[str, object] = {}
+            for i in range(min(len(topics), len(values), update_count)):
+                try:
+                    raw_tid = topics[i]
+                    tid = int(raw_tid[0]) if isinstance(raw_tid, (tuple, list)) else int(raw_tid)
+                    valor = values[i]
+                    if isinstance(valor, (tuple, list)):
+                        valor = valor[0]
+                    self._valores[tid] = valor
+                    chave = self._topic_reverse.get(tid)
+                    if chave:
+                        mudancas[chave] = valor
+                except (ValueError, TypeError, IndexError):
+                    continue
+            return mudancas
+        except Exception as e:
+            logger.warning("RTD RefreshData: erro pós-chamada: %s", e, exc_info=True)
+            return {}
 
     def ler_campo_cache(self, codigo: str, campo: str) -> Optional[float]:
         chave = "{}|{}".format(codigo, campo)
@@ -146,7 +146,7 @@ class RTDProfit:
             return None
         try:
             v = float(str(valor).replace(",", "."))
-            return v if v > 0 else None
+            return v if v > 0 else 0.0
         except (ValueError, TypeError):
             return None
 
@@ -171,7 +171,7 @@ class RTDProfit:
             if valor is None:
                 return None
             v = float(str(valor).replace(",", "."))
-            return v if v > 0 else None
+            return v if v > 0 else 0.0
         except Exception:
             return None
 

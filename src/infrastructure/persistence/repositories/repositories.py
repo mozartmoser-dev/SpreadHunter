@@ -34,12 +34,11 @@ class InstrumentoRepository:
         conn = get_connection(self.db_path)
         try:
             cursor = conn.execute(
-                """INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao, strike)
-                VALUES (?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao)
+                VALUES (?, ?, ?, ?, ?)""",
                 (instrumento.ativo, instrumento.cod_put, instrumento.cod_call,
                 instrumento.vencimento.isoformat(),
-                instrumento.tipo_opcao.value,
-                instrumento.strike)
+                instrumento.tipo_opcao.value)
             )
             conn.commit()
             instrumento.id = cursor.lastrowid
@@ -52,11 +51,11 @@ class InstrumentoRepository:
         conn = get_connection(self.db_path)
         try:
             rows = [
-                (i.ativo, i.cod_put, i.cod_call, i.vencimento.isoformat(), i.tipo_opcao.value, i.strike)
+                (i.ativo, i.cod_put, i.cod_call, i.vencimento.isoformat(), i.tipo_opcao.value)
                 for i in instrumentos
             ]
             conn.executemany(
-                "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao, strike) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao) VALUES (?, ?, ?, ?, ?)",
                 rows,
             )
             conn.commit()
@@ -79,7 +78,6 @@ class InstrumentoRepository:
                     cod_call=row["cod_call"],
                     vencimento=_parse_date(row["vencimento"]),
                     tipo_opcao=TipoOpcao(row["tipo_opcao"]),
-                    strike=row["strike"],
                 )
                 for row in rows
             ]
@@ -110,7 +108,6 @@ class InstrumentoRepository:
                     cod_call=row["cod_call"],
                     vencimento=_parse_date(row["vencimento"]),
                     tipo_opcao=TipoOpcao(row["tipo_opcao"]),
-                    strike=row["strike"],
                 )
                 for row in rows
             ]

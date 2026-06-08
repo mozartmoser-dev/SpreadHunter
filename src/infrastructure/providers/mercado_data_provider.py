@@ -243,89 +243,97 @@ class MercadoDataProvider:
 
         self._lock.lock()
         try:
-            # Carrega a lista completa do banco apenas quando necessário
-            # (evita ler 52k linhas do SQLite a cada ciclo)
-            if not self._registrado or not self._ativos_registrados:
-                instrumentos = self.inst_repo.get_all()
-                self._total_instrumentos_cache = len(instrumentos)
+            try:
+                # Carrega a lista completa do banco apenas quando necessário
+                # (evita ler 52k linhas do SQLite a cada ciclo)
+                if not self._registrado or not self._ativos_registrados:
+                    instrumentos = self.inst_repo.get_all()
+                    self._total_instrumentos_cache = len(instrumentos)
+                    
+                    # Primeiro ciclo: registra apenas ativos para pegar preços base
+                    if not self._ativos_registrados:
+                        self._registrar_ativos_prioritarios(instrumentos)
+
+                    # Registro em lotes com filtro de proximidade
+                    if not self._registrado:
+                        self._registrar_batch_inteligente(instrumentos, batch_size=2000)
+
+                t0 = time.perf_counter()
+                try:
+                    self.rtd.refresh()
+                except Exception as e:
+                    logger.error("RTD refresh escapou: %s", e, exc_info=True)
+                    return {}
+                self._scan_count += 1
+                self._ultimo_refresh_timestamp = time.time()
                 
-                # Primeiro ciclo: registra apenas ativos para pegar preços base
-                if not self._ativos_registrados:
-                    self._registrar_ativos_prioritarios(instrumentos)
-
-                # Registro em lotes com filtro de proximidade
-                if not self._registrado:
-                    self._registrar_batch_inteligente(instrumentos, batch_size=2000)
-
-            t0 = time.perf_counter()
-            self.rtd.refresh()
-            self._scan_count += 1
-            self._ultimo_refresh_timestamp = time.time()
-            
-            # Ciclo Global a cada 5 rodadas
-            is_global_scan = (self._scan_count % 5 == 0)
-            
-            if self._scan_count % 10 == 0:
-                self._precos_ativo_cache.clear()
-
-            dados_mercado: dict[str, dict] = {}
-            sem_ativo_atual: dict[str, int] = {}
-            
-            count_reg_onda2 = 0
-            MAX_REG_ONDA2_PER_CYCLE = 500
-            
-            inst_map = self.inst_repo.get_all_mapped()
-            chaves_alvo = self._chaves_registradas if is_global_scan else self._chaves_com_book
-
-            for key in list(chaves_alvo):
-                inst = inst_map.get(key)
-                if not inst:
-                    continue
-
-                # 1. Se já temos detalhes completos, tentamos ler
-                if key in self._chaves_detalhes_completos:
-                    preco_ativo = self._precos_ativo_cache.get(inst.ativo)
-                    if preco_ativo is None:
-                        preco_ativo = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
-                        if not preco_ativo or preco_ativo <= 0:
-                            if inst.ativo in self._sem_ativo_skip:
-                                continue
-                            sem_ativo_atual[inst.ativo] = self.SEM_ATIVO_SKIP_CYCLES
-                            continue
-                        self._precos_ativo_cache[inst.ativo] = preco_ativo
-
-                    dados_rtd = self._ler_instrumento_cache(inst, preco_ativo)
-                    if dados_rtd:
-                        dados_mercado[key] = dados_rtd.to_dados_mercado()
-                        self._chaves_com_book.add(key)
-                    else:
-                        if key in self._chaves_com_book:
-                            self._chaves_com_book.remove(key)
-                    continue
-
-                # 2. Senão, checamos se ele "acordou" (tem book) para registrar na Onda 2
-                cab_put = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
-                cab_call = self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
+                # Ciclo Global a cada 5 rodadas
+                is_global_scan = (self._scan_count % 5 == 0)
                 
-                if (cab_put and cab_put > 0) or (cab_call and cab_call > 0):
-                    self._chaves_com_book.add(key)
-                    dte = inst.dias_ate_vencimento or 0
-                    if not (7 <= dte <= 180):
+                if self._scan_count % 10 == 0:
+                    self._precos_ativo_cache.clear()
+
+                dados_mercado: dict[str, dict] = {}
+                sem_ativo_atual: dict[str, int] = {}
+                
+                count_reg_onda2 = 0
+                MAX_REG_ONDA2_PER_CYCLE = 500
+                
+                inst_map = self.inst_repo.get_all_mapped()
+                chaves_alvo = self._chaves_registradas if is_global_scan else self._chaves_com_book
+
+                for key in list(chaves_alvo):
+                    inst = inst_map.get(key)
+                    if not inst:
                         continue
-                    if count_reg_onda2 < MAX_REG_ONDA2_PER_CYCLE:
-                        self._registrar_detalhes_completos(inst)
-                        count_reg_onda2 += 1
 
-            self._sem_ativo_skip = sem_ativo_atual
-            if dados_mercado:
-                self._ciclos_sem_dados = 0
-            else:
-                self._ciclos_sem_dados += 1
-            logger.info("Varredura (%s): %d monitored, %d with book in %.2fs",
-                         "Global" if is_global_scan else "Fast",
-                         len(self._chaves_registradas), len(dados_mercado),
-                         time.perf_counter() - t0)
-            return dados_mercado
+                    # 1. Se já temos detalhes completos, tentamos ler
+                    if key in self._chaves_detalhes_completos:
+                        preco_ativo = self._precos_ativo_cache.get(inst.ativo)
+                        if preco_ativo is None:
+                            preco_ativo = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                            if not preco_ativo or preco_ativo <= 0:
+                                if inst.ativo in self._sem_ativo_skip:
+                                    continue
+                                sem_ativo_atual[inst.ativo] = self.SEM_ATIVO_SKIP_CYCLES
+                                continue
+                            self._precos_ativo_cache[inst.ativo] = preco_ativo
+
+                        dados_rtd = self._ler_instrumento_cache(inst, preco_ativo)
+                        if dados_rtd:
+                            dados_mercado[key] = dados_rtd.to_dados_mercado()
+                            self._chaves_com_book.add(key)
+                        else:
+                            if key in self._chaves_com_book:
+                                self._chaves_com_book.remove(key)
+                        continue
+
+                    # 2. Senão, checamos se ele "acordou" (tem book) para registrar na Onda 2
+                    cab_put = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
+                    cab_call = self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
+                    
+                    if (cab_put and cab_put > 0) or (cab_call and cab_call > 0):
+                        self._chaves_com_book.add(key)
+                        dte = inst.dias_ate_vencimento or 0
+                        if not (7 <= dte <= 180):
+                            continue
+                        if count_reg_onda2 < MAX_REG_ONDA2_PER_CYCLE:
+                            self._registrar_detalhes_completos(inst)
+                            count_reg_onda2 += 1
+
+                self._sem_ativo_skip = sem_ativo_atual
+                if dados_mercado:
+                    self._ciclos_sem_dados = 0
+                else:
+                    self._ciclos_sem_dados += 1
+                logger.info("Varredura (%s): %d monitored, %d with book in %.2fs",
+                             "Global" if is_global_scan else "Fast",
+                             len(self._chaves_registradas), len(dados_mercado),
+                             time.perf_counter() - t0)
+                return dados_mercado
+            except Exception as e:
+                logger.error("capturar_dados_mercado: erro inesperado: %s", e, exc_info=True)
+                return {}
         finally:
             self._lock.unlock()
 
@@ -371,9 +379,9 @@ class MercadoDataProvider:
         of_venda_ativo = rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
         of_compra_ativo = rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
 
-        status_put = rtd.ler_status_cache(inst.cod_put) or "Aberto"
-        status_call = rtd.ler_status_cache(inst.cod_call) or "Aberto"
-        status_ativo = rtd.ler_status_cache(inst.ativo) or "Aberto"
+        status_put = rtd.ler_status_cache(inst.cod_put)
+        status_call = rtd.ler_status_cache(inst.cod_call)
+        status_ativo = rtd.ler_status_cache(inst.ativo)
 
         return DadosRTDInstrumento(
             ativo=inst.ativo,

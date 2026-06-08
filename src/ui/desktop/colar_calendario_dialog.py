@@ -36,7 +36,9 @@ class ColarCalTableModel(QAbstractTableModel):
     COLUMNS = [
         ("Ativo", "ativo"),
         ("% CDI", "pct_cdi"),
-        ("PNL Proj", "pnl_projetado"),
+        ("PnL Bruto", "pnl_projetado"),
+        ("PnL B3", "pnl_b3"),
+        ("PnL Líq", "pnl_liquido"),
         ("Custo", "capital_empregado"),
         ("Venc Call", "vencimento_call"),
         ("Venc Put", "vencimento_put"),
@@ -83,6 +85,7 @@ class ColarCalTableModel(QAbstractTableModel):
                 return "-"
             if col_key in ("strike_call", "strike_put", "premio_call", "premio_put",
                            "net_credito", "valor_put_venc_call", "pnl_projetado",
+                           "pnl_b3", "pnl_liquido",
                            "capital_empregado"):
                 return f"R$ {val:.2f}"
             if col_key in ("pct_cdi",):
@@ -112,11 +115,19 @@ class ColarCalTableModel(QAbstractTableModel):
                 if val > 0:
                     return QBrush(QColor(Palette.GREEN))
                 return QBrush(QColor(Palette.RED))
+            if col_key in ("pnl_b3", "pnl_liquido"):
+                val = item.get(col_key, 0)
+                if val > 0:
+                    return QBrush(QColor(Palette.GREEN))
+                if val < 0:
+                    return QBrush(QColor(Palette.RED))
+                return QBrush(QColor(Palette.TEXT_MUTED))
             return QBrush(QColor(Palette.TEXT_MUTED))
         if role == Qt.TextAlignmentRole:
             center_cols = {"strike_call", "strike_put", "premio_call", "premio_put", "net_credito",
                            "iv_call", "iv_put", "theta_call", "theta_put", "theta_liquido",
-                           "pct_cdi", "pnl_projetado", "tipo_str", "valor_put_venc_call",
+                           "pct_cdi", "pnl_projetado", "pnl_b3", "pnl_liquido",
+                           "tipo_str", "valor_put_venc_call",
                            "capital_empregado"}
             if col_key in center_cols:
                 return Qt.AlignCenter | Qt.AlignVCenter
@@ -629,11 +640,26 @@ class ColarCalendarioDialog(QDialog):
                 tooltip="Valor da PUT no vencimento da CALL, projetado pelo modelo Black-Scholes.")
         add_row("Custo Montagem:", f"R$ {r.capital_empregado:.2f}",
                 tooltip="Capital total empregado na operação (ação + prêmios líquidos)." + CUSTOS_DISCLOSURE)
-        add_row("PNL Projetado:", f"R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}%)",
-                tooltip="Lucro/prejuízo projetado no vencimento da CALL, já descontados custos." + CUSTOS_DISCLOSURE)
-        add_row("% CDI:", f"{r.pct_cdi:.2f}x",
-                cor=Palette.GREEN if r.pct_cdi >= 1.0 else Palette.RED,
-                tooltip="Retorno projetado comparado ao CDI do período." + CUSTOS_DISCLOSURE)
+        pnl_b3 = r.pnl_projetado - r.custo_b3
+        pnl_liquido = pnl_b3 - r.custo_ir
+        add_row("PnL Bruto:", f"R$ {r.pnl_projetado:.2f}",
+                tooltip="Lucro/prejuízo bruto no vencimento da CALL (sem custos)." + CUSTOS_DISCLOSURE)
+        add_row("− Custos B3:", f"−R$ {r.custo_b3:.2f}",
+                cor=Palette.ORANGE,
+                tooltip="Emolumento + liquidação + registro + ISS." + CUSTOS_DISCLOSURE)
+        add_row("= PnL pós-B3:", f"R$ {pnl_b3:.2f}",
+                cor=Palette.GREEN if pnl_b3 > 0 else Palette.RED,
+                tooltip="Lucro/prejuízo após deduzir taxas B3." + CUSTOS_DISCLOSURE)
+        if r.custo_ir > 0:
+            add_row("− IR (15%):", f"−R$ {r.custo_ir:.2f}",
+                    cor=Palette.ORANGE,
+                    tooltip="Imposto de Renda (15% sobre lucro líquido pós-B3)." + CUSTOS_DISCLOSURE)
+        add_row("= PnL Líquido:", f"R$ {pnl_liquido:.2f} ({r.pct_retorno:.2f}%)",
+                cor=Palette.GREEN if pnl_liquido > 0 else Palette.RED,
+                tooltip="Lucro/prejuízo líquido final (B3 + IR deduzidos)." + CUSTOS_DISCLOSURE)
+        add_row("% CDI Líq:", f"{r.pct_cdi_liquido:.2f}x",
+                cor=Palette.GREEN if r.pct_cdi_liquido >= 1.0 else Palette.RED,
+                tooltip="Retorno líquido (pós-B3 e IR) comparado ao CDI do período." + CUSTOS_DISCLOSURE)
         if r.be_baixa is not None:
             add_row("BE Baixa (B&S):", f"R$ {r.be_baixa:.2f}", cor=Palette.CYAN)
         if r.be_alta is not None:
@@ -882,7 +908,7 @@ class ColarCalendarioDialog(QDialog):
                 ha='center', va='bottom', visible=False,
             )
             def _on_hover(event):
-                if event.inaxes != ax or not event.xdata:
+                if event.inaxes != ax or event.xdata is None:
                     hover_annot.set_visible(False)
                     fig.canvas.draw_idle()
                     return
@@ -892,8 +918,6 @@ class ColarCalendarioDialog(QDialog):
                 hover_annot.set_text(f'R$ {xv:.2f} → R$ {yv:+.2f}')
                 hover_annot.set_visible(True)
                 fig.canvas.draw_idle()
-            fig.canvas.mpl_connect('motion_notify_event', _on_hover)
-
             ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
             ax.axvline(S0, color='#2196f3', linewidth=0.7, linestyle='--', alpha=0.8, label=f'Entrada {S0:.2f}')
             ax.axvline(Kp, color=RED, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Put {Kp:.2f}')
@@ -963,6 +987,7 @@ class ColarCalendarioDialog(QDialog):
             payoff_layout = QVBoxLayout(payoff_dialog)
             payoff_layout.setContentsMargins(8, 8, 8, 8)
             canvas = FigureCanvas(fig)
+            fig.canvas.mpl_connect('motion_notify_event', _on_hover)
             payoff_layout.addWidget(canvas)
 
             be_parts = []
@@ -1337,6 +1362,8 @@ class ColarCalendarioDialog(QDialog):
         self._resultados = resultados
         items = []
         for r in resultados:
+            pnl_b3 = r.pnl_projetado - r.custo_b3
+            pnl_liquido = pnl_b3 - r.custo_ir
             items.append({
                 "ativo": r.ativo,
                 "vencimento_call": r.vencimento_call,
@@ -1355,6 +1382,10 @@ class ColarCalendarioDialog(QDialog):
                 "theta_liquido": r.theta_liquido,
                 "valor_put_venc_call": r.valor_put_venc_call,
                 "pnl_projetado": r.pnl_projetado,
+                "custo_b3": r.custo_b3,
+                "custo_ir": r.custo_ir,
+                "pnl_b3": pnl_b3,
+                "pnl_liquido": pnl_liquido,
                 "capital_empregado": r.capital_empregado,
                 "pct_retorno": r.pct_retorno,
                 "pct_cdi": r.pct_cdi,

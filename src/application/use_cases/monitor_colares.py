@@ -178,8 +178,8 @@ class MonitorColaresUseCase:
         voc_call = rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_VOL_COMPRA) or 0.0
         qul_put = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_QTDE_ULT_NEG) or 0.0
         qul_call = rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_QTDE_ULT_NEG) or 0.0
-        status_put = rtd.ler_status_cache(inst.cod_put) or "Aberto"
-        status_call = rtd.ler_status_cache(inst.cod_call) or "Aberto"
+        status_put = rtd.ler_status_cache(inst.cod_put)
+        status_call = rtd.ler_status_cache(inst.cod_call)
 
         return {
             "strike": strike_rtd,
