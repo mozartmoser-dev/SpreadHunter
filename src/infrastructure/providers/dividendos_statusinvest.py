@@ -1,7 +1,7 @@
 import logging
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +14,24 @@ STATUSINVEST_URL = "https://statusinvest.com.br/acoes/{}"
 
 
 class DividendosStatusInvestProvider:
+    @staticmethod
+    def _proximo_dia_util(data_str: str | None) -> str | None:
+        if not data_str:
+            return None
+        try:
+            dt = date.fromisoformat(data_str)
+        except (ValueError, TypeError):
+            return data_str
+        try:
+            from src.domain.services.calendario_b3 import _feriados_atuais
+            feriados = set(_feriados_atuais)
+        except Exception:
+            feriados = set()
+        while True:
+            dt += timedelta(days=1)
+            if dt.weekday() < 5 and dt.isoformat() not in feriados:
+                return dt.isoformat()
+
     def buscar_proventos(self, ticker: str) -> list[dict]:
         dividendos = []
         url = STATUSINVEST_URL.format(ticker.lower())
@@ -48,7 +66,7 @@ class DividendosStatusInvestProvider:
                     "ativo": ticker.upper(),
                     "tipo": tipo,
                     "data_com": data_com,
-                    "data_ex": data_com,  # mantido para compatibilidade com alertas
+                    "data_ex": self._proximo_dia_util(data_com),
                     "data_pagamento": data_pag,
                     "valor": valor,
                     "fonte": "statusinvest",

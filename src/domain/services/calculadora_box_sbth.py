@@ -30,7 +30,7 @@ class DadosMercado:
     def preco_compra_ativo(self) -> float:
         if self.of_venda_ativo > 0:
             return self.of_venda_ativo
-        return self.preco_ativo + 0.01
+        return 0.0
 
 
 @dataclass
@@ -44,15 +44,18 @@ class ResultadoBOXSBTH:
     cdi_periodo: float
     classificacao: str
     operacao: str
+    pct_cdi_sbth_liquido: float = 0.0
+    pct_cdi_box_liquido: float = 0.0
 
 
 class CalculadoraBoxSbth:
     def __init__(self, taxa_cdi: float, premio_risco_box: float, premio_risco_sbth: float,
-                 taxa_emolumento: float | None = None, taxa_liquidacao: float | None = None):
+                 taxa_emolumento: float | None = None, taxa_liquidacao: float | None = None,
+                 taxa_ir: float | None = None):
         self.taxa_cdi = taxa_cdi
         self.premio_risco_box = premio_risco_box
         self.premio_risco_sbth = premio_risco_sbth
-        self.custos_b3 = CalculadoraCustosB3(taxa_emolumento, taxa_liquidacao)
+        self.custos_b3 = CalculadoraCustosB3(taxa_emolumento, taxa_liquidacao, taxa_ir)
 
     def calcular_cdi_periodo(self, dias_uteis: int) -> float:
         if dias_uteis <= 0:
@@ -66,15 +69,23 @@ class CalculadoraBoxSbth:
         ganho_sbth_bruto = dados.strike - custo_sbth if custo_sbth > 0 else 0
         custo_b3_sbth = self.custos_b3.calcular_custos(dados.strike, n_pernas=2)
         ganho_sbth = ganho_sbth_bruto - custo_b3_sbth
+        ir_sbth = self.custos_b3.ajustar_ir(max(ganho_sbth, 0.0))
+        ganho_sbth_liq = ganho_sbth - ir_sbth
         pct_ganho_sbth = ganho_sbth / custo_sbth if custo_sbth > 0 else 0.0
+        pct_ganho_sbth_liq = ganho_sbth_liq / custo_sbth if custo_sbth > 0 else 0.0
         pct_cdi_sbth = self._calcular_pct_cdi(pct_ganho_sbth, cdi_periodo)
+        pct_cdi_sbth_liquido = self._calcular_pct_cdi(pct_ganho_sbth_liq, cdi_periodo)
 
         custo_box = self._calcular_custo_box(dados)
-        ganho_box_bruto = dados.strike - custo_box if custo_box > 0 else 0
+        ganho_box_bruto = dados.strike - custo_box
         custo_b3_box = self.custos_b3.calcular_custos(dados.strike, n_pernas=3)
         ganho_box = ganho_box_bruto - custo_b3_box
-        pct_ganho_box = ganho_box / custo_box if custo_box > 0 else 0.0
+        ir_box = self.custos_b3.ajustar_ir(max(ganho_box, 0.0))
+        ganho_box_liq = ganho_box - ir_box
+        pct_ganho_box = ganho_box / max(custo_box, 0.01) if custo_box != 0 else 0.0
+        pct_ganho_box_liq = ganho_box_liq / max(custo_box, 0.01) if custo_box != 0 else 0.0
         pct_cdi_box = self._calcular_pct_cdi(pct_ganho_box, cdi_periodo)
+        pct_cdi_box_liquido = self._calcular_pct_cdi(pct_ganho_box_liq, cdi_periodo)
 
         classificacao = self._classificar(pct_cdi_box, pct_cdi_sbth)
         operacao = self._determinar_operacao(classificacao, pct_ganho_sbth, pct_ganho_box)
@@ -83,16 +94,18 @@ class CalculadoraBoxSbth:
             custo_sbth=round(custo_sbth, 4),
             pct_ganho_sbth=round(pct_ganho_sbth, 6),
             pct_cdi_sbth=round(pct_cdi_sbth, 6),
+            pct_cdi_sbth_liquido=round(pct_cdi_sbth_liquido, 6),
             custo_box=round(custo_box, 4),
             pct_ganho_box=round(pct_ganho_box, 6),
             pct_cdi_box=round(pct_cdi_box, 6),
+            pct_cdi_box_liquido=round(pct_cdi_box_liquido, 6),
             cdi_periodo=round(cdi_periodo, 6),
             classificacao=classificacao,
             operacao=operacao,
         )
 
     def _calcular_custo_sbth(self, dados: DadosMercado) -> float:
-        if dados.of_venda_put <= 0:
+        if dados.of_venda_put <= 0 or dados.preco_compra_ativo <= 0:
             return 0.0
         return dados.preco_compra_ativo + dados.of_venda_put
 
@@ -102,14 +115,14 @@ class CalculadoraBoxSbth:
         return (strike - custo) / custo
 
     def _calcular_custo_box(self, dados: DadosMercado) -> float:
-        if dados.of_venda_put <= 0 or dados.of_compra_call <= 0:
+        if dados.of_venda_put <= 0 or dados.of_compra_call <= 0 or dados.preco_compra_ativo <= 0:
             return 0.0
         return dados.preco_compra_ativo + dados.of_venda_put - dados.of_compra_call
 
     def _calcular_pct_ganho_box(self, custo: float, strike: float) -> float:
-        if custo <= 0:
+        if custo == 0:
             return 0.0
-        return (strike - custo) / custo
+        return (strike - custo) / max(custo, 0.01)
 
     def _calcular_pct_cdi(self, pct_ganho: float, cdi_periodo: float) -> float:
         if cdi_periodo <= 0:

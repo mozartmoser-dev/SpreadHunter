@@ -161,6 +161,7 @@ class MonitorWorker(QThread):
         self._monitor_colares_uc.recarregar_parametros()
         self._monitor_colares_cal_uc.recarregar_parametros()
         self._monitor_box_uc.recarregar_parametros()
+        self._monitor_mpp_uc._param_repo.invalidate_cache()
         if self._mercado_provider:
             self._mercado_provider.recarregar_parametros()
 
@@ -318,7 +319,8 @@ class MonitorWorker(QThread):
 
     def _processar_mpp(self, rtd):
         self._mpp_cycle += 1
-        if self._mpp_cycle % 24 != 0:
+        mpp_interval = int(self._get_param("mpp_instantaneo_interval", 4))
+        if self._mpp_cycle % mpp_interval != 0:
             return
         try:
             resultados_box, recomendacoes = self._monitor_mpp_uc.calcular_instantaneo(rtd)
@@ -326,6 +328,12 @@ class MonitorWorker(QThread):
             self.mre_atualizados.emit(recomendacoes)
         except Exception as e:
             logger.error(f"Erro no MPP: {e}")
+
+    def _get_param(self, chave: str, default: int = 0) -> float:
+        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+        repo = ParametroRepository(self.db_path)
+        param = repo.get_by_chave(chave)
+        return param.valor if param else default
 
     def _verificar_e_forcar_refresh_ex_dividendo(self):
         """Nível 2: Verifica ativos ex-dividendo do dia e força refresh RTD."""

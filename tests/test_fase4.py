@@ -349,7 +349,7 @@ class TestDadosRTDInstrumento:
         )
         assert d.premio_put == 2.5
 
-    def test_premio_put_fallback_compra(self):
+    def test_premio_put_sem_ask_retorna_zero(self):
         from src.infrastructure.providers.rtd_config import DadosRTDInstrumento
         d = DadosRTDInstrumento(
             ativo="PETR4", cod_put="PETRP710", cod_call="PETRD710",
@@ -361,7 +361,7 @@ class TestDadosRTDInstrumento:
             cab_call=None, qul_call=None, voc_call=None,
             of_compra_ativo=None, of_venda_ativo=None,
         )
-        assert d.premio_put == 2.3
+        assert d.premio_put == 0.0
 
     def test_premio_call_oferta_compra(self):
         from src.infrastructure.providers.rtd_config import DadosRTDInstrumento
@@ -377,7 +377,7 @@ class TestDadosRTDInstrumento:
         )
         assert d.premio_call == 0.8
 
-    def test_premio_call_fallback_venda(self):
+    def test_premio_call_sem_bid_retorna_zero(self):
         from src.infrastructure.providers.rtd_config import DadosRTDInstrumento
         d = DadosRTDInstrumento(
             ativo="PETR4", cod_put="PETRP710", cod_call="PETRD710",
@@ -389,7 +389,7 @@ class TestDadosRTDInstrumento:
             cab_call=None, qul_call=None, voc_call=None,
             of_compra_ativo=None, of_venda_ativo=None,
         )
-        assert d.premio_call == 1.0
+        assert d.premio_call == 0.0
 
     def test_em_leilao(self):
         from src.infrastructure.providers.rtd_config import DadosRTDInstrumento

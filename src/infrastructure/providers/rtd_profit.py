@@ -75,6 +75,11 @@ class RTDProfit:
                 self._valores[tid] = None
         return tid
 
+    def invalidar_cache(self, codigo: str, campo: str):
+        tid = self._topic_map.get("{}|{}".format(codigo, campo))
+        if tid is not None:
+            self._valores.pop(tid, None)
+
     def registrar_status(self, codigo: str) -> int:
         tid = self._topic_id(codigo, "EST")
         if tid not in self._valores:

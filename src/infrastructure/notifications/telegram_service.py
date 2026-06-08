@@ -56,6 +56,9 @@ class TelegramService:
             and chat_id != "0"
         )
 
+    def invalidar_cache(self):
+        self._notifier = None
+
     def send(self, message: str) -> bool:
         if not self.is_enabled():
             logger.info("Telegram notifications disabled via config.")

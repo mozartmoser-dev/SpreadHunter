@@ -17,11 +17,13 @@ FERIADOS_B3_PADRAO = [
 
 _feriados_atuais = list(FERIADOS_B3_PADRAO)
 _B3_CALENDAR = np.busdaycalendar(holidays=np.array(_feriados_atuais, dtype="datetime64[D]"))
+B3_CALENDAR = _B3_CALENDAR
 
 
 def _reconstruir_calendario():
-    global _B3_CALENDAR
+    global _B3_CALENDAR, B3_CALENDAR
     _B3_CALENDAR = np.busdaycalendar(holidays=np.array(_feriados_atuais, dtype="datetime64[D]"))
+    B3_CALENDAR = _B3_CALENDAR
 
 
 def atualizar_calendario(feriados: list[str]):
@@ -55,6 +57,15 @@ def dc_to_du_exato(data_inicio: date, data_fim: date) -> int:
     return int(np.busday_count(data_inicio, data_fim, busdaycal=_B3_CALENDAR))
 
 
+def dc_to_du_vetorizado(data_inicio: date, vencimentos: np.ndarray) -> np.ndarray:
+    if len(vencimentos) == 0:
+        return np.array([], dtype=int)
+    datas_fim = np.array(vencimentos, dtype="datetime64[D]")
+    datas_ini = np.full(len(vencimentos), np.datetime64(data_inicio, "D"))
+    du = np.busday_count(datas_ini, datas_fim, busdaycal=B3_CALENDAR)
+    return np.maximum(du, 0)
+
+
 def dc_to_du(data_inicio: date | None, data_fim: date | None, dias_corridos: int = 0) -> int:
     if data_inicio is not None and data_fim is not None:
         return dc_to_du_exato(data_inicio, data_fim)
@@ -71,3 +82,7 @@ def frac_dc(dias_corridos: int) -> float:
     if dias_corridos <= 0:
         return 0.0
     return dias_corridos / 365
+
+
+def eh_feriado(dt: date) -> bool:
+    return dt.isoformat() in _feriados_atuais

@@ -29,9 +29,11 @@ class OportunidadeMonitor:
     custo_sbth: float = 0.0
     pct_ganho_sbth: float = 0.0
     pct_cdi_sbth: float = 0.0
+    pct_cdi_sbth_liquido: float = 0.0
     custo_box: float = 0.0
     pct_ganho_box: float = 0.0
     pct_cdi_box: float = 0.0
+    pct_cdi_box_liquido: float = 0.0
     cdi_periodo: float = 0.0
     viavel: bool = False
     preco_compra_ativo: float = 0.0
@@ -75,16 +77,18 @@ class OportunidadeMonitor:
     @property
     def label_rentabilidade(self) -> str:
         if self.classificacao == "1BOX":
-            return "{:.2f}x CDI (BOX)".format(self.pct_cdi_box)
-        if self.classificacao == "2SBTH":
-            return "{:.2f}x CDI (SBTH)".format(self.pct_cdi_sbth)
-        if self.classificacao == "3BOXSBTH":
-            return "{:.2f}x CDI".format(max(self.pct_cdi_box, self.pct_cdi_sbth))
-        
-        # Para TP.Op ou outros, mostra o melhor disponível se houver ganho
-        max_cdi = max(self.pct_cdi_box, self.pct_cdi_sbth)
-        # Sempre exibe CDI, mesmo que seja 0.00
-        return f"{max_cdi:.2f}x CDI"
+            base = "{:.2f}x CDI (BOX)".format(self.pct_cdi_box)
+        elif self.classificacao == "2SBTH":
+            base = "{:.2f}x CDI (SBTH)".format(self.pct_cdi_sbth)
+        elif self.classificacao == "3BOXSBTH":
+            base = "{:.2f}x CDI".format(max(self.pct_cdi_box, self.pct_cdi_sbth))
+        else:
+            max_cdi = max(self.pct_cdi_box, self.pct_cdi_sbth)
+            base = f"{max_cdi:.2f}x CDI"
+        cdi_liq = max(self.pct_cdi_box_liquido, self.pct_cdi_sbth_liquido)
+        if cdi_liq > 0:
+            return f"{base} (liq: {cdi_liq:.2f}x)"
+        return base
 
     @property
     def label_dias(self) -> str:

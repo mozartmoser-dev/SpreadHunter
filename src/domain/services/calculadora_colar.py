@@ -45,6 +45,9 @@ class ResultadoColar:
     viavel: bool
     em_leilao: bool
     custo_b3: float = 0.0
+    custo_ir: float = 0.0
+    pct_cdi_liquido: float = 0.0
+    pct_cdi_melhor_liquido: float = 0.0
     iv_call: float = 0.0
     iv_put: float = 0.0
     pop_upside: float | None = None
@@ -64,11 +67,11 @@ class DadosPata:
 
 
 class CalculadoraColar:
-    def __init__(self, taxa_cdi: float, premio_risco_colar: float = 1.05, colar_risco_baixo_vov_min: float = 1000.0, custos_b3: CalculadoraCustosB3 | None = None):
+    def __init__(self, taxa_cdi: float, premio_risco_colar: float = 1.05, colar_risco_baixo_vov_min: float = 1000.0, custos_b3: CalculadoraCustosB3 | None = None, taxa_ir: float | None = None):
         self.taxa_cdi = taxa_cdi
         self.premio_risco_colar = premio_risco_colar
         self.colar_risco_baixo_vov_min = colar_risco_baixo_vov_min
-        self.custos_b3 = custos_b3 or CalculadoraCustosB3()
+        self.custos_b3 = custos_b3 or CalculadoraCustosB3(taxa_ir=taxa_ir)
 
     @staticmethod
     def black_scholes_call(S, K, T, r, sigma):
@@ -201,17 +204,25 @@ class CalculadoraColar:
 
         strike_medio = (strike_put + strike_call) / 2
         custo_b3 = self.custos_b3.calcular_custos(strike_medio, n_pernas=2)
-        pior_retorno_liquido = max(pior_retorno - custo_b3, 0.0)
+        pior_retorno_liquido = pior_retorno - custo_b3
         melhor_retorno_liquido = max(melhor_retorno - custo_b3, 0.0)
+
+        ganho_base = max(pior_retorno_liquido, 0.0)
+        custo_ir = self.custos_b3.ajustar_ir(ganho_base)
+        pior_retorno_liquido_ir = pior_retorno_liquido - custo_ir
+        melhor_retorno_liquido_ir = max(melhor_retorno_liquido - custo_ir, 0.0)
 
         pct_ganho = pior_retorno_liquido / custo_liquido
         pct_cdi = pct_ganho / cdi_periodo
         pct_cdi_melhor = (melhor_retorno_liquido / custo_liquido) / cdi_periodo if cdi_periodo > 0 else 0
+        pct_cdi_liquido = (pior_retorno_liquido_ir / custo_liquido) / cdi_periodo if cdi_periodo > 0 else 0.0
+        pct_cdi_melhor_liquido = (melhor_retorno_liquido_ir / custo_liquido) / cdi_periodo if cdi_periodo > 0 else 0.0
         risco = self.calcular_risco_leilao(vov_put, voc_call, status_put, status_call)
         viavel = pct_cdi >= self.premio_risco_colar and not em_leilao
 
-        T = dias / 365
-        r = self.taxa_cdi
+        du_bs = dc_to_du(None, None, dias)
+        T = du_bs / 252.0
+        r = np.log(1 + self.taxa_cdi)
         iv_call = self.calcular_iv(preco_ativo, strike_call, T, r, premio_call, 'call')
         iv_put = self.calcular_iv(preco_ativo, strike_put, T, r, premio_put, 'put')
         pop_upside = pop_downside = None
@@ -240,11 +251,14 @@ class CalculadoraColar:
             premio_call=premio_call,
             custo_liquido=round(custo_liquido, 4),
             custo_b3=round(custo_b3, 4),
+            custo_ir=round(custo_ir, 4),
             pior_retorno=round(pior_retorno, 4),
             melhor_retorno=round(melhor_retorno, 4),
             pct_ganho=round(pct_ganho, 6),
             pct_cdi=round(pct_cdi, 4),
             pct_cdi_melhor=round(pct_cdi_melhor, 4),
+            pct_cdi_liquido=round(pct_cdi_liquido, 4),
+            pct_cdi_melhor_liquido=round(pct_cdi_melhor_liquido, 4),
             tipo=tipo,
             risco_leilao=risco,
             viavel=viavel,

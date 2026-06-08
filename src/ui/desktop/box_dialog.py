@@ -10,6 +10,11 @@ from PyQt5.QtGui import QFont, QColor, QBrush
 
 from src.ui.desktop.theme import Palette
 
+CUSTOS_DISCLOSURE = (
+    "\n\n* Custos já incluem taxa B3 (emolumento 0,025% + liquidação 0,0275% por perna) "
+    "e IR (15% sobre o lucro líquido)."
+)
+
 
 BOX_4P_COLUMNS = [
     ("Ativo", "ativo"),
@@ -430,6 +435,7 @@ class BoxDialog(QDialog):
         lbl.setStyleSheet(label_style)
         clr_color = Palette.GREEN if r.clr > 0 else Palette.RED
         val = QLabel(f"R$ {r.clr:.2f}")
+        val.setToolTip("Crédito Líquido Recebido = (Bid_Call_K1 + Bid_Put_K2) − (Ask_Put_K1 + Ask_Call_K2)" + CUSTOS_DISCLOSURE)
         val.setStyleSheet(f"color: {clr_color}; font-size: 11pt; font-weight: bold; font-family: Consolas;")
         form.addRow(lbl, val)
 
@@ -437,25 +443,40 @@ class BoxDialog(QDialog):
         lbl.setStyleSheet(label_style)
         lucro_color = Palette.GREEN if r.lucro > 0 else Palette.RED
         val = QLabel(f"R$ {r.lucro:.2f}")
+        val.setToolTip("Lucro bruto antes dos custos = CLR − Distância (K2−K1)" + CUSTOS_DISCLOSURE)
         val.setStyleSheet(f"color: {lucro_color}; font-size: 11pt; font-weight: bold; font-family: Consolas;")
         form.addRow(lbl, val)
 
         lbl = QLabel("Custos B3 (4 pernas):")
         lbl.setStyleSheet(label_style)
         val = QLabel(f"-R$ {r.custo_b3:.4f}")
+        val.setToolTip("Taxas B3: emolumento (0,025%) + liquidação (0,0275%) × strike médio × 4 pernas.")
         val.setStyleSheet(f"color: {Palette.RED}; font-size: 10pt; font-family: Consolas;")
         form.addRow(lbl, val)
+
+        lbl = QLabel("Custo IR (15%):")
+        lbl.setStyleSheet(label_style)
+        ir_color = Palette.RED if r.custo_ir > 0 else Palette.TEXT_MUTED
+        val_ir = QLabel(f"-R$ {r.custo_ir:.4f}" if r.custo_ir > 0 else "R$ 0,00")
+        val_ir.setToolTip("Imposto de Renda (15%) sobre o lucro líquido, conforme regras de day trade em opções." + CUSTOS_DISCLOSURE)
+        val_ir.setStyleSheet(f"color: {ir_color}; font-size: 10pt; font-family: Consolas;")
+        form.addRow(lbl, val_ir)
 
         lbl = QLabel("Lucro Liquido:")
         lbl.setStyleSheet(label_style)
         liq_color = Palette.GREEN if r.lucro_liquido > 0 else Palette.RED
         val = QLabel(f"R$ {r.lucro_liquido:.2f}")
+        val.setToolTip("Lucro líquido após descontar custos B3 e IR." + CUSTOS_DISCLOSURE)
         val.setStyleSheet(f"color: {liq_color}; font-size: 11pt; font-weight: bold; font-family: Consolas;")
         form.addRow(lbl, val)
 
         lbl = QLabel("Retorno liquido:")
         lbl.setStyleSheet(label_style)
         val = QLabel(f"{r.lucro_pct*100:.2f}% / {r.pct_cdi:.2f}x CDI")
+        val.setToolTip(
+            "Percentual de retorno sobre o capital empregado e múltiplo do CDI do período."
+            + CUSTOS_DISCLOSURE
+        )
         val.setStyleSheet(value_style)
         form.addRow(lbl, val)
 

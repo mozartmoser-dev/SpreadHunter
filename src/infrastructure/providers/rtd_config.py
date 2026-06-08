@@ -47,16 +47,12 @@ class DadosRTDInstrumento:
     def premio_put(self) -> float:
         if self.of_venda_put and self.of_venda_put > 0:
             return self.of_venda_put
-        if self.of_compra_put and self.of_compra_put > 0:
-            return self.of_compra_put
         return 0.0
 
     @property
     def premio_call(self) -> float:
         if self.of_compra_call and self.of_compra_call > 0:
             return self.of_compra_call
-        if self.of_venda_call and self.of_venda_call > 0:
-            return self.of_venda_call
         return 0.0
 
     @property

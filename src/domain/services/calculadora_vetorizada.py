@@ -1,6 +1,7 @@
 import numpy as np
+from datetime import date
 
-from src.domain.services.calendario_b3 import dc_to_du_aproximado
+from src.domain.services.calendario_b3 import dc_to_du_vetorizado
 from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
 from dataclasses import dataclass
 
@@ -10,6 +11,8 @@ class ResultadoVetorizado:
     indices_viaveis: np.ndarray
     pct_cdi_box: np.ndarray
     pct_cdi_sbth: np.ndarray
+    pct_cdi_box_liquido: np.ndarray
+    pct_cdi_sbth_liquido: np.ndarray
     custo_box: np.ndarray
     custo_sbth: np.ndarray
     ganho_box: np.ndarray
@@ -19,11 +22,12 @@ class ResultadoVetorizado:
 
 class CalculadoraVetorizada:
     def __init__(self, taxa_cdi: float, premio_risco_box: float, premio_risco_sbth: float,
-                 taxa_emolumento: float | None = None, taxa_liquidacao: float | None = None):
+                 taxa_emolumento: float | None = None, taxa_liquidacao: float | None = None,
+                 taxa_ir: float | None = None):
         self.taxa_cdi = taxa_cdi
         self.premio_risco_box = premio_risco_box
         self.premio_risco_sbth = premio_risco_sbth
-        self.custos_b3 = CalculadoraCustosB3(taxa_emolumento, taxa_liquidacao)
+        self.custos_b3 = CalculadoraCustosB3(taxa_emolumento, taxa_liquidacao, taxa_ir)
 
     def calcular(self, 
                  preco_ativo: np.ndarray,
@@ -36,19 +40,23 @@ class CalculadoraVetorizada:
                  voc_call_boca: np.ndarray,
                  lote_put: float,
                  lote_call: float,
-                 em_leilao: np.ndarray) -> ResultadoVetorizado:
+                 em_leilao: np.ndarray,
+                 vencimentos: np.ndarray | None = None) -> ResultadoVetorizado:
         
         # 1. Preparação de Dados
         n = len(preco_ativo)
         if n == 0:
             empty = np.array([])
-            return ResultadoVetorizado(empty, empty, empty, empty, empty, empty, empty, empty)
+            return ResultadoVetorizado(empty, empty, empty, empty, empty, empty, empty, empty, empty, empty)
 
         # Preço de compra do ativo (lógica da calculadora original)
-        preco_compra_ativo = np.where(of_venda_ativo > 0, of_venda_ativo, preco_ativo + 0.01)
+        preco_compra_ativo = np.where(of_venda_ativo > 0, of_venda_ativo, 0.0)
         
         # 2. Cálculos Financeiros
-        dias_uteis = np.where(dias > 0, np.round(dias * 252.0 / 365.0).astype(int), 0)
+        if vencimentos is not None and len(vencimentos) == n:
+            dias_uteis = dc_to_du_vetorizado(date.today(), vencimentos)
+        else:
+            dias_uteis = np.where(dias > 0, np.round(dias * 252.0 / 365.0).astype(int), 0)
         cdi_periodo = np.where(dias_uteis > 0, (1 + self.taxa_cdi) ** (dias_uteis / 252.0) - 1, 0.0)
         
         custo_b3_sbth = self.custos_b3.calcular_custos_vetor(strike, 2)
@@ -63,10 +71,20 @@ class CalculadoraVetorizada:
         
         # BOX
         custo_box = preco_compra_ativo + of_venda_put - of_compra_call
-        ganho_box_bruto = np.where((custo_box > 0) & (of_venda_put > 0) & (of_compra_call > 0), strike - custo_box, 0.0)
+        ganho_box_bruto = np.where((of_venda_put > 0) & (of_compra_call > 0), strike - custo_box, 0.0)
         ganho_box = np.maximum(ganho_box_bruto - custo_b3_box, 0.0)
-        pct_ganho_box = np.where(custo_box > 0, ganho_box / custo_box, 0.0)
+        pct_ganho_box = np.where(custo_box > 0, ganho_box / custo_box, np.where(custo_box != 0, ganho_box / 0.01, 0.0))
         pct_cdi_box = np.where(cdi_periodo > 0, pct_ganho_box / cdi_periodo, 0.0)
+        
+        # IR
+        ir_sbth = self.custos_b3.ajustar_ir_vetor(ganho_sbth)
+        ir_box = self.custos_b3.ajustar_ir_vetor(ganho_box)
+        ganho_sbth_liq = ganho_sbth - ir_sbth
+        ganho_box_liq = ganho_box - ir_box
+        pct_ganho_sbth_liq = np.where(custo_sbth > 0, ganho_sbth_liq / custo_sbth, 0.0)
+        pct_ganho_box_liq = np.where(custo_box > 0, ganho_box_liq / custo_box, np.where(custo_box != 0, ganho_box_liq / 0.01, 0.0))
+        pct_cdi_sbth_liquido = np.where(cdi_periodo > 0, pct_ganho_sbth_liq / cdi_periodo, 0.0)
+        pct_cdi_box_liquido = np.where(cdi_periodo > 0, pct_ganho_box_liq / cdi_periodo, 0.0)
         
         # 3. Verificação de Viabilidade e Classificação
         # Tem liquidez?
@@ -85,6 +103,8 @@ class CalculadoraVetorizada:
             indices_viaveis=np.where(viavel)[0],
             pct_cdi_box=pct_cdi_box,
             pct_cdi_sbth=pct_cdi_sbth,
+            pct_cdi_box_liquido=pct_cdi_box_liquido,
+            pct_cdi_sbth_liquido=pct_cdi_sbth_liquido,
             custo_box=custo_box,
             custo_sbth=custo_sbth,
             ganho_box=ganho_box,

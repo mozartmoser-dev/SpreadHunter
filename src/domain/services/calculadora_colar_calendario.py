@@ -46,6 +46,8 @@ class ResultadoColarCalendario:
     tipo: TipoColarCalendario
     r: float = 0.1450
     custo_b3: float = 0.0
+    custo_ir: float = 0.0
+    pct_cdi_liquido: float = 0.0
     be_baixa: float | None = None
     be_alta: float | None = None
     be_baixa_intrinseco: float | None = None
@@ -53,10 +55,10 @@ class ResultadoColarCalendario:
 
 
 class CalculadoraColarCalendario:
-    def __init__(self, taxa_cdi: float = 0.1450, premio_risco: float = 1.2, custos_b3: CalculadoraCustosB3 | None = None):
+    def __init__(self, taxa_cdi: float = 0.1450, premio_risco: float = 1.2, custos_b3: CalculadoraCustosB3 | None = None, taxa_ir: float | None = None):
         self.taxa_cdi = taxa_cdi
         self.premio_risco = premio_risco
-        self.custos_b3 = custos_b3 or CalculadoraCustosB3()
+        self.custos_b3 = custos_b3 or CalculadoraCustosB3(taxa_ir=taxa_ir)
 
     @staticmethod
     def black_scholes(S: float, K: float, T: float, r: float, sigma: float, option_type: str) -> float:
@@ -222,9 +224,10 @@ class CalculadoraColarCalendario:
         if premio_call <= 0 or premio_put <= 0:
             return None
 
-        T_call = dte_call / 365
-        T_put = dte_put / 365
+        T_call = dc_to_du(None, None, dte_call) / 252.0
+        T_put = dc_to_du(None, None, dte_put) / 252.0
         dte_extra = dte_put - dte_call
+        r_cont = np.log(1 + r)
 
         S_bs_call = preco_ativo
         S_bs_put = preco_ativo
@@ -234,25 +237,27 @@ class CalculadoraColarCalendario:
             if S_bs_call <= 0 or S_bs_put <= 0:
                 return None
 
-        iv_call = self.implied_volatility(S_bs_call, strike_call, T_call, r, premio_call, 'call')
-        iv_put = self.implied_volatility(S_bs_put, strike_put, T_put, r, premio_put, 'put')
+        iv_call = self.implied_volatility(S_bs_call, strike_call, T_call, r_cont, premio_call, 'call')
+        iv_put = self.implied_volatility(S_bs_put, strike_put, T_put, r_cont, premio_put, 'put')
 
         if iv_call is None or iv_put is None:
             return None
 
+        preco_compra = preco_compra_ativo if (preco_compra_ativo and preco_compra_ativo > 0) else preco_ativo
+
         net_credito = premio_call - premio_put
         tipo = self.classificar_tipo(preco_ativo, strike_call, strike_put)
 
-        theta_call = self.bs_theta(S_bs_call, strike_call, T_call, r, iv_call, 'call')
-        theta_put = self.bs_theta(S_bs_put, strike_put, T_put, r, iv_put, 'put')
+        theta_call = self.bs_theta(S_bs_call, strike_call, T_call, r_cont, iv_call, 'call')
+        theta_put = self.bs_theta(S_bs_put, strike_put, T_put, r_cont, iv_put, 'put')
         theta_liquido = abs(theta_call) - abs(theta_put)
 
-        T_put_rem = dte_extra / 365 if dte_extra > 0 else 0
-        valor_put_vc = self.black_scholes(S_bs_call, strike_put, T_put_rem, r, iv_put, 'put') if T_put_rem > 0 else 0
+        T_put_rem = dc_to_du(None, None, dte_extra) / 252.0 if dte_extra > 0 else 0
+        valor_put_vc = self.black_scholes(S_bs_call, strike_put, T_put_rem, r_cont, iv_put, 'put') if T_put_rem > 0 else 0
 
         # Modelo COBERTO: compra 100 acoes + short call + long put
         pnl_call = premio_call  # premio recebido, acao cobre exercicio
-        pnl_stock = min(preco_ativo, strike_call) - preco_ativo  # acao vendida a Kc se ITM
+        pnl_stock = min(preco_ativo, strike_call) - preco_compra  # acao vendida a Kc se ITM
         pnl_put = valor_put_vc - premio_put
         pnl_projetado = pnl_call + pnl_stock + pnl_put
 
@@ -264,15 +269,19 @@ class CalculadoraColarCalendario:
         if cdi_periodo <= 0:
             return None
 
-        preco_compra = preco_compra_ativo if (preco_compra_ativo and preco_compra_ativo > 0) else preco_ativo
         capital_empregado = preco_compra + premio_put - premio_call
 
         strike_medio = (strike_call + strike_put) / 2
         custo_b3 = self.custos_b3.calcular_custos(strike_medio, n_pernas=2)
         pnl_projetado_liquido = max(pnl_projetado - custo_b3, 0.0)
 
+        ganho_base = max(pnl_projetado_liquido, 0.0)
+        custo_ir = self.custos_b3.ajustar_ir(ganho_base)
+        pnl_projetado_ir = pnl_projetado_liquido - custo_ir
+
         pct_retorno = pnl_projetado_liquido / capital_empregado if capital_empregado > 0 else 0
         pct_cdi = pct_retorno / cdi_periodo if cdi_periodo > 0 else 0
+        pct_cdi_liquido = (pnl_projetado_ir / capital_empregado) / cdi_periodo if capital_empregado > 0 and cdi_periodo > 0 else 0.0
         viavel = pct_cdi >= self.premio_risco
 
         be_baixa, be_alta = self._calcular_breakevens(
@@ -300,6 +309,7 @@ class CalculadoraColarCalendario:
             premio_put=premio_put,
             net_credito=round(net_credito, 4),
             custo_b3=round(custo_b3, 4),
+            custo_ir=round(custo_ir, 4),
             iv_call=round(iv_call * 100, 2),
             iv_put=round(iv_put * 100, 2),
             valor_put_venc_call=round(valor_put_vc, 4),
@@ -308,6 +318,7 @@ class CalculadoraColarCalendario:
             capital_empregado=round(capital_empregado, 4),
             pct_retorno=round(pct_retorno * 100, 4),
             pct_cdi=round(pct_cdi, 4),
+            pct_cdi_liquido=round(pct_cdi_liquido, 4),
             theta_call=round(theta_call * 100, 4),
             theta_put=round(theta_put * 100, 4),
             theta_liquido=round(theta_liquido * 100, 4),

@@ -40,6 +40,7 @@ def _seed_parametros_colar(conn):
         ("colar_qul_min_put", "100", "COLAR", "Qtd minima negociada (QUL) para PUT"),
         ("colar_qul_min_call", "100", "COLAR", "Qtd minima negociada (QUL) para CALL"),
         ("colar_risco_baixo_vov_min", "1000", "COLAR", "VOV/VOC mínimo para risco baixo de despernamento"),
+        ("taxa_ir_pct", "0.15", "GERAL", "Alíquota de IR sobre lucro em operações (15% day trade)"),
         ("elegibilidade_strike_max_pct", "0.70", "BOX_SINTETICO", "Strike máximo % do spot para elegibilidade de pescaria"),
         ("dte_call_min", "29", "COLLAR_CALENDARIO", "DTE mínimo para call no collar calendário"),
         ("dte_call_max", "60", "COLLAR_CALENDARIO", "DTE máximo para call no collar calendário"),
@@ -63,6 +64,14 @@ def _seed_parametros_colar(conn):
         ("mpp_peso_spread_anomalia", "0.05", "MPP", "Peso anomalia de spread no score instantaneo"),
         ("mpp_spread_history_len",   "200",  "MPP", "Tamanho do deque de historico de spread"),
         ("mpp_spread_min_anomalia",  "0.02", "MPP", "Spread minimo para considerar anomalia (2%)"),
+        ("mpp_curvatura_normalizador", "0.10", "MPP", "Denominador de normalizacao da curvatura IV"),
+        ("mpp_oi_peso_absoluto",     "0.40", "MPP", "Peso do tamanho absoluto OI no score OI"),
+        ("mpp_oi_peso_concentracao", "0.60", "MPP", "Peso da concentracao relativa OI no score OI"),
+        ("mpp_oi_cap_absoluto",      "10000","MPP", "Cap de OI absoluto para normalizacao"),
+        ("mpp_dte_fator_min",        "0.60", "MPP", "Fator DTE minimo (para vencimentos extremos)"),
+        ("mpp_dte_ideal_min",        "10",   "MPP", "DTE minimo da janela ideal"),
+        ("mpp_dte_ideal_max",        "25",   "MPP", "DTE maximo da janela ideal"),
+        ("mpp_instantaneo_interval", "4",    "MPP", "Ciclos entre calculos MPP instantaneos"),
         ("mpp_persistencia_max_mult","0.50", "MPP", "Multiplicador maximo da persistencia"),
         ("mpp_persistencia_divisor", "20",   "MPP", "Ciclos para atingir 1x de bonus de persistencia"),
         ("mpp_bonus_max",            "0.15", "MPP", "Bonus maximo historico"),
@@ -364,4 +373,14 @@ CREATE TABLE IF NOT EXISTS mpp_historico_distorcoes (
     box_encontrado INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS mpp_spread_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo TEXT NOT NULL,
+    spread_pct REAL NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_mpp_spread_history_codigo ON mpp_spread_history(codigo);
+CREATE INDEX IF NOT EXISTS idx_mpp_spread_history_data ON mpp_spread_history(created_at);
 """

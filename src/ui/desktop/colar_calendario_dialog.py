@@ -13,6 +13,11 @@ from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 from src.ui.desktop.theme import Palette
 
+CUSTOS_DISCLOSURE = (
+    "\n\n* Custos já incluem taxa B3 (emolumento 0,025% + liquidação 0,0275% por perna) "
+    "e IR (15% sobre o lucro líquido)."
+)
+
 logger = logging.getLogger(__name__)
 
 WHITELIST_CHAVE = "white_list_colar_calendario"
@@ -563,10 +568,12 @@ class ColarCalendarioDialog(QDialog):
         label_style = f"color: {Palette.TEXT_SECONDARY}; font-size: 9pt; font-weight: bold;"
         value_style = f"color: {Palette.TEXT_PRIMARY}; font-size: 10pt; font-family: Consolas;"
 
-        def add_row(nome, valor, cor=None):
+        def add_row(nome, valor, cor=None, tooltip=None):
             lbl = QLabel(nome)
             lbl.setStyleSheet(label_style)
             val = QLabel(valor)
+            if tooltip:
+                val.setToolTip(tooltip)
             style = value_style
             if cor:
                 style += f"; color: {cor};"
@@ -601,14 +608,20 @@ class ColarCalendarioDialog(QDialog):
         sep4.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
         form.addRow(sep4)
 
-        add_row("Crédito Líquido:", f"R$ {r.net_credito:.2f}", cor=Palette.YELLOW)
+        add_row("Crédito Líquido:", f"R$ {r.net_credito:.2f}", cor=Palette.YELLOW,
+                tooltip="Prêmio recebido pela CALL menos prêmio pago pela PUT, já descontados custos." + CUSTOS_DISCLOSURE)
         add_row("Theta Líquido:", f"{r.theta_liquido:.3f} por dia",
-                cor=Palette.GREEN if r.theta_liquido > 0 else Palette.RED)
-        add_row("Valor Put no VC Call:", f"R$ {r.valor_put_venc_call:.2f}", cor=Palette.CYAN)
-        add_row("Custo Montagem:", f"R$ {r.capital_empregado:.2f}")
-        add_row("PNL Projetado:", f"R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}%)")
+                cor=Palette.GREEN if r.theta_liquido > 0 else Palette.RED,
+                tooltip="Decaimento temporal líquido por dia. Positivo = o tempo corre a seu favor." + CUSTOS_DISCLOSURE)
+        add_row("Valor Put no VC Call:", f"R$ {r.valor_put_venc_call:.2f}", cor=Palette.CYAN,
+                tooltip="Valor da PUT no vencimento da CALL, projetado pelo modelo Black-Scholes.")
+        add_row("Custo Montagem:", f"R$ {r.capital_empregado:.2f}",
+                tooltip="Capital total empregado na operação (ação + prêmios líquidos)." + CUSTOS_DISCLOSURE)
+        add_row("PNL Projetado:", f"R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}%)",
+                tooltip="Lucro/prejuízo projetado no vencimento da CALL, já descontados custos." + CUSTOS_DISCLOSURE)
         add_row("% CDI:", f"{r.pct_cdi:.2f}x",
-                cor=Palette.GREEN if r.pct_cdi >= 1.0 else Palette.RED)
+                cor=Palette.GREEN if r.pct_cdi >= 1.0 else Palette.RED,
+                tooltip="Retorno projetado comparado ao CDI do período." + CUSTOS_DISCLOSURE)
         if r.be_baixa is not None:
             add_row("BE Baixa (B&S):", f"R$ {r.be_baixa:.2f}", cor=Palette.CYAN)
         if r.be_alta is not None:

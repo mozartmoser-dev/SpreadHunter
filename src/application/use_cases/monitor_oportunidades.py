@@ -32,7 +32,8 @@ class MonitorOportunidadesUseCase:
             premio_sbth = self._get_param("premio_risco_sbth", 1.2)
             emol = self._get_param("taxa_emolumento_pct", 0.00025)
             liq = self._get_param("taxa_liquidacao_pct", 0.000275)
-            self._calculadora = CalculadoraBoxSbth(taxa_cdi, premio_box, premio_sbth, emol, liq)
+            ir = self._get_param("taxa_ir_pct", 0.15)
+            self._calculadora = CalculadoraBoxSbth(taxa_cdi, premio_box, premio_sbth, emol, liq, ir)
         return self._calculadora
 
     def _get_param(self, chave: str, default: float) -> float:
@@ -46,8 +47,9 @@ class MonitorOportunidadesUseCase:
             premio_sbth = self._get_param("premio_risco_sbth", 1.2)
             emol = self._get_param("taxa_emolumento_pct", 0.00025)
             liq = self._get_param("taxa_liquidacao_pct", 0.000275)
-            self._calculadora = CalculadoraBoxSbth(taxa_cdi, premio_box, premio_sbth, emol, liq)
-            self._calc_vetorizada = CalculadoraVetorizada(taxa_cdi, premio_box, premio_sbth, emol, liq)
+            ir = self._get_param("taxa_ir_pct", 0.15)
+            self._calculadora = CalculadoraBoxSbth(taxa_cdi, premio_box, premio_sbth, emol, liq, ir)
+            self._calc_vetorizada = CalculadoraVetorizada(taxa_cdi, premio_box, premio_sbth, emol, liq, ir)
         return self._calculadora, self._calc_vetorizada
 
     def recarregar_parametros(self):
@@ -128,10 +130,12 @@ class MonitorOportunidadesUseCase:
         lote_put = self._lote_liquidez_put("BOX")
         lote_call = self._lote_liquidez_call("BOX")
 
+        vencimentos = np.array([inst_map[chaves[i]].vencimento for i in indices_validos], dtype="datetime64[D]")
+
         # 2. Cálculo Vetorizado (Super Rápido)
         res_vec = calc_vec.calcular(
             p_ativo, of_v_ativo, of_v_put, of_c_call, strikes, dias,
-            vov_p, voc_c, lote_put, lote_call, em_leilao
+            vov_p, voc_c, lote_put, lote_call, em_leilao, vencimentos
         )
 
         # 3. Criação de DTOs apenas para o que for minimamente interessante
@@ -314,9 +318,11 @@ class MonitorOportunidadesUseCase:
             custo_sbth=resultado.custo_sbth,
             pct_ganho_sbth=resultado.pct_ganho_sbth,
             pct_cdi_sbth=resultado.pct_cdi_sbth,
+            pct_cdi_sbth_liquido=resultado.pct_cdi_sbth_liquido,
             custo_box=resultado.custo_box,
             pct_ganho_box=resultado.pct_ganho_box,
             pct_cdi_box=resultado.pct_cdi_box,
+            pct_cdi_box_liquido=resultado.pct_cdi_box_liquido,
             cdi_periodo=resultado.cdi_periodo,
             viavel=viavel,
             preco_compra_ativo=dados.preco_compra_ativo,

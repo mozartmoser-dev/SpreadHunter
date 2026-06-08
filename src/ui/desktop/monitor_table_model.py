@@ -5,6 +5,12 @@ from src.application.dtos.dtos import OportunidadeMonitor
 from src.ui.desktop.theme import Palette
 
 
+CUSTOS_DISCLOSURE = (
+    "\n\n* Custos já incluem taxa B3 (emolumento 0,025% + liquidação 0,0275% por perna) "
+    "e IR (15% sobre o lucro líquido)."
+)
+
+
 class MonitorTableModel(QAbstractTableModel):
     COLUMNS = [
         ("Tipo (i)", "label_tipo"),
@@ -82,17 +88,20 @@ class MonitorTableModel(QAbstractTableModel):
                 "label_tipo": "Tipo de estratégia identificada (BOX, SBTH ou BOX+SBTH).",
                 "ativo": "Código da ação objeto (ex: PETR4) que dá origem às opções.",
                 "strike": "Preço de exercício das opções envolvidas na estrutura.",
-                "ganho_display": "Percentual de ganho bruto projetado para a operação até o vencimento.",
-                "label_rentabilidade": "Rentabilidade da operação comparada à taxa CDI do período.",
+                "ganho_display": "Percentual de ganho projetado para a operação até o vencimento." + CUSTOS_DISCLOSURE,
+                "label_rentabilidade": "Rentabilidade da operação comparada à taxa CDI do período." + CUSTOS_DISCLOSURE,
                 "label_dias": "Quantidade de dias corridos até a data de vencimento.",
                 "vencimento": "Data de expiração das opções da montagem.",
                 "liq_indicator": "Sinalizador de liquidez (✓: Ambos lados ok, ✗: Falta liquidez).",
-                "custo_box_display": "Preço de montagem da perna de BOX.",
-                "custo_sbth_display": "Preço de montagem da perna de SBTH.",
+                "custo_box_display": "Custo de montagem da perna de BOX (entrada de capital)." + CUSTOS_DISCLOSURE,
+                "custo_sbth_display": "Custo de montagem da perna de SBTH (entrada de capital)." + CUSTOS_DISCLOSURE,
                 "money_display": "Indica se as opções estão 'Dentro do Dinheiro' (P: Put, C: Call)."
             }
             col_key = self.COLUMNS[section][1]
-            return tips.get(col_key, self.COLUMNS[section][0])
+            base = tips.get(col_key, self.COLUMNS[section][0])
+            if col_key in ("ganho_display", "label_rentabilidade", "custo_box_display", "custo_sbth_display"):
+                return base
+            return base
             
         return None
 

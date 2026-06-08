@@ -32,7 +32,8 @@ class MonitorColaresCalendarioUseCase:
             emol = self._get_param("taxa_emolumento_pct", 0.00025)
             liq = self._get_param("taxa_liquidacao_pct", 0.000275)
             from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
-            custos_b3 = CalculadoraCustosB3(emol, liq)
+            ir = self._get_param("taxa_ir_pct", 0.15)
+            custos_b3 = CalculadoraCustosB3(emol, liq, ir)
             self._calculadora = CalculadoraColarCalendario(taxa_cdi, premio_risco=premio_risco, custos_b3=custos_b3)
         return self._calculadora
 
@@ -176,7 +177,7 @@ class MonitorColaresCalendarioUseCase:
                 continue
 
             of_venda_ativo = rtd.ler_campo_cache(ativo, "OVD")
-            preco_compra_ativo = of_venda_ativo if (of_venda_ativo and of_venda_ativo > 0) else preco_ativo
+            preco_compra_ativo = of_venda_ativo if (of_venda_ativo and of_venda_ativo > 0) else 0.0
 
             if ativo not in _cache_dividendos_por_ativo:
                 divs = DividendoRepository(self.db_path).get_by_ativo(ativo)

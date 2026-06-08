@@ -132,7 +132,10 @@ class MercadoDataProvider:
         logger.debug("RTD: Detalhes completos registrados para %s (Liquidez detectada)", key)
 
     def forcar_refresh_ex_dividendo(self, ativos_ex: list[str]):
-        """Forca registro completo (Wave 2) para ativos em dia ex-dividendo."""
+        """Forca registro completo (Wave 2) para ativos em dia ex-dividendo.
+        Invalida o cache RTD e re-registra todos os topicos para garantir
+        que o sistema busque dados frescos do servidor, essencial para
+        capturar ajustes de strike e preco pos-dividendo."""
         if not ativos_ex or not self.rtd.disponivel:
             return
 
@@ -142,27 +145,29 @@ class MercadoDataProvider:
 
         for key, inst in inst_map.items():
             if inst.ativo in ativos_ex and inst.ativo not in ativos_registrados:
-                # Registra preco do ativo
-                self.rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
-                self.rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
-                self.rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
+                for campo in (RTD_CAMPO_ULTIMO_PRECO, RTD_CAMPO_OFERTA_VENDA, RTD_CAMPO_OFERTA_COMPRA):
+                    self.rtd.invalidar_cache(inst.ativo, campo)
+                    self.rtd.registrar_topico(inst.ativo, campo)
+                self.rtd.invalidar_cache(inst.ativo, "EST")
                 self.rtd.registrar_status(inst.ativo)
                 ativos_registrados.add(inst.ativo)
 
-            if inst.ativo in ativos_ex and key not in self._chaves_detalhes_completos:
-                # Registra todos os campos (strike, ofertas, book)
-                self.rtd.registrar_topico(inst.cod_put, RTD_CAMPO_STRIKE)
-                self.rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
-                self.rtd.registrar_topico(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
-                self.rtd.registrar_topico(inst.cod_put, RTD_CAMPO_OFERTA_VENDA)
-                self.rtd.registrar_topico(inst.cod_put, RTD_CAMPO_OFERTA_COMPRA)
-                self.rtd.registrar_topico(inst.cod_call, RTD_CAMPO_OFERTA_VENDA)
-                self.rtd.registrar_topico(inst.cod_call, RTD_CAMPO_OFERTA_COMPRA)
-                self.rtd.registrar_topico(inst.cod_put, RTD_CAMPO_QTDE_ULT_NEG)
-                self.rtd.registrar_topico(inst.cod_call, RTD_CAMPO_QTDE_ULT_NEG)
-                self.rtd.registrar_topico(inst.cod_put, RTD_CAMPO_VOL_VENDA)
-                self.rtd.registrar_topico(inst.cod_call, RTD_CAMPO_VOL_COMPRA)
+            if inst.ativo in ativos_ex:
+                campos_put = [RTD_CAMPO_STRIKE, RTD_CAMPO_OFERTA_VENDA, RTD_CAMPO_OFERTA_COMPRA,
+                              RTD_CAMPO_CABECALHO_BOOK, RTD_CAMPO_QTDE_ULT_NEG, RTD_CAMPO_VOL_VENDA]
+                campos_call = [RTD_CAMPO_STRIKE, RTD_CAMPO_OFERTA_VENDA, RTD_CAMPO_OFERTA_COMPRA,
+                               RTD_CAMPO_CABECALHO_BOOK, RTD_CAMPO_QTDE_ULT_NEG, RTD_CAMPO_VOL_COMPRA]
+
+                for campo in campos_put:
+                    self.rtd.invalidar_cache(inst.cod_put, campo)
+                    self.rtd.registrar_topico(inst.cod_put, campo)
+                for campo in campos_call:
+                    self.rtd.invalidar_cache(inst.cod_call, campo)
+                    self.rtd.registrar_topico(inst.cod_call, campo)
+
+                self.rtd.invalidar_cache(inst.cod_put, "EST")
                 self.rtd.registrar_status(inst.cod_put)
+                self.rtd.invalidar_cache(inst.cod_call, "EST")
                 self.rtd.registrar_status(inst.cod_call)
                 
                 self._chaves_registradas.add(key)
@@ -203,10 +208,11 @@ class MercadoDataProvider:
                     if (inst.vencimento - hoje).days > (self._limite_meses * 30):
                         count_pulas += 1
                         continue
-                # ONDA 1: Registra o strike e o cabeçalho para detecção
-                rtd.registrar_topico(inst.cod_put, RTD_CAMPO_STRIKE)
-                rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
-                rtd.registrar_topico(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
+
+            # ONDA 1: Registra o strike e o cabeçalho para detecção (sempre, independente da Carga Inteligente)
+            rtd.registrar_topico(inst.cod_put, RTD_CAMPO_STRIKE)
+            rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
+            rtd.registrar_topico(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
             
             if inst.ativo not in self._ativos_registrados:
                 rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)

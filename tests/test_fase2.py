@@ -136,7 +136,7 @@ class TestCalculadoraBoxSbth:
         result = calc.calcular(dados)
         assert result.custo_sbth == 37.6  # of_venda_ativo(35.1) + of_venda_put(2.5)
 
-    def test_custo_sbth_sem_of_venda_ativo(self, calc):
+    def test_custo_sbth_sem_ask_ativo_retorna_zero(self, calc):
         dados = DadosMercado(
             preco_ativo=35.0, of_compra_ativo=0, of_venda_ativo=0,
             of_compra_put=2.0, of_venda_put=2.5,
@@ -144,7 +144,7 @@ class TestCalculadoraBoxSbth:
             strike=40.0, premio_put=2.5, premio_call=2.0, dias=20
         )
         result = calc.calcular(dados)
-        assert result.custo_sbth == 37.51  # (35.0 + 0.01) + 2.5
+        assert result.custo_sbth == 0.0  # sem ASK do ativo, inviável
 
     def test_custo_box_com_of_venda_ativo(self, calc):
         dados = DadosMercado(

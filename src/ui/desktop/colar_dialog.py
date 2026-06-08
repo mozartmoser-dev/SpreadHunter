@@ -11,6 +11,11 @@ from PyQt5.QtGui import QFont, QColor, QBrush
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.ui.desktop.theme import Palette
 
+CUSTOS_DISCLOSURE = (
+    "\n\n* Custos já incluem taxa B3 (emolumento 0,025% + liquidação 0,0275% por perna) "
+    "e IR (15% sobre o lucro líquido)."
+)
+
 
 WHITELIST_CHAVE_COLAR = "white_list_colar"
 
@@ -71,6 +76,17 @@ class ColarTableModel(QAbstractTableModel):
         if orientation == Qt.Horizontal and 0 <= section < len(self.COLUMNS):
             if role == Qt.DisplayRole:
                 return self.COLUMNS[section][0]
+            if role == Qt.ToolTipRole:
+                tips = {
+                    "pct_cdi": "Retorno no pior cenário comparado ao CDI do período." + CUSTOS_DISCLOSURE,
+                    "pct_cdi_melhor": "Retorno no melhor cenário comparado ao CDI do período." + CUSTOS_DISCLOSURE,
+                    "custo_liquido": "Custo total de montagem da estrutura (ação + PUT − CALL)." + CUSTOS_DISCLOSURE,
+                    "pior_retorno": "Valor do pior resultado possível no vencimento." + CUSTOS_DISCLOSURE,
+                    "risco_str": "Nível de risco de leilão baseado no volume das opções.",
+                    "pop_upside": "Probabilidade de o ativo estar acima do strike CALL no vencimento.",
+                    "pop_downside": "Probabilidade de o ativo estar abaixo do strike PUT no vencimento.",
+                }
+                return tips.get(self.COLUMNS[section][1])
         return None
 
     def data(self, index, role=Qt.DisplayRole):
@@ -716,12 +732,17 @@ class ColarDialog(QDialog):
         lbl = QLabel("Custo Líquido:")
         lbl.setStyleSheet(label_style)
         val = QLabel(f"R$ {r.custo_liquido:.2f}")
+        val.setToolTip("Custo total = preço de compra da ação + prêmio da PUT − prêmio recebido da CALL." + CUSTOS_DISCLOSURE)
         val.setStyleSheet(f"color: {Palette.YELLOW}; font-size: 11pt; font-weight: bold; font-family: Consolas;")
         form.addRow(lbl, val)
 
         lbl = QLabel("Pior Retorno:")
         lbl.setStyleSheet(label_style)
         val = QLabel(f"R$ {r.pior_retorno:.2f} ({r.pct_ganho*100:.2f}% / {r.pct_cdi:.2f}x CDI)")
+        val.setToolTip(
+            "Resultado no pior cenário (ativo abaixo do strike PUT no vencimento). "
+            "Já descontados custos B3 e IR." + CUSTOS_DISCLOSURE
+        )
         val.setStyleSheet(value_style)
         form.addRow(lbl, val)
 

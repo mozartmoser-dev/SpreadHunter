@@ -72,6 +72,7 @@ class MPPUseCase:
         self.score_estrutural_cache: dict[str, dict] = {}
         self._snapshot_counter: dict[str, int] = {}
         self._estrutural_carregado = False
+        self._carregar_spread_history()
 
     def _get_param(self, chave: str, default: float = 0.0) -> float:
         param = self._param_repo.get_by_chave(chave)
@@ -88,11 +89,11 @@ class MPPUseCase:
         return self._get_param("taxa_cdi", 0.145)
 
     def precisa_atualizar_cache(self) -> bool:
-        from src.domain.services.calendario_b3 import CalendarioB3
+        from src.domain.services.calendario_b3 import eh_feriado
         hoje = date.today()
         if hoje.weekday() >= 5:
             return False
-        if CalendarioB3.eh_feriado(hoje):
+        if eh_feriado(hoje):
             return False
         conn = get_connection(self.db_path)
         try:
@@ -247,7 +248,14 @@ class MPPUseCase:
             return 0.0
         media = sum(oi_viz) / len(oi_viz)
         ratio = oi_atual / max(media, 1)
-        return min(ratio / 5.0, 1.0)
+        score_concentracao = min(ratio / 5.0, 1.0)
+
+        peso_absoluto = self._get_param("mpp_oi_peso_absoluto", 0.40)
+        peso_concentracao = self._get_param("mpp_oi_peso_concentracao", 0.60)
+        cap_absoluto = self._get_param("mpp_oi_cap_absoluto", 10000)
+        score_tamanho = min(oi_atual / cap_absoluto, 1.0)
+
+        return peso_concentracao * score_concentracao + peso_absoluto * score_tamanho
 
     def _calcular_score_volume(self, num_negocios: int) -> float:
         return 1.0 / (1.0 + num_negocios / 100.0)
@@ -274,7 +282,10 @@ class MPPUseCase:
         if media_iv <= 0:
             return 0.0
         curvatura = abs(iv - media_iv)
-        return min(curvatura / 0.10, 1.0)
+        normalizador = self._get_param("mpp_curvatura_normalizador", 0.10)
+        if normalizador <= 0:
+            normalizador = 0.10
+        return min(curvatura / normalizador, 1.0)
 
     def _carregar_taxas_sucesso(self):
         conn = get_connection(self.db_path)
@@ -499,6 +510,8 @@ class MPPUseCase:
 
         score_final = 0.35 * score_estrutural_box + 0.65 * score_instantaneo
 
+        score_final *= self._calcular_fator_dte(dias_uteis)
+
         chave_pers = f"{ativo}_{k1['strike']}_{k2['strike']}"
         pers_ciclos = self._atualizar_persistencia(chave_pers, erro_box)
         mult_pers = 1.0 + min(pers_ciclos / 20.0, 0.5)
@@ -531,6 +544,21 @@ class MPPUseCase:
             justificativa=just,
         )
 
+    def _calcular_fator_dte(self, dias_uteis: int) -> float:
+        if dias_uteis <= 0:
+            return 0.0
+        dte_min = int(self._get_param("mpp_dte_ideal_min", 10))
+        dte_max = int(self._get_param("mpp_dte_ideal_max", 25))
+        fator_min = self._get_param("mpp_dte_fator_min", 0.60)
+        if dte_min <= 0 or dte_max <= dte_min:
+            return 1.0
+        if dias_uteis < dte_min:
+            return max(fator_min, dias_uteis / dte_min)
+        if dias_uteis > dte_max:
+            excesso_rel = (dias_uteis - dte_max) / dte_max
+            return max(fator_min, 1.0 - excesso_rel)
+        return 1.0
+
     def _calcular_fator_premio_cdi(self, call_k1, put_k1, call_k2, put_k2,
                                     spot, k1, k2, r, t) -> float:
         premio_risco = self._get_param("box_premio_risco", 1.08)
@@ -555,11 +583,55 @@ class MPPUseCase:
             scores.append(escore)
         return sum(scores) / len(scores) if scores else 0.0
 
+    def _carregar_spread_history(self):
+        if not self.db_path:
+            return
+        try:
+            conn = get_connection(self.db_path)
+            try:
+                rows = conn.execute("""
+                    SELECT codigo, spread_pct FROM mpp_spread_history
+                    ORDER BY codigo, created_at
+                """).fetchall()
+                hist_len = int(self._get_param("mpp_spread_history_len", 200))
+                for r in rows:
+                    cod = r["codigo"]
+                    if cod not in self.spread_history:
+                        self.spread_history[cod] = deque(maxlen=hist_len)
+                    self.spread_history[cod].append(r["spread_pct"])
+            finally:
+                conn.close()
+        except Exception:
+            self.spread_history = {}
+
+    def _salvar_spread_history(self, codigo: str, spread_pct: float):
+        if not self.db_path:
+            return
+        try:
+            conn = get_connection(self.db_path)
+            try:
+                conn.execute(
+                    "INSERT INTO mpp_spread_history (codigo, spread_pct) VALUES (?, ?)",
+                    (codigo, spread_pct)
+                )
+                conn.execute(
+                    "DELETE FROM mpp_spread_history WHERE id NOT IN ("
+                    "SELECT id FROM mpp_spread_history WHERE codigo = ? "
+                    "ORDER BY created_at DESC LIMIT ?)",
+                    (codigo, int(self._get_param("mpp_spread_history_len", 200)))
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception:
+            pass
+
     def _atualizar_spread_history(self, codigo: str, spread_pct: float):
         if codigo not in self.spread_history:
             hist_len = int(self._get_param("mpp_spread_history_len", 200))
             self.spread_history[codigo] = deque(maxlen=hist_len)
         self.spread_history[codigo].append(spread_pct)
+        self._salvar_spread_history(codigo, spread_pct)
 
     def _calcular_anomalia(self, codigo: str, spread_pct: float) -> float:
         min_anomalia = self._get_param("mpp_spread_min_anomalia", 0.02)

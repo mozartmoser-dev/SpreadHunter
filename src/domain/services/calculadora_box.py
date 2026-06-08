@@ -27,9 +27,11 @@ class ResultadoBox:
     distancia: float
     lucro: float
     custo_b3: float
+    custo_ir: float
     lucro_liquido: float
     lucro_pct: float
     pct_cdi: float
+    pct_cdi_liquido: float
     em_leilao: bool
     viavel: bool
     dias: int
@@ -37,10 +39,11 @@ class ResultadoBox:
 
 class CalculadoraBox:
     def __init__(self, taxa_cdi: float = 0.1450, premio_risco: float = 1.08,
-                 taxa_emolumento: float | None = None, taxa_liquidacao: float | None = None):
+                 taxa_emolumento: float | None = None, taxa_liquidacao: float | None = None,
+                 taxa_ir: float | None = None):
         self.taxa_cdi = taxa_cdi
         self.premio_risco = premio_risco
-        self.custos_b3 = CalculadoraCustosB3(taxa_emolumento, taxa_liquidacao)
+        self.custos_b3 = CalculadoraCustosB3(taxa_emolumento, taxa_liquidacao, taxa_ir)
 
     def calcular_cdi_periodo(self, dias_corridos: int) -> float:
         du = dc_to_du(None, None, dias_corridos)
@@ -85,9 +88,14 @@ class CalculadoraBox:
         custo_b3 = self.custos_b3.calcular_custos(strike_medio, n_pernas=4)
         lucro_liquido = lucro - custo_b3
 
+        custo_ir = self.custos_b3.ajustar_ir(lucro_liquido)
+        lucro_liquido_pos_ir = max(lucro_liquido - custo_ir, 0.0)
+
         lucro_pct = lucro_liquido / distancia if distancia > 0 else 0.0
         cdi_periodo = self.calcular_cdi_periodo(dias)
         pct_cdi = lucro_pct / cdi_periodo if cdi_periodo > 0 else 0.0
+        lucro_pct_liq = lucro_liquido_pos_ir / distancia if distancia > 0 else 0.0
+        pct_cdi_liquido = lucro_pct_liq / cdi_periodo if cdi_periodo > 0 else 0.0
 
         tem_dado_profundidade = (
             qtd_bid_call_k1 > 0 or qtd_ask_put_k1 > 0
@@ -132,9 +140,11 @@ class CalculadoraBox:
             distancia=round(distancia, 2),
             lucro=round(lucro, 2),
             custo_b3=round(custo_b3, 4),
+            custo_ir=round(custo_ir, 4),
             lucro_liquido=round(lucro_liquido, 2),
             lucro_pct=round(lucro_pct, 6),
             pct_cdi=round(pct_cdi, 4),
+            pct_cdi_liquido=round(pct_cdi_liquido, 4),
             em_leilao=em_leilao,
             viavel=viavel,
             dias=dias,
