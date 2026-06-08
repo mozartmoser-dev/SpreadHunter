@@ -41,6 +41,8 @@ class CalculadoraBox:
     def __init__(self, taxa_cdi: float = 0.1450, premio_risco: float = 1.08,
                  taxa_emolumento: float | None = None, taxa_liquidacao: float | None = None,
                  taxa_ir: float | None = None):
+        # CDI lido do banco (parametro taxa_cdi), usuario atualiza manualmente na tabela.
+        # IR fixo em 15% porque 99,9% das operacoes sao swing trade.
         self.taxa_cdi = taxa_cdi
         self.premio_risco = premio_risco
         self.custos_b3 = CalculadoraCustosB3(taxa_emolumento, taxa_liquidacao, taxa_ir)
@@ -101,6 +103,8 @@ class CalculadoraBox:
             qtd_bid_call_k1 > 0 or qtd_ask_put_k1 > 0
             or qtd_ask_call_k2 > 0 or qtd_bid_put_k2 > 0
         )
+        # A execucao parcial eh tratada pelo PNT ao exportar a operacao.
+        # O scanner apenas valida se ha profundidade minima para montar a estrutura.
         profundidade_ok = (
             not tem_dado_profundidade
             or qtd_min_perna <= 0
@@ -113,8 +117,8 @@ class CalculadoraBox:
         )
 
         viavel = (
-            pct_cdi >= self.premio_risco
-            and lucro_liquido > 0
+            pct_cdi_liquido >= self.premio_risco
+            and lucro_liquido_pos_ir > 0
             and not em_leilao
             and profundidade_ok
         )

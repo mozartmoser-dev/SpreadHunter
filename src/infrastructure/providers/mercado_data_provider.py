@@ -41,6 +41,8 @@ class MercadoDataProvider:
         self._precos_ativo_cache: dict[str, float] = {}
         self._scan_count = 0
         self._total_instrumentos_cache: int = 0
+        self._ultimo_refresh_timestamp: float = 0.0
+        self._ciclos_sem_dados: int = 0
         self._lock = QMutex()
         self.recarregar_parametros()
 
@@ -258,6 +260,7 @@ class MercadoDataProvider:
             t0 = time.perf_counter()
             self.rtd.refresh()
             self._scan_count += 1
+            self._ultimo_refresh_timestamp = time.time()
             
             # Ciclo Global a cada 5 rodadas
             is_global_scan = (self._scan_count % 5 == 0)
@@ -314,6 +317,10 @@ class MercadoDataProvider:
                         count_reg_onda2 += 1
 
             self._sem_ativo_skip = sem_ativo_atual
+            if dados_mercado:
+                self._ciclos_sem_dados = 0
+            else:
+                self._ciclos_sem_dados += 1
             logger.info("Varredura (%s): %d monitored, %d with book in %.2fs",
                          "Global" if is_global_scan else "Fast",
                          len(self._chaves_registradas), len(dados_mercado),
@@ -326,12 +333,18 @@ class MercadoDataProvider:
         """Retorna contagens internas para o Dashboard de Performance."""
         self._lock.lock()
         try:
+            agora = time.time()
+            segundos_desde_refresh = int(agora - self._ultimo_refresh_timestamp) if self._ultimo_refresh_timestamp > 0 else -1
+            dados_stale = self._ciclos_sem_dados > 3 or segundos_desde_refresh > 30
             return {
                 "total": self._total_instrumentos_cache,
                 "onda1": len(self._chaves_registradas),
                 "onda2": len(self._chaves_detalhes_completos),
                 "registrado": self._registrado,
-                "progresso_idx": self._registro_idx
+                "progresso_idx": self._registro_idx,
+                "dados_stale": dados_stale,
+                "ultimo_refresh_ha_segundos": segundos_desde_refresh,
+                "ciclos_sem_dados": self._ciclos_sem_dados,
             }
         finally:
             self._lock.unlock()

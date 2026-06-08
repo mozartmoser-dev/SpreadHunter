@@ -65,6 +65,7 @@ class MonitorWorker(QThread):
         self._box_mutex = QMutex()
         self._box_cycle = 0
         self._ultimo_dados_mercado: dict | None = None
+        self._rtd_estava_stale: bool = False
 
     def run(self):
         com_initialized = False
@@ -296,6 +297,13 @@ class MonitorWorker(QThread):
             mem = 0.0
 
         engine_stats = self._mercado_provider.get_engine_stats() if self._mercado_provider else {}
+        stale = engine_stats.get('dados_stale', False)
+        if stale:
+            self.rtd_status.emit(False)
+            self._rtd_estava_stale = True
+        elif self._rtd_estava_stale:
+            self._rtd_estava_stale = False
+            self.rtd_status.emit(True)
         stats = EngineStatsDTO(
             scan_time_ms=t_elapsed_ms,
             cpu_pct=cpu,
@@ -305,6 +313,9 @@ class MonitorWorker(QThread):
             monitored_onda2=engine_stats.get('onda2', 0),
             registrado=engine_stats.get('registrado', False),
             progresso_idx=engine_stats.get('progresso_idx', 0),
+            dados_stale=stale,
+            ultimo_refresh_ha_segundos=engine_stats.get('ultimo_refresh_ha_segundos', -1),
+            ciclos_sem_dados=engine_stats.get('ciclos_sem_dados', 0),
         )
         self.engine_stats_updated.emit(stats)
 

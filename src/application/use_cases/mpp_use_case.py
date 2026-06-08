@@ -438,18 +438,23 @@ class MPPUseCase:
 
         paridade_k1 = spot - k1["strike"] * math.exp(-r * t)
         erro_k1 = abs((call_k1_mid - put_k1_mid) - paridade_k1)
-        erro_k1_pct = erro_k1 / max(call_k1_mid, put_k1_mid, 0.01)
+        spread_k1 = (k1["ask_call"] - k1["bid_call"]) + (k1["ask_put"] - k1["bid_put"])
+        erro_k1_pct = erro_k1 / max(spread_k1, 0.01)
 
         paridade_k2 = spot - k2["strike"] * math.exp(-r * t)
         erro_k2 = abs((call_k2_mid - put_k2_mid) - paridade_k2)
-        erro_k2_pct = erro_k2 / max(call_k2_mid, put_k2_mid, 0.01)
+        spread_k2 = (k2["ask_call"] - k2["bid_call"]) + (k2["ask_put"] - k2["bid_put"])
+        erro_k2_pct = erro_k2 / max(spread_k2, 0.01)
 
         erro_box = max(erro_k1_pct, erro_k2_pct)
         fator_premio = self._calcular_fator_premio_cdi(
             k1["bid_call"], k1["ask_put"], k2["ask_call"], k2["bid_put"],
             spot, k1["strike"], k2["strike"], r, t
         )
-        score_paridade_box = min(erro_box / 0.50, 1.0) * fator_premio
+        normalizador_paridade = self._get_param("mpp_paridade_normalizador", 0.10)
+        if normalizador_paridade <= 0:
+            normalizador_paridade = 0.10
+        score_paridade_box = min(erro_box / normalizador_paridade, 1.0) * fator_premio
 
         spreads = []
         profundidades = []

@@ -155,3 +155,6 @@ class EngineStatsDTO:
     engine_type: str = "NumPy Vectorized"
     registrado: bool = False
     progresso_idx: int = 0
+    dados_stale: bool = False
+    ultimo_refresh_ha_segundos: int = -1
+    ciclos_sem_dados: int = 0
