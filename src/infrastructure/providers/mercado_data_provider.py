@@ -44,7 +44,41 @@ class MercadoDataProvider:
         self._ultimo_refresh_timestamp: float = 0.0
         self._ciclos_sem_dados: int = 0
         self._lock = QMutex()
+        self._prioridade_set: set[str] = self._carregar_prioridades()
+        self._prioridade_salva: set[str] = set()
+        self._caminho_prioridade = self._resolver_caminho_prioridade()
         self.recarregar_parametros()
+
+    def _resolver_caminho_prioridade(self) -> str:
+        if self.db_path:
+            import os
+            base = os.path.splitext(str(self.db_path))[0]
+            return base + "_prioridade.json"
+        return "rtd_prioridade.json"
+
+    def _carregar_prioridades(self) -> set[str]:
+        try:
+            import json, os
+            path = self._resolver_caminho_prioridade() if self.db_path else "rtd_prioridade.json"
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    data = json.load(f)
+                if isinstance(data, list):
+                    logger.info("Prioridades carregadas: %d instrumentos", len(data))
+                    return set(data)
+        except Exception as e:
+            logger.warning("Erro ao carregar prioridades: %s", e)
+        return set()
+
+    def _salvar_prioridades(self):
+        try:
+            import json
+            chaves = list(self._chaves_com_book)
+            with open(self._caminho_prioridade, "w") as f:
+                json.dump(chaves, f)
+            self._prioridade_salva = set(chaves)
+        except Exception as e:
+            logger.warning("Erro ao salvar prioridades: %s", e)
 
     def recarregar_instrumentos(self):
         """Limpa as flags de cache e força o re-registro dos instrumentos no RTD."""
@@ -249,6 +283,8 @@ class MercadoDataProvider:
                 if not self._registrado or not self._ativos_registrados:
                     instrumentos = self.inst_repo.get_all()
                     self._total_instrumentos_cache = len(instrumentos)
+                    if self._prioridade_set:
+                        instrumentos.sort(key=lambda inst: inst.cod_put not in self._prioridade_set)
                     
                     # Primeiro ciclo: registra apenas ativos para pegar preços base
                     if not self._ativos_registrados:
@@ -266,11 +302,12 @@ class MercadoDataProvider:
                     return {}
                 self._scan_count += 1
                 self._ultimo_refresh_timestamp = time.time()
-                
-                # Ciclo Global a cada 5 rodadas
+
                 is_global_scan = (self._scan_count % 5 == 0)
-                
+
                 if self._scan_count % 10 == 0:
+                    if self._chaves_com_book and self._chaves_com_book != self._prioridade_salva:
+                        self._salvar_prioridades()
                     self._precos_ativo_cache.clear()
 
                 dados_mercado: dict[str, dict] = {}
