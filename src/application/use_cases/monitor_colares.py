@@ -64,34 +64,43 @@ class MonitorColaresUseCase:
     def _extrair_de_dados_mercado(self, dados_mercado, inst_map, params, hoje):
         grupos = defaultdict(list)
         whitelist = getattr(self, '_whitelist_cache', None)
+        c_total = c_venc = c_white = c_preco = c_strike = c_premio = c_qul0 = c_dte = c_qulmin = 0
         for key, dm in dados_mercado.items():
+            c_total += 1
             inst = inst_map.get(key)
             if not inst or not inst.vencimento or inst.vencimento <= hoje:
+                c_venc += 1
                 continue
             if whitelist is not None and inst.ativo.upper() not in whitelist:
+                c_white += 1
                 continue
 
             preco_ativo = dm.get("preco_ativo", 0.0)
             if not preco_ativo or preco_ativo <= 0:
+                c_preco += 1
                 continue
 
             strike = dm.get("strike_rtd", dm.get("strike", 0.0))
             if not strike or strike <= 0:
+                c_strike += 1
                 continue
 
             premio_put = dm.get("premio_put", 0.0)
             premio_call = dm.get("premio_call", 0.0)
             if premio_put <= 0 or premio_call <= 0:
+                c_premio += 1
                 continue
 
             qul_put = dm.get("qul_put", 0.0) or 0.0
             qul_call = dm.get("qul_call", 0.0) or 0.0
             if qul_put <= 0 or qul_call <= 0:
+                c_qul0 += 1
                 continue
 
             dias_min = params.get("dias_minimos", 0)
             dte = (inst.vencimento - hoje).days
             if dias_min > 0 and dte < dias_min:
+                c_dte += 1
                 continue
 
             dados_item = {
@@ -116,11 +125,14 @@ class MonitorColaresUseCase:
             qul_min_put = params.get("qul_min_put", 100)
             qul_min_call = params.get("qul_min_call", 100)
             if dados_item["qul_put"] < qul_min_put or dados_item["qul_call"] < qul_min_call:
+                c_qulmin += 1
                 continue
 
             grupo_key = (inst.ativo, inst.vencimento)
             grupos[grupo_key].append(dados_item)
 
+        logger.info("Collar DIAG extrair: total=%d, venc=%d, whitelist=%d, preco_ativo=%d, strike=%d, premio=%d, qul0=%d, dte=%d, qulmin=%d -> grupos=%d",
+                     c_total, c_venc, c_white, c_preco, c_strike, c_premio, c_qul0, c_dte, c_qulmin, len(grupos))
         return grupos
 
     def _ler_dados_rtd_all(self, inst_map, rtd, params, hoje):
@@ -202,9 +214,12 @@ class MonitorColaresUseCase:
 
     def _combinar_pares(self, grupos: dict, calc: CalculadoraColar, params: dict) -> list[ResultadoColar]:
         resultados = []
+        c_grupos = c_poucos = c_pares = c_invalid = c_dist = c_calc_ok = c_calc_none = 0
 
         for (ativo, vencimento), members in grupos.items():
+            c_grupos += 1
             if len(members) < 2:
+                c_poucos += 1
                 continue
 
             members.sort(key=lambda m: m["strike"])
@@ -213,13 +228,16 @@ class MonitorColaresUseCase:
 
             for i in range(len(members)):
                 for j in range(i + 1, len(members)):
+                    c_pares += 1
                     put_data = members[i]
                     call_data = members[j]
                     sp = put_data["strike"]
                     sc = call_data["strike"]
                     if sp >= sc:
+                        c_invalid += 1
                         continue
                     if abs(sp - preco_ativo) > dist_max and abs(sc - preco_ativo) > dist_max:
+                        c_dist += 1
                         continue
 
                     resultado = calc.calcular(
@@ -237,10 +255,18 @@ class MonitorColaresUseCase:
                         ativo=ativo, vencimento=vencimento,
                         preco_compra_ativo=put_data.get("preco_compra_ativo"),
                     )
-                    if resultado and resultado.viavel:
+                    if resultado:
                         resultados.append(resultado)
+                        c_calc_ok += 1
+                    else:
+                        c_calc_none += 1
 
+        logger.info("Collar DIAG pares: grupos=%d, <2membros=%d, pares=%d, sp>=sc=%d, fora_dist=%d, calc_ok=%d, calc_none=%d -> total=%d",
+                     c_grupos, c_poucos, c_pares, c_invalid, c_dist, c_calc_ok, c_calc_none, len(resultados))
         resultados.sort(key=lambda r: -r.pct_cdi)
+        if resultados:
+            top5 = [(r.ativo, r.pct_cdi, r.pct_cdi_liquido, r.viavel) for r in resultados[:5]]
+            logger.info("Collar DIAG top5: %s", top5)
         return resultados
 
     def _get_param(self, chave: str, default: float) -> float:

@@ -46,6 +46,7 @@ class ResultadoColar:
     em_leilao: bool
     custo_b3: float = 0.0
     custo_ir: float = 0.0
+    custo_ir_melhor: float = 0.0
     pct_cdi_liquido: float = 0.0
     pct_cdi_melhor_liquido: float = 0.0
     iv_call: float = 0.0
@@ -181,8 +182,10 @@ class CalculadoraColar:
         preco_compra_ativo: float | None = None,
     ) -> ResultadoColar | None:
         if preco_ativo <= 0 or dias <= 0:
+            logger.debug("Collar CALC %s %s %s: preco_ativo<=0 ou dias<=0", ativo, cod_put, cod_call)
             return None
         if premio_put <= 0 or premio_call <= 0:
+            logger.debug("Collar CALC %s %s %s: premio<=0 put=%s call=%s", ativo, cod_put, cod_call, premio_put, premio_call)
             return None
 
         tipo = self.classificar_tipo(preco_ativo, strike_put, strike_call)
@@ -190,9 +193,11 @@ class CalculadoraColar:
 
         preco_compra = preco_compra_ativo if (preco_compra_ativo and preco_compra_ativo > 0) else 0.0
         if preco_compra <= 0:
+            logger.debug("Collar CALC %s %s %s: preco_compra_ativo=%.2f (ask do ativo zerado)", ativo, cod_put, cod_call, preco_compra_ativo or 0)
             return None
         custo_liquido = preco_compra + premio_put - premio_call
         if custo_liquido <= 0:
+            logger.debug("Collar CALC %s %s %s: custo_liquido<=0 (compra=%.2f + put=%.2f - call=%.2f)", ativo, cod_put, cod_call, preco_compra, premio_put, premio_call)
             return None
 
         cdi_periodo = self.calcular_cdi_periodo(dc_to_du(None, None, dias))
@@ -202,15 +207,16 @@ class CalculadoraColar:
         pior_retorno = self.calcular_pior_retorno(custo_liquido, strike_put, strike_call)
         melhor_retorno = max(strike_put, strike_call) - custo_liquido
 
-        strike_medio = (strike_put + strike_call) / 2
-        custo_b3 = self.custos_b3.calcular_custos(strike_medio, n_pernas=2)
+        premio_medio = (premio_put + premio_call) / 2
+        custo_b3 = (self.custos_b3.custos_opcao(premio_medio, n_pernas=2) +
+                    self.custos_b3.custos_stock(preco_compra, n_acoes=1))
         pior_retorno_liquido = pior_retorno - custo_b3
         melhor_retorno_liquido = melhor_retorno - custo_b3
 
-        ganho_base = max(pior_retorno_liquido, 0.0)
-        custo_ir = self.custos_b3.ajustar_ir(ganho_base)
-        pior_retorno_liquido_ir = pior_retorno_liquido - custo_ir
-        melhor_retorno_liquido_ir = max(melhor_retorno_liquido - custo_ir, 0.0)
+        custo_ir_pior = self.custos_b3.ajustar_ir(max(pior_retorno_liquido, 0.0))
+        custo_ir_melhor = self.custos_b3.ajustar_ir(max(melhor_retorno_liquido, 0.0))
+        pior_retorno_liquido_ir = pior_retorno_liquido - custo_ir_pior
+        melhor_retorno_liquido_ir = melhor_retorno_liquido - custo_ir_melhor
 
         pct_ganho = pior_retorno_liquido / custo_liquido
         pct_cdi = pct_ganho / cdi_periodo
@@ -251,7 +257,8 @@ class CalculadoraColar:
             premio_call=premio_call,
             custo_liquido=round(custo_liquido, 4),
             custo_b3=round(custo_b3, 4),
-            custo_ir=round(custo_ir, 4),
+            custo_ir=round(custo_ir_pior, 4),
+            custo_ir_melhor=round(custo_ir_melhor, 4),
             pior_retorno=round(pior_retorno, 4),
             melhor_retorno=round(melhor_retorno, 4),
             pct_ganho=round(pct_ganho, 6),

@@ -67,7 +67,8 @@ class CalculadoraBoxSbth:
 
         custo_sbth = self._calcular_custo_sbth(dados)
         ganho_sbth_bruto = dados.strike - custo_sbth if custo_sbth > 0 else 0
-        custo_b3_sbth = self.custos_b3.calcular_custos(dados.strike, n_pernas=2)
+        custo_b3_sbth = (self.custos_b3.custos_opcao(dados.of_venda_put, n_pernas=1) +
+                         self.custos_b3.custos_stock(dados.preco_compra_ativo, n_acoes=1))
         ganho_sbth = ganho_sbth_bruto - custo_b3_sbth
         ir_sbth = self.custos_b3.ajustar_ir(max(ganho_sbth, 0.0))
         ganho_sbth_liq = ganho_sbth - ir_sbth
@@ -78,7 +79,9 @@ class CalculadoraBoxSbth:
 
         custo_box = self._calcular_custo_box(dados)
         ganho_box_bruto = dados.strike - custo_box
-        custo_b3_box = self.custos_b3.calcular_custos(dados.strike, n_pernas=3)
+        premio_medio_box = (dados.of_venda_put + dados.of_compra_call) / 2
+        custo_b3_box = (self.custos_b3.custos_opcao(premio_medio_box, n_pernas=2) +
+                        self.custos_b3.custos_stock(dados.preco_compra_ativo, n_acoes=1))
         ganho_box = ganho_box_bruto - custo_b3_box
         ir_box = self.custos_b3.ajustar_ir(max(ganho_box, 0.0))
         ganho_box_liq = ganho_box - ir_box

@@ -86,12 +86,12 @@ class CalculadoraBox:
         clr = (bid_call_k1 + bid_put_k2) - (ask_put_k1 + ask_call_k2)
         lucro = clr - distancia
 
-        strike_medio = (strike_k1 + strike_k2) / 2
-        custo_b3 = self.custos_b3.calcular_custos(strike_medio, n_pernas=4)
+        premio_medio = (bid_call_k1 + ask_put_k1 + ask_call_k2 + bid_put_k2) / 4
+        custo_b3 = self.custos_b3.custos_opcao(premio_medio, n_pernas=4)
         lucro_liquido = lucro - custo_b3
 
         custo_ir = self.custos_b3.ajustar_ir(lucro_liquido)
-        lucro_liquido_pos_ir = max(lucro_liquido - custo_ir, 0.0)
+        lucro_liquido_pos_ir = lucro_liquido - custo_ir
 
         lucro_pct = lucro_liquido / distancia if distancia > 0 else 0.0
         cdi_periodo = self.calcular_cdi_periodo(dias)

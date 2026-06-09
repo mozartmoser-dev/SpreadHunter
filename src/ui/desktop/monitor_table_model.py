@@ -93,9 +93,19 @@ class MonitorTableModel(QAbstractTableModel):
                 "label_dias": "Quantidade de dias corridos até a data de vencimento.",
                 "vencimento": "Data de expiração das opções da montagem.",
                 "liq_indicator": "Sinalizador de liquidez (✓: Ambos lados ok, ✗: Falta liquidez).",
+                "leilao_display": "Indica se o ativo está em leilão (negociação suspensa temporariamente).",
                 "custo_box_display": "Custo de montagem da perna de BOX (entrada de capital)." + CUSTOS_DISCLOSURE,
                 "custo_sbth_display": "Custo de montagem da perna de SBTH (entrada de capital)." + CUSTOS_DISCLOSURE,
-                "money_display": "Indica se as opções estão 'Dentro do Dinheiro' (P: Put, C: Call)."
+                "liq_put_display": "Liquidez em contratos da PUT (quantidade de ofertas de compra × lote padrão).",
+                "liq_call_display": "Liquidez em contratos da CALL (quantidade de ofertas de venda × lote padrão).",
+                "money_display": "Indica se as opções estão 'Dentro do Dinheiro' (P: Put, C: Call).",
+                "of_compra_put": "Oferta de compra da PUT (bid) — maior preço que alguém paga.",
+                "of_venda_call": "Oferta de venda da CALL (ask) — menor preço que alguém vende.",
+                "qul_put": "Quantidade de contratos negociados da PUT no pregão (volume).",
+                "qul_call": "Quantidade de contratos negociados da CALL no pregão (volume).",
+                "tipo_opcao": "Estilo da opção: AMER (americana) ou EUR (europeia).",
+                "cod_put": "Código do ativo da PUT na B3.",
+                "cod_call": "Código do ativo da CALL na B3.",
             }
             col_key = self.COLUMNS[section][1]
             base = tips.get(col_key, self.COLUMNS[section][0])
@@ -150,9 +160,8 @@ class MonitorTableModel(QAbstractTableModel):
             if opp.classificacao == "2SBTH":
                 return "{:.2f}%".format(opp.pct_ganho_sbth * 100)
             
-            # Para TP.Op ou outros, mostra o melhor ganho se existir
             max_ganho = max(opp.pct_ganho_box, opp.pct_ganho_sbth)
-            if max_ganho > 0:
+            if max_ganho != 0:
                 return "{:.2f}%".format(max_ganho * 100)
             return "-"
         if col_key == "leilao_display":

@@ -152,9 +152,9 @@ class MonitorBoxUseCase:
                         qtd_min_perna=qtd_min,
                     )
 
-                    if resultado and resultado.viavel:
+                    if resultado:
                         resultados.append(resultado)
-                        if self._mpp_use_case:
+                        if resultado.viavel and self._mpp_use_case:
                             self._mpp_use_case.registrar_box_encontrado(
                                 ativo, k1_data["strike"], k2_data["strike"],
                                 resultado.pct_cdi, encontrado=True

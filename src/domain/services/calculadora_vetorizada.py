@@ -59,20 +59,23 @@ class CalculadoraVetorizada:
             dias_uteis = np.where(dias > 0, np.round(dias * 252.0 / 365.0).astype(int), 0)
         cdi_periodo = np.where(dias_uteis > 0, (1 + self.taxa_cdi) ** (dias_uteis / 252.0) - 1, 0.0)
         
-        custo_b3_sbth = self.custos_b3.calcular_custos_vetor(strike, 2)
-        custo_b3_box = self.custos_b3.calcular_custos_vetor(strike, 3)
+        custo_b3_sbth = (self.custos_b3.custos_opcao_vetor(of_venda_put, n_pernas=1) +
+                         self.custos_b3.custos_stock_vetor(preco_compra_ativo, n_acoes=1))
+        premio_medio_box = (of_venda_put + of_compra_call) / 2
+        custo_b3_box = (self.custos_b3.custos_opcao_vetor(premio_medio_box, n_pernas=2) +
+                        self.custos_b3.custos_stock_vetor(preco_compra_ativo, n_acoes=1))
         
         # SBTH
         custo_sbth = preco_compra_ativo + of_venda_put
         ganho_sbth_bruto = np.where((custo_sbth > 0) & (of_venda_put > 0), strike - custo_sbth, 0.0)
-        ganho_sbth = np.maximum(ganho_sbth_bruto - custo_b3_sbth, 0.0)
+        ganho_sbth = ganho_sbth_bruto - custo_b3_sbth
         pct_ganho_sbth = np.divide(ganho_sbth, custo_sbth, out=np.zeros_like(ganho_sbth), where=custo_sbth > 0)
         pct_cdi_sbth = np.divide(pct_ganho_sbth, cdi_periodo, out=np.zeros_like(pct_ganho_sbth), where=cdi_periodo > 0)
         
         # BOX
         custo_box = preco_compra_ativo + of_venda_put - of_compra_call
         ganho_box_bruto = np.where((of_venda_put > 0) & (of_compra_call > 0), strike - custo_box, 0.0)
-        ganho_box = np.maximum(ganho_box_bruto - custo_b3_box, 0.0)
+        ganho_box = ganho_box_bruto - custo_b3_box
         pct_ganho_box = np.divide(ganho_box, custo_box, out=np.zeros_like(ganho_box), where=custo_box > 0)
         pct_cdi_box = np.divide(pct_ganho_box, cdi_periodo, out=np.zeros_like(pct_ganho_box), where=cdi_periodo > 0)
 

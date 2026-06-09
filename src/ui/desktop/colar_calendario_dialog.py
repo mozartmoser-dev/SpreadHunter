@@ -11,6 +11,7 @@ from PyQt5.QtGui import QFont, QColor, QBrush
 
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
 from src.ui.desktop.theme import Palette
 
 CUSTOS_DISCLOSURE = (
@@ -72,6 +73,32 @@ class ColarCalTableModel(QAbstractTableModel):
         if orientation == Qt.Horizontal and 0 <= section < len(self.COLUMNS):
             if role == Qt.DisplayRole:
                 return self.COLUMNS[section][0]
+            if role == Qt.ToolTipRole:
+                tips = {
+                    "ativo": "Código da ação objeto (ex: PETR4).",
+                    "pct_cdi": "Retorno percentual comparado ao CDI do período." + CUSTOS_DISCLOSURE,
+                    "pnl_projetado": "Resultado bruto projetado da estrutura no vencimento da CALL." + CUSTOS_DISCLOSURE,
+                    "pnl_b3": "Resultado após custos B3 (emolumento + liquidação)." + CUSTOS_DISCLOSURE,
+                    "pnl_liquido": "Resultado líquido final (B3 + IR deduzidos)." + CUSTOS_DISCLOSURE,
+                    "capital_empregado": "Capital total empregado na montagem (ação + PUT − CALL).",
+                    "vencimento_call": "Vencimento da CALL (perna curta, vence primeiro).",
+                    "vencimento_put": "Vencimento da PUT (perna longa, vence depois).",
+                    "strike_call": "Preço de exercício da CALL vendida.",
+                    "strike_put": "Preço de exercício da PUT comprada.",
+                    "cod_call": "Código da CALL na B3.",
+                    "cod_put": "Código da PUT na B3.",
+                    "iv_call": "Volatilidade implícita da CALL (Black-Scholes).",
+                    "iv_put": "Volatilidade implícita da PUT (Black-Scholes).",
+                    "premio_call": "Prêmio recebido pela venda da CALL.",
+                    "premio_put": "Prêmio pago pela compra da PUT.",
+                    "net_credito": "Crédito líquido recebido (CALL vendida − PUT comprada).",
+                    "theta_call": "Decaimento temporal diário da CALL (Black-Scholes).",
+                    "theta_put": "Decaimento temporal diário da PUT (Black-Scholes).",
+                    "theta_liquido": "Theta líquido da estrutura (θ CALL − θ PUT). Positivo = ganha tempo.",
+                    "valor_put_venc_call": "Valor estimado da PUT no vencimento da CALL, projetado pelo Black-Scholes.",
+                    "tipo_str": "Classificação do viés: Alta, Baixa ou Neutro.",
+                }
+                return tips.get(self.COLUMNS[section][1])
         return None
 
     def data(self, index, role=Qt.DisplayRole):
@@ -359,8 +386,13 @@ class ColarCalendarioDialog(QDialog):
         self.table_view.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table_view.setAlternatingRowColors(True)
         self.table_view.setFont(QFont("Consolas", 8))
-        self.table_view.horizontalHeader().setStretchLastSection(True)
-        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        header = self.table_view.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setSectionsMovable(True)
+        header.setDragEnabled(True)
+        header.sectionMoved.connect(lambda: salvar_ordem_colunas(header, "colar_cal_table_order"))
+        restaurar_ordem_colunas(header, "colar_cal_table_order")
+        header.setSectionResizeMode(QHeaderView.Interactive)
         self.table_view.verticalHeader().setDefaultSectionSize(24)
         self.table_view.verticalHeader().hide()
 

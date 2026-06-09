@@ -76,9 +76,16 @@ class RTDProfit:
         return tid
 
     def invalidar_cache(self, codigo: str, campo: str):
-        tid = self._topic_map.get("{}|{}".format(codigo, campo))
+        chave = "{}|{}".format(codigo, campo)
+        tid = self._topic_map.get(chave)
         if tid is not None:
+            try:
+                self._rtd.DisconnectData(tid)
+            except Exception:
+                pass
             self._valores.pop(tid, None)
+            self._topic_map.pop(chave, None)
+            self._topic_reverse.pop(tid, None)
 
     def registrar_status(self, codigo: str) -> int:
         tid = self._topic_id(codigo, "EST")

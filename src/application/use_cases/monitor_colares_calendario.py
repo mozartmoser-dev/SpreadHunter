@@ -245,12 +245,13 @@ class MonitorColaresCalendarioUseCase:
                         dividendos=dividendos_ativo,
                     )
 
-                    if resultado and resultado.viavel:
+                    if resultado:
                         resultados.append(resultado)
-                        logger.debug("CollarCal PAR VIÁVEL %s: call=%s(%.0f) put=%s(%.0f) DTE %d+%d |ΔK|=%.1f pct_cdi=%.2f",
-                                     ativo, call["cod_call"], sc, put["cod_put"], sp,
-                                     dte_call, dte_extra, abs(sc - sp), resultado.pct_cdi)
-                        break  # melhor par pra esta call
+                        if resultado.viavel:
+                            logger.debug("CollarCal PAR VIÁVEL %s: call=%s(%.0f) put=%s(%.0f) DTE %d+%d |ΔK|=%.1f pct_cdi=%.2f",
+                                         ativo, call["cod_call"], sc, put["cod_put"], sp,
+                                         dte_call, dte_extra, abs(sc - sp), resultado.pct_cdi)
+                            break  # melhor par pra esta call
 
         resultados.sort(key=lambda r: -r.pct_cdi)
         logger.debug("CollarCal STATS: %s", stats)

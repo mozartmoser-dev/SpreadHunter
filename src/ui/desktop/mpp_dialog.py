@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 
+from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
 from src.ui.desktop.mpp_table_model import MppTableModel
 from src.ui.desktop.theme import Palette
 
@@ -84,8 +85,13 @@ class MppDialog(QDialog):
         self.table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table_view.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table_view.setSortingEnabled(False)
-        self.table_view.horizontalHeader().setStretchLastSection(True)
-        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        header = self.table_view.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setSectionsMovable(True)
+        header.setDragEnabled(True)
+        header.sectionMoved.connect(lambda: salvar_ordem_colunas(header, "mpp_table_order"))
+        restaurar_ordem_colunas(header, "mpp_table_order")
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
         self.table_view.verticalHeader().setDefaultSectionSize(28)
         self.table_view.verticalHeader().hide()
         self.table_view.setShowGrid(True)

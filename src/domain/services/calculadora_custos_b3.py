@@ -15,7 +15,32 @@ class CalculadoraCustosB3:
         self.taxa_ir = taxa_ir if taxa_ir is not None else self.TAXA_IR_PADRAO
 
     def taxa_total(self) -> float:
+        """Taxa total para opções (emol + liq + reg + iss)."""
         return self.taxa_emolumento + self.taxa_liquidacao + self.taxa_registro + self.iss
+
+    def taxa_total_stock(self) -> float:
+        """Taxa total para ações (emol + liq + iss — sem registro)."""
+        return self.taxa_emolumento + self.taxa_liquidacao + self.iss
+
+    def custos_opcao(self, premio_medio: float, n_pernas: int = 1, ida_e_volta: bool = True) -> float:
+        """Custo B3 para opções: taxa_total × prêmio médio × pernas × (2 se ida_e_volta)."""
+        fator = 2 if ida_e_volta else 1
+        return self.taxa_total() * premio_medio * n_pernas * fator
+
+    def custos_opcao_vetor(self, premio_medio: 'np.ndarray', n_pernas: int = 1, ida_e_volta: bool = True) -> 'np.ndarray':
+        import numpy as np
+        fator = 2 if ida_e_volta else 1
+        return self.taxa_total() * premio_medio * n_pernas * fator
+
+    def custos_stock(self, preco: float, n_acoes: int = 1, ida_e_volta: bool = True) -> float:
+        """Custo B3 para ações: taxa_total_stock × preço × ações × (2 se ida_e_volta)."""
+        fator = 2 if ida_e_volta else 1
+        return self.taxa_total_stock() * preco * n_acoes * fator
+
+    def custos_stock_vetor(self, preco: 'np.ndarray', n_acoes: int = 1, ida_e_volta: bool = True) -> 'np.ndarray':
+        import numpy as np
+        fator = 2 if ida_e_volta else 1
+        return self.taxa_total_stock() * preco * n_acoes * fator
 
     def calcular_custos(self, strike_medio: float, n_pernas: int) -> float:
         return self.taxa_total() * strike_medio * n_pernas

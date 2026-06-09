@@ -53,6 +53,7 @@ class MonitorWorker(QThread):
         self._colar_cal_interval = 3
         self._mutex = QMutex()
         self._wait_condition = QWaitCondition()
+        self._colar_cycle = 0
         self._forcar_colar = False
         self._colar_auto = False
         self._colar_mutex = QMutex()
@@ -236,8 +237,12 @@ class MonitorWorker(QThread):
             return
 
         resultados = self._monitor_uc.varrer(dados_mercado)
+
         if not self._mostrar_tp_op:
-            resultados = [r for r in resultados if not (hasattr(r, 'classificacao') and r.classificacao == 'TP.Op')]
+            resultados = [r for r in resultados
+                          if not (hasattr(r, 'classificacao')
+                                  and r.classificacao == 'TP.Op')]
+
         self.oportunidades_atualizadas.emit(resultados)
 
     def _processar_colares(self, rtd):

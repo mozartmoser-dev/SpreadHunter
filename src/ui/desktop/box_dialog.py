@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QBrush
 
+from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
 from src.ui.desktop.theme import Palette
 
 CUSTOS_DISCLOSURE = (
@@ -59,6 +60,34 @@ class BoxTableModel(QAbstractTableModel):
         if orientation == Qt.Horizontal and 0 <= section < len(BOX_4P_COLUMNS):
             if role == Qt.DisplayRole:
                 return BOX_4P_COLUMNS[section][0]
+            if role == Qt.ToolTipRole:
+                tips = {
+                    "ativo": "Código da ação objeto (ex: PETR4).",
+                    "strike_k1": "Strike mais próximo do preço atual (perna interna).",
+                    "strike_k2": "Strike mais distante do preço atual (perna externa).",
+                    "distancia": "Diferença entre os dois strikes (K2 − K1).",
+                    "clr": "Crédito/Líquido da montagem. Positivo = crédito, negativo = débito.",
+                    "lucro": "Resultado bruto projetado da estrutura." + CUSTOS_DISCLOSURE,
+                    "lucro_b3": "Resultado após deduzir custos B3 (emolumento + liquidação)." + CUSTOS_DISCLOSURE,
+                    "lucro_final": "Resultado líquido final (após B3 + IR de 15%)." + CUSTOS_DISCLOSURE,
+                    "lucro_pct": "Retorno percentual sobre o capital empregado." + CUSTOS_DISCLOSURE,
+                    "pct_cdi": "Rentabilidade comparada ao CDI do período." + CUSTOS_DISCLOSURE,
+                    "cod_call_k1": "Código da CALL no strike K1.",
+                    "cod_put_k1": "Código da PUT no strike K1.",
+                    "cod_call_k2": "Código da CALL no strike K2.",
+                    "cod_put_k2": "Código da PUT no strike K2.",
+                    "bid_call_k1": "Oferta de compra da CALL K1 (maior bid disponível).",
+                    "ask_put_k1": "Oferta de venda da PUT K1 (menor ask disponível).",
+                    "ask_call_k2": "Oferta de venda da CALL K2 (menor ask disponível).",
+                    "bid_put_k2": "Oferta de compra da PUT K2 (maior bid disponível).",
+                    "qtd_bid_call_k1": "Quantidade de contratos no bid da CALL K1.",
+                    "qtd_ask_put_k1": "Quantidade de contratos no ask da PUT K1.",
+                    "qtd_ask_call_k2": "Quantidade de contratos no ask da CALL K2.",
+                    "qtd_bid_put_k2": "Quantidade de contratos no bid da PUT K2.",
+                    "dias": "Dias corridos até o vencimento.",
+                    "vencimento": "Data de expiração das opções.",
+                }
+                return tips.get(BOX_4P_COLUMNS[section][1])
         return None
 
     def data(self, index, role=Qt.DisplayRole):
@@ -277,13 +306,16 @@ class BoxDialog(QDialog):
         self.table_view.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table_view.setAlternatingRowColors(True)
         self.table_view.setFont(QFont("Consolas", 8))
-        self.table_view.horizontalHeader().setStretchLastSection(True)
-        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        header_h = self.table_view.horizontalHeader()
+        header_h.setStretchLastSection(True)
+        header_h.setSectionsMovable(True)
+        header_h.setDragEnabled(True)
+        header_h.sectionMoved.connect(lambda: salvar_ordem_colunas(header_h, "box_table_order"))
+        restaurar_ordem_colunas(header_h, "box_table_order")
         self.table_view.verticalHeader().setDefaultSectionSize(22)
         self.table_view.verticalHeader().hide()
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
 
-        header_h = self.table_view.horizontalHeader()
         for i in range(self.model.columnCount()):
             header_h.setSectionResizeMode(i, QHeaderView.ResizeToContents)
 

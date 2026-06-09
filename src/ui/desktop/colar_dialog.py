@@ -9,6 +9,7 @@ from PyQt5.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer,
 from PyQt5.QtGui import QFont, QColor, QBrush
 
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
+from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
 from src.ui.desktop.theme import Palette
 
 CUSTOS_DISCLOSURE = (
@@ -80,13 +81,23 @@ class ColarTableModel(QAbstractTableModel):
                 return self.COLUMNS[section][0]
             if role == Qt.ToolTipRole:
                 tips = {
-                    "pct_cdi": "Retorno no pior cenário comparado ao CDI do período." + CUSTOS_DISCLOSURE,
-                    "pct_cdi_melhor": "Retorno no melhor cenário comparado ao CDI do período." + CUSTOS_DISCLOSURE,
-                    "custo_liquido": "Custo total de montagem da estrutura (ação + PUT − CALL)." + CUSTOS_DISCLOSURE,
-                    "pior_retorno": "Valor do pior resultado possível no vencimento." + CUSTOS_DISCLOSURE,
-                    "risco_str": "Nível de risco de leilão baseado no volume das opções.",
+                    "ativo": "Código da ação objeto (ex: PETR4).",
                     "pop_upside": "Probabilidade de o ativo estar acima do strike CALL no vencimento.",
                     "pop_downside": "Probabilidade de o ativo estar abaixo do strike PUT no vencimento.",
+                    "pct_cdi": "Retorno no pior cenário comparado ao CDI do período." + CUSTOS_DISCLOSURE,
+                    "pct_cdi_melhor": "Retorno no melhor cenário comparado ao CDI do período." + CUSTOS_DISCLOSURE,
+                    "vencimento": "Data de expiração das opções do colar.",
+                    "tipo_str": "Classificação do viés: Neutro (Kp < S0 < Kc), Baixa (Kp e Kc abaixo), Alta (Kp e Kc acima).",
+                    "strike_put": "Preço de exercício da PUT de proteção.",
+                    "strike_call": "Preço de exercício da CALL vendida.",
+                    "cod_put": "Código da PUT na B3.",
+                    "cod_call": "Código da CALL na B3.",
+                    "custo_liquido": "Custo total de montagem da estrutura (ação + PUT − CALL)." + CUSTOS_DISCLOSURE,
+                    "pior_retorno": "Valor do pior resultado possível no vencimento." + CUSTOS_DISCLOSURE,
+                    "pior_b3": "Valor do pior resultado após custos B3 (emolumento + liquidação)." + CUSTOS_DISCLOSURE,
+                    "pior_liquido": "Valor do pior resultado líquido (após B3 + IR)." + CUSTOS_DISCLOSURE,
+                    "risco_str": "Nível de risco de leilão baseado no volume das opções.",
+                    "dias": "Dias corridos até o vencimento.",
                 }
                 return tips.get(self.COLUMNS[section][1])
         return None
@@ -464,12 +475,15 @@ class ColarDialog(QDialog):
         self.table_view.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table_view.setAlternatingRowColors(True)
         self.table_view.setFont(QFont("Consolas", 9))
-        self.table_view.horizontalHeader().setStretchLastSection(True)
-        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        header = self.table_view.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setSectionsMovable(True)
+        header.setDragEnabled(True)
+        header.sectionMoved.connect(lambda: salvar_ordem_colunas(header, "colar_table_order"))
+        restaurar_ordem_colunas(header, "colar_table_order")
+        header.setSectionResizeMode(QHeaderView.Interactive)
         self.table_view.verticalHeader().setDefaultSectionSize(26)
         self.table_view.verticalHeader().hide()
-
-        header = self.table_view.horizontalHeader()
         header.resizeSection(0, 80)
         header.resizeSection(1, 100)
         header.resizeSection(2, 110)

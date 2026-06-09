@@ -26,6 +26,7 @@ from src.ui.desktop.colar_calendario_dialog import ColarCalendarioDialog
 from src.ui.desktop.box_dialog import BoxDialog
 from src.ui.desktop.mpp_dialog import MppDialog
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
 
 
 def _make_led_icon(color_hex: str, size: int = 12) -> QIcon:
@@ -107,12 +108,16 @@ class MainWindow(QMainWindow):
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
         self.table_view.horizontalHeader().setStretchLastSection(True)
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.table_view.horizontalHeader().setSectionsMovable(True)
+        self.table_view.horizontalHeader().setDragEnabled(True)
         self.table_view.horizontalHeader().setContextMenuPolicy(Qt.CustomContextMenu)
         self.table_view.horizontalHeader().customContextMenuRequested.connect(self._show_column_menu)
+        self.table_view.horizontalHeader().sectionMoved.connect(lambda: salvar_ordem_colunas(self.table_view.horizontalHeader(), "main_table_order"))
         self.table_view.verticalHeader().setDefaultSectionSize(28)
         self.table_view.verticalHeader().hide()
         self.table_view.setShowGrid(True)
         self._apply_hidden_columns()
+        restaurar_ordem_colunas(self.table_view.horizontalHeader(), "main_table_order")
 
         from src.ui.desktop.badge_delegate import BadgeDelegate
         delegate = BadgeDelegate(self.table_view)

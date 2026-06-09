@@ -273,9 +273,10 @@ class CalculadoraColarCalendario:
 
         capital_empregado = preco_compra + premio_put - premio_call
 
-        strike_medio = (strike_call + strike_put) / 2
-        custo_b3 = self.custos_b3.calcular_custos(strike_medio, n_pernas=2)
-        pnl_projetado_liquido = max(pnl_projetado - custo_b3, 0.0)
+        premio_medio = (premio_call + premio_put) / 2
+        custo_b3 = (self.custos_b3.custos_opcao(premio_medio, n_pernas=2) +
+                    self.custos_b3.custos_stock(preco_compra, n_acoes=1))
+        pnl_projetado_liquido = pnl_projetado - custo_b3
 
         ganho_base = max(pnl_projetado_liquido, 0.0)
         custo_ir = self.custos_b3.ajustar_ir(ganho_base)

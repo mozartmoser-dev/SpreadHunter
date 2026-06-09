@@ -45,9 +45,12 @@ class MercadoDataProvider:
         self._ciclos_sem_dados: int = 0
         self._lock = QMutex()
         self._registro_remaining_idx: int = 0
+        self._background_offset: int = 0
         self._prioridade_set: set[str] = self._carregar_prioridades()
         self._prioridade_salva: set[str] = set()
         self._caminho_prioridade = self._resolver_caminho_prioridade()
+        self._cab_anterior: dict[str, tuple[float | None, float | None]] = {}
+        self._dados_cache: dict[str, dict] = {}
         self.recarregar_parametros()
 
     def _resolver_caminho_prioridade(self) -> str:
@@ -99,6 +102,8 @@ class MercadoDataProvider:
             self._chaves_detalhes_completos.clear()
             self._sem_ativo_skip.clear()
             self._precos_ativo_cache.clear()
+            self._cab_anterior.clear()
+            self._dados_cache.clear()
             self.recarregar_parametros()
             logger.info("MercadoDataProvider: recarregamento de instrumentos agendado.")
         finally:
@@ -216,6 +221,8 @@ class MercadoDataProvider:
                 self._chaves_registradas.add(key)
                 self._chaves_detalhes_completos.add(key)
                 self._chaves_com_book.add(key)
+                self._cab_anterior.pop(key, None)
+                self._dados_cache.pop(key, None)
                 count += 1
 
         if count > 0:
@@ -281,7 +288,7 @@ class MercadoDataProvider:
         instrumentos = self.inst_repo.get_all()
         total = len(instrumentos)
         if self._registro_remaining_idx >= total:
-            self._registro_remaining_idx = 0
+            self._registro_remaining_idx = self._background_offset
 
         batch = 500
         start = self._registro_remaining_idx
@@ -311,7 +318,7 @@ class MercadoDataProvider:
         if count > 0:
             logger.info("Background scan: %d novos instrumentos registrados", count)
         if self._registro_remaining_idx >= total:
-            self._registro_remaining_idx = 0
+            self._registro_remaining_idx = self._background_offset
             logger.info("Background scan: ciclo completo. Total monitorados: %d", len(self._chaves_registradas))
 
     def capturar_dados_mercado(self) -> dict[str, dict]:
@@ -338,6 +345,7 @@ class MercadoDataProvider:
                             prio = [inst for inst in instrumentos if inst.cod_put in self._prioridade_set]
                             self._registrar_batch_inteligente(prio, batch_size=2000)
                             if self._registrado:
+                                self._background_offset = len(prio)
                                 self._registro_remaining_idx = len(prio)
                                 logger.info("Onda 1 prioritária concluída: %d instrumentos monitorados. Background scan ativo para novos entrantes.", len(self._chaves_registradas))
                         else:
@@ -379,6 +387,28 @@ class MercadoDataProvider:
 
                     # 1. Se já temos detalhes completos, tentamos ler
                     if key in self._chaves_detalhes_completos:
+                        # Só lê todos os campos se o book mudou (CAB)
+                        cab_put = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
+                        cab_call = self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
+                        cab_prev = self._cab_anterior.get(key)
+                        cab_mudou = cab_prev is None or cab_prev[0] != cab_put or cab_prev[1] != cab_call
+
+                        if not cab_mudou and key in self._dados_cache:
+                            entry = self._dados_cache[key]
+                            entry["status_put"] = self.rtd.ler_status_cache(inst.cod_put)
+                            entry["status_call"] = self.rtd.ler_status_cache(inst.cod_call)
+                            entry["status_ativo"] = self.rtd.ler_status_cache(inst.ativo)
+                            entry["em_leilao"] = not (
+                                entry["status_put"].lower() == "aberto"
+                                and entry["status_call"].lower() == "aberto"
+                                and entry["status_ativo"].lower() == "aberto"
+                            )
+                            dados_mercado[key] = entry
+                            self._chaves_com_book.add(key)
+                            continue
+
+                        self._cab_anterior[key] = (cab_put, cab_call)
+
                         preco_ativo = self._precos_ativo_cache.get(inst.ativo)
                         if preco_ativo is None:
                             preco_ativo = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
@@ -391,9 +421,12 @@ class MercadoDataProvider:
 
                         dados_rtd = self._ler_instrumento_cache(inst, preco_ativo)
                         if dados_rtd:
-                            dados_mercado[key] = dados_rtd.to_dados_mercado()
+                            entry = dados_rtd.to_dados_mercado()
+                            dados_mercado[key] = entry
+                            self._dados_cache[key] = entry
                             self._chaves_com_book.add(key)
                         else:
+                            self._dados_cache.pop(key, None)
                             if key in self._chaves_com_book:
                                 self._chaves_com_book.remove(key)
                         continue
