@@ -98,13 +98,8 @@ class RTDProfit:
                 self._valores[tid] = None
         return tid
 
-    def refresh(self) -> dict[str, object]:
-        if not self.disponivel or self._rtd is None:
-            return {}
-        try:
-            resultado = self._rtd.RefreshData(0)
-        except Exception as e:
-            logger.debug("RTD RefreshData erro: %s", e)
+    def _parse_refresh_result(self, resultado) -> dict[str, object]:
+        if resultado is None:
             return {}
         try:
             if isinstance(resultado, int):
@@ -142,6 +137,28 @@ class RTDProfit:
         except Exception as e:
             logger.warning("RTD RefreshData: erro pós-chamada: %s", e, exc_info=True)
             return {}
+
+    def refresh(self) -> dict[str, object]:
+        if not self.disponivel or self._rtd is None:
+            return {}
+        try:
+            resultado = self._rtd.RefreshData(0)
+        except Exception as e:
+            logger.debug("RTD RefreshData erro: %s", e)
+            return {}
+        return self._parse_refresh_result(resultado)
+
+    def refresh_seletivo(self, tids: list[int]) -> dict[str, object]:
+        if not self.disponivel or self._rtd is None:
+            return {}
+        if not tids:
+            return {}
+        try:
+            resultado = self._rtd.RefreshData(len(tids), tids)
+            return self._parse_refresh_result(resultado)
+        except Exception:
+            logger.debug("RTD RefreshData seletivo (%d tids) falhou — fallback full refresh.", len(tids))
+            return self.refresh()
 
     def ler_campo_cache(self, codigo: str, campo: str) -> Optional[float]:
         chave = "{}|{}".format(codigo, campo)

@@ -68,6 +68,7 @@ class MainWindow(QMainWindow):
         self._worker.colares_calendario_atualizados.connect(self._on_colares_calendario_atualizados)
         self._worker.boxes_atualizados.connect(self._on_boxes_atualizados)
         self._worker.mpp_atualizados.connect(self._on_mpp_atualizados)
+        self._worker.mpp_status_changed.connect(self._on_mpp_status_changed)
         self._worker.mre_atualizados.connect(self._on_mre_atualizados)
 
         self._engine_dialog = EngineDashboard(self)
@@ -837,6 +838,10 @@ class MainWindow(QMainWindow):
         if self._mpp_dialog and self._mpp_dialog.isVisible():
             self._mpp_dialog.atualizar(resultados, self._ultimos_mre)
 
+    def _on_mpp_status_changed(self, enabled: bool):
+        if self._mpp_dialog and self._mpp_dialog.isVisible():
+            self._mpp_dialog.set_status_enabled(enabled)
+
     def _on_mre_atualizados(self, resultados: list):
         self._ultimos_mre = resultados
         if self._mpp_dialog and self._mpp_dialog.isVisible():
@@ -849,6 +854,8 @@ class MainWindow(QMainWindow):
         self._mpp_dialog = MppDialog(self, self.db_path)
         self._mpp_dialog.atualizar(self._ultimos_mpp, self._ultimos_mre)
         self._mpp_dialog.setAttribute(Qt.WA_DeleteOnClose, True)
+        mpp_active = self._worker._mpp_habilitado and self._worker._mpp_carga_completa
+        self._mpp_dialog.set_status_enabled(mpp_active)
         self._mpp_dialog.destroyed.connect(lambda: setattr(self, "_mpp_dialog", None))
         self._mpp_dialog.show()
 

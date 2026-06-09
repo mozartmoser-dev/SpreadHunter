@@ -14,6 +14,9 @@ def get_connection(db_path: Path | str | None = None) -> sqlite3.Connection:
     conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA cache_size=-8000")
+    conn.execute("PRAGMA temp_store=MEMORY")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
@@ -79,6 +82,14 @@ def _seed_parametros_colar(conn):
         ("mre_lote_base",            "100",  "MRE", "Lote base para calculo de lote sugerido"),
         ("mre_profundidade_max_pct", "0.20", "MRE", "Maximo %% da profundidade a consumir"),
     ]
+    perf_params = [
+        ("perf_carga_inteligente", "1", "PERFORMANCE", "Habilitar carga inteligente"),
+        ("perf_range_min", "-70", "PERFORMANCE", "Range minimo de strike (%)"),
+        ("perf_range_max", "70", "PERFORMANCE", "Range maximo de strike (%)"),
+        ("perf_limite_meses", "6", "PERFORMANCE", "Limite de meses (max) para registrar Onda 1"),
+        ("perf_dias_minimos", "7", "PERFORMANCE", "Dias minimos ate o vencimento (min) para registrar Onda 1"),
+    ]
+    params.extend(perf_params)
     params.extend(mpp_params)
     for chave, valor, estrategia, descricao in params:
         try:

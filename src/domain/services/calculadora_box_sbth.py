@@ -90,7 +90,7 @@ class CalculadoraBoxSbth:
         pct_cdi_box = self._calcular_pct_cdi(pct_ganho_box, cdi_periodo)
         pct_cdi_box_liquido = self._calcular_pct_cdi(pct_ganho_box_liq, cdi_periodo)
 
-        classificacao = self._classificar(pct_cdi_box_liquido, pct_cdi_sbth_liquido)
+        classificacao = self._classificar(pct_cdi_box, pct_cdi_sbth)
         operacao = self._determinar_operacao(classificacao, pct_ganho_sbth, pct_ganho_box)
 
         return ResultadoBOXSBTH(

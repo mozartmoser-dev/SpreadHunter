@@ -10,6 +10,8 @@ from PyQt5.QtGui import QFont
 from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
 from src.ui.desktop.mpp_table_model import MppTableModel
 from src.ui.desktop.theme import Palette
+from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+from src.domain.entities.parametro_operacional import ParametroOperacional
 
 
 class MppDialog(QDialog):
@@ -50,7 +52,9 @@ class MppDialog(QDialog):
         header_row.setSpacing(8)
         header = QLabel("Ranking de Pescaria — Boxes ordenados por Score Final")
         header.setStyleSheet(f"color: {Palette.CYAN}; font-size: 11pt; font-weight: bold;")
-        header_row.addWidget(header)
+        self._lbl_mpp_status = QLabel("🔴 MPP Desligado")
+        self._lbl_mpp_status.setStyleSheet(f"color: {Palette.RED}; font-size: 9pt; font-weight: bold; padding: 2px 8px;")
+        header_row.addWidget(self._lbl_mpp_status)
 
         self.btn_bell = QPushButton("🔔")
         self.btn_bell.setFixedSize(26, 24)
@@ -136,22 +140,26 @@ class MppDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
 
-        self.btn_forcar = QPushButton("Forçar Atualização")
-        self.btn_forcar.setStyleSheet(f"""
+        self.btn_toggle = QPushButton("🟢 Ativar MPP")
+        self.btn_toggle.setToolTip("Liga/Desliga o MPP no banco de dados")
+        self.btn_toggle.setCursor(Qt.PointingHandCursor)
+        self.btn_toggle.setCheckable(True)
+        self.btn_toggle.setStyleSheet(f"""
             QPushButton {{
-                background-color: {Palette.BG_RAISED};
-                color: {Palette.TEXT_PRIMARY};
-                border: 1px solid {Palette.ACCENT_BLUE}66;
-                border-radius: 4px;
-                padding: 6px 14px;
-                font-weight: bold;
+                background-color: #1a3d1a;
+                color: #22c55e;
+                border: 1px solid #22c55e; border-radius: 4px;
+                padding: 6px 14px; font-weight: bold;
             }}
-            QPushButton:hover {{
-                background-color: {Palette.BG_HOVER};
+            QPushButton:hover {{ background-color: #2a5d2a; }}
+            QPushButton:checked {{
+                background-color: #3d1a1a; color: #ef4444;
+                border: 1px solid #ef4444;
             }}
+            QPushButton:checked:hover {{ background-color: #5d2a2a; }}
         """)
-        self.btn_forcar.clicked.connect(self._forcar_atualizacao)
-        btn_layout.addWidget(self.btn_forcar)
+        self.btn_toggle.toggled.connect(self._toggle_mpp)
+        btn_layout.addWidget(self.btn_toggle)
 
         self.btn_regras = QPushButton("📋 Regras")
         self.btn_regras.setStyleSheet(f"""
@@ -192,6 +200,38 @@ class MppDialog(QDialog):
         from src.ui.desktop.regras_dialog import RegrasDialog
         dlg = RegrasDialog("MPP", self.db_path, self)
         dlg.exec_()
+
+    def set_status_enabled(self, enabled: bool):
+        if enabled:
+            self._lbl_mpp_status.setText("🟢 MPP Ativo")
+            self._lbl_mpp_status.setStyleSheet(f"color: {Palette.GREEN}; font-size: 9pt; font-weight: bold; padding: 2px 8px;")
+        else:
+            self._lbl_mpp_status.setText("🔴 MPP Desligado")
+            self._lbl_mpp_status.setStyleSheet(f"color: {Palette.RED}; font-size: 9pt; font-weight: bold; padding: 2px 8px;")
+        self.btn_toggle.blockSignals(True)
+        self.btn_toggle.setChecked(enabled)
+        self.btn_toggle.setText("🔴 Desativar MPP" if enabled else "🟢 Ativar MPP")
+        self.btn_toggle.blockSignals(False)
+
+    def _toggle_mpp(self, ativo: bool):
+        repo = ParametroRepository(self.db_path)
+        param = repo.get_by_chave("mpp_habilitado")
+        if param:
+            param.valor = 1.0 if ativo else 0.0
+            repo.save(param)
+        else:
+            d = ParametroOperacional.PARAMETROS_DEFAULT.get("mpp_habilitado", {})
+            p = ParametroOperacional(
+                chave="mpp_habilitado",
+                valor=1.0 if ativo else 0.0,
+                estrategia=d.get("estrategia", "BOX_4P"),
+                descricao=d.get("descricao", ""),
+            )
+            repo.save(p)
+        self.btn_toggle.setText("🔴 Desativar MPP" if ativo else "🟢 Ativar MPP")
+        main = self.parent() if hasattr(self, 'parent') else None
+        if main and hasattr(main, '_worker'):
+            main._worker.recarregar_parametros()
 
     def _toggle_som(self, ativo: bool):
         self._som_ativado = ativo
@@ -287,9 +327,4 @@ class MppDialog(QDialog):
 
         self._details_edit.setHtml("\n".join(html))
 
-    def _forcar_atualizacao(self):
-        if hasattr(self, 'parent') and self.parent():
-            main = self.parent()
-            if hasattr(main, '_worker') and hasattr(main._worker, '_processar_mpp'):
-                main._worker._mpp_cycle = 0
-                main._worker._processar_mpp(main._worker._rtd_main)
+

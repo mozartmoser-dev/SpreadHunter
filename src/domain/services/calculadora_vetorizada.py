@@ -95,9 +95,9 @@ class CalculadoraVetorizada:
         liq_call = voc_call_boca >= lote_call
         tem_liquidez = liq_put & liq_call
         
-        # É viavel por prêmio de risco? (usando pós-IR)
-        passa_box = pct_cdi_box_liquido > self.premio_risco_box
-        passa_sbth = pct_cdi_sbth_liquido > self.premio_risco_sbth
+        # É viavel por prêmio de risco? (pós B3, antes IR)
+        passa_box = pct_cdi_box > self.premio_risco_box
+        passa_sbth = pct_cdi_sbth > self.premio_risco_sbth
         
         # Combinado (BOX ou SBTH ou Ambos)
         viavel = (passa_box | passa_sbth) & tem_liquidez & (~em_leilao)

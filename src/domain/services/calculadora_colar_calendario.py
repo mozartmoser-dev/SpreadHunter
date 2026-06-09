@@ -285,7 +285,7 @@ class CalculadoraColarCalendario:
         pct_retorno = pnl_projetado_liquido / capital_empregado if capital_empregado > 0 else 0
         pct_cdi = pct_retorno / cdi_periodo if cdi_periodo > 0 else 0
         pct_cdi_liquido = (pnl_projetado_ir / capital_empregado) / cdi_periodo if capital_empregado > 0 and cdi_periodo > 0 else 0.0
-        viavel = pct_cdi_liquido >= self.premio_risco
+        viavel = pct_cdi >= self.premio_risco
 
         be_baixa, be_alta = self._calcular_breakevens(
             preco_ativo, strike_call, strike_put,

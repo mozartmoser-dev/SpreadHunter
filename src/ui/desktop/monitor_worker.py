@@ -27,6 +27,7 @@ class MonitorWorker(QThread):
     boxes_atualizados = pyqtSignal(list)
     mpp_atualizados = pyqtSignal(list)
     mre_atualizados = pyqtSignal(list)
+    mpp_status_changed = pyqtSignal(bool)
 
     def __init__(self, db_path: str, rtd: RTDProfit, parent=None):
         super().__init__(parent)
@@ -37,8 +38,9 @@ class MonitorWorker(QThread):
         self._monitor_colares_uc = MonitorColaresUseCase(db_path)
         self._monitor_colares_cal_uc = MonitorColaresCalendarioUseCase(db_path)
         self._monitor_mpp_uc = MPPUseCase(db_path)
-        self._mpp_habilitado = True
+        self._mpp_habilitado = self._ler_mpp_habilitado_db()
         self._mpp_cycle = 0
+        self._mpp_carga_completa = False
         self._mpp_estrutural_carregado = False
         self._mpp_interval_cache: int | None = None
 
@@ -68,6 +70,7 @@ class MonitorWorker(QThread):
         self._box_cycle = 0
         self._ultimo_dados_mercado: dict | None = None
         self._rtd_estava_stale: bool = False
+        self._manutencao_cycle = 0
 
     def run(self):
         com_initialized = False
@@ -91,7 +94,7 @@ class MonitorWorker(QThread):
         self._running = True
         logger.info("MonitorWorker: thread iniciada (COM inicializado).")
 
-        if not self._mpp_estrutural_carregado and self._mpp_habilitado:
+        if self._mpp_habilitado:
             self._carregar_mpp_estrutural()
             self._mpp_estrutural_carregado = True
 
@@ -107,21 +110,41 @@ class MonitorWorker(QThread):
                 t_start_cycle = time.perf_counter()
                 # 1. Varredura Geral de Oportunidades (Monitor Principal)
                 self._processar_monitor_geral(rtd)
+                t1 = time.perf_counter()
 
                 # 2. Varredura de Colares
                 self._processar_colares(rtd)
+                t2 = time.perf_counter()
 
                 # 3. Varredura de Collar Calendário
                 self._processar_colar_calendario(rtd)
+                t3 = time.perf_counter()
 
                 # 4. Varredura de Box Spread 4 Pontas
                 self._processar_box_4p(rtd)
+                t4 = time.perf_counter()
 
-                # 5. MPP — Motor de Priorização de Pescaria (processo zumbi, a cada 60s)
-                if self._mpp_habilitado:
+                # 5. Manutenção (detecção novos books, Onda 2, background scan)
+                self._processar_manutencao()
+                t5 = time.perf_counter()
+
+                # 6. MPP — Motor de Priorização de Pescaria (só após carga completa)
+                if self._mpp_habilitado and self._mpp_carga_completa:
                     self._processar_mpp(rtd)
+                t6 = time.perf_counter()
 
-                # 6. Coleta Estatísticas do Motor
+                dt_monitor = t1 - t_start_cycle
+                dt_colar = t2 - t1
+                dt_cal = t3 - t2
+                dt_box = t4 - t3
+                dt_manut = t5 - t4
+                dt_mpp = t6 - t5
+                dt_cycle = t6 - t_start_cycle
+                if dt_cycle > 0.5:
+                    logger.info("Ciclo: monitor=%.3fs colar=%.3fs cal=%.3fs box=%.3fs manut=%.3fs mpp=%.3fs total=%.3fs",
+                                 dt_monitor, dt_colar, dt_cal, dt_box, dt_manut, dt_mpp, dt_cycle)
+
+                # 7. Coleta Estatísticas do Motor
                 self._emitir_estatisticas_engine(t_start_cycle)
 
             except Exception as e:
@@ -168,12 +191,24 @@ class MonitorWorker(QThread):
         self.invalidar_cache_mpp_interval()
         if self._mercado_provider:
             self._mercado_provider.recarregar_parametros()
+        mpp_hab = self._ler_mpp_habilitado_db()
+        if mpp_hab != self._mpp_habilitado:
+            self._mpp_habilitado = mpp_hab
+            if mpp_hab:
+                if self._mpp_carga_completa and self._mpp_estrutural_carregado:
+                    self.mpp_status_changed.emit(True)
+                else:
+                    self.mpp_status_changed.emit(False)
+            else:
+                self.mpp_status_changed.emit(False)
 
     def recarregar_instrumentos(self):
         from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
         InstrumentoRepository.invalidate_cache()
         if self._mercado_provider:
             self._mercado_provider.recarregar_instrumentos()
+        self._mpp_carga_completa = False
+        self.mpp_status_changed.emit(False)
 
     def solicitar_varredura_colar(self):
         self._colar_mutex.lock()
@@ -332,6 +367,44 @@ class MonitorWorker(QThread):
         except Exception as e:
             logger.error(f"Falha ao carregar MPP estrutural: {e}")
             self.status_message.emit(f"MPP: erro ao carregar dados estruturais ({e})")
+
+    def _tentar_ativar_mpp(self):
+        if not self._mpp_habilitado:
+            return False
+        if self._mpp_carga_completa and self._mpp_estrutural_carregado:
+            self.mpp_status_changed.emit(True)
+            return True
+        return False
+
+    def _ler_mpp_habilitado_db(self) -> bool:
+        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+        try:
+            repo = ParametroRepository(self.db_path)
+            param = repo.get_by_chave("mpp_habilitado")
+            return bool(param.valor) if param else False
+        except Exception:
+            return False
+
+    def _processar_manutencao(self):
+        self._manutencao_cycle += 1
+        if self._manutencao_cycle % 2 != 0 or not self._mercado_provider:
+            return
+        t0 = time.perf_counter()
+        self._mercado_provider.fazer_manutencao()
+        logger.info("Manutenção: novos books + prioridades em %.2fs", time.perf_counter() - t0)
+
+        if self._mpp_habilitado and not self._mpp_carga_completa:
+            stats = self._mercado_provider.get_engine_stats()
+            if stats.get('registrado', False) and stats.get('onda1', 0) > 0:
+                self._mpp_carga_completa = True
+                self.mpp_status_changed.emit(True)
+                logger.info("MPP: carga completa, instantâneo ativado")
+
+        # A cada ~60 min (144 ciclos de manutencao * 25s ≈ 3600s)
+        if self._manutencao_cycle % 1440 == 0:
+            t1 = time.perf_counter()
+            self._monitor_mpp_uc.limpar_snapshots_antigos()
+            logger.debug("Limpeza de tabelas temporais em %.2fs", time.perf_counter() - t1)
 
     def _processar_mpp(self, rtd):
         self._mpp_cycle += 1

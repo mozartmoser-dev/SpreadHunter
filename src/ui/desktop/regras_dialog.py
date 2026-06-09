@@ -9,65 +9,86 @@ from src.ui.desktop.theme import Palette
 from src.domain.entities.parametro_operacional import ParametroOperacional
 
 
-_REGRAS_CODIGO: dict[str, list[dict]] = {
+_REGRAS_ESTRUTURAIS: dict[str, list[str]] = {
     "BOX": [
-        {"regra": "Viabilidade usa pct_cdi_liquido (pós-IR, 15%)", "origem": "calculadora_box.py"},
-        {"regra": "Custos B3: emolumento + liquidacao + registro + ISS", "origem": "calculadora_custos_b3.py"},
-        {"regra": "IR incide apenas sobre lucro liquido positivo", "origem": "calculadora_custos_b3.py"},
-        {"regra": "Profundidade: cada perna deve ter qtd >= qtd_min_perna", "origem": "calculadora_box.py"},
-        {"regra": "Rejeita strikes K1 >= K2", "origem": "calculadora_box.py"},
-        {"regra": "Rejeita precos <= 0 em qualquer perna", "origem": "calculadora_box.py"},
-        {"regra": "Rejeita em_leilao = True", "origem": "calculadora_box.py"},
+        "CLR = (Bid_CALL_K1 + Ask_PUT_K1) − (Bid_CALL_K2 + Ask_PUT_K2)",
+        "Lucro = CLR − (K2 − K1)",
+        "Custos B3: emolumento (0,025%%) + liquidação (0,0275%%) + registro (0,01%%) + ISS (0%%) por perna",
+        "IR (15%%) incide apenas sobre lucro líquido positivo — NÃO usado como filtro de viabilidade",
+        "Rejeita strikes K1 >= K2",
+        "Rejeita preços <= 0 em qualquer perna",
+        "Rejeita instrumentos em leilão",
     ],
     "BOX_SINTETICO": [
-        {"regra": "Strike maximo = elegibilidade_strike_max_pct do spot", "origem": "elegibilidade_pescaria.py"},
-        {"regra": "3 pernas: compra Call ITM + compra Put ATM + venda Call ATM", "origem": "montadora_box_itm.py"},
-        {"regra": "Oferta de venda > 0 e liquidez minima", "origem": "elegibilidade_pescaria.py"},
+        "Strike máximo = elegibilidade_strike_max_pct do spot",
+        "3 pernas: compra Call ITM + compra Put ATM + venda Call ATM",
+        "Oferta de venda > 0 e liquidez mínima",
     ],
     "SBTH": [
-        {"regra": "Viabilidade usa pct_cdi_liquido (pos-IR, 15%)", "origem": "calculadora_box_sbth.py"},
-        {"regra": "Custos B3: 2 pernas", "origem": "calculadora_custos_b3.py"},
-        {"regra": "Compra ativo + compra PUT (posicao long)", "origem": "calculadora_box_sbth.py"},
+        "Custos B3: 2 pernas (opção + ação)",
+        "Compra ativo + compra PUT (posição long sintético)",
+        "IR (15%%) não usado como filtro de viabilidade",
     ],
     "COLAR": [
-        {"regra": "Viabilidade usa pct_cdi_liquido (pos-IR)", "origem": "calculadora_colar.py"},
-        {"regra": "Melhor retorno sem clamp (calculado real)", "origem": "calculadora_colar.py"},
-        {"regra": "Risco de leilao: Baixo/Medio/Alto por VOV+VOC", "origem": "calculadora_colar.py"},
-        {"regra": "Strike max dist = colar_dist_max_pct do spot", "origem": "monitor_colares.py"},
-        {"regra": "QUL minimo para PUT e CALL via parametros", "origem": "monitor_colares.py"},
-        {"regra": "Collar: compra ativo + compra PUT OTM + venda CALL OTM", "origem": "calculadora_colar.py"},
-        {"regra": "IV calculada via Brent (raiz de Black-Scholes)", "origem": "calculadora_colar.py"},
+        "Collar: compra ativo + compra PUT OTM + venda CALL OTM",
+        "Melhor retorno sem clamp (calculado real)",
+        "Risco de leilão: Baixo/Médio/Alto por VOV+VOC",
+        "IV calculada via Brent (raiz de Black-Scholes)",
     ],
     "COLLAR_CALENDARIO": [
-        {"regra": "Viabilidade usa pct_cdi_liquido (pos-IR)", "origem": "calculadora_colar_calendario.py"},
-        {"regra": "DTE call entre dte_call_min e dte_call_max", "origem": "monitor_colares_calendario.py"},
-        {"regra": "Spread DTE entre put e call entre dte_extra_min e dte_extra_max", "origem": "monitor_colares_calendario.py"},
-        {"regra": "Strike diff max = calendario_strike_diff_pct", "origem": "monitor_colares_calendario.py"},
-        {"regra": "Call OTM max = calendario_call_otm_max do spot", "origem": "monitor_colares_calendario.py"},
-        {"regra": "DTE total max = dte_total_max", "origem": "monitor_colares_calendario.py"},
-        {"regra": "Breakevens via Brent com e sem valor intrinseco", "origem": "calculadora_colar_calendario.py"},
-        {"regra": "PV futuro descontado por dividendos", "origem": "calculadora_colar_calendario.py"},
+        "Breakevens via Brent com e sem valor intrínseco",
+        "PV futuro descontado por dividendos",
+        "IR (15%%) não usado como filtro de viabilidade",
     ],
     "BOX_4P": [
-        {"regra": "Viabilidade usa pct_cdi_liquido (pos-IR)", "origem": "calculadora_box.py"},
-        {"regra": "CLR = (bid C1 + bid P2) - (ask P1 + ask C2)", "origem": "calculadora_box.py"},
-        {"regra": "Lucro = CLR - (strike_k2 - strike_k1)", "origem": "calculadora_box.py"},
-        {"regra": "4 pernas, 2 strikes (K1 < K2)", "origem": "calculadora_box.py"},
-        {"regra": "Profundidade minima = box_qtd_min por perna", "origem": "monitor_box.py"},
-        {"regra": "Soh aceita opcoes europeias se box_soh_europeia=1", "origem": "parametro_operacional.py"},
+        "CLR = (Bid_CALL_K1 + Bid_PUT_K2) − (Ask_PUT_K1 + Ask_CALL_K2)",
+        "Lucro = CLR − (K2 − K1)",
+        "4 pernas, 2 strikes (K1 < K2)",
+        "Custos B3: emolumento + liquidação + registro + ISS por perna",
+        "IR (15%%) incide sobre lucro — NÃO usado como filtro de viabilidade",
     ],
     "MPP": [
-        {"regra": "Score = 35% estrutural + 65% instantaneo x DTE x persistencia x bonus", "origem": "mpp_use_case.py"},
-        {"regra": "Erro de paridade normalizado por spread bid-ask total", "origem": "mpp_use_case.py"},
-        {"regra": "Persistencia: bonus ate mpp_persistencia_max_mult apos mpp_persistencia_divisor ciclos", "origem": "mpp_use_case.py"},
-        {"regra": "MPP usa dados RTD instantaneos + opcoes.net.br estruturais", "origem": "mpp_use_case.py"},
+        "Score = 35%% estrutural + 65%% instantâneo × DTE × persistência × bônus",
+        "Erro de paridade normalizado por spread bid-ask total",
+        "Persistência: bônus até mpp_persistencia_max_mult após mpp_persistencia_divisor ciclos",
+        "MPP usa dados RTD instantâneos + opcoes.net.br estruturais",
     ],
 }
+
+_REGRAS_PARAM_MAP: dict[str, dict[str, str]] = {
+    "BOX": {
+        "premio_risco": "Viabilidade: x CDI (pós B3, antes IR) >= {}",
+    },
+    "SBTH": {
+        "premio_risco_box": "Viabilidade BOX: x CDI (pós B3, antes IR) >= {}",
+        "premio_risco_sbth": "Viabilidade SBTH: x CDI (pós B3, antes IR) >= {}",
+    },
+    "COLAR": {
+        "premio_risco_colar": "Viabilidade: x CDI (pós B3, antes IR) >= {}",
+        "colar_dist_max_pct": "Strike max distante = {}% do spot",
+    },
+    "COLLAR_CALENDARIO": {
+        "premio_risco": "Viabilidade: x CDI (pós B3, antes IR) >= {}",
+        "dte_call_min": "DTE call mínima = {} dias",
+        "dte_call_max": "DTE call máxima = {} dias",
+        "dte_extra_min": "Diferença DTE put−call mínima = {} dias",
+        "dte_extra_max": "Diferença DTE put−call máxima = {} dias",
+        "calendario_strike_diff_pct": "Diferença máxima de strikes = {}%",
+        "calendario_call_otm_max": "Call OTM máxima = {}% do spot",
+        "dte_total_max": "DTE total máximo = {} dias",
+    },
+    "BOX_4P": {
+        "premio_risco": "Viabilidade: x CDI (pós B3, antes IR) >= {}",
+        "box_qtd_min": "Profundidade mínima: qtd por perna >= {}",
+        "box_soh_europeia": "Aceita apenas opções europeias = {}",
+    },
+}
+
 
 _CUSTOS_FIXOS = (
     "Emolumento: 0,025% | Liquidacao: 0,0275% | "
     "Registro: 0,01% (se configurado) | ISS: 0% (se configurado) | "
-    "IR: 15% swing trade"
+    "IR: 15% swing trade (exibido, NÃO usado como filtro)"
 )
 
 
@@ -184,10 +205,35 @@ class RegrasDialog(QDialog):
             tabela.setItem(i, 2, item_desc)
 
     def _montar_regras_codigo(self) -> str:
-        regras = _REGRAS_CODIGO.get(self._estrategia)
-        if not regras:
-            return "(nenhuma regra especifica documentada para esta estrategia)"
+        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+        repo = ParametroRepository(self._db_path)
+        params = repo.get_by_estrategia(self._estrategia)
+        param_map = {p.chave: p.valor for p in params}
+
         linhas = []
-        for r in regras:
-            linhas.append(f"  - {r['regra']}  [{r['origem']}]")
-        return "\n".join(linhas)
+
+        # 1. Regras paramétricas (dinâmicas — valores atuais do DB)
+        param_templates = _REGRAS_PARAM_MAP.get(self._estrategia, {})
+        for chave, template in param_templates.items():
+            valor = param_map.get(chave)
+            if valor is not None:
+                # Formata porcentagens e decimais
+                if isinstance(valor, float):
+                    if "x CDI" in template or "Viabilidade" in template:
+                        texto = template.format(f"{valor:.2f}")
+                    elif "%" in template:
+                        texto = template.format(f"{valor:.2f}")
+                    else:
+                        texto = template.format(str(valor))
+                else:
+                    texto = template.format(str(valor))
+                linhas.append(texto)
+
+        # 2. Regras estruturais (fixas — fórmulas, definições)
+        estruturais = _REGRAS_ESTRUTURAIS.get(self._estrategia, [])
+        linhas.extend(estruturais)
+
+        if not linhas:
+            return "(nenhuma regra específica documentada para esta estratégia)"
+
+        return "\n".join(f"  - {l}" for l in linhas)

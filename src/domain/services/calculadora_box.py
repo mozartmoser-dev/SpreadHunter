@@ -117,8 +117,8 @@ class CalculadoraBox:
         )
 
         viavel = (
-            pct_cdi_liquido >= self.premio_risco
-            and lucro_liquido_pos_ir > 0
+            pct_cdi >= self.premio_risco
+            and lucro_liquido > 0
             and not em_leilao
             and profundidade_ok
         )

@@ -798,8 +798,16 @@ class MPPUseCase:
         try:
             conn.execute("""
                 DELETE FROM mpp_snapshot
-                WHERE timestamp < datetime('now', ?)
-            """, (f'-{self.SNAPSHOT_RETENTION_DAYS} days',))
+                WHERE timestamp < datetime('now', '-24 hours')
+            """)
+            conn.execute("""
+                DELETE FROM mpp_historico_distorcoes
+                WHERE created_at < datetime('now', '-7 days')
+            """)
+            conn.execute("""
+                DELETE FROM mpp_spread_history
+                WHERE created_at < datetime('now', '-3 days')
+            """)
             conn.commit()
         finally:
             conn.close()

@@ -100,6 +100,8 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("box_qtd_min", "Qtd min contratos por perna"),
         ("box_soh_europeia", "So aceitar opcoes europeias"),
         ("white_list_box4p", "Whitelist de ativos (separados por virgula)"),
+        ("mpp_habilitado", "Habilitar MPP (Priorizacao Pescaria)"),
+        ("mpp_instantaneo_interval", "Ciclos entre calculos MPP (default 4)"),
     ],
     "IMPORTACAO": [
         ("import_max_months", "Meses a frente para importar series"),
@@ -354,6 +356,16 @@ PARAMETROS_INFO = {
         "usado_em": "Interface do Collar Calendario (pre-selecao de ativos).",
         "precedencia": "Banco de Dados -> Vazio (todos marcados)",
     },
+    "mpp_habilitado": {
+        "descricao": "Quando ativado, o Motor de Priorizacao de Pescaria (MPP) calcula o score instantaneo dos boxes periodicamente. Quando desativado, o MPP nao consome CPU e o ranking nao e atualizado automaticamente.",
+        "usado_em": "Motor de Priorizacao de Pescaria (ciclo de varredura do worker).",
+        "precedencia": "Banco de Dados -> 1 (ativado, padrao no seed)",
+    },
+    "mpp_instantaneo_interval": {
+        "descricao": "Numero de ciclos de varredura entre cada calculo do score instantaneo MPP. Cada ciclo dura ~2.5s. Default 4 = ~10s. Aumente para reduzir consumo de CPU (ex: 24 = ~60s).",
+        "usado_em": "Motor de Priorizacao de Pescaria (frequencia de atualizacao).",
+        "precedencia": "Banco de Dados -> 4 (padrao no seed)",
+    },
 }
 
 
@@ -390,7 +402,7 @@ class ParametrosWidget(QWidget):
             form.setContentsMargins(12, 20, 12, 12)
 
             for chave, display in params:
-                if "perf_carga_inteligente" in chave or "notif_telegram_enable" in chave or "box_soh_europeia" in chave:
+                if "perf_carga_inteligente" in chave or "notif_telegram_enable" in chave or "box_soh_europeia" in chave or "mpp_habilitado" in chave:
                     widget = QCheckBox("Habilitado")
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
                 elif "tema_visual" in chave:
@@ -401,13 +413,34 @@ class ParametrosWidget(QWidget):
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
                 else:
                     widget = NoWheelSpinBox()
-                    widget.setRange(-100.0, 100000.0)
-                    if "prof" in chave or "qtd" in chave or "meses" in chave or "inteligente" in chave:
+                    if chave == "perf_range_min":
+                        widget.setRange(-100.0, 0.0)
+                        widget.setSuffix(" %")
                         widget.setDecimals(0)
-                        widget.setSingleStep(1 if "qtd" not in chave else 100)
+                        widget.setSingleStep(1)
+                    elif chave == "perf_range_max":
+                        widget.setRange(0.0, 100.0)
+                        widget.setSuffix(" %")
+                        widget.setDecimals(0)
+                        widget.setSingleStep(1)
+                    elif chave == "perf_limite_meses":
+                        widget.setRange(0.0, 60.0)
+                        widget.setSuffix(" meses")
+                        widget.setDecimals(0)
+                        widget.setSingleStep(1)
+                    elif chave == "perf_dias_minimos":
+                        widget.setRange(0.0, 365.0)
+                        widget.setSuffix(" dias")
+                        widget.setDecimals(0)
+                        widget.setSingleStep(1)
                     else:
-                        widget.setDecimals(4)
-                        widget.setSingleStep(0.01)
+                        widget.setRange(-100.0, 100000.0)
+                        if "prof" in chave or "qtd" in chave or "meses" in chave or "inteligente" in chave or "interval" in chave:
+                            widget.setDecimals(0)
+                            widget.setSingleStep(1 if "qtd" not in chave else 100)
+                        else:
+                            widget.setDecimals(4)
+                            widget.setSingleStep(0.01)
 
                 param_label = QLabel(display + ":")
                 param_label.setStyleSheet("color: {}; font-size: 9pt;".format(Palette.TEXT_SECONDARY))
