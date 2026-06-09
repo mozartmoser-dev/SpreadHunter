@@ -12,31 +12,40 @@ Se o RTD não fornecer strike em algum cenário, o sistema deve falhar ruidosame
 
 ---
 
-## Sessão Anterior (08/06/2026) — Pendências
+## Sessão 09/06/2026 — Correções Estruturais
 
 ### O que foi feito
-1. **Background scan corrigido** (`mercado_data_provider.py`): reset do ponteiro ia para 0 em vez de `_background_offset` — impedia registrar mais de ~7.374 instrumentos. Agora registra todos (33.050).
-2. **Blacklist atualizada**: +10 ativos (XPBR31, BACW39, BEEM39, BIAU39, BSLV39, AXIA98, GOLD11, SPXI11, NASD11, BOVV11). Total: 19 ativos.
-3. **Filtros de `viavel` removidos** em todas as estratégias:
-   - `monitor_colares.py:240` — Collar Protetivo
-   - `monitor_box.py:155` — BOX 4P
-   - `monitor_colares_calendario.py:248` — Collar Calendário
-   - `monitor_worker.py:239-240` — Filtro de TP.Op removido
-   - `viavel` continua sendo calculado, mas vira apenas cor de fundo na UI
-4. **Logs de diagnóstico** adicionados no Collar:
-   - `monitor_colares.py`: `Collar DIAG extrair` (contagem de filtros) + `Collar DIAG pares` (contagem de pares)
-   - `calculadora_colar.py`: `Collar CALC` (motivo do reject)
-5. **Collar automático ativado** (`monitor_worker.py`): `_colar_auto = True`, intervalo de 3 ciclos
 
-### O que verificar na próxima sessão
-1. **Rodar o sistema com Profit aberto** e capturar os logs `Collar DIAG`
-2. **Analisar os logs** para identificar em qual etapa os collares estão sendo descartados:
-   - `Collar DIAG extrair:` — mostra quantos passam em cada filtro (whitelist, strike, preco, qul, etc.)
-   - `Collar DIAG pares:` — mostra quantos pares foram formados e quantos a calculadora rejeitou
-   - `Collar CALC` — mostra o motivo exato do reject na calculadora
-3. **Se o diagnóstico apontar `preco_compra_ativo` zerado** (ask do ativo via RTD), avaliar:
-   - Usar `preco_ativo` (último preço) como fallback para o custo de compra da ação
-   - Ou simplesmente exibir a informação para o usuário decidir
-4. **Reverter `_colar_auto` para False** após o diagnóstico, se desejado
-5. **Verificar performance** após correção do background scan (deve estar monitorando todos os 33.050+ instrumentos)
+#### Custos B3 (Crítico)
+- **Base trocada**: todas as 5 calculadoras usavam `strike` como base para custos B3. Agora usam **prêmio da opção** (opções) e **preço da ação** (ações), conforme tarifário oficial da B3.
+- **Ida-e-volta**: custos agora consideram entrada + saída (×2).
+- **Collars**: perna de ação (`custos_stock`) estava ausente — agora incluída.
+- `calculadora_custos_b3.py`: novos métodos `custos_opcao()`, `custos_stock()`, `taxa_total_stock()`.
+- `calculadora_colar_calendario.py`: removido `max(pnl - custo, 0.0)` — perdas propagam corretamente.
+
+#### Performance — CAB Skip
+- Wave 2 instruments agora leem só CAB (2 leitores). Se não mudou, reusam cache e atualizam apenas status.
+- Fast scan medido: **0.04s** (vs ~4.66s global scan inicial).
+- `mercado_data_provider.py`: `_cab_anterior` + `_dados_cache`.
+
+#### Ex-Dividendo — DisconnectData
+- `invalidar_cache()` agora faz `DisconnectData` + remove de `_topic_map`/`_topic_reverse`. `registrar_topico()` gera **novo topic ID** — equivalente ao "recorta-cola" que funcionava no Excel.
+- `forcar_refresh_ex_dividendo()` limpa `_cab_anterior` e `_dados_cache` para forçar refresh completo.
+
+#### UI
+- Tooltips em todas as colunas (monitor, box, collar, collar calendário, MPP).
+- Ordem de colunas persiste entre sessões via QSettings (`column_utils.py`).
+- `_colar_auto = False` (revertido após diagnóstico).
+
+#### Correções anteriores mantidas
+- Background scan corrigido (33k+ instrumentos).
+- Filtros `viavel` removidos (cosmético apenas).
+- Logs `Collar DIAG` / `Collar CALC`.
+- TP.Op filter restaurado.
+- Ganhos negativos propagam sem caps.
+- IR split worst/best case no collar.
+
+### Próximos passos
+1. Rodar com Profit aberto em horário de mercado para validar collares e performance final.
+2. Se necessário: investigar fallback de strike via API B3 para dividendos overnight.
 
