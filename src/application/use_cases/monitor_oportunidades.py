@@ -201,10 +201,10 @@ class MonitorOportunidadesUseCase:
                 if melhorou:
                     novas_ou_melhores.append(o)
 
-            # Limpa o histórico de itens inativos por mais de 5 minutos (300s)
+            cleanup_timeout = int(self._get_param("telegram_cleanup_timeout", 300))
             chaves_para_remover = [
                 k for k, v in self._historico_enviado.items()
-                if now - v["timestamp"] > 300
+                if now - v["timestamp"] > cleanup_timeout
             ]
             for k in chaves_para_remover:
                 self._historico_enviado.pop(k, None)

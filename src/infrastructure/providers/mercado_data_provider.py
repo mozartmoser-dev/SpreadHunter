@@ -51,6 +51,8 @@ class MercadoDataProvider:
         self._caminho_prioridade = self._resolver_caminho_prioridade()
         self._cab_anterior: dict[str, tuple[float | None, float | None]] = {}
         self._dados_cache: dict[str, dict] = {}
+        self._onda2_dte_min: int = 7
+        self._onda2_dte_max: int = 180
         self.recarregar_parametros()
 
     def _resolver_caminho_prioridade(self) -> str:
@@ -128,6 +130,10 @@ class MercadoDataProvider:
         
         p_dias_min = repo.get_by_chave("perf_dias_minimos")
         self._dias_minimos = int(p_dias_min.valor) if p_dias_min else 0
+        p_onda2_min = repo.get_by_chave("onda2_dte_min")
+        self._onda2_dte_min = int(p_onda2_min.valor) if p_onda2_min else 7
+        p_onda2_max = repo.get_by_chave("onda2_dte_max")
+        self._onda2_dte_max = int(p_onda2_max.valor) if p_onda2_max else 180
         
         # Se houve mudança em parâmetros que afetam a carga, agendamos uma revisão de carga
         if self._registrado:
@@ -513,7 +519,7 @@ class MercadoDataProvider:
                 if tem_negocio or tem_book:
                     self._chaves_com_book.add(key)
                     dte = inst.dias_ate_vencimento or 0
-                    if 7 <= dte <= 180 and count_reg < MAX_REG_ONDA2:
+                    if self._onda2_dte_min <= dte <= self._onda2_dte_max and count_reg < MAX_REG_ONDA2:
                         self._registrar_detalhes_completos(inst)
                         count_reg += 1
 

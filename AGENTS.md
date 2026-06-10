@@ -121,3 +121,23 @@ Se o RTD não fornecer strike em algum cenário, o sistema deve falhar ruidosame
 - Testado com PETR4 offline — gráfico abre, fecha e renderiza corretamente
 - Ambos os diálogos (`colar_dialog.py`, `colar_calendario_dialog.py`) corrigidos
 
+---
+
+## Regra Geral: Parametrização Obrigatória
+
+**TODO valor numérico que represente uma condição de negócio (dias, percentuais,
+limiares, timeouts, intervalos, margens) DEVE vir de um parâmetro no banco de
+dados, NUNCA ficar hardcoded no código.**
+
+Fluxo obrigatório para novos parâmetros:
+1. `database.py` — seed `INSERT OR IGNORE`
+2. `parametro_operacional.py` — `PARAMETROS_DEFAULT` com fallback
+3. `parametros_widget.py` — entrada na UI + `PARAMETROS_INFO`
+4. `regras_dialog.py` — template string para exibição no diálogo de regras
+5. Use case / provider — ler via `repo.get_by_chave()` ou `_get_param()`
+6. Se for parâmetro de calculadora, adicionar no construtor e passar do use case
+
+Exceções permitidas apenas para constantes matemáticas (0.5, 100%), valores
+estruturais (2 pernas, 1 ativo), ou tuning puramente cosmético (frequências
+de som, timers de UI). Qualquer dúvida: parametrizar é mais seguro.
+

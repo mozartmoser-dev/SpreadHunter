@@ -52,8 +52,11 @@ def _seed_parametros_colar(conn):
         ("dte_total_max", "120", "COLLAR_CALENDARIO", "DTE máximo total para qualquer perna"),
         ("import_max_months", "9", "IMPORTACAO", "Meses a frente da data para importar series"),
         ("white_list_box4p", "", "BOX_4P", "Whitelist de ativos para Box 4P"),
+        ("limiar_classificacao_calendario", "0.15", "COLLAR_CALENDARIO", "Limiar de classificacao (% do spread entre strikes)"),
+        ("be_search_range_mult", "0.15", "COLLAR_CALENDARIO", "Margem +/- busca breakeven (ex: 0.15 = 0.85x a 1.15x)"),
         ("white_list_colar_calendario", "", "COLLAR_CALENDARIO", "Whitelist de ativos para Collar Calendario"),
         ("white_list_colar", "", "COLAR", "Whitelist de ativos para Colar Protetivo"),
+        ("telegram_cleanup_timeout", "300", "TELEGRAM", "Timeout de limpeza do historico Telegram (segundos)"),
     ]
     mpp_params = [
         ("mpp_habilitado",           "1",    "MPP", "Habilitar Motor de Priorizacao de Pescaria"),
@@ -88,6 +91,8 @@ def _seed_parametros_colar(conn):
         ("perf_range_max", "70", "PERFORMANCE", "Range maximo de strike (%)"),
         ("perf_limite_meses", "6", "PERFORMANCE", "Limite de meses (max) para registrar Onda 1"),
         ("perf_dias_minimos", "7", "PERFORMANCE", "Dias minimos ate o vencimento (min) para registrar Onda 1"),
+        ("onda2_dte_min", "7", "PERFORMANCE", "DTE minimo para registrar Onda 2"),
+        ("onda2_dte_max", "180", "PERFORMANCE", "DTE maximo para registrar Onda 2"),
     ]
     params.extend(perf_params)
     params.extend(mpp_params)

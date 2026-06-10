@@ -80,6 +80,8 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("perf_range_max", "Filtro Strike Max (%)"),
         ("perf_limite_meses", "Limite Vencimento (Meses, 0=S.Lim)"),
         ("perf_dias_minimos", "Dias Minimos Vencimento"),
+        ("onda2_dte_min", "DTE minimo Onda 2"),
+        ("onda2_dte_max", "DTE maximo Onda 2"),
     ],
     "TELEGRAM": [
         ("notif_telegram_enable", "Habilitar Telegram"),
@@ -92,7 +94,9 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("white_list_colar", "Whitelist de ativos (separados por virgula)"),
     ],
     "COLLAR_CALENDARIO": [
-        ("calendario_strike_diff_max", "Max strikes de diferenca entre call e put"),
+        ("calendario_strike_diff_max", "Max strikes de diferenca call-put"),
+        ("limiar_classificacao_calendario", "Limiar classificacao (% spread)"),
+        ("be_search_range_mult", "Margem busca breakeven (+/-)"),
         ("calendario_call_otm_max", "Call OTM max (0.08 = 8% acima do spot)"),
         ("dte_call_min", "DTE call minima (dias)"),
         ("dte_call_max", "DTE call maxima (dias)"),
@@ -101,6 +105,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("dte_total_max", "DTE total maximo (dias)"),
         ("premio_risco_colar_calendario", "Premio risco (x CDI)"),
         ("white_list_colar_calendario", "Whitelist de ativos (separados por virgula)"),
+        ("telegram_cleanup_timeout", "Timeout historico Telegram (s)"),
     ],
     "BOX_4P": [
         ("box_premio_risco", "Premio risco (x CDI)"),
@@ -248,6 +253,16 @@ PARAMETROS_INFO = {
         "usado_em": "Monitores de BOX, Colar e Collar Calendario (filtro de dias minimos).",
         "precedencia": "Banco de Dados -> 10 dias (padrao no codigo)",
     },
+    "onda2_dte_min": {
+        "descricao": "DTE minimo para um instrumento receber registro completo (Onda 2). Abaixo disto, so tem cabecalho de book.",
+        "usado_em": "MercadoDataProvider — manutencao Onda 2.",
+        "precedencia": "Spinner -> Banco de Dados -> 7 (padrao)",
+    },
+    "onda2_dte_max": {
+        "descricao": "DTE maximo para registro completo Onda 2. Opcoes muito longas (>180D) raramente tem liquidez.",
+        "usado_em": "MercadoDataProvider — manutencao Onda 2.",
+        "precedencia": "Spinner -> Banco de Dados -> 180 (padrao)",
+    },
     "notif_telegram_enable": {
         "descricao": "Ativa o envio de notificacoes via Telegram quando operacoes interessantes sao encontradas.",
         "usado_em": "Monitor de Oportunidades (envio de mensagens apos cada varredura).",
@@ -277,6 +292,16 @@ PARAMETROS_INFO = {
         "descricao": "Numero maximo de niveis de strike de diferenca entre a CALL e a PUT no Collar Calendario. Ex: 2 = permite ate 2 strikes de distancia (cada ativo tem seu step ex: PETR4 step R$0.50, entao 2 steps = R$1.00).",
         "usado_em": "Monitor de Collar Calendario (filtro de pareamento).",
         "precedencia": "Spinner da Tela -> Banco de Dados -> 2 (padrao)",
+    },
+    "limiar_classificacao_calendario": {
+        "descricao": "Limiar para classificar o tipo do Collar Calendario (NEUTRO/ALTA/BAIXA). Valor multiplicado pelo spread entre strikes. Ex: 0.15 = 15% do spread. Quanto menor, mais estreita a faixa NEUTRO.",
+        "usado_em": "Calculadora de Collar Calendario (classificacao de tipo).",
+        "precedencia": "Spinner da Tela -> Banco de Dados -> 0.15 (padrao)",
+    },
+    "be_search_range_mult": {
+        "descricao": "Margem de seguranca para a busca de breakeven no Collar Calendario. O grafico de payoff busca raizes entre (menor strike x (1 - margem)) e (maior strike x (1 + margem)). Ex: 0.15 = busca entre 85% e 115% dos strikes.",
+        "usado_em": "Calculadora de Collar Calendario (calculo de breakeven).",
+        "precedencia": "Spinner da Tela -> Banco de Dados -> 0.15 (padrao)",
     },
     "premio_risco_colar_calendario": {
         "descricao": "Retorno minimo exigido para o Collar Calendario, em vezes o CDI. O Collar Calendario combina opcoes de vencimentos diferentes para capturar a diferenca de tempo.",
@@ -362,6 +387,11 @@ PARAMETROS_INFO = {
         "descricao": "Lista de ativos que aparecem marcados por padrao ao abrir o Collar Calendario. Se vazia, todos os ativos disponiveis aparecem marcados. Separar por virgula (ex: PETR4,VALE3,ITUB4).",
         "usado_em": "Interface do Collar Calendario (pre-selecao de ativos).",
         "precedencia": "Banco de Dados -> Vazio (todos marcados)",
+    },
+    "telegram_cleanup_timeout": {
+        "descricao": "Tempo em segundos apos o qual uma oportunidade enviada pelo Telegram e removida do historico. Apos este prazo, a mesma oportunidade pode ser re-enviada.",
+        "usado_em": "Monitor de Oportunidades (limpeza de historico).",
+        "precedencia": "Spinner -> Banco de Dados -> 300 (5 min, padrao)",
     },
     "mpp_habilitado": {
         "descricao": "Quando ativado, o Motor de Priorizacao de Pescaria (MPP) calcula o score instantaneo dos boxes periodicamente. Quando desativado, o MPP nao consome CPU e o ranking nao e atualizado automaticamente.",
@@ -451,6 +481,27 @@ class ParametrosWidget(QWidget):
                         widget.setRange(0, 50)
                         widget.setDecimals(0)
                         widget.setSingleStep(1)
+                    elif chave == "onda2_dte_min":
+                        widget.setRange(0, 365)
+                        widget.setSuffix(" dias")
+                        widget.setDecimals(0)
+                        widget.setSingleStep(1)
+                    elif chave == "onda2_dte_max":
+                        widget.setRange(0, 730)
+                        widget.setSuffix(" dias")
+                        widget.setDecimals(0)
+                        widget.setSingleStep(1)
+                    elif chave == "telegram_cleanup_timeout":
+                        widget.setRange(30, 86400)
+                        widget.setSuffix(" s")
+                        widget.setDecimals(0)
+                        widget.setSingleStep(30)
+                    elif chave in ("limiar_classificacao_calendario", "be_search_range_mult"):
+                        widget.setRange(0.0, 100.0)
+                        widget.setSuffix(" %")
+                        widget.setDecimals(2)
+                        widget.setSingleStep(0.5)
+                        self._pct_chaves.add(chave)
                     else:
                         widget.setRange(-100.0, 100000.0)
                         if "prof" in chave or "qtd" in chave or "meses" in chave or "inteligente" in chave or "interval" in chave or "dte" in chave:

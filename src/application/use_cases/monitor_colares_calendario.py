@@ -34,7 +34,9 @@ class MonitorColaresCalendarioUseCase:
             from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
             ir = self._get_param("taxa_ir_pct", 0.15)
             custos_b3 = CalculadoraCustosB3(emol, liq, ir)
-            self._calculadora = CalculadoraColarCalendario(taxa_cdi, premio_risco=premio_risco, custos_b3=custos_b3)
+            limiar = self._get_param("limiar_classificacao_calendario", 0.15)
+            be_mult = self._get_param("be_search_range_mult", 0.15)
+            self._calculadora = CalculadoraColarCalendario(taxa_cdi, premio_risco=premio_risco, custos_b3=custos_b3, limiar_pct=limiar, be_range_mult=be_mult)
         return self._calculadora
 
     def recarregar_parametros(self):

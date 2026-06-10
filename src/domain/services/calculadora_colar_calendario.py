@@ -55,12 +55,12 @@ class ResultadoColarCalendario:
 
 
 class CalculadoraColarCalendario:
-    def __init__(self, taxa_cdi: float = 0.1450, premio_risco: float = 1.2, custos_b3: CalculadoraCustosB3 | None = None, taxa_ir: float | None = None):
-        # CDI lido do banco (parametro taxa_cdi), usuario atualiza manualmente na tabela.
-        # IR fixo em 15% porque 99,9% das operacoes sao swing trade.
+    def __init__(self, taxa_cdi: float = 0.1450, premio_risco: float = 1.2, custos_b3: CalculadoraCustosB3 | None = None, taxa_ir: float | None = None, limiar_pct: float = 0.15, be_range_mult: float = 0.15):
         self.taxa_cdi = taxa_cdi
         self.premio_risco = premio_risco
         self.custos_b3 = custos_b3 or CalculadoraCustosB3(taxa_ir=taxa_ir)
+        self.limiar_pct = limiar_pct
+        self.be_range_mult = be_range_mult
 
     @staticmethod
     def black_scholes(S: float, K: float, T: float, r: float, sigma: float, option_type: str) -> float:
@@ -122,7 +122,7 @@ class CalculadoraColarCalendario:
     def classificar_tipo(self, preco_ativo: float, strike_call: float, strike_put: float) -> TipoColarCalendario:
         meio = (strike_call + strike_put) / 2
         dist = abs(preco_ativo - meio)
-        limiar = (strike_call - strike_put) * 0.15
+        limiar = (strike_call - strike_put) * self.limiar_pct
         if dist <= limiar:
             return TipoColarCalendario.NEUTRO
         if preco_ativo < meio:
@@ -144,17 +144,16 @@ class CalculadoraColarCalendario:
             put_val = max(Kp - S, 0)
         return stock_pnl + call_pnl + (put_val - Pp)
 
-    @staticmethod
     def _calcular_breakevens(
-        S0: float, Kc: float, Kp: float,
+        self, S0: float, Kc: float, Kp: float,
         Pc: float, Pp: float, dte_extra: int, rf: float, iv_p: float,
     ) -> tuple[float | None, float | None]:
         from scipy.optimize import brentq
         T_rem = dte_extra / 365 if dte_extra > 0 else 0
         def _f(S):
-            return CalculadoraColarCalendario._pnl_at_call_expiry(S, S0, Kc, Kp, Pc, Pp, T_rem, rf, iv_p)
-        x_min = min(Kp, S0) * 0.85
-        x_max = max(Kc, S0) * 1.15
+            return self._pnl_at_call_expiry(S, S0, Kc, Kp, Pc, Pp, T_rem, rf, iv_p)
+        x_min = min(Kp, S0) * (1 - self.be_range_mult)
+        x_max = max(Kc, S0) * (1 + self.be_range_mult)
         f_min = _f(x_min)
         f_kc = _f(Kc)
         f_max = _f(x_max)
@@ -171,9 +170,8 @@ class CalculadoraColarCalendario:
                 pass
         return round(be_baixa, 2) if be_baixa else None, round(be_alta, 2) if be_alta else None
 
-    @staticmethod
     def _calcular_breakevens_intrinseco(
-        S0: float, Kc: float, Kp: float,
+        self, S0: float, Kc: float, Kp: float,
         Pc: float, Pp: float,
     ) -> tuple[float | None, float | None]:
         from scipy.optimize import brentq
@@ -182,8 +180,8 @@ class CalculadoraColarCalendario:
             call_pnl = Pc
             put_val = max(Kp - S, 0)
             return stock_pnl + call_pnl + (put_val - Pp)
-        x_min = min(Kp, S0) * 0.85
-        x_max = max(Kc, S0) * 1.15
+        x_min = min(Kp, S0) * (1 - self.be_range_mult)
+        x_max = max(Kc, S0) * (1 + self.be_range_mult)
         f_min = _pnl_intrinseco(x_min)
         f_kc = _pnl_intrinseco(Kc)
         f_max = _pnl_intrinseco(x_max)
