@@ -73,7 +73,7 @@ _REGRAS_PARAM_MAP: dict[str, dict[str, str]] = {
         "dte_call_max": "DTE call máxima = {} dias",
         "dte_extra_min": "Diferença DTE put−call mínima = {} dias",
         "dte_extra_max": "Diferença DTE put−call máxima = {} dias",
-        "calendario_strike_diff_pct": "Diferença máxima de strikes = {}%",
+        "calendario_strike_diff_max": "Diferença máxima de strikes = {} níveis",
         "calendario_call_otm_max": "Call OTM máxima = {}% do spot",
         "dte_total_max": "DTE total máximo = {} dias",
     },

@@ -199,10 +199,13 @@ class MonitorColaresCalendarioUseCase:
                 _cache_dividendos_por_ativo[ativo] = divs_futuros
             dividendos_ativo = _cache_dividendos_por_ativo.get(ativo) or []
 
-            cal_diff_pct = params.get("calendario_strike_diff_pct")
-            if cal_diff_pct is None:
-                cal_diff_pct = self._get_param("calendario_strike_diff_pct", 0.03)
-            strike_diff_max = preco_ativo * cal_diff_pct
+            cal_diff_max = params.get("calendario_strike_diff_max")
+            if cal_diff_max is None:
+                cal_diff_max = self._get_param("calendario_strike_diff_max", 2)
+            cal_diff_max = int(cal_diff_max)
+            todos_strikes = sorted(set(c["strike"] for c in calls) | set(p["strike"] for p in puts))
+            strike_interval = min(b - a for a, b in zip(todos_strikes, todos_strikes[1:])) if len(todos_strikes) > 1 else 0.5
+            strike_diff_max = strike_interval * cal_diff_max
 
             call_otm_max = params.get("calendario_call_otm_max")
             if call_otm_max is None:

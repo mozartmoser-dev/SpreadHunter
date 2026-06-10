@@ -48,7 +48,7 @@ class ParametroOperacional:
         "telegram_chat_id": {"valor": "0", "estrategia": "TELEGRAM", "descricao": "Chat ID Telegram"},
         "premio_risco_colar": {"valor": 0.7, "estrategia": "COLAR", "descricao": "Premio risco Colar (x CDI)"},
         "colar_dist_max_pct": {"valor": 0.15, "estrategia": "COLAR", "descricao": "Distancia maxima do strike (%)"},
-        "calendario_strike_diff_pct": {"valor": 0.10, "estrategia": "COLLAR_CALENDARIO", "descricao": "Max diff % entre strikes call e put"},
+        "calendario_strike_diff_max": {"valor": 2.0, "estrategia": "COLLAR_CALENDARIO", "descricao": "Max strikes de diferenca entre call e put"},
         "premio_risco_colar_calendario": {"valor": 0.9, "estrategia": "COLLAR_CALENDARIO", "descricao": "Premio risco Collar Calendario (x CDI)"},
         "calendario_call_otm_max": {"valor": 0.08, "estrategia": "COLLAR_CALENDARIO", "descricao": "Max OTM da call (% do spot)"},
         "taxa_emolumento_pct": {"valor": 0.00025, "estrategia": "GERAL", "descricao": "Taxa de emolumento B3 (% do financeiro)"},

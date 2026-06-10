@@ -92,7 +92,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("white_list_colar", "Whitelist de ativos (separados por virgula)"),
     ],
     "COLLAR_CALENDARIO": [
-        ("calendario_strike_diff_pct", "Max diff % entre strikes (0.10 = 10%)"),
+        ("calendario_strike_diff_max", "Max strikes de diferenca entre call e put"),
         ("calendario_call_otm_max", "Call OTM max (0.08 = 8% acima do spot)"),
         ("dte_call_min", "DTE call minima (dias)"),
         ("dte_call_max", "DTE call maxima (dias)"),
@@ -273,10 +273,10 @@ PARAMETROS_INFO = {
         "usado_em": "Monitor de Colares (filtro de agrupamento de strikes).",
         "precedencia": "Spinner da Tela -> Banco de Dados -> 0.15 (15%, padrao)",
     },
-    "calendario_strike_diff_pct": {
-        "descricao": "Diferenca maxima permitida entre o strike da CALL e o strike da PUT no Collar Calendario, em porcentagem do preco do ativo. Quanto menor, mais parecidos os strikes.",
+    "calendario_strike_diff_max": {
+        "descricao": "Numero maximo de niveis de strike de diferenca entre a CALL e a PUT no Collar Calendario. Ex: 2 = permite ate 2 strikes de distancia (cada ativo tem seu step ex: PETR4 step R$0.50, entao 2 steps = R$1.00).",
         "usado_em": "Monitor de Collar Calendario (filtro de pareamento).",
-        "precedencia": "Spinner da Tela -> Banco de Dados -> 0.03 (3%, padrao)",
+        "precedencia": "Spinner da Tela -> Banco de Dados -> 2 (padrao)",
     },
     "premio_risco_colar_calendario": {
         "descricao": "Retorno minimo exigido para o Collar Calendario, em vezes o CDI. O Collar Calendario combina opcoes de vencimentos diferentes para capturar a diferenca de tempo.",
@@ -441,12 +441,16 @@ class ParametrosWidget(QWidget):
                         widget.setSuffix(" dias")
                         widget.setDecimals(0)
                         widget.setSingleStep(1)
-                    elif chave in ("calendario_strike_diff_pct", "calendario_call_otm_max"):
+                    elif chave == "calendario_call_otm_max":
                         widget.setRange(0.0, 100.0)
                         widget.setSuffix(" %")
                         widget.setDecimals(2)
                         widget.setSingleStep(0.5)
                         self._pct_chaves.add(chave)
+                    elif chave == "calendario_strike_diff_max":
+                        widget.setRange(0, 50)
+                        widget.setDecimals(0)
+                        widget.setSingleStep(1)
                     else:
                         widget.setRange(-100.0, 100000.0)
                         if "prof" in chave or "qtd" in chave or "meses" in chave or "inteligente" in chave or "interval" in chave or "dte" in chave:
