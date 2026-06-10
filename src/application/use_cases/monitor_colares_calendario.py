@@ -73,6 +73,8 @@ class MonitorColaresCalendarioUseCase:
         stats = {"total": 0, "sem_vencimento": 0, "sem_codigos": 0, "sem_dias": 0, "sem_strike": 0, "sem_strike_registrado": 0, "sem_ocp_ovd": 0, "sem_ocp_registrado": 0, "sem_ovd_registrado": 0, "sem_preco": 0, "sem_qul": 0, "calls": 0, "puts": 0, "fora_dte": 0, "fora_ativo": 0}
 
         source = dados_mercado if dados_mercado else inst_map
+        logger.warning("CollarCal ENTRADA: dados_mercado=%s, len(source)=%d, params=%s",
+                       "SIM" if dados_mercado else "NAO", len(source), params)
         for key in source:
             stats["total"] += 1
             dm = dados_mercado.get(key) if dados_mercado else None
@@ -263,6 +265,6 @@ class MonitorColaresCalendarioUseCase:
                             break  # melhor par pra esta call
 
         resultados.sort(key=lambda r: -r.pct_cdi)
-        logger.debug("CollarCal STATS: %s", stats)
-        logger.debug("CollarCal TOTAL: %d viaveis em %d ativos", len(resultados), len(set(r.ativo for r in resultados)))
+        logger.warning("CollarCal STATS: %s", stats)
+        logger.warning("CollarCal TOTAL: %d viaveis em %d ativos", len(resultados), len(set(r.ativo for r in resultados)))
         return resultados
