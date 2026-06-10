@@ -222,7 +222,7 @@ class RegrasDialog(QDialog):
                     if "x CDI" in template or "Viabilidade" in template:
                         texto = template.format(f"{valor:.2f}")
                     elif "%" in template:
-                        texto = template.format(f"{valor:.2f}")
+                        texto = template.format(f"{valor * 100:.2f}")
                     else:
                         texto = template.format(str(valor))
                 else:

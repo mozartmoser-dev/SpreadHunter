@@ -1094,7 +1094,7 @@ class ColarDialog(QDialog):
                 hover_annot.set_visible(False)
                 hover_vline.set_visible(False)
                 hover_hline.set_visible(False)
-                fig.canvas.draw_idle()
+                fig.canvas.draw()
                 return
             idx = np.argmin(np.abs(x - event.xdata))
             xv, yv = x[idx], total_pnl[idx]
@@ -1105,7 +1105,7 @@ class ColarDialog(QDialog):
             hover_vline.set_visible(True)
             hover_hline.set_ydata([yv, yv])
             hover_hline.set_visible(True)
-            fig.canvas.draw_idle()
+            fig.canvas.draw()
 
         ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
         ax.axvline(S, color=BLUE, linewidth=0.7, linestyle='--', alpha=0.8, label='Entrada')

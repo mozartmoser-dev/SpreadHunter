@@ -280,8 +280,8 @@ class MercadoDataProvider:
             if not pular_strike:
                 rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
                 rtd.registrar_topico(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
-                # Registra OVD (ask da put) já na Onda 1 para usar como sinal de liquidez real
                 rtd.registrar_topico(inst.cod_put, RTD_CAMPO_OFERTA_VENDA)
+                rtd.registrar_topico(inst.cod_call, RTD_CAMPO_OFERTA_COMPRA)
 
             if inst.ativo not in self._ativos_registrados:
                 rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
@@ -351,8 +351,8 @@ class MercadoDataProvider:
             if not pular_strike:
                 rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
                 rtd.registrar_topico(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
-                # Registra OVD (ask da put) já na Onda 1 para usar como sinal de liquidez real
                 rtd.registrar_topico(inst.cod_put, RTD_CAMPO_OFERTA_VENDA)
+                rtd.registrar_topico(inst.cod_call, RTD_CAMPO_OFERTA_COMPRA)
 
             if inst.ativo not in self._ativos_registrados:
                 rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)

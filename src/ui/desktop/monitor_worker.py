@@ -310,7 +310,8 @@ class MonitorWorker(QThread):
             params = self._colar_cal_params
             self._colar_cal_mutex.unlock()
 
-            resultados = self._monitor_colares_cal_uc.varrer(rtd, params, ativos)
+            dados_md = getattr(self, '_ultimo_dados_mercado', None)
+            resultados = self._monitor_colares_cal_uc.varrer(rtd, dados_md, params, ativos)
             self.colares_calendario_atualizados.emit(resultados)
 
     def _processar_box_4p(self, rtd):

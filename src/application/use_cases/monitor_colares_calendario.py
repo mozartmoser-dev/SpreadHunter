@@ -45,7 +45,7 @@ class MonitorColaresCalendarioUseCase:
         param = self.param_repo.get_by_chave(chave)
         return param.valor if param else default
 
-    def varrer(self, rtd, params: dict | None = None, ativos: list[str] | None = None) -> list[ResultadoColarCalendario]:
+    def varrer(self, rtd, dados_mercado: dict | None = None, params: dict | None = None, ativos: list[str] | None = None) -> list[ResultadoColarCalendario]:
         calc = self._get_calculadora()
         inst_map = self.inst_repo.get_all_mapped()
         ativos_set = set(ativos) if ativos else None
@@ -70,8 +70,13 @@ class MonitorColaresCalendarioUseCase:
         puts_por_ativo: dict[str, list] = defaultdict(list)
         stats = {"total": 0, "sem_vencimento": 0, "sem_codigos": 0, "sem_dias": 0, "sem_strike": 0, "sem_strike_registrado": 0, "sem_ocp_ovd": 0, "sem_ocp_registrado": 0, "sem_ovd_registrado": 0, "sem_preco": 0, "sem_qul": 0, "calls": 0, "puts": 0, "fora_dte": 0, "fora_ativo": 0}
 
-        for key, inst in inst_map.items():
+        source = dados_mercado if dados_mercado else inst_map
+        for key in source:
             stats["total"] += 1
+            dm = dados_mercado.get(key) if dados_mercado else None
+            inst = inst_map.get(key)
+            if not inst:
+                continue
             if not inst.vencimento or inst.vencimento <= hoje:
                 stats["sem_vencimento"] += 1
                 continue
@@ -82,50 +87,40 @@ class MonitorColaresCalendarioUseCase:
                 stats["sem_dias"] += 1
                 continue
 
-            # ---- FILTRO 1: ATIVOS SELECIONADOS (mais barato) ----
             if ativos_set and inst.ativo not in ativos_set:
                 stats["fora_ativo"] += 1
                 continue
 
-            # ---- FILTRO 2: DTE (barato, sem RTD) ----
             dte = inst.dias_ate_vencimento
             if dte < params["dte_call_min"] or dte > params["dte_total_max"]:
                 stats["fora_dte"] += 1
                 continue
 
-            # ---- FILTRO 3: LIQUIDEZ (RTD Onda 2 + QUL) ----
-            strike = rtd.ler_campo_cache(inst.cod_put, "PEX")
+            # ---- FILTRO 3: LIQUIDEZ (dados_mercado > RTD cache) ----
+            if dm:
+                strike = dm.get("strike_rtd")
+                preco_call = dm.get("of_compra_call") or 0.0
+                preco_put = dm.get("of_venda_put") or 0.0
+                qul_put = dm.get("qul_put") or 0
+                qul_call = dm.get("qul_call") or 0
+            else:
+                strike = rtd.ler_campo_cache(inst.cod_put, "PEX")
+                if not strike or strike <= 0:
+                    strike = rtd.ler_campo_cache(inst.cod_call, "PEX")
+                ocp = rtd.ler_campo_cache(inst.cod_call, "OCP")
+                ovd = rtd.ler_campo_cache(inst.cod_put, "OVD")
+                preco_call = ocp or 0.0
+                preco_put = ovd or 0.0
+                qul_put = rtd.ler_campo_cache(inst.cod_put, "QUL") or 0
+                qul_call = rtd.ler_campo_cache(inst.cod_call, "QUL") or 0
+
             if not strike or strike <= 0:
-                strike = rtd.ler_campo_cache(inst.cod_call, "PEX")
-            if not strike or strike <= 0:
-                chk_reg = rtd._topic_map.get(f"{inst.cod_put}|PEX")
-                if chk_reg is None:
-                    chk_reg = rtd._topic_map.get(f"{inst.cod_call}|PEX")
                 stats["sem_strike"] += 1
-                if chk_reg is not None:
-                    stats["sem_strike_registrado"] += 1
                 continue
-
-            ocp = rtd.ler_campo_cache(inst.cod_call, "OCP")
-            ovd = rtd.ler_campo_cache(inst.cod_put, "OVD")
-            if ocp is None or ovd is None:
-                chk_ocp = rtd._topic_map.get(f"{inst.cod_call}|OCP")
-                chk_ovd = rtd._topic_map.get(f"{inst.cod_put}|OVD")
-                if chk_ocp is not None:
-                    stats["sem_ocp_registrado"] += 1
-                if chk_ovd is not None:
-                    stats["sem_ovd_registrado"] += 1
-                stats["sem_ocp_ovd"] += 1
-                continue
-
-            preco_call = ocp or 0.0
-            preco_put = ovd or 0.0
             if preco_call <= 0 or preco_put <= 0:
                 stats["sem_preco"] += 1
                 continue
 
-            qul_put = rtd.ler_campo_cache(inst.cod_put, "QUL") or 0
-            qul_call = rtd.ler_campo_cache(inst.cod_call, "QUL") or 0
             qul_min_put = params.get("qul_min_put", 100)
             qul_min_call = params.get("qul_min_call", 100)
             if qul_put < qul_min_put or qul_call < qul_min_call:
@@ -172,12 +167,21 @@ class MonitorColaresCalendarioUseCase:
             calls = calls_por_ativo[ativo]
             puts = puts_por_ativo[ativo]
 
-            preco_ativo = rtd.ler_campo_cache(ativo, "ULT") or 0.0
+            preco_ativo = 0.0
+            preco_compra_ativo = 0.0
+            if dados_mercado:
+                for key, dm_item in dados_mercado.items():
+                    inst2 = inst_map.get(key)
+                    if inst2 and inst2.ativo == ativo:
+                        preco_ativo = dm_item.get("preco_ativo") or 0.0
+                        preco_compra_ativo = dm_item.get("of_venda_ativo") or 0.0
+                        break
             if preco_ativo <= 0:
-                continue
-
-            of_venda_ativo = rtd.ler_campo_cache(ativo, "OVD")
-            preco_compra_ativo = of_venda_ativo if (of_venda_ativo and of_venda_ativo > 0) else 0.0
+                preco_ativo = rtd.ler_campo_cache(ativo, "ULT") or 0.0
+                if preco_ativo <= 0:
+                    continue
+                of_venda_ativo = rtd.ler_campo_cache(ativo, "OVD")
+                preco_compra_ativo = of_venda_ativo if (of_venda_ativo and of_venda_ativo > 0) else 0.0
 
             if ativo not in _cache_dividendos_por_ativo:
                 divs = DividendoRepository(self.db_path).get_by_ativo(ativo)

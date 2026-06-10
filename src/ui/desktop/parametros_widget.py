@@ -92,7 +92,14 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("white_list_colar", "Whitelist de ativos (separados por virgula)"),
     ],
     "COLLAR_CALENDARIO": [
-        ("calendario_strike_diff_pct", "Max diff % entre strikes"),
+        ("calendario_strike_diff_pct", "Max diff % entre strikes (0.10 = 10%)"),
+        ("calendario_call_otm_max", "Call OTM max (0.08 = 8% acima do spot)"),
+        ("dte_call_min", "DTE call minima (dias)"),
+        ("dte_call_max", "DTE call maxima (dias)"),
+        ("dte_extra_min", "Diferenca DTE put−call minima (dias)"),
+        ("dte_extra_max", "Diferenca DTE put−call maxima (dias)"),
+        ("dte_total_max", "DTE total maximo (dias)"),
+        ("premio_risco_colar_calendario", "Premio risco (x CDI)"),
         ("white_list_colar_calendario", "Whitelist de ativos (separados por virgula)"),
     ],
     "BOX_4P": [
@@ -375,6 +382,7 @@ class ParametrosWidget(QWidget):
         self.db_path = db_path
         self.repo = ParametroRepository(db_path)
         self._widgets: dict[str, QWidget] = {}
+        self._pct_chaves: set[str] = set()
         self._setup_ui()
         self._carregar()
 
@@ -433,9 +441,15 @@ class ParametrosWidget(QWidget):
                         widget.setSuffix(" dias")
                         widget.setDecimals(0)
                         widget.setSingleStep(1)
+                    elif chave in ("calendario_strike_diff_pct", "calendario_call_otm_max"):
+                        widget.setRange(0.0, 100.0)
+                        widget.setSuffix(" %")
+                        widget.setDecimals(2)
+                        widget.setSingleStep(0.5)
+                        self._pct_chaves.add(chave)
                     else:
                         widget.setRange(-100.0, 100000.0)
-                        if "prof" in chave or "qtd" in chave or "meses" in chave or "inteligente" in chave or "interval" in chave:
+                        if "prof" in chave or "qtd" in chave or "meses" in chave or "inteligente" in chave or "interval" in chave or "dte" in chave:
                             widget.setDecimals(0)
                             widget.setSingleStep(1 if "qtd" not in chave else 100)
                         else:
@@ -525,7 +539,10 @@ class ParametrosWidget(QWidget):
             elif isinstance(widget, QLineEdit):
                 widget.setText(str(val))
             elif isinstance(widget, QDoubleSpinBox):
-                widget.setValue(val)
+                if chave in self._pct_chaves:
+                    widget.setValue(val * 100)
+                else:
+                    widget.setValue(val)
 
     def _salvar(self):
         try:
@@ -538,6 +555,8 @@ class ParametrosWidget(QWidget):
                     valor = widget.text().strip()
                 else:
                     valor = widget.value()
+                    if chave in self._pct_chaves:
+                        valor = valor / 100.0
                     
                 param = self.repo.get_by_chave(chave)
                 if param:
