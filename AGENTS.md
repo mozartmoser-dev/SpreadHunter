@@ -76,9 +76,48 @@ Se o RTD não fornecer strike em algum cenário, o sistema deve falhar ruidosame
 - **Filtros**: strike ±70%, DTE ≤6 meses, dias mínimos 10.
 - **36k instrumentos totais**, ~3k após filtros, ~350 com book.
 
+---
+
+## Sessão 10/06/2026 — Gráfico de Candles (OpcoesNet)
+
+### O que foi feito
+
+#### Novo endpoint API
+- **Request type descoberto**: `QuotesHistoryByAsset` com parâmetro `{timeframe: "Day", assets_ids: "PETR4"}` extraído do bundle `ui-bundle-after.js` do site opcoes.net.br
+- **`OpcoesNetClient.get_stock_history()`**: método raw que chama a API e retorna dicionário com `data_fields` e `data_rows`
+- **`OpcoesNetClient.get_stock_history_formatted()`**: método que parseia os campos (date, open, high, low, close, change, volume, vol_ewma, vol_impl) e retorna lista de dicts, limitada a 252 pregões (≈12 meses)
+
+#### Botão "Ver Gráfico"
+- Adicionado nos diálogos de detalhamento: `colar_dialog.py:_mostrar_detalhes` e `colar_calendario_dialog.py:_mostrar_detalhes`
+- Posicionado ao lado do "📈 Ver Variação"
+
+#### Gráfico (`_plot_historico`)
+- **Subplot superior**: candles (barras OHLC) com cores verde/subida e vermelho/descida
+- **Curva de Gauss horizontal**: distribuição normal dos retornos logarítmicos plotada sobre os preços, com linhas verticais nos níveis 1σ, 2σ, 3σ e preços anotados (ex: `1σ\nR$45.30`)
+- **Subplot inferior** (se houver dados): volume normalizado (barras) + volatilidade histórica (blue) + implícita (red) em twin axis
+- Layout escuro (`#0d0d0d`), figura 11×6.5
+
+#### Arquivos modificados
+- `src/infrastructure/integrations/opcoesnet_client.py`: +2 métodos (`get_stock_history`, `get_stock_history_formatted`)
+- `src/ui/desktop/colar_dialog.py`: botão "📊 Ver Gráfico" + método `_plot_historico`
+- `src/ui/desktop/colar_calendario_dialog.py`: botão "📊 Ver Gráfico" + método `_plot_historico`
+
 ### Próximos passos (Próxima Sessão)
 1. Rodar com Profit aberto em mercado para validar collares, boxes e performance final.
 2. Verificar se books sobem corretamente após restart.
 3. Se necessário: re-ativar MPP com intervalo maior (48+ ciclos ≈ 2min).
-4. Se necessário: investigar fallback de strike via API B3 para dividendos overnight.
+
+---
+## Sessão 10/06/2026 — Gráfico de Candles (OpcoesNet) — Finalizado
+
+### O que foi feito
+- `_plot_historico()`: candles OHLC (subplot superior) + volume/vol_hist/vol_impl (subplot inferior)
+- Curva de Gauss: linhas sigma horizontais (1σ, 2σ, 3σ) com preços anotados na borda direita + mini-curva em inset no canto superior esquerdo (sigma baseado no DTE da operação, não fixo em 21)
+- Linha do spot (preço atual do Profit) em ciano tracejado horizontal com rótulo "Spot R$XX.XX"
+- Removido filtro `prices_arr.min() <= p <= prices_arr.max()` que cortava sigmas fora do range histórico — `set_ylim` agora inclui todos os níveis sigma
+- Sigma period dinâmico: `colar_dialog` usa `max(5, int(r.dias * 5/7))`, `colar_calendario_dialog` usa `max(5, r.dte_call)`
+- Corrigido bug que distorcia eixo X: removido bloco duplicado que tentava plotar preços (R$) sobre eixo de datas com `ax1.plot(x_price, ...)`
+- Layout escuro (#0d0d0d), sem `tight_layout` (travava com gridspec + inset_axes)
+- Testado com PETR4 offline — gráfico abre, fecha e renderiza corretamente
+- Ambos os diálogos (`colar_dialog.py`, `colar_calendario_dialog.py`) corrigidos
 

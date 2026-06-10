@@ -733,6 +733,20 @@ class ColarCalendarioDialog(QDialog):
         btn_variacao.clicked.connect(lambda: self._mostrar_variacao(r))
         btn_row.addWidget(btn_variacao)
 
+        btn_grafico = QPushButton("📊 Ver Gráfico")
+        btn_grafico.setAutoDefault(False)
+        btn_grafico.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #2d2d44; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid {Palette.BORDER}; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #3d3d55; }}
+        """)
+        n_sig = max(5, r.dte_call)
+        btn_grafico.clicked.connect(lambda: self._plot_historico(r.ativo, r.preco_ativo, n_sig))
+        btn_row.addWidget(btn_grafico)
+
         btn_explicar = QPushButton("🔍 Explicar")
         btn_explicar.setAutoDefault(False)
         btn_explicar.setStyleSheet(f"""
@@ -929,7 +943,7 @@ class ColarCalendarioDialog(QDialog):
             BG = '#0d0d0d'; TEXT = '#c0c0c0'; RED = '#ff3355'
             ACCENT = '#ffc107'; FILL_BLUE = '#1a5276'; SIGMA_C = '#6c5ce7'
 
-            fig = Figure(figsize=(8, 4.5), facecolor=BG)
+            fig = Figure(figsize=(9, 5), facecolor=BG)
             ax = fig.add_subplot(111, facecolor=BG)
 
             ax.plot(x, pnl, color=ACCENT, linewidth=2.0, label='Payoff')
@@ -937,11 +951,15 @@ class ColarCalendarioDialog(QDialog):
             hover_annot = ax.annotate(
                 '', xy=(0, 0), fontsize=8, color='#fff',
                 bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=ACCENT, alpha=0.9),
-                ha='center', va='bottom', visible=False,
+                ha='center', va='center', visible=False,
             )
+            hover_vline = ax.axvline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
+            hover_hline = ax.axhline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
             def _on_hover(event):
                 if event.inaxes != ax or event.xdata is None:
                     hover_annot.set_visible(False)
+                    hover_vline.set_visible(False)
+                    hover_hline.set_visible(False)
                     fig.canvas.draw_idle()
                     return
                 idx = np.argmin(np.abs(x - event.xdata))
@@ -949,6 +967,10 @@ class ColarCalendarioDialog(QDialog):
                 hover_annot.xy = (xv, yv)
                 hover_annot.set_text(f'R$ {xv:.2f} → R$ {yv:+.2f}')
                 hover_annot.set_visible(True)
+                hover_vline.set_xdata([xv, xv])
+                hover_vline.set_visible(True)
+                hover_hline.set_ydata([yv, yv])
+                hover_hline.set_visible(True)
                 fig.canvas.draw_idle()
             ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
             ax.axvline(S0, color='#2196f3', linewidth=0.7, linestyle='--', alpha=0.8, label=f'Entrada {S0:.2f}')
@@ -1011,11 +1033,11 @@ class ColarCalendarioDialog(QDialog):
                 spine.set_color('#333')
             leg = ax.legend(loc='best', fontsize=7, labelcolor=TEXT, facecolor='#1a1a1a', edgecolor='#333')
 
-            fig.tight_layout()
+            fig.tight_layout(pad=1.5)
 
             payoff_dialog = QDialog(self, Qt.Window)
             payoff_dialog.setWindowTitle(f"Payoff Calendário — {r.ativo}")
-            payoff_dialog.setMinimumSize(800, 500)
+            payoff_dialog.setMinimumSize(900, 550)
             payoff_layout = QVBoxLayout(payoff_dialog)
             payoff_layout.setContentsMargins(8, 8, 8, 8)
             canvas = FigureCanvas(fig)
@@ -1035,16 +1057,15 @@ class ColarCalendarioDialog(QDialog):
                 be_parts.append(f"BE Baixa Intr: R$ {r.be_baixa_intrinseco:.2f}")
             elif r.be_alta_intrinseco is not None:
                 be_parts.append(f"BE Alta Intr: R$ {r.be_alta_intrinseco:.2f}")
-            be_str = "  |  " + "  |  ".join(be_parts) if be_parts else ""
+            be_str = " | ".join(be_parts) if be_parts else ""
 
             footer = QLabel(
-                f"{r.ativo}  |  "
-                f"Spot: R$ {S0:.2f}  |  "
-                f"Call {r.cod_call} K={Kc:.2f}: +R$ {Pc:.2f}  |  "
-                f"Put {r.cod_put} K={Kp:.2f}: −R$ {Pp:.2f}  |  "
-                f"Capital: R$ {S0 + Pp - Pc:.2f}  |  "
-                f"PnL Proj: R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI)"
-                f"{be_str}"
+                f"<b>Comprar Ativo:</b> {r.ativo} à vista — R$ {S0:.2f}<br>"
+                f"<b>Vender Call:</b> {r.cod_call} K={Kc:.2f} — +R$ {Pc:.2f} (venc. {r.vencimento_call.strftime('%d/%m')})<br>"
+                f"<b>Comprar Put:</b> {r.cod_put} K={Kp:.2f} — −R$ {Pp:.2f} (venc. {r.vencimento_put.strftime('%d/%m')})<br>"
+                f"<b>Capital:</b> R$ {S0 + Pp - Pc:.2f}  |  "
+                f"<b>PnL Proj:</b> R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI)"
+                f"{'  |  ' + be_str if be_str else ''}"
             )
             footer.setStyleSheet(f"""
                 QLabel {{
@@ -1054,6 +1075,7 @@ class ColarCalendarioDialog(QDialog):
                     padding: 4px 0;
                 }}
             """)
+            footer.setTextFormat(Qt.RichText)
             payoff_layout.addWidget(footer)
 
             btn_close = QPushButton("Fechar")
@@ -1064,6 +1086,146 @@ class ColarCalendarioDialog(QDialog):
         except Exception as e:
             logger.exception("Erro no payoff: %s", e)
             QMessageBox.critical(self, "Erro", f"Falha ao gerar payoff:\n{e}\n\n{traceback.format_exc()}")
+
+    def _plot_historico(self, ativo: str, preco_atual: float = None, n_sessoes: int = 21):
+        from PyQt5.QtWidgets import QMessageBox
+        import numpy as np
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        from matplotlib.figure import Figure
+        import matplotlib.dates as mdates
+        import datetime
+
+        client = OpcoesNetClient()
+        candles = client.get_stock_history_formatted(ativo)
+        if not candles:
+            QMessageBox.information(self, "Gráfico", f"Não foi possível obter histórico de {ativo}.")
+            return
+
+        dates, opens, highs, lows, closes = [], [], [], [], []
+        volumes, vol_hists, vol_impls = [], [], []
+        for c in candles:
+            d = c.get("date")
+            if isinstance(d, str):
+                dt = datetime.datetime.strptime(d[:10], "%Y-%m-%d")
+            else:
+                continue
+            dates.append(dt)
+            opens.append(c.get("open"))
+            highs.append(c.get("high"))
+            lows.append(c.get("low"))
+            closes.append(c.get("close"))
+            volumes.append(c.get("volume"))
+            vol_hists.append(c.get("vol_hist"))
+            vol_impls.append(c.get("vol_impl"))
+
+        has_vol = any(v is not None for v in vol_hists) or any(v is not None for v in vol_impls)
+
+        BG = '#0d0d0d'; TEXT = '#c0c0c0'
+        GREEN = '#4caf50'; RED = '#ff3355'; BLUE = '#2196f3'; ACCENT = '#ffc107'
+
+        n_sub = 2 if has_vol else 1
+        fig = Figure(figsize=(11, 6.5), facecolor=BG)
+        heights = [3, 1] if n_sub == 2 else [3]
+        gs = fig.add_gridspec(n_sub, 1, height_ratios=heights, hspace=0.08)
+
+        ax1 = fig.add_subplot(gs[0], facecolor=BG)
+        width = 0.6
+        for i in range(len(dates)):
+            color = GREEN if closes[i] >= opens[i] else RED
+            ax1.plot([dates[i], dates[i]], [lows[i], highs[i]], color=color, linewidth=0.8, alpha=0.7)
+            ax1.bar(dates[i], closes[i] - opens[i], width, bottom=opens[i], color=color, alpha=0.85)
+
+        ax1.set_title(f"{ativo} — Histórico de Preços", color='#e0e0e0', fontsize=11, fontweight='bold')
+        ax1.tick_params(colors=TEXT, labelsize=8)
+        ax1.set_ylabel('Preço (R$)', color=TEXT, fontsize=9)
+        for s in ax1.spines.values():
+            s.set_color('#333')
+        ax1.xaxis.set_major_formatter(mdates.DateFormatter('%b\n%Y'))
+        ax1.tick_params(axis='x', colors=TEXT)
+        ax1.set_xlim(dates[0], dates[-1])
+
+        if preco_atual is not None and preco_atual > 0:
+            ax1.axhline(preco_atual, color='#00e5ff', linewidth=1.0, linestyle='--', alpha=0.6, zorder=4)
+            ax1.text(dates[-1], preco_atual, f'Spot R${preco_atual:.2f}',
+                     ha='right', va='bottom', color='#00e5ff', fontsize=7, alpha=0.8,
+                     bbox=dict(boxstyle='round,pad=0.15', facecolor='#1a1a1a', edgecolor='none', alpha=0.6))
+
+        if len(closes) > 10:
+            from scipy.stats import norm
+            prices_arr = np.array(closes)
+            log_ret = np.diff(np.log(prices_arr))
+            sigma_daily = np.std(log_ret)
+            sigma_periodo = sigma_daily * np.sqrt(n_sessoes)
+            spot = closes[-1]
+            sigmas = [spot * (1 + i * sigma_periodo) for i in range(-3, 4) if i != 0]
+            ylo = min(min(sigmas), prices_arr.min())
+            yhi = max(max(sigmas), prices_arr.max())
+            pad = (yhi - ylo) * 0.03
+            ax1.set_ylim(ylo - pad, yhi + pad)
+            for i in range(-3, 4):
+                if i == 0: continue
+                p = spot * (1 + i * sigma_periodo)
+                ax1.axhline(p, color=ACCENT, linewidth=0.5, linestyle=':', alpha=0.25)
+                ax1.text(dates[-1], p, f'{i}σ R${p:.2f}',
+                         ha='right', va='center', color=ACCENT, fontsize=6.5, alpha=0.7,
+                         bbox=dict(boxstyle='round,pad=0.15', facecolor='#1a1a1a', edgecolor='none', alpha=0.6))
+            x_gauss = np.linspace(-3.5*sigma_periodo, 3.5*sigma_periodo, 300)
+            y_gauss = norm.pdf(x_gauss, 0, sigma_periodo)
+            ax_inset = ax1.inset_axes([0.02, 0.65, 0.18, 0.28], facecolor='#1a1a1a')
+            ax_inset.plot(x_gauss, y_gauss, color=ACCENT, linewidth=1.2, alpha=0.8)
+            ax_inset.fill_between(x_gauss, 0, y_gauss, color=ACCENT, alpha=0.1)
+            ax_inset.axvline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
+            for i in range(1, 4):
+                for s in (-i*sigma_periodo, i*sigma_periodo):
+                    ax_inset.axvline(s, color=ACCENT, linewidth=0.4, linestyle=':', alpha=0.2)
+            ax_inset.set_facecolor('#1a1a1a')
+            ax_inset.tick_params(colors=TEXT, labelsize=5)
+            for spine in ax_inset.spines.values():
+                spine.set_color('#333')
+            ax_inset.set_title(f'{n_sessoes} preg', color=TEXT, fontsize=6)
+            ax_inset.set_ylabel('dens.', color=TEXT, fontsize=5)
+
+        if has_vol:
+            ax2 = fig.add_subplot(gs[1], facecolor=BG)
+            if any(v is not None for v in volumes):
+                vol_max = max(v for v in volumes if v is not None) or 1
+                vol_norm = [v / vol_max if v is not None else 0 for v in volumes]
+                ax2.bar(dates, vol_norm, width=width,
+                        color=[GREEN if closes[i] >= opens[i] else RED for i in range(len(dates))], alpha=0.7)
+            ax2_twin = ax2.twinx()
+            if any(v is not None for v in vol_hists):
+                hd, hv = zip(*[(dates[i], vol_hists[i]) for i in range(len(vol_hists)) if vol_hists[i] is not None])
+                ax2_twin.plot(hd, hv, color=BLUE, linewidth=1.0, alpha=0.8, label='Vol. Hist.')
+            if any(v is not None for v in vol_impls):
+                id_, iv = zip(*[(dates[i], vol_impls[i]) for i in range(len(vol_impls)) if vol_impls[i] is not None])
+                ax2_twin.plot(id_, iv, color=RED, linewidth=1.0, alpha=0.8, label='Vol. Impl.')
+            ax2_twin.set_ylabel('Volatilidade', color=TEXT, fontsize=9)
+            ax2_twin.tick_params(colors=TEXT, labelsize=7)
+            ax2_twin.legend(loc='upper left', fontsize=7, labelcolor=TEXT, facecolor='#1a1a1a', edgecolor='#333')
+            ax2.set_ylabel('Volume (norm.)', color=TEXT, fontsize=9)
+            ax2.tick_params(colors=TEXT, labelsize=7)
+            for s in ax2.spines.values():
+                s.set_color('#333')
+            ax2.xaxis.set_major_formatter(mdates.DateFormatter('%b\n%Y'))
+
+        fig.tight_layout(pad=1.5)
+
+        dialog = QDialog(self, Qt.Window)
+        dialog.setWindowTitle(f"Gráfico — {ativo}")
+        dialog.setMinimumSize(950, 580)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(8, 8, 8, 8)
+        canvas = FigureCanvas(fig)
+        layout.addWidget(canvas, stretch=1)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.setAutoDefault(False)
+        btn_fechar.clicked.connect(dialog.close)
+        btn_fechar.setProperty("class", "primary")
+        btn_row.addWidget(btn_fechar)
+        layout.addLayout(btn_row)
+        dialog.exec_()
 
     def _mostrar_variacao(self, r, n_sessoes=None):
         from PyQt5.QtWidgets import QMessageBox

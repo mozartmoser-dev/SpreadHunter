@@ -341,6 +341,101 @@ class OpcoesNetClient:
             session.close()
 
 # ------------------------------------------------------------------
+# Histórico de preços (candles)
+# ------------------------------------------------------------------
+    def get_stock_history(self, ativo: str) -> Optional[dict]:
+        """
+        Busca histórico de candles + volatilidade do ativo via API.
+        Request type: QuotesHistoryByAsset (timeframe=Day).
+        Retorna dicionário com data_fields e data_rows, ou None.
+        """
+        s = self._session_anon()
+        z = str(math.floor(time.time() / 10))
+        params = {
+            "timeframe": "Day",
+            "assets_ids": ativo.upper(),
+        }
+        r0 = "r0t=QuotesHistoryByAsset"
+        for k, v in sorted(params.items()):
+            r0 += "&r0p." + k + "=" + urllib.parse.quote(v)
+        qs = "z=" + z + "&" + r0
+        url = self.API_BASE + "?" + qs
+
+        old_accept = s.headers.get("Accept", "")
+        s.headers["Accept"] = "application/json"
+        try:
+            resp = s.get(url, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception:
+            return None
+        finally:
+            s.headers["Accept"] = old_accept
+            s.close()
+
+        if not data.get("success"):
+            return None
+
+        for req in (data.get("requests") or []):
+            if req.get("type") == "QuotesHistoryByAsset" and not req.get("error"):
+                results = req.get("results", {})
+                asset_data = results.get(ativo.upper())
+                if asset_data:
+                    return asset_data
+        return None
+
+    def get_stock_history_formatted(self, ativo: str, max_days: int = 252) -> Optional[list[dict]]:
+        """
+        Retorna lista de candles {date, open, high, low, close, change, volume, vol_hist, vol_impl}
+        a partir do histórico bruto. max_days controla quantos pregões retornar (default 252 ≈ 12 meses).
+        Retorna None se falhar.
+        """
+        raw = self.get_stock_history(ativo)
+        if not raw:
+            return None
+        fields = raw.get("data_fields", [])
+        rows = raw.get("data_rows", [])
+        if not fields or not rows:
+            return None
+        try:
+            idx_date = fields.index("date") if "date" in fields else 0
+            idx_open = fields.index("open") if "open" in fields else 1
+            idx_high = fields.index("high") if "high" in fields else 2
+            idx_low = fields.index("low") if "low" in fields else 3
+            idx_close = fields.index("close") if "close" in fields else 4
+            idx_change = fields.index("change") if "change" in fields else -1
+            idx_volume = fields.index("volume") if "volume" in fields else -1
+            idx_vol_ewma = fields.index("vol_ewma") if "vol_ewma" in fields else -1
+            idx_vol_impl = fields.index("vol_impl") if "vol_impl" in fields else -1
+        except ValueError:
+            return None
+
+        # Pega apenas os últimos max_days rows
+        rows = rows[-max_days:] if len(rows) > max_days else rows
+
+        candles = []
+        for row in rows:
+            if len(row) <= max(idx_open, idx_high, idx_low, idx_close):
+                continue
+            c = {
+                "date": row[idx_date] if idx_date < len(row) else None,
+                "open": row[idx_open],
+                "high": row[idx_high],
+                "low": row[idx_low],
+                "close": row[idx_close],
+            }
+            if idx_change >= 0 and idx_change < len(row):
+                c["change"] = row[idx_change]
+            if idx_volume >= 0 and idx_volume < len(row):
+                c["volume"] = row[idx_volume]
+            if idx_vol_ewma >= 0 and idx_vol_ewma < len(row):
+                c["vol_hist"] = row[idx_vol_ewma]
+            if idx_vol_impl >= 0 and idx_vol_impl < len(row):
+                c["vol_impl"] = row[idx_vol_impl]
+            candles.append(c)
+        return candles
+
+# ------------------------------------------------------------------
 # Consulta de variação
 # ------------------------------------------------------------------
     def get_variacao(
