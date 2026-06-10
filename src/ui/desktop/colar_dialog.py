@@ -1141,6 +1141,10 @@ class ColarDialog(QDialog):
         ax.set_ylabel('Lucro / Prejuízo (R$)', color=TEXT, fontsize=9)
         ax.set_title(f'Payoff Colar — {r.ativo}', color='#e0e0e0', fontsize=11, fontweight='bold')
 
+        ax.set_xlim(x_min, x_max)
+        y_pad = (total_pnl.max() - total_pnl.min()) * 0.08
+        ax.set_ylim(total_pnl.min() - y_pad, total_pnl.max() + y_pad)
+
         ax.tick_params(colors=TEXT, labelsize=8)
         for spine in ax.spines.values():
             spine.set_color('#333')
