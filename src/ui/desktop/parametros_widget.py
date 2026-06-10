@@ -522,7 +522,9 @@ class ParametrosWidget(QWidget):
                 )
                 info = PARAMETROS_INFO.get(chave, {})
                 if info:
-                    btn_info.setToolTip(info.get("descricao", ""))
+                    desc = info.get("descricao", "")
+                    btn_info.setToolTip(desc)
+                    widget.setToolTip(desc)
                     btn_info.clicked.connect(
                         lambda checked, c=chave, d=display: self._mostrar_info(c, d)
                     )
