@@ -960,7 +960,7 @@ class ColarCalendarioDialog(QDialog):
                     hover_annot.set_visible(False)
                     hover_vline.set_visible(False)
                     hover_hline.set_visible(False)
-                    fig.canvas.draw_idle()
+                    fig.canvas.draw()
                     return
                 idx = np.argmin(np.abs(x - event.xdata))
                 xv, yv = x[idx], pnl[idx]
@@ -971,7 +971,7 @@ class ColarCalendarioDialog(QDialog):
                 hover_vline.set_visible(True)
                 hover_hline.set_ydata([yv, yv])
                 hover_hline.set_visible(True)
-                fig.canvas.draw_idle()
+                fig.canvas.draw()
             ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
             ax.axvline(S0, color='#2196f3', linewidth=0.7, linestyle='--', alpha=0.8, label=f'Entrada {S0:.2f}')
             ax.axvline(Kp, color=RED, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Put {Kp:.2f}')
@@ -1032,6 +1032,10 @@ class ColarCalendarioDialog(QDialog):
             for spine in ax.spines.values():
                 spine.set_color('#333')
             leg = ax.legend(loc='best', fontsize=7, labelcolor=TEXT, facecolor='#1a1a1a', edgecolor='#333')
+
+            ax.set_xlim(x_min, x_max)
+            y_pad = (pnl.max() - pnl.min()) * 0.08
+            ax.set_ylim(pnl.min() - y_pad, pnl.max() + y_pad)
 
             fig.tight_layout(pad=1.5)
 

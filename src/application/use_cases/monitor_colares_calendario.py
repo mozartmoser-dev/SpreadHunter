@@ -73,8 +73,6 @@ class MonitorColaresCalendarioUseCase:
         stats = {"total": 0, "sem_vencimento": 0, "sem_codigos": 0, "sem_dias": 0, "sem_strike": 0, "sem_strike_registrado": 0, "sem_ocp_ovd": 0, "sem_ocp_registrado": 0, "sem_ovd_registrado": 0, "sem_preco": 0, "sem_qul": 0, "calls": 0, "puts": 0, "fora_dte": 0, "fora_ativo": 0}
 
         source = dados_mercado if dados_mercado else inst_map
-        logger.warning("CollarCal ENTRADA: dados_mercado=%s, len(source)=%d, params=%s",
-                       "SIM" if dados_mercado else "NAO", len(source), params)
         for key in source:
             stats["total"] += 1
             dm = dados_mercado.get(key) if dados_mercado else None
@@ -127,7 +125,7 @@ class MonitorColaresCalendarioUseCase:
 
             qul_min_put = params.get("qul_min_put", 100)
             qul_min_call = params.get("qul_min_call", 100)
-            if qul_put < qul_min_put or qul_call < qul_min_call:
+            if (qul_put > 0 or qul_call > 0) and (qul_put < qul_min_put or qul_call < qul_min_call):
                 stats["sem_qul"] += 1
                 continue
 
@@ -211,22 +209,18 @@ class MonitorColaresCalendarioUseCase:
             strike_interval = min(b - a for a, b in zip(todos_strikes, todos_strikes[1:])) if len(todos_strikes) > 1 else 0.5
             strike_diff_max = strike_interval * cal_diff_max
 
-            call_otm_max = params.get("calendario_call_otm_max")
-            if call_otm_max is None:
-                call_otm_max = self._get_param("calendario_call_otm_max", 0.04)
-            call_otm_limite = preco_ativo * (1 + call_otm_max)
+            calls_ordenadas = sorted(
+                calls,
+                key=lambda c: abs(c["strike"] - preco_ativo),
+            )
 
-            calls_otm = [c for c in calls if c["strike"] > preco_ativo and c["strike"] <= call_otm_limite]
-            calls_otm.sort(key=lambda c: c["strike"] - preco_ativo)
-
-            for call in calls_otm:
+            for call in calls_ordenadas:
                 sc = call["strike"]
                 dte_call = call["dte"]
 
-                # Filtra puts OTM (strike < spot) e ordena por |strike_call - strike_put|
-                puts_otm = [p for p in puts if p["strike"] < preco_ativo]
+                # Pares ordenados por proximidade de strike com a call
                 puts_ordenadas = sorted(
-                    puts_otm,
+                    puts,
                     key=lambda p: abs(p["strike"] - sc),
                 )
 
@@ -267,4 +261,4 @@ class MonitorColaresCalendarioUseCase:
         resultados.sort(key=lambda r: -r.pct_cdi)
         logger.warning("CollarCal STATS: %s", stats)
         logger.warning("CollarCal TOTAL: %d viaveis em %d ativos", len(resultados), len(set(r.ativo for r in resultados)))
-        return resultados
+        return [r for r in resultados if r.viavel]

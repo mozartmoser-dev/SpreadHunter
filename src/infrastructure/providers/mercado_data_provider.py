@@ -268,8 +268,9 @@ class MercadoDataProvider:
                         count_pulas += 1
                         continue
 
-            # ONDA 1: Registra o strike primeiro (sempre)
+            # ONDA 1: Registra o strike (sempre) para put e call
             rtd.registrar_topico(inst.cod_put, RTD_CAMPO_STRIKE)
+            rtd.registrar_topico(inst.cod_call, RTD_CAMPO_STRIKE)
 
             # Filtro de strike (% do spot) — só pula CAB se tiver preço do ativo + strike no cache
             pular_strike = False
@@ -476,6 +477,40 @@ class MercadoDataProvider:
                         else:
                             self._dados_cache.pop(key, None)
                         continue
+
+                    # Onda 1: dados basicos para collars (strike + OCP/OVD)
+                    strike_put = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_STRIKE)
+                    if not strike_put or strike_put <= 0:
+                        strike_put = self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_STRIKE)
+                    if not strike_put or strike_put <= 0:
+                        continue
+                    ocp = self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_OFERTA_COMPRA)
+                    ovd = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_OFERTA_VENDA)
+                    if not ocp or not ovd:
+                        continue
+                    preco_ativo = self._precos_ativo_cache.get(inst.ativo)
+                    if not preco_ativo or preco_ativo <= 0:
+                        preco_ativo = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                        if not preco_ativo or preco_ativo <= 0:
+                            continue
+                        self._precos_ativo_cache[inst.ativo] = preco_ativo
+                    entry = {
+                        "preco_ativo": preco_ativo,
+                        "strike_rtd": strike_put,
+                        "of_compra_call": ocp,
+                        "of_venda_put": ovd,
+                        "of_compra_put": self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_OFERTA_COMPRA) or 0.0,
+                        "of_venda_call": self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_OFERTA_VENDA) or 0.0,
+                        "qul_put": 0,
+                        "qul_call": 0,
+                        "vov_put": 0,
+                        "voc_call": 0,
+                        "em_leilao": False,
+                        "status_put": self.rtd.ler_status_cache(inst.cod_put) or "aberto",
+                        "status_call": self.rtd.ler_status_cache(inst.cod_call) or "aberto",
+                        "status_ativo": self.rtd.ler_status_cache(inst.ativo) or "aberto",
+                    }
+                    dados_mercado[key] = entry
 
                 t_varredura = time.perf_counter() - t_scan0
                 self._sem_ativo_skip = sem_ativo_atual

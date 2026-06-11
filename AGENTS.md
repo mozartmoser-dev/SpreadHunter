@@ -141,3 +141,51 @@ Exceções permitidas apenas para constantes matemáticas (0.5, 100%), valores
 estruturais (2 pernas, 1 ativo), ou tuning puramente cosmético (frequências
 de som, timers de UI). Qualquer dúvida: parametrizar é mais seguro.
 
+---
+
+## Sessão 10/06/2026 — Collar Calendário + Correções (REVISAR NA PRÓXIMA)
+
+### O que foi alterado (desfazer se não funcionar)
+
+#### mercado_data_provider.py
+- `capturar_dados_mercado()`: Onda 1 agora entra no `dados_mercado` com
+  PEX/strike + OCP + OVD + ULT. QUL=0 sinaliza "não medido".
+
+#### monitor_colares_calendario.py
+- Filtros 6 e 7 (call OTM, put OTM) **removidos** — aceita qualquer strike
+  relativo ao spot (ITM, ATM, OTM). O pareamento usa distância de strike
+  (`calendario_strike_diff_max`) como único filtro direcional.
+- Log temporário removido (estava entre filtro 5 e pareamento).
+
+#### calculadora_colar_calendario.py
+- Viabilidade (`viavel`) agora usa **PnL bruto** (antes de B3 e IR) em vez
+  de PnL pós-B3. Custos são exibidos nas colunas para avaliação manual.
+
+#### Parâmetros no banco (ambos SQLite: `data/` e `config/`)
+| Chave | Valor | Descrição |
+|---|---|---|
+| `dte_call_min` | 25 | DTE mínimo para call vendida (dias corridos) |
+| `dte_call_max` | 60 | DTE máximo para call vendida |
+| `dte_extra_min` | 30 | Spread DTE mínimo put − call |
+| `dte_extra_max` | 120 | Spread DTE máximo put − call |
+| `dte_total_max` | 180 | DTE máximo total |
+| `calendario_strike_diff_max` | 1 | Máx strikes de diferença entre Kc e Kp |
+| `calendario_call_otm_max` | 0.15 | Não usado (filtro removido) |
+
+### Resultado esperado
+- Calls: qualquer opção com DTE 25-60 (mês 7 e semanais ≥ 25d)
+- Puts: qualquer opção com DTE 61-180 (meses 8-11)
+- Pares ordenados por proximidade de strike (não mais por OTM)
+- Aproximadamente 4+ operações de calendário por ciclo
+
+### Motivo das mudanças
+- Filtros OTM engessavam viés direcional desnecessariamente
+- Call OTM descartava calls ITM que ainda fazem calendário válido
+- Put OTM descartava puts ITM que protegem melhor em quedas
+- Viabilidade pós-B3 eliminava pares com custo marginal que valiam
+  ser avaliados visualmente
+- `dte_call_min` reduzido de 36→25 para capturar semanais longas
+- `dte_extra_max` ampliado 90→120 para alcançar mês 11
+- `dte_total_max` ampliado 120→180 para não cortar puts longas
+- `calendario_strike_diff_max` reduzido 3→1 (mesmo strike)
+

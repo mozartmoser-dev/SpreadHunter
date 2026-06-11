@@ -101,6 +101,7 @@ class MppDialog(QDialog):
         self.table_view.setShowGrid(True)
         font = QFont("Consolas", 9)
         self.table_view.setFont(font)
+        self.table_view.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table_view.setStyleSheet(f"""
             QTableView {{
                 background-color: {Palette.BG_DARK};
