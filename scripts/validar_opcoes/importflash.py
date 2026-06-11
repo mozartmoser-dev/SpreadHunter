@@ -141,23 +141,8 @@ def main():
     print("=" * 50)
 
     conn = sqlite3.connect(str(REAL_DB))
-    conn.row_factory = sqlite3.Row
-
-    preservados = []
-    if excluir:
-        ph = ",".join("?" for _ in excluir)
-        preservados = conn.execute(
-            f"SELECT * FROM instrumentos_base WHERE ativo IN ({ph})", tuple(excluir)
-        ).fetchall()
-
     conn.execute("DELETE FROM instrumentos_base")
     conn.commit()
-
-    for r in preservados:
-        conn.execute(
-            "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao) VALUES (?, ?, ?, ?, ?)",
-            (r["ativo"], r["cod_put"], r["cod_call"], str(r["vencimento"])[:10] if r["vencimento"] else None, r["tipo_opcao"]),
-        )
 
     inseridas = 0
     for ativo, cod_put, cod_call, ven, strike, tipo in todos_pares:
@@ -179,7 +164,6 @@ def main():
     print(f"IMPORTFLASH CONCLUIDO em {dur:.0f}s ({dur/60:.1f}min)")
     print(f"{'=' * 50}")
     print(f"Pares importados: {inseridas}")
-    print(f"Preservados (excluidos): {len(preservados)}")
     excl_str = ", ".join(excluir) if excluir else "nenhum"
     print(f"Ativos excluidos: {excl_str}")
     print(f"Total no banco: {total} registros")
