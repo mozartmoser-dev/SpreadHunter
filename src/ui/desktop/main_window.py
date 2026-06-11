@@ -619,8 +619,12 @@ class MainWindow(QMainWindow):
         self._update_scan_status()
 
         if self._som_ativado and self._total_viaveis > 0:
-            winsound.Beep(1000, 200)
-            winsound.Beep(1200, 150)
+            self._tocar_beep()
+
+    def _tocar_beep(self):
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(0, lambda: winsound.Beep(1000, 200))
+        QTimer.singleShot(200, lambda: winsound.Beep(1200, 150))
 
     def _toggle_som_global(self, ativo: bool):
         self._som_ativado = ativo
@@ -868,10 +872,8 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self._worker.parar()
+        self._worker.finished.connect(self._worker.deleteLater)
         super().closeEvent(event)
-
-    def set_dados_mercado(self, dados: dict[str, dict]):
-        pass
 
     def start_auto_scan(self, interval_ms: int = 1500):
         self._worker.set_interval(interval_ms)

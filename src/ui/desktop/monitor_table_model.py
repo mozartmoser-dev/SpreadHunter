@@ -313,25 +313,6 @@ class MonitorTableModel(QAbstractTableModel):
         self._key_map = {self._item_key(opp): i for i, opp in enumerate(oportunidades)}
         self.layoutChanged.emit()
 
-    @staticmethod
-    def _opp_equal(a: OportunidadeMonitor, b: OportunidadeMonitor) -> bool:
-        return (
-            a.viavel == b.viavel
-            and a.classificacao == b.classificacao
-            and a.em_leilao == b.em_leilao
-            and a.pct_ganho_box == b.pct_ganho_box
-            and a.pct_ganho_sbth == b.pct_ganho_sbth
-            and a.pct_cdi_box == b.pct_cdi_box
-            and a.pct_cdi_sbth == b.pct_cdi_sbth
-            and a.of_venda_put == b.of_venda_put
-            and a.of_compra_call == b.of_compra_call
-            and a.liq_put_x_lote == b.liq_put_x_lote
-            and a.liq_call_x_lote == b.liq_call_x_lote
-            and a.preco_compra_ativo == b.preco_compra_ativo
-            and a.qul_put == b.qul_put
-            and a.qul_call == b.qul_call
-        )
-
     def get_oportunidade(self, row: int) -> OportunidadeMonitor | None:
         if 0 <= row < len(self._oportunidades):
             return self._oportunidades[row]

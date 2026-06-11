@@ -30,15 +30,19 @@ class TelegramService:
         }
 
     def _build_notifier(self) -> TelegramNotifier | None:
-        if self._notifier is not None:
-            return self._notifier
         cfg = self._load_params()
         token = cfg.get("token", "")
         chat_id = cfg.get("chat_id", "")
-        if token and chat_id and token != "0" and chat_id != "0":
-            self._notifier = TelegramNotifier(token, chat_id)
-            return self._notifier
-        return None
+        if not token or not chat_id or token == "0" or chat_id == "0":
+            self._notifier = None
+            return None
+        if self._notifier is not None:
+            if getattr(self._notifier, '_token', None) == token and getattr(self._notifier, '_chat_id', None) == chat_id:
+                return self._notifier
+        self._notifier = TelegramNotifier(token, chat_id)
+        self._notifier._token = token
+        self._notifier._chat_id = chat_id
+        return self._notifier
 
     def is_enabled(self) -> bool:
         cfg = self._load_params()

@@ -113,8 +113,11 @@ class MercadoDataProvider:
             self._lock.unlock()
 
     def recarregar_parametros(self):
-        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
-        repo = ParametroRepository(self.db_path)
+        if not hasattr(self, '_param_repo_cache'):
+            from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+            self._param_repo_cache = ParametroRepository(self.db_path)
+        repo = self._param_repo_cache
+        repo.invalidate_cache()
         
         p_ci = repo.get_by_chave("perf_carga_inteligente")
         self._carga_inteligente_habilitada = bool(p_ci.valor) if p_ci else True
@@ -237,11 +240,63 @@ class MercadoDataProvider:
         if count > 0:
             logger.info("RTD: Refresh forcado para %d instrumentos de %d ativos ex-dividendo.", count, len(ativos_registrados))
 
+    def _deve_pular_instrumento(self, inst: InstrumentoOpcional) -> bool:
+        if not self._carga_inteligente_habilitada:
+            return False
+        hoje = date.today()
+        if self._dias_minimos > 0 and inst.vencimento:
+            if (inst.vencimento - hoje).days < self._dias_minimos:
+                return True
+        if self._limite_meses > 0 and inst.vencimento:
+            if (inst.vencimento - hoje).days > (self._limite_meses * 30):
+                return True
+        return False
+
+    def _deve_pular_por_strike(self, inst: InstrumentoOpcional) -> bool:
+        if not self._carga_inteligente_habilitada or not (self._range_min < 0 or self._range_max > 0):
+            return False
+        strike_val = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_STRIKE)
+        if not strike_val or strike_val <= 0:
+            return False
+        preco = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+        if not preco or preco <= 0:
+            return False
+        ratio = (strike_val / preco) - 1
+        return ratio < self._range_min or ratio > self._range_max
+
+    def _registrar_instrumento(self, inst: InstrumentoOpcional):
+        rtd = self.rtd
+        key = inst.cod_put
+        if key in self._chaves_registradas:
+            return False
+
+        if self._deve_pular_instrumento(inst):
+            self._chaves_registradas.add(key)
+            return False
+
+        rtd.registrar_topico(inst.cod_put, RTD_CAMPO_STRIKE)
+        rtd.registrar_topico(inst.cod_call, RTD_CAMPO_STRIKE)
+
+        if not self._deve_pular_por_strike(inst):
+            rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
+            rtd.registrar_topico(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
+            rtd.registrar_topico(inst.cod_put, RTD_CAMPO_OFERTA_VENDA)
+            rtd.registrar_topico(inst.cod_call, RTD_CAMPO_OFERTA_COMPRA)
+
+        if inst.ativo not in self._ativos_registrados:
+            rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+            rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
+            rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
+            rtd.registrar_status(inst.ativo)
+            self._ativos_registrados.add(inst.ativo)
+
+        self._chaves_registradas.add(key)
+        return True
+
     def _registrar_batch_inteligente(self, instrumentos: list[InstrumentoOpcional], batch_size: int = 2000):
         if self._registrado:
             return
 
-        rtd = self.rtd
         t0 = time.perf_counter()
         start_idx = self._registro_idx
         end_idx = min(start_idx + batch_size, len(instrumentos))
@@ -251,54 +306,10 @@ class MercadoDataProvider:
 
         for i in range(start_idx, end_idx):
             inst = instrumentos[i]
-            key = inst.cod_put
-            
-            if key in self._chaves_registradas:
-                continue
-
-            # Filtros de Proximidade (Carga Inteligente)
-            if self._carga_inteligente_habilitada:
-                hoje = date.today()
-                if self._dias_minimos > 0 and inst.vencimento:
-                    if (inst.vencimento - hoje).days < self._dias_minimos:
-                        count_pulas += 1
-                        continue
-                if self._limite_meses > 0 and inst.vencimento:
-                    if (inst.vencimento - hoje).days > (self._limite_meses * 30):
-                        count_pulas += 1
-                        continue
-
-            # ONDA 1: Registra o strike (sempre) para put e call
-            rtd.registrar_topico(inst.cod_put, RTD_CAMPO_STRIKE)
-            rtd.registrar_topico(inst.cod_call, RTD_CAMPO_STRIKE)
-
-            # Filtro de strike (% do spot) — só pula CAB se tiver preço do ativo + strike no cache
-            pular_strike = False
-            if self._carga_inteligente_habilitada and (self._range_min < 0 or self._range_max > 0):
-                strike_val = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_STRIKE)
-                if strike_val and strike_val > 0:
-                    preco = rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
-                    if preco and preco > 0:
-                        ratio = (strike_val / preco) - 1
-                        if ratio < self._range_min or ratio > self._range_max:
-                            pular_strike = True
-                            count_pulas += 1
-
-            if not pular_strike:
-                rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
-                rtd.registrar_topico(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
-                rtd.registrar_topico(inst.cod_put, RTD_CAMPO_OFERTA_VENDA)
-                rtd.registrar_topico(inst.cod_call, RTD_CAMPO_OFERTA_COMPRA)
-
-            if inst.ativo not in self._ativos_registrados:
-                rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
-                rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
-                rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
-                rtd.registrar_status(inst.ativo)
-                self._ativos_registrados.add(inst.ativo)
-
-            self._chaves_registradas.add(key)
-            count_processados += 1
+            if self._registrar_instrumento(inst):
+                count_processados += 1
+            else:
+                count_pulas += 1
 
         self._registro_idx = end_idx
 
@@ -323,52 +334,8 @@ class MercadoDataProvider:
 
         for i in range(start, end):
             inst = instrumentos[i]
-            key = inst.cod_put
-            if key in self._chaves_registradas:
-                continue
-
-            # Filtros de carga inteligente (mesma lógica da Onda 1)
-            if self._carga_inteligente_habilitada:
-                hoje = date.today()
-                if self._dias_minimos > 0 and inst.vencimento:
-                    if (inst.vencimento - hoje).days < self._dias_minimos:
-                        count += 1  # conta como processado pra não re-tentar
-                        self._chaves_registradas.add(key)
-                        continue
-                if self._limite_meses > 0 and inst.vencimento:
-                    if (inst.vencimento - hoje).days > (self._limite_meses * 30):
-                        count += 1
-                        self._chaves_registradas.add(key)
-                        continue
-
-            rtd = self.rtd
-            rtd.registrar_topico(inst.cod_put, RTD_CAMPO_STRIKE)
-
-            # Filtro de strike (% do spot)
-            pular_strike = False
-            if self._carga_inteligente_habilitada and (self._range_min < 0 or self._range_max > 0):
-                strike_val = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_STRIKE)
-                if strike_val and strike_val > 0:
-                    preco = rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
-                    if preco and preco > 0:
-                        ratio = (strike_val / preco) - 1
-                        if ratio < self._range_min or ratio > self._range_max:
-                            pular_strike = True
-
-            if not pular_strike:
-                rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
-                rtd.registrar_topico(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
-                rtd.registrar_topico(inst.cod_put, RTD_CAMPO_OFERTA_VENDA)
-                rtd.registrar_topico(inst.cod_call, RTD_CAMPO_OFERTA_COMPRA)
-
-            if inst.ativo not in self._ativos_registrados:
-                rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
-                rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
-                rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
-                rtd.registrar_status(inst.ativo)
-                self._ativos_registrados.add(inst.ativo)
-            self._chaves_registradas.add(key)
-            count += 1
+            if self._registrar_instrumento(inst):
+                count += 1
 
         self._registro_remaining_idx = end
         if count > 0:

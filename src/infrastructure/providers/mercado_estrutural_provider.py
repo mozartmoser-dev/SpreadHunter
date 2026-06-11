@@ -23,6 +23,9 @@ class MercadoEstruturalProvider:
             "Referer": "https://opcoes.net.br/",
         })
 
+    def __del__(self):
+        self._session.close()
+
     def fetch_options_data(self, ativo: str) -> list[dict]:
         z = str(math.floor(time.time() / 10))
         params = {

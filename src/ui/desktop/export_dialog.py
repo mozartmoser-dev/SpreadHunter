@@ -318,7 +318,7 @@ class ExportDialog(QDialog):
         return lbl
 
     @staticmethod
-    def _spacer() -> QLabel:
+    def _spacer() -> QFrame:
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
         sep.setStyleSheet("background-color: {}; max-height: 1px;".format(Palette.BORDER))

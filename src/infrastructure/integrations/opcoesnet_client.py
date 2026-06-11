@@ -30,6 +30,10 @@ class OpcoesNetClient:
         self._csrf_token: Optional[str] = None
         self._csrf_updated_at = 0.0
 
+    def __del__(self):
+        if self._session:
+            self._session.close()
+
     # ------------------------------------------------------------------
     # Login
     # ------------------------------------------------------------------
@@ -517,10 +521,9 @@ class OpcoesNetClient:
                 break
         if not chave_alvo:
             # Pega a chave com o maior número de sessões disponível
-            import re as re2
             max_n = 0
             for chave in dados:
-                nums = re2.findall(r'\d+', chave)
+                nums = re.findall(r'\d+', chave)
                 if nums:
                     n = int(nums[-1])
                     if n > max_n:

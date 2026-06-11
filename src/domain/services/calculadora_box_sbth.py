@@ -112,20 +112,10 @@ class CalculadoraBoxSbth:
             return 0.0
         return dados.preco_compra_ativo + dados.of_venda_put
 
-    def _calcular_pct_ganho_sbth(self, custo: float, strike: float) -> float:
-        if custo <= 0:
-            return 0.0
-        return (strike - custo) / custo
-
     def _calcular_custo_box(self, dados: DadosMercado) -> float:
         if dados.of_venda_put <= 0 or dados.of_compra_call <= 0 or dados.preco_compra_ativo <= 0:
             return 0.0
         return dados.preco_compra_ativo + dados.of_venda_put - dados.of_compra_call
-
-    def _calcular_pct_ganho_box(self, custo: float, strike: float) -> float:
-        if custo == 0:
-            return 0.0
-        return (strike - custo) / max(custo, 0.01)
 
     def _calcular_pct_cdi(self, pct_ganho: float, cdi_periodo: float) -> float:
         if cdi_periodo <= 0:

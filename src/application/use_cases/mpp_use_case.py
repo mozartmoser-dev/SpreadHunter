@@ -392,6 +392,7 @@ class MPPUseCase:
                     resultados_mre.append(mre)
 
         resultados_box.sort(key=lambda b: -b.score_final_pct)
+        self._flush_spread_history()
         return resultados_box, resultados_mre
 
     def _obter_instrumentos_mapa(self, ativos: list[str] | None = None) -> dict:
@@ -503,23 +504,42 @@ class MPPUseCase:
         imbalance_medio = sum(imbalances) / len(imbalances)
         score_anomalia_medio = sum(anomalias) / len(anomalias) if anomalias else 0.0
 
+        peso_paridade = self._get_param("mpp_peso_paridade", 0.25)
+        peso_spread = self._get_param("mpp_peso_spread", 0.20)
+        peso_profundidade = self._get_param("mpp_peso_profundidade", 0.10)
+        peso_imbalance = self._get_param("mpp_peso_imbalance", 0.05)
+        peso_anomalia = self._get_param("mpp_peso_spread_anomalia", 0.05)
+        soma_pesos = peso_paridade + peso_spread + peso_profundidade + peso_imbalance + peso_anomalia
+        if soma_pesos <= 0:
+            soma_pesos = 0.65
+
         score_instantaneo = (
-            (25.0 / 65.0) * score_paridade_box +
-            (20.0 / 65.0) * score_spread_medio +
-            (10.0 / 65.0) * profundidade_min +
-            (5.0 / 65.0) * imbalance_medio +
-            (5.0 / 65.0) * score_anomalia_medio
+            (peso_paridade / soma_pesos) * score_paridade_box +
+            (peso_spread / soma_pesos) * score_spread_medio +
+            (peso_profundidade / soma_pesos) * profundidade_min +
+            (peso_imbalance / soma_pesos) * imbalance_medio +
+            (peso_anomalia / soma_pesos) * score_anomalia_medio
         )
+
+        peso_estrutural = self._get_param("mpp_peso_estrutural", 0.35)
+        peso_instantaneo = self._get_param("mpp_peso_instantaneo", 0.65)
+        peso_estrutural = max(0.0, min(1.0, peso_estrutural))
+        peso_instantaneo = max(0.0, min(1.0, peso_instantaneo))
+        soma_pesos_final = peso_estrutural + peso_instantaneo
+        if soma_pesos_final <= 0:
+            peso_estrutural, peso_instantaneo = 0.35, 0.65
 
         score_estrutural_box = self._calcular_score_estrutural_box(k1, k2)
 
-        score_final = 0.35 * score_estrutural_box + 0.65 * score_instantaneo
+        score_final = peso_estrutural * score_estrutural_box + peso_instantaneo * score_instantaneo
 
         score_final *= self._calcular_fator_dte(dias_uteis)
 
         chave_pers = f"{ativo}_{k1['strike']}_{k2['strike']}"
         pers_ciclos = self._atualizar_persistencia(chave_pers, erro_box)
-        mult_pers = 1.0 + min(pers_ciclos / 20.0, 0.5)
+        pers_divisor = self._get_param("mpp_persistencia_divisor", 20.0)
+        pers_max_mult = self._get_param("mpp_persistencia_max_mult", 0.50)
+        mult_pers = 1.0 + min(pers_ciclos / pers_divisor, pers_max_mult)
         score_final *= mult_pers
 
         bonus = self._calcular_bonus_historico(ativo)
@@ -609,34 +629,44 @@ class MPPUseCase:
         except Exception:
             self.spread_history = {}
 
-    def _salvar_spread_history(self, codigo: str, spread_pct: float):
-        if not self.db_path:
+    def _atualizar_spread_history(self, codigo: str, spread_pct: float):
+        if codigo not in self.spread_history:
+            hist_len = int(self._get_param("mpp_spread_history_len", 200))
+            self.spread_history[codigo] = deque(maxlen=hist_len)
+        self.spread_history[codigo].append(spread_pct)
+
+    def _flush_spread_history(self):
+        """Persiste spread history em batch — chamado no final do ciclo MPP."""
+        if not self.db_path or not self.spread_history:
+            return
+        hist_len = int(self._get_param("mpp_spread_history_len", 200))
+        inserts = []
+        codigos_atuais = set()
+        for codigo, hist in self.spread_history.items():
+            if hist:
+                inserts.append((codigo, hist[-1]))
+                codigos_atuais.add(codigo)
+        if not inserts:
             return
         try:
             conn = get_connection(self.db_path)
             try:
-                conn.execute(
+                conn.executemany(
                     "INSERT INTO mpp_spread_history (codigo, spread_pct) VALUES (?, ?)",
-                    (codigo, spread_pct)
+                    inserts
                 )
+                placeholders = ",".join("?" * len(codigos_atuais))
                 conn.execute(
-                    "DELETE FROM mpp_spread_history WHERE id NOT IN ("
-                    "SELECT id FROM mpp_spread_history WHERE codigo = ? "
-                    "ORDER BY created_at DESC LIMIT ?)",
-                    (codigo, int(self._get_param("mpp_spread_history_len", 200)))
+                    f"DELETE FROM mpp_spread_history WHERE codigo IN ({placeholders}) AND id NOT IN ("
+                    f"SELECT id FROM mpp_spread_history WHERE codigo = mpp_spread_history.codigo "
+                    f"ORDER BY created_at DESC LIMIT ?)",
+                    list(codigos_atuais) + [hist_len]
                 )
                 conn.commit()
             finally:
                 conn.close()
         except Exception:
             pass
-
-    def _atualizar_spread_history(self, codigo: str, spread_pct: float):
-        if codigo not in self.spread_history:
-            hist_len = int(self._get_param("mpp_spread_history_len", 200))
-            self.spread_history[codigo] = deque(maxlen=hist_len)
-        self.spread_history[codigo].append(spread_pct)
-        self._salvar_spread_history(codigo, spread_pct)
 
     def _calcular_anomalia(self, codigo: str, spread_pct: float) -> float:
         min_anomalia = self._get_param("mpp_spread_min_anomalia", 0.02)
@@ -652,7 +682,7 @@ class MPPUseCase:
         return min(anomalia / 5.0, 1.0)
 
     def _atualizar_persistencia(self, chave_box: str, erro_paridade_pct: float) -> int:
-        limite = 0.02
+        limite = self._get_param("mpp_erro_paridade_limiar", 0.02)
         if erro_paridade_pct > limite:
             self.persistencia[chave_box] = self.persistencia.get(chave_box, 0) + 1
         else:

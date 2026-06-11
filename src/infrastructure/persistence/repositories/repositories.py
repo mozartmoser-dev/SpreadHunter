@@ -1,4 +1,5 @@
 import json
+import threading
 from datetime import date, datetime
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOpcao
@@ -20,14 +21,16 @@ def _parse_date(val) -> date | None:
 class InstrumentoRepository:
     _cache_all = None
     _cache_mapped = None
+    _lock = threading.Lock()
 
     def __init__(self, db_path=None):
         self.db_path = db_path
 
     @classmethod
     def invalidate_cache(cls):
-        cls._cache_all = None
-        cls._cache_mapped = None
+        with cls._lock:
+            cls._cache_all = None
+            cls._cache_mapped = None
 
     def save(self, instrumento: InstrumentoOpcional) -> InstrumentoOpcional:
         self.invalidate_cache()
@@ -64,13 +67,14 @@ class InstrumentoRepository:
             conn.close()
 
     def get_all(self) -> list[InstrumentoOpcional]:
-        if self.__class__._cache_all is not None:
-            return self.__class__._cache_all
+        with self.__class__._lock:
+            if self.__class__._cache_all is not None:
+                return list(self.__class__._cache_all)
         
         conn = get_connection(self.db_path)
         try:
             rows = conn.execute("SELECT * FROM instrumentos_base").fetchall()
-            self.__class__._cache_all = [
+            inst_list = [
                 InstrumentoOpcional(
                     id=row["id"],
                     ativo=row["ativo"],
@@ -81,18 +85,23 @@ class InstrumentoRepository:
                 )
                 for row in rows
             ]
-            return self.__class__._cache_all
+            with self.__class__._lock:
+                self.__class__._cache_all = inst_list
+            return list(inst_list)
         finally:
             conn.close()
 
     def get_all_mapped(self) -> dict[str, InstrumentoOpcional]:
         """Retorna dicionário {cod_put: InstrumentoOpcional}."""
-        if self.__class__._cache_mapped is not None:
-            return self.__class__._cache_mapped
+        with self.__class__._lock:
+            if self.__class__._cache_mapped is not None:
+                return dict(self.__class__._cache_mapped)
         
         all_inst = self.get_all()
-        self.__class__._cache_mapped = {i.cod_put: i for i in all_inst}
-        return self.__class__._cache_mapped
+        mapped = {i.cod_put: i for i in all_inst}
+        with self.__class__._lock:
+            self.__class__._cache_mapped = mapped
+        return dict(mapped)
 
     def get_by_ativo(self, ativo: str) -> list[InstrumentoOpcional]:
         conn = get_connection(self.db_path)
@@ -128,13 +137,15 @@ class InstrumentoRepository:
 
 class ParametroRepository:
     _cache = None
+    _lock = threading.Lock()
 
     def __init__(self, db_path=None):
         self.db_path = db_path
 
     @classmethod
     def invalidate_cache(cls):
-        cls._cache = None
+        with cls._lock:
+            cls._cache = None
 
     def save(self, param: ParametroOperacional) -> ParametroOperacional:
         self.invalidate_cache()
@@ -153,32 +164,35 @@ class ParametroRepository:
             conn.close()
 
     def get_by_chave(self, chave: str) -> ParametroOperacional | None:
-        if self.__class__._cache is None:
-            self._fill_cache()
-        return self.__class__._cache.get(chave)
+        with self.__class__._lock:
+            if self.__class__._cache is None:
+                self._fill_cache()
+            return self.__class__._cache.get(chave)
 
     def _fill_cache(self):
         conn = get_connection(self.db_path)
         try:
             rows = conn.execute("SELECT * FROM parametros_operacionais").fetchall()
-            self.__class__._cache = {}
+            cache = {}
             for row in rows:
                 val_raw = row["valor"]
                 try:
                     valor = float(val_raw)
                 except (ValueError, TypeError):
                     valor = val_raw
-                self.__class__._cache[row["chave"]] = ParametroOperacional(
+                cache[row["chave"]] = ParametroOperacional(
                     id=row["id"], chave=row["chave"], valor=valor,
                     estrategia=row["estrategia"], descricao=row["descricao"]
                 )
+            self.__class__._cache = cache
         finally:
             conn.close()
 
     def get_by_estrategia(self, estrategia: str) -> list[ParametroOperacional]:
-        if self.__class__._cache is None:
-            self._fill_cache()
-        return [p for p in self.__class__._cache.values() if p.estrategia == estrategia]
+        with self.__class__._lock:
+            if self.__class__._cache is None:
+                self._fill_cache()
+            return [p for p in self.__class__._cache.values() if p.estrategia == estrategia]
 
     def seed_defaults(self) -> None:
         self.invalidate_cache()
@@ -253,7 +267,7 @@ class OportunidadeRepository:
             snapshot_mercado=json.loads(row["snapshot_mercado"] or "{}"),
         )
 
-    def get_historico_completo(self) -> list[dict]:
+    def get_historico_completo(self, limite: int = 5000) -> list[dict]:
         conn = get_connection(self.db_path)
         try:
             cursor = conn.execute(
@@ -263,7 +277,8 @@ class OportunidadeRepository:
                           o.snapshot_mercado
                    FROM oportunidades o
                    JOIN instrumentos_base i ON o.instrumento_id = i.id
-                   ORDER BY o.created_at DESC"""
+                   ORDER BY o.created_at DESC
+                   LIMIT ?""", (limite,)
             )
             rows = cursor.fetchall()
             res = []

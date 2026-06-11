@@ -55,7 +55,6 @@ class MonitorWorker(QThread):
         self._colar_cal_interval = 3
         self._mutex = QMutex()
         self._wait_condition = QWaitCondition()
-        self._colar_cycle = 0
         self._forcar_colar = False
         self._colar_auto = False
         self._colar_mutex = QMutex()
@@ -182,6 +181,17 @@ class MonitorWorker(QThread):
     def set_interval(self, ms: int):
         self._interval_ms = max(2000, ms)
 
+    def _ler_param_int(self, chave: str, default: int) -> int:
+        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+        repo = ParametroRepository(self.db_path)
+        param = repo.get_by_chave(chave)
+        if param is not None:
+            try:
+                return int(param.valor)
+            except (ValueError, TypeError):
+                pass
+        return default
+
     def recarregar_parametros(self):
         self._monitor_uc.recarregar_parametros()
         self._monitor_colares_uc.recarregar_parametros()
@@ -281,16 +291,16 @@ class MonitorWorker(QThread):
         self.oportunidades_atualizadas.emit(resultados)
 
     def _processar_colares(self, rtd):
+        self._colar_mutex.lock()
         self._colar_cycle += 1
         deve_escanear = self._forcar_colar
         if not deve_escanear and self._colar_auto:
             deve_escanear = (self._colar_cycle % self._colar_interval == 0)
+        if deve_escanear:
+            self._forcar_colar = False
+        self._colar_mutex.unlock()
 
         if deve_escanear:
-            self._colar_mutex.lock()
-            self._forcar_colar = False
-            self._colar_mutex.unlock()
-
             dados_md = getattr(self, '_ultimo_dados_mercado', None)
             if not dados_md or len(dados_md) < 50:
                 return
@@ -298,33 +308,35 @@ class MonitorWorker(QThread):
             self.colares_atualizados.emit(resultados)
 
     def _processar_colar_calendario(self, rtd):
+        self._colar_cal_mutex.lock()
         self._colar_cal_cycle += 1
         deve_escanear = self._forcar_colar_cal
         if not deve_escanear and self._colar_cal_auto:
             deve_escanear = (self._colar_cal_cycle % self._colar_cal_interval == 0)
 
+        ativos = self._colar_cal_ativos
+        params = self._colar_cal_params
         if deve_escanear:
-            self._colar_cal_mutex.lock()
             self._forcar_colar_cal = False
-            ativos = self._colar_cal_ativos
-            params = self._colar_cal_params
-            self._colar_cal_mutex.unlock()
+        self._colar_cal_mutex.unlock()
 
+        if deve_escanear:
             dados_md = getattr(self, '_ultimo_dados_mercado', None)
             resultados = self._monitor_colares_cal_uc.varrer(rtd, dados_md, params, ativos)
             self.colares_calendario_atualizados.emit(resultados)
 
     def _processar_box_4p(self, rtd):
+        self._box_mutex.lock()
         self._box_cycle += 1
         deve_escanear = self._forcar_box
         if not deve_escanear and self._box_auto:
-            deve_escanear = (self._box_cycle % 5 == 0)
+            box_interval = self._ler_param_int("box_scan_interval", 5)
+            deve_escanear = (self._box_cycle % box_interval == 0)
+        if deve_escanear:
+            self._forcar_box = False
+        self._box_mutex.unlock()
 
         if deve_escanear:
-            self._box_mutex.lock()
-            self._forcar_box = False
-            self._box_mutex.unlock()
-
             resultados = self._monitor_box_uc.varrer(rtd)
             self.boxes_atualizados.emit(resultados)
 

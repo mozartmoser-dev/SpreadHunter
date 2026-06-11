@@ -1,4 +1,5 @@
 import logging
+import threading
 from typing import Optional
 
 from src.infrastructure.providers.rtd_config import RTD_SERVIDOR, rtd_topico
@@ -10,6 +11,7 @@ class RTDProfit:
     def __init__(self):
         self.disponivel = False
         self._rtd = None
+        self._lock = threading.Lock()
         import random
         # Começa com um número dinâmico e aleatório alto para evitar colisão de IDs 
         # de tópicos com execuções anteriores que possam ter ficado ativas no servidor RTD do Profit
@@ -56,45 +58,56 @@ class RTDProfit:
 
     def _topic_id(self, codigo: str, campo: str) -> int:
         chave = "{}|{}".format(codigo, campo)
-        if chave not in self._topic_map:
-            self._topic_counter += 1
-            tid = self._topic_counter
-            self._topic_map[chave] = tid
-            self._topic_reverse[tid] = chave
-        return self._topic_map[chave]
+        with self._lock:
+            if chave not in self._topic_map:
+                self._topic_counter += 1
+                tid = self._topic_counter
+                self._topic_map[chave] = tid
+                self._topic_reverse[tid] = chave
+            return self._topic_map[chave]
 
     def registrar_topico(self, codigo: str, campo: str) -> int:
         tid = self._topic_id(codigo, campo)
-        if tid not in self._valores:
-            try:
-                topico = rtd_topico(codigo)
-                resultado = self._rtd.ConnectData(tid, [topico, campo], True)
-                valor = resultado[0] if isinstance(resultado, tuple) else resultado
+        with self._lock:
+            if tid in self._valores:
+                return tid
+        try:
+            topico = rtd_topico(codigo)
+            resultado = self._rtd.ConnectData(tid, [topico, campo], True)
+            valor = resultado[0] if isinstance(resultado, tuple) else resultado
+            with self._lock:
                 self._valores[tid] = valor
-            except Exception:
+        except Exception:
+            with self._lock:
                 self._valores[tid] = None
         return tid
 
     def invalidar_cache(self, codigo: str, campo: str):
         chave = "{}|{}".format(codigo, campo)
-        tid = self._topic_map.get(chave)
+        with self._lock:
+            tid = self._topic_map.get(chave)
         if tid is not None:
             try:
                 self._rtd.DisconnectData(tid)
             except Exception:
                 pass
-            self._valores.pop(tid, None)
-            self._topic_map.pop(chave, None)
-            self._topic_reverse.pop(tid, None)
+            with self._lock:
+                self._valores.pop(tid, None)
+                self._topic_map.pop(chave, None)
+                self._topic_reverse.pop(tid, None)
 
     def registrar_status(self, codigo: str) -> int:
         tid = self._topic_id(codigo, "EST")
-        if tid not in self._valores:
-            try:
-                resultado = self._rtd.ConnectData(tid, [codigo, "EST"], True)
-                valor = resultado[0] if isinstance(resultado, tuple) else resultado
+        with self._lock:
+            if tid in self._valores:
+                return tid
+        try:
+            resultado = self._rtd.ConnectData(tid, [codigo, "EST"], True)
+            valor = resultado[0] if isinstance(resultado, tuple) else resultado
+            with self._lock:
                 self._valores[tid] = valor
-            except Exception:
+        except Exception:
+            with self._lock:
                 self._valores[tid] = None
         return tid
 
@@ -127,8 +140,9 @@ class RTDProfit:
                     valor = values[i]
                     if isinstance(valor, (tuple, list)):
                         valor = valor[0]
-                    self._valores[tid] = valor
-                    chave = self._topic_reverse.get(tid)
+                    with self._lock:
+                        self._valores[tid] = valor
+                        chave = self._topic_reverse.get(tid)
                     if chave:
                         mudancas[chave] = valor
                 except (ValueError, TypeError, IndexError):
@@ -162,10 +176,11 @@ class RTDProfit:
 
     def ler_campo_cache(self, codigo: str, campo: str) -> Optional[float]:
         chave = "{}|{}".format(codigo, campo)
-        tid = self._topic_map.get(chave)
-        if tid is None:
-            return None
-        valor = self._valores.get(tid)
+        with self._lock:
+            tid = self._topic_map.get(chave)
+            if tid is None:
+                return None
+            valor = self._valores.get(tid)
         if valor is None:
             return None
         try:
@@ -176,10 +191,11 @@ class RTDProfit:
 
     def ler_status_cache(self, codigo: str) -> str:
         chave = "{}|EST".format(codigo)
-        tid = self._topic_map.get(chave)
-        if tid is None:
-            return ""
-        valor = self._valores.get(tid)
+        with self._lock:
+            tid = self._topic_map.get(chave)
+            if tid is None:
+                return ""
+            valor = self._valores.get(tid)
         if valor is None:
             return ""
         return str(valor).strip()
@@ -216,7 +232,12 @@ class RTDProfit:
         if not self.disponivel or self._rtd is None:
             return
         try:
-            for tid in self._topic_map.values():
+            with self._lock:
+                tids = list(self._topic_map.values())
+                self._topic_map.clear()
+                self._topic_reverse.clear()
+                self._valores.clear()
+            for tid in tids:
                 self._rtd.DisconnectData(tid)
         except Exception:
             pass

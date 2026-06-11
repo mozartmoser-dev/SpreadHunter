@@ -1,7 +1,10 @@
 import sqlite3
+import threading
 from pathlib import Path
 
 DB_NAME = "spreadhunter.db"
+
+_db_local = threading.local()
 
 
 def get_db_path() -> Path:
@@ -10,14 +13,23 @@ def get_db_path() -> Path:
 
 def get_connection(db_path: Path | str | None = None) -> sqlite3.Connection:
     path = Path(db_path) if db_path else get_db_path()
+    local_key = str(path)
+    if hasattr(_db_local, local_key):
+        conn = getattr(_db_local, local_key)
+        try:
+            conn.execute("SELECT 1")
+            return conn
+        except sqlite3.ProgrammingError:
+            pass
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path))
+    conn = sqlite3.connect(str(path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA cache_size=-8000")
     conn.execute("PRAGMA temp_store=MEMORY")
     conn.execute("PRAGMA foreign_keys=ON")
+    setattr(_db_local, local_key, conn)
     return conn
 
 
@@ -80,6 +92,11 @@ def _seed_parametros_colar(conn):
         ("mpp_instantaneo_interval", "4",    "MPP", "Ciclos entre calculos MPP instantaneos"),
         ("mpp_persistencia_max_mult","0.50", "MPP", "Multiplicador maximo da persistencia"),
         ("mpp_persistencia_divisor", "20",   "MPP", "Ciclos para atingir 1x de bonus de persistencia"),
+        ("box_premio_risco",         "1.08", "MPP", "Premio risco minimo sobre CDI para pescaria de Box"),
+        ("mpp_paridade_normalizador","0.10", "MPP", "Fator de normalizacao do erro de paridade do Box"),
+        ("mpp_erro_paridade_limiar", "0.02", "MPP", "Limiar de erro de paridade para acumular persistencia"),
+        ("mpp_peso_estrutural",      "0.35", "MPP", "Peso do score estrutural no score final"),
+        ("mpp_peso_instantaneo",     "0.65", "MPP", "Peso do score instantaneo no score final"),
         ("mpp_bonus_max",            "0.15", "MPP", "Bonus maximo historico"),
         ("mpp_bonus_taxa",           "0.25", "MPP", "Taxa de conversao sucesso em bonus"),
         ("mre_lote_base",            "100",  "MRE", "Lote base para calculo de lote sugerido"),
@@ -93,6 +110,7 @@ def _seed_parametros_colar(conn):
         ("perf_dias_minimos", "7", "PERFORMANCE", "Dias minimos ate o vencimento (min) para registrar Onda 1"),
         ("onda2_dte_min", "7", "PERFORMANCE", "DTE minimo para registrar Onda 2"),
         ("onda2_dte_max", "180", "PERFORMANCE", "DTE maximo para registrar Onda 2"),
+        ("box_scan_interval", "5", "BOX_4P", "Ciclos entre varreduras de Box 4P"),
     ]
     params.extend(perf_params)
     params.extend(mpp_params)
@@ -174,6 +192,7 @@ def _migrar_dividendos(conn):
         cursor = conn.execute("SELECT sql FROM sqlite_master WHERE name='dividendos' AND sql LIKE '%UNIQUE%'")
         row = cursor.fetchone()
         if row and "UNIQUE(ativo, data_ex, tipo)" in row[0]:
+            conn.execute("BEGIN TRANSACTION")
             conn.executescript("""
                 CREATE TABLE dividendos_nova (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -197,8 +216,9 @@ def _migrar_dividendos(conn):
                 CREATE INDEX IF NOT EXISTS idx_dividendos_ativo ON dividendos(ativo);
                 CREATE INDEX IF NOT EXISTS idx_dividendos_data_com ON dividendos(data_com);
             """)
+            conn.execute("COMMIT")
     except sqlite3.OperationalError:
-        pass
+        conn.execute("ROLLBACK")
 
 
 SCHEMA = """

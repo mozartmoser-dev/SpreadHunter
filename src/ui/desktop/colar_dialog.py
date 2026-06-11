@@ -1344,7 +1344,7 @@ class ColarDialog(QDialog):
     def _mostrar_variacao(self, r, n_sessoes=None):
         from PyQt5.QtWidgets import QMessageBox
         from datetime import date, timedelta
-        import re as re2
+        import re
         import numpy as np
         from scipy.stats import norm
         from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -1373,7 +1373,7 @@ class ColarDialog(QDialog):
         if not chave_alvo:
             max_n = 0
             for k in dados:
-                nums = re2.findall(r'\d+', k)
+                nums = re.findall(r'\d+', k)
                 if nums:
                     n = int(nums[-1])
                     if n > max_n:
@@ -1392,7 +1392,7 @@ class ColarDialog(QDialog):
             if q <= 0:
                 continue
             rot = b[CLASS_KEY]
-            nums = [float(x.replace(",", ".")) for x in re2.findall(r'[\d,.]+', rot)]
+            nums = [float(x.replace(",", ".")) for x in re.findall(r'[\d,.]+', rot)]
             if "Menos" in rot:
                 c = nums[0] / 2
             elif "Mais" in rot:

@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import date
 from enum import Enum
 
 
@@ -19,7 +20,7 @@ class OportunidadeMonitor:
     instrumento_id: int
     ativo: str
     strike: float
-    vencimento: str
+    vencimento: date
     dias: int
     cod_put: str
     cod_call: str

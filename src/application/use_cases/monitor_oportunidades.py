@@ -6,7 +6,6 @@ from src.application.dtos.dtos import OportunidadeMonitor
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
 from src.domain.services.calculadora_box_sbth import CalculadoraBoxSbth, DadosMercado
 from src.domain.services.calculadora_vetorizada import CalculadoraVetorizada
-from src.domain.rules.classificacao_oportunidade import ClassificacaoOportunidade
 from src.infrastructure.importers.excel_importer import extrair_strike
 from src.infrastructure.persistence.repositories.repositories import (
     InstrumentoRepository,
@@ -27,17 +26,6 @@ class MonitorOportunidadesUseCase:
         self._calc_vetorizada = None
         self._lotes_cache = {}
         self._historico_enviado = {}  # Guarda as taxas das oportunidades enviadas
-
-    def _get_calculadora(self) -> CalculadoraBoxSbth:
-        if self._calculadora is None:
-            taxa_cdi = self._get_param("taxa_cdi", 0.1450)
-            premio_box = self._get_param("premio_risco_box", 1.5)
-            premio_sbth = self._get_param("premio_risco_sbth", 1.2)
-            emol = self._get_param("taxa_emolumento_pct", 0.00025)
-            liq = self._get_param("taxa_liquidacao_pct", 0.000275)
-            ir = self._get_param("taxa_ir_pct", 0.15)
-            self._calculadora = CalculadoraBoxSbth(taxa_cdi, premio_box, premio_sbth, emol, liq, ir)
-        return self._calculadora
 
     def _get_param(self, chave: str, default: float) -> float:
         param = self.param_repo.get_by_chave(chave)

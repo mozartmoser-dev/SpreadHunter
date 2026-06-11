@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from datetime import date
 from enum import Enum
@@ -8,6 +9,8 @@ from scipy.optimize import brentq
 
 from src.domain.services.calendario_b3 import dc_to_du
 from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
+
+logger = logging.getLogger(__name__)
 
 
 class TipoColar(Enum):

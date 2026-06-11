@@ -27,10 +27,12 @@ class DividendosStatusInvestProvider:
             feriados = set(_feriados_atuais)
         except Exception:
             feriados = set()
-        while True:
+        for _ in range(365):
             dt += timedelta(days=1)
             if dt.weekday() < 5 and dt.isoformat() not in feriados:
                 return dt.isoformat()
+        logger.error("Nao encontrou dia util em 365 dias a partir de %s", data_str)
+        return data_str
 
     def buscar_proventos(self, ticker: str) -> list[dict]:
         dividendos = []

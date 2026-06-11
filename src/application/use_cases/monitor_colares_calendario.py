@@ -53,11 +53,11 @@ class MonitorColaresCalendarioUseCase:
         ativos_set = set(ativos) if ativos else None
 
         defaults = {
-            "dte_call_min": self._get_param("dte_call_min", 29),
+            "dte_call_min": self._get_param("dte_call_min", 25),
             "dte_call_max": self._get_param("dte_call_max", 60),
             "dte_extra_min": self._get_param("dte_extra_min", 30),
-            "dte_extra_max": self._get_param("dte_extra_max", 90),
-            "dte_total_max": self._get_param("dte_total_max", 120),
+            "dte_extra_max": self._get_param("dte_extra_max", 120),
+            "dte_total_max": self._get_param("dte_total_max", 180),
             "qul_min_put": self._get_param("colar_qul_min_put", 100),
             "qul_min_call": self._get_param("colar_qul_min_call", 100),
         }
@@ -214,6 +214,7 @@ class MonitorColaresCalendarioUseCase:
                 key=lambda c: abs(c["strike"] - preco_ativo),
             )
 
+            viaveis_por_call: dict[str, int] = {}
             for call in calls_ordenadas:
                 sc = call["strike"]
                 dte_call = call["dte"]
@@ -256,7 +257,9 @@ class MonitorColaresCalendarioUseCase:
                             logger.debug("CollarCal PAR VIÁVEL %s: call=%s(%.0f) put=%s(%.0f) DTE %d+%d |ΔK|=%.1f pct_cdi=%.2f",
                                          ativo, call["cod_call"], sc, put["cod_put"], sp,
                                          dte_call, dte_extra, abs(sc - sp), resultado.pct_cdi)
-                            break  # melhor par pra esta call
+                            viaveis_por_call[call["cod_call"]] = viaveis_por_call.get(call["cod_call"], 0) + 1
+                            if viaveis_por_call.get(call["cod_call"], 0) >= 3:
+                                break  # top-3 puts por call
 
         resultados.sort(key=lambda r: -r.pct_cdi)
         logger.warning("CollarCal STATS: %s", stats)
