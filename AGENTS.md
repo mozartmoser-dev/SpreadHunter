@@ -10,182 +10,127 @@ fallback opcional em memória, mas não deve ser lido/escrito no SQLite.
 Se o RTD não fornecer strike em algum cenário, o sistema deve falhar ruidosamente
 — não tentar adivinhar nem usar fallback do banco.
 
+## MOD (tipo_opcao) — Só da CALL
+
+PUTs na B3 são sempre Europeias (`E`). Apenas CALLs podem ser Americanas (`A`).
+Em `importflash.py` (⚡ Importar), `tipo_opcao` no banco deve vir do `r["mod"]`
+**apenas quando `r["tipo"] == "CALL"`**. PUT não sobrescreve.
+
+## Parametrização Obrigatória
+
+**TODO valor numérico de negócio** (dias, percentuais, limiares, timeouts,
+intervalos, margens) DEVE vir de um parâmetro no banco, NUNCA hardcoded.
+
+Fluxo: `database.py` (seed) → `parametro_operacional.py` (defaults)
+→ `parametros_widget.py` (UI) → `regras_dialog.py` (exibição)
+→ use case/provider lê com `repo.get_by_chave()`.
+
+Exceções: constantes matemáticas (0.5, 100%), valores estruturais (2 pernas),
+cosmética (sons, timers UI).
+
 ---
 
-## Sessão 09/06/2026 — Correções Estruturais + Tuning Performance
+## Sessão 09/06/2026 — Correções Estruturais + Performance
 
-### O que foi feito
+### Custos B3 (Crítico)
+- Base trocada de strike → **prêmio da opção / preço da ação** conforme tarifário B3.
+- Ida-e-volta (×2). Collar: perna de ação incluída.
+- `calculadora_colar_calendario.py`: removido `max(pnl - custo, 0.0)`.
 
-#### Custos B3 (Crítico)
-- **Base trocada**: todas as 5 calculadoras usavam `strike` como base para custos B3. Agora usam **prêmio da opção** (opções) e **preço da ação** (ações), conforme tarifário oficial da B3.
-- **Ida-e-volta**: custos agora consideram entrada + saída (×2).
-- **Collars**: perna de ação (`custos_stock`) estava ausente — agora incluída.
-- `calculadora_custos_b3.py`: novos métodos `custos_opcao()`, `custos_stock()`, `taxa_total_stock()`.
-- `calculadora_colar_calendario.py`: removido `max(pnl - custo, 0.0)` — perdas propagam corretamente.
+### Performance
+- SQLite: `synchronous=NORMAL`, `cache_size=-8000`, `temp_store=MEMORY`.
+- CAB skip: se CAB não mudou, reusa `_dados_cache`.
+- MPP: `mpp_habilitado` no banco (default 0). Instantâneo só após Onda 1.
 
-#### SQLite PRAGMAs
-- `synchronous=NORMAL`, `cache_size=-8000` (8MB), `temp_store=MEMORY` em `get_connection()`.
+### Book Detection
+- Scan NÃO remove de `_chaves_com_book` se dado RTD não chegou.
+- `recarregar_parametros()` limpa todos os caches → re-detecção completa.
+- Manutenção a cada ~5s (%2), batch de 500.
 
-#### Performance — CAB Skip + Cache
-- Wave 2 instruments leem só CAB (2 leitores). Se CAB não mudou, reusam `_dados_cache` e atualizam apenas status.
-- Fast scan medido: **0.001–0.009s** (vs ~4.66s global scan inicial).
-- `mercado_data_provider.py`: `_cab_anterior` + `_dados_cache`.
+### Carga Inteligente
+- `perf_*` parâmetros seeded via `database.py`.
+- Filtros DTE + strike range funcionando.
 
-#### MPP — Root Cause + Desligamento
-- **Gargalo real era MPP**: `calcular_instantaneo()` consumia 8s a cada ~10s. `RefreshData(0)` sempre foi 0.001s.
-- `mpp_habilitado` agora lê do banco de dados (não hardcoded `True`).
-- `_mpp_carga_completa`: MPP instantâneo só roda após Onda 1 terminar.
-- Sinal `mpp_status_changed(bool)` emitido para UI.
-- `mpp_dialog.py`: status indicator (🟢 Ativo / 🔴 Desligado).
-- `parametros_widget.py`: `mpp_habilitado` (checkbox) + `mpp_instantaneo_interval` (spinbox) adicionados ao grupo BOX_4P.
-- DB: `mpp_habilitado=0`, `mpp_instantaneo_interval=48`.
-
-#### Ex-Dividendo — DisconnectData
-- `invalidar_cache()` → `DisconnectData` + remove de `_topic_map`/`_topic_reverse`. `registrar_topico()` gera **novo topic ID**.
-- `forcar_refresh_ex_dividendo()` limpa `_cab_anterior` + `_dados_cache`.
-
-#### Book Detection — Correção Crítica
-- **Race condition**: manutenção adicionava a `_chaves_com_book` (via `cabecalho_book > 0`), mas o scan removia no mesmo ciclo (`_ler_instrumento_cache` retornava None porque bid/ask/strike ainda não estavam no cache RTD). Resultado: "0 with book" permanentemente.
-- **Fix 1**: scan NÃO remove mais de `_chaves_com_book` se o dado não chegou.
-- **Fix 2**: `recarregar_parametros()` agora limpa `_chaves_detalhes_completos` + `_cab_anterior` + `_dados_cache` junto com `_chaves_com_book`, forçando re-detecção completa.
-- **Fix 3**: background scan batch aumentado de 300 → 500 instrumentos por ciclo.
-- **Fix 4**: manutenção mudada de %10 (25s) para %2 (5s).
-
-#### Carga Inteligente — Bug Fix
-- `perf_*` parâmetros nunca existiam no banco (carga inteligente, range, meses, dias mínimos). Seeded via `database.py`.
-- Filtros DTE + strike range agora funcionam corretamente.
-
-#### UI
-- Tooltips em todas as colunas (monitor, box, collar, collar calendário, MPP).
-- Ordem de colunas persiste entre sessões via QSettings (`column_utils.py`).
-- `_colar_auto = False` (revertido após diagnóstico).
-- MPP enable/disable + interval na tela de Parâmetros (grupo BOX_4P).
-
-#### Correções anteriores mantidas
-- Background scan corrigido (33k+ instrumentos).
-- Filtros `viavel` removidos (cosmético apenas).
-- Logs `Collar DIAG` / `Collar CALC`.
-- TP.Op filter restaurado.
-- Ganhos negativos propagam sem caps.
-- IR split worst/best case no collar.
-
-### Estado Atual (Fim da Sessão)
-- **Performance**: ciclo ~0.001s (scan) + 0.3-0.6s (manutenção esporádica). MPP 0.000s.
-- **Book detection**: após restart, leva 3-4 ciclos para cache RTD encher e books aparecerem.
-- **Priority JSON**: `rtd_prioridade.json` é salvo com `_chaves_com_book`. Na próxima abertura, Onda 1 começa pelos que tinham book.
-- **Filtros**: strike ±70%, DTE ≤6 meses, dias mínimos 10.
-- **36k instrumentos totais**, ~3k após filtros, ~350 com book.
+### UI
+- Tooltips em todas as colunas. Ordem de colunas via QSettings (`column_utils.py`).
 
 ---
 
 ## Sessão 10/06/2026 — Gráfico de Candles (OpcoesNet)
 
-### O que foi feito
-
-#### Novo endpoint API
-- **Request type descoberto**: `QuotesHistoryByAsset` com parâmetro `{timeframe: "Day", assets_ids: "PETR4"}` extraído do bundle `ui-bundle-after.js` do site opcoes.net.br
-- **`OpcoesNetClient.get_stock_history()`**: método raw que chama a API e retorna dicionário com `data_fields` e `data_rows`
-- **`OpcoesNetClient.get_stock_history_formatted()`**: método que parseia os campos (date, open, high, low, close, change, volume, vol_ewma, vol_impl) e retorna lista de dicts, limitada a 252 pregões (≈12 meses)
-
-#### Botão "Ver Gráfico"
-- Adicionado nos diálogos de detalhamento: `colar_dialog.py:_mostrar_detalhes` e `colar_calendario_dialog.py:_mostrar_detalhes`
-- Posicionado ao lado do "📈 Ver Variação"
-
-#### Gráfico (`_plot_historico`)
-- **Subplot superior**: candles (barras OHLC) com cores verde/subida e vermelho/descida
-- **Curva de Gauss horizontal**: distribuição normal dos retornos logarítmicos plotada sobre os preços, com linhas verticais nos níveis 1σ, 2σ, 3σ e preços anotados (ex: `1σ\nR$45.30`)
-- **Subplot inferior** (se houver dados): volume normalizado (barras) + volatilidade histórica (blue) + implícita (red) em twin axis
-- Layout escuro (`#0d0d0d`), figura 11×6.5
-
-#### Arquivos modificados
-- `src/infrastructure/integrations/opcoesnet_client.py`: +2 métodos (`get_stock_history`, `get_stock_history_formatted`)
-- `src/ui/desktop/colar_dialog.py`: botão "📊 Ver Gráfico" + método `_plot_historico`
-- `src/ui/desktop/colar_calendario_dialog.py`: botão "📊 Ver Gráfico" + método `_plot_historico`
-
-### Próximos passos (Próxima Sessão)
-1. Rodar com Profit aberto em mercado para validar collares, boxes e performance final.
-2. Verificar se books sobem corretamente após restart.
-3. Se necessário: re-ativar MPP com intervalo maior (48+ ciclos ≈ 2min).
-
----
-## Sessão 10/06/2026 — Gráfico de Candles (OpcoesNet) — Finalizado
-
-### O que foi feito
-- `_plot_historico()`: candles OHLC (subplot superior) + volume/vol_hist/vol_impl (subplot inferior)
-- Curva de Gauss: linhas sigma horizontais (1σ, 2σ, 3σ) com preços anotados na borda direita + mini-curva em inset no canto superior esquerdo (sigma baseado no DTE da operação, não fixo em 21)
-- Linha do spot (preço atual do Profit) em ciano tracejado horizontal com rótulo "Spot R$XX.XX"
-- Removido filtro `prices_arr.min() <= p <= prices_arr.max()` que cortava sigmas fora do range histórico — `set_ylim` agora inclui todos os níveis sigma
-- Sigma period dinâmico: `colar_dialog` usa `max(5, int(r.dias * 5/7))`, `colar_calendario_dialog` usa `max(5, r.dte_call)`
-- Corrigido bug que distorcia eixo X: removido bloco duplicado que tentava plotar preços (R$) sobre eixo de datas com `ax1.plot(x_price, ...)`
-- Layout escuro (#0d0d0d), sem `tight_layout` (travava com gridspec + inset_axes)
-- Testado com PETR4 offline — gráfico abre, fecha e renderiza corretamente
-- Ambos os diálogos (`colar_dialog.py`, `colar_calendario_dialog.py`) corrigidos
+- `OpcoesNetClient.get_stock_history()` + `get_stock_history_formatted()` via API
+  `QuotesHistoryByAsset` (timeframe=Day).
+- Botão "📊 Ver Gráfico" em colar_dialog e colar_calendario_dialog.
+- Subplot superior: OHLC candles + curva de Gauss sigma (1σ, 2σ, 3σ) + spot.
+- Subplot inferior: volume + vol_hist (blue) + vol_impl (red).
+- Sigma period dinâmico: `max(5, int(r.dias * 5/7))` (colar) / `max(5, r.dte_call)` (calendário).
+- Layout escuro (#0d0d0d).
 
 ---
 
-## Regra Geral: Parametrização Obrigatória
+## Sessão 10/06/2026 — Collar Calendário
 
-**TODO valor numérico que represente uma condição de negócio (dias, percentuais,
-limiares, timeouts, intervalos, margens) DEVE vir de um parâmetro no banco de
-dados, NUNCA ficar hardcoded no código.**
-
-Fluxo obrigatório para novos parâmetros:
-1. `database.py` — seed `INSERT OR IGNORE`
-2. `parametro_operacional.py` — `PARAMETROS_DEFAULT` com fallback
-3. `parametros_widget.py` — entrada na UI + `PARAMETROS_INFO`
-4. `regras_dialog.py` — template string para exibição no diálogo de regras
-5. Use case / provider — ler via `repo.get_by_chave()` ou `_get_param()`
-6. Se for parâmetro de calculadora, adicionar no construtor e passar do use case
-
-Exceções permitidas apenas para constantes matemáticas (0.5, 100%), valores
-estruturais (2 pernas, 1 ativo), ou tuning puramente cosmético (frequências
-de som, timers de UI). Qualquer dúvida: parametrizar é mais seguro.
+- **Filtros OTM removidos** — aceita calls/puts ITM/ATM/OTM. Pareamento por
+  distância de strike (`calendario_strike_diff_max=1`).
+- Viabilidade usa **PnL bruto** (pré-B3/IR). Custos exibidos para avaliação.
+- Parâmetros: `dte_call_min=25`, `dte_call_max=60`, `dte_extra_min=30`,
+  `dte_extra_max=120`, `dte_total_max=180`.
 
 ---
 
-## Sessão 10/06/2026 — Collar Calendário + Correções (REVISAR NA PRÓXIMA)
+## Sessão 11/06/2026 — API OptionsChain + Semanais + Crash Fix
 
-### O que foi alterado (desfazer se não funcionar)
+### Semanais via API
+- `fetch_all_options()` migrado de HTML da matriz → API `OptionsChain`.
+- Retorna **todas as séries** (mensais + W1/W2/W3/W4). PETR4: 1.092 → 4.516 opções.
 
-#### mercado_data_provider.py
-- `capturar_dados_mercado()`: Onda 1 agora entra no `dados_mercado` com
-  PEX/strike + OCP + OVD + ULT. QUL=0 sinaliza "não medido".
+### Crash ao arrastar coluna
+- `atualizar_resultados()`: congela `sectionsMovable(False)` + `blockSignals(True)`
+  durante `beginResetModel()/endResetModel()`.
+- `column_utils.py`: `salvar_ordem_colunas()` e `restaurar_ordem_colunas()` em `try/except`.
 
-#### monitor_colares_calendario.py
-- Filtros 6 e 7 (call OTM, put OTM) **removidos** — aceita qualquer strike
-  relativo ao spot (ITM, ATM, OTM). O pareamento usa distância de strike
-  (`calendario_strike_diff_max`) como único filtro direcional.
-- Log temporário removido (estava entre filtro 5 e pareamento).
+---
 
-#### calculadora_colar_calendario.py
-- Viabilidade (`viavel`) agora usa **PnL bruto** (antes de B3 e IR) em vez
-  de PnL pós-B3. Custos são exibidos nas colunas para avaliação manual.
+## Sessão 11/06/2026 (parte 2) — MOD fix + Cleanup + Blacklist
 
-#### Parâmetros no banco (ambos SQLite: `data/` e `config/`)
-| Chave | Valor | Descrição |
-|---|---|---|
-| `dte_call_min` | 25 | DTE mínimo para call vendida (dias corridos) |
-| `dte_call_max` | 60 | DTE máximo para call vendida |
-| `dte_extra_min` | 30 | Spread DTE mínimo put − call |
-| `dte_extra_max` | 120 | Spread DTE máximo put − call |
-| `dte_total_max` | 180 | DTE máximo total |
-| `calendario_strike_diff_max` | 1 | Máx strikes de diferença entre Kc e Kp |
-| `calendario_call_otm_max` | 0.15 | Não usado (filtro removido) |
+### MOD fix no importflash
+- `importflash.py` (⚡ Importar) também só lê `mod` das CALLs — PUTs nunca sobrescrevem.
+- Antes estava lendo de qualquer um (PUT vencia por ordem no loop), deixando quase tudo `E`.
 
-### Resultado esperado
-- Calls: qualquer opção com DTE 25-60 (mês 7 e semanais ≥ 25d)
-- Puts: qualquer opção com DTE 61-180 (meses 8-11)
-- Pares ordenados por proximidade de strike (não mais por OTM)
-- Aproximadamente 4+ operações de calendário por ciclo
+### Cleanup
+- Menu **Arquivo > Importar do Opcoes.Net.Br...** removido (use case `importar_base_opcoesnet.py` deletado)
+- Menu **Arquivo > Importar de planilha XLSX...** removido (use case `importar_base.py` + dialogs deletados)
+- Só resta **⚡ Importar** (`importflash.py`)
+- `ExcelImporter` removido de `excel_importer.py`; utilitários (`extrair_strike`, etc.) mantidos
 
-### Motivo das mudanças
-- Filtros OTM engessavam viés direcional desnecessariamente
-- Call OTM descartava calls ITM que ainda fazem calendário válido
-- Put OTM descartava puts ITM que protegem melhor em quedas
-- Viabilidade pós-B3 eliminava pares com custo marginal que valiam
-  ser avaliados visualmente
-- `dte_call_min` reduzido de 36→25 para capturar semanais longas
-- `dte_extra_max` ampliado 90→120 para alcançar mês 11
-- `dte_total_max` ampliado 120→180 para não cortar puts longas
-- `calendario_strike_diff_max` reduzido 3→1 (mesmo strike)
+### Blacklist
+- Adicionados 37 BDRs (`*34`) + BOVA11 + 6 ativos sem opções via scan
+- Agora 53 ativos na blacklist (`black_list_import`)
+- 247 ativos disponíveis na API → 194 importados efetivamente
 
+### Final
+- 47.862 registros (33.105 A, 14.757 E) → após remover preservação: 43.958 (30.464 A, 13.494 E)
+- 140/140 testes passando
+- `instrumentos_base.csv` exportado para Desktop
+
+---
+
+## Sessão 11/06/2026 (parte 3) — RTD Timeout + COM Thread Safety + Blacklist Final
+
+### PERF-001: Timeout no RTD RefreshData
+- `RTDProfit.refresh(timeout_ms)` executa `RefreshData(0)` em thread separada com `CoInitialize()`
+- Se exceder o timeout, pula o ciclo (log warning)
+- Parametrizável via `rtd_refresh_timeout_ms` (seed=5000ms, 0=sem timeout)
+- Visível em Parâmetros > Geral
+
+### BUG-002: COM Thread Safety
+- `_executar_refresh` usa `pythoncom.CoInitialize/CoUninitialize` para evitar `RPC_E_WRONG_THREAD`
+- Resolve travamentos silenciosos do monitor
+
+### Blacklist sem preservação
+- Ativos na blacklist são removidos do banco na importação (sem `preservados`)
+- BOVA11 e BDRs somem da tabela `instrumentos_base`
+
+### Final
+- 43.958 registros (30.464 A, 13.494 E) — 194 ativos, 53 blacklist
+- 140/140 testes passando
