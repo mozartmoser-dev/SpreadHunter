@@ -107,8 +107,8 @@ def main():
                 grupos[key]["PUT"] = r["ticker"]
             else:
                 grupos[key]["CALL"] = r["ticker"]
-            if r.get("mod"):
-                grupos[key]["MOD"] = r["mod"]
+                if r.get("mod"):
+                    grupos[key]["MOD"] = r["mod"]
 
         pares = []
         for (ativo_key, ven, strike), p in grupos.items():

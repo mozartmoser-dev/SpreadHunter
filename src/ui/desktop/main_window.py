@@ -81,7 +81,6 @@ class MainWindow(QMainWindow):
         self._aplicar_tema_configurado()
 
         self._setup_ui()
-        self._setup_toolbar()
         self._setup_status_bar()
 
         self._scan_timer = QTimer(self)
@@ -439,18 +438,6 @@ class MainWindow(QMainWindow):
             self.table_view.setColumnHidden(col_idx, not chosen.isChecked())
             self._save_column_visibility()
 
-    def _setup_toolbar(self):
-        menubar = self.menuBar()
-        arquivo_menu = menubar.addMenu("&Arquivo")
-
-        import_action = QAction("Importar do Opcoes.Net.Br...", self)
-        import_action.triggered.connect(self._abrir_import_opcoesnet)
-        arquivo_menu.addAction(import_action)
-
-        import_xlsx_action = QAction("Importar de planilha XLSX...", self)
-        import_xlsx_action.triggered.connect(self._abrir_import_xlsx)
-        arquivo_menu.addAction(import_xlsx_action)
-
     def _setup_status_bar(self):
         self._status_left = QLabel("Pronto")
         self._status_left.setProperty("class", "")
@@ -543,24 +530,6 @@ class MainWindow(QMainWindow):
 
     def _fechar_disclaimer(self):
         self._stack.setCurrentIndex(2)
-
-    def _abrir_import_opcoesnet(self):
-        from src.ui.desktop.import_opcoesnet_dialog import ImportOpcoesNetDialog
-        dialog = ImportOpcoesNetDialog(self.db_path, self)
-        dialog.exec_()
-        if dialog.result:
-            from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
-            InstrumentoRepository.invalidate_cache()
-
-    def _abrir_import_xlsx(self):
-        from src.ui.desktop.import_dialog import ImportDialog
-        from src.application.use_cases.importar_base import ImportarBaseUseCase
-        use_case = ImportarBaseUseCase(self.db_path)
-        dialog = ImportDialog(use_case, self)
-        dialog.exec_()
-        if dialog.result:
-            from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
-            InstrumentoRepository.invalidate_cache()
 
     def _toggle_monitor(self, checked):
         if checked:

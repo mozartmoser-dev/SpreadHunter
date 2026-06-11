@@ -8,7 +8,6 @@ from src.infrastructure.persistence.repositories.repositories import (
     ParametroRepository,
 )
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOpcao
-from src.application.use_cases.importar_base import ImportarBaseUseCase
 from src.application.use_cases.monitor_oportunidades import MonitorOportunidadesUseCase
 from src.application.use_cases.exportar_operacao import ExportarOperacaoUseCase
 from src.application.dtos.dtos import OportunidadeMonitor
@@ -23,11 +22,6 @@ def db_path(tmp_path):
     conn.close()
     ParametroRepository(path).seed_defaults()
     return path
-
-
-@pytest.fixture
-def importar_uc(db_path):
-    return ImportarBaseUseCase(db_path)
 
 
 @pytest.fixture
@@ -51,26 +45,6 @@ def populated_db(db_path):
             vencimento=venc, tipo_opcao=TipoOpcao.AMERICANA,
         ))
     return db_path
-
-
-class TestImportarBaseUseCase:
-    def test_importar_arquivo_real(self, importar_uc):
-        xlsx = Path("opcoes_consolidado.xlsx")
-        if not xlsx.exists():
-            pytest.skip("Arquivo xlsx nao encontrado")
-        result = importar_uc.executar(xlsx)
-        assert result.total_importados > 0
-        assert result.total_removidos == 0
-        assert len(result.ativos) > 1
-
-    def test_reimportar_limpa_base(self, importar_uc):
-        xlsx = Path("opcoes_consolidado.xlsx")
-        if not xlsx.exists():
-            pytest.skip("Arquivo xlsx nao encontrado")
-        importar_uc.executar(xlsx)
-        result = importar_uc.executar(xlsx)
-        assert result.total_importados > 0
-        assert result.total_removidos > 0
 
 
 class TestMonitorOportunidadesUseCase:

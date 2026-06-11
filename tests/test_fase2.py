@@ -4,7 +4,7 @@ from pathlib import Path
 
 from src.infrastructure.persistence.database import init_db
 from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
-from src.infrastructure.importers.excel_importer import ExcelImporter, extrair_strike, parse_vencimento
+from src.infrastructure.importers.excel_importer import extrair_strike, parse_vencimento
 from src.domain.services.calculadora_box_sbth import CalculadoraBoxSbth, DadosMercado
 from src.domain.services.elegibilidade_pescaria import ElegibilidadePescaria, CandidatoPescaria
 from src.domain.services.montadora_box_itm import MontadoraBoxItm
@@ -51,49 +51,6 @@ class TestParseVencimento:
 
     def test_none(self):
         assert parse_vencimento(None) is None
-
-
-class TestExcelImporter:
-    def test_importar_arquivo_real(self):
-        xlsx_path = Path("opcoes_consolidado.xlsx")
-        if not xlsx_path.exists():
-            pytest.skip("Arquivo opcoes_consolidado.xlsx nao encontrado")
-
-        importer = ExcelImporter(xlsx_path)
-        instrumentos = importer.importar()
-        assert len(instrumentos) > 0
-        assert instrumentos[0].ativo is not None
-        assert instrumentos[0].vencimento is not None
-
-    def test_importar_e_persistir(self):
-        xlsx_path = Path("opcoes_consolidado.xlsx")
-        if not xlsx_path.exists():
-            pytest.skip("Arquivo opcoes_consolidado.xlsx nao encontrado")
-
-        importer = ExcelImporter(xlsx_path)
-        instrumentos = importer.importar()
-
-        db_path = Path(tempfile.mkdtemp()) / "test_import.db"
-        conn = init_db(db_path)
-        conn.close()
-
-        repo = InstrumentoRepository(db_path)
-        for inst in instrumentos[:50]:
-            repo.save(inst)
-
-        saved = repo.get_all()
-        assert len(saved) == 50
-        assert saved[0].ativo == instrumentos[0].ativo
-
-    def test_ativos_unicos(self):
-        xlsx_path = Path("opcoes_consolidado.xlsx")
-        if not xlsx_path.exists():
-            pytest.skip("Arquivo opcoes_consolidado.xlsx nao encontrado")
-
-        importer = ExcelImporter(xlsx_path)
-        instrumentos = importer.importar()
-        ativos = set(i.ativo for i in instrumentos)
-        assert len(ativos) > 1
 
 
 class TestCalculadoraBoxSbth:
