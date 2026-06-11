@@ -56,6 +56,7 @@ def _seed_parametros_colar(conn):
         ("colar_qul_min_call", "100", "COLAR", "Qtd minima negociada (QUL) para CALL"),
         ("colar_risco_baixo_vov_min", "1000", "COLAR", "VOV/VOC mínimo para risco baixo de despernamento"),
         ("taxa_ir_pct", "0.15", "GERAL", "Aliquota de IR sobre lucro em operacoes (15% swing trade)"),
+        ("rtd_refresh_timeout_ms", "5000", "GERAL", "Timeout do RTD RefreshData em ms (0 = sem timeout)"),
         ("elegibilidade_strike_max_pct", "0.70", "BOX_SINTETICO", "Strike máximo % do spot para elegibilidade de pescaria"),
         ("dte_call_min", "25", "COLLAR_CALENDARIO", "DTE mínimo para call no collar calendário"),
         ("dte_call_max", "60", "COLLAR_CALENDARIO", "DTE máximo para call no collar calendário"),

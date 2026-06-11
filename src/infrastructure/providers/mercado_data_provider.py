@@ -137,6 +137,8 @@ class MercadoDataProvider:
         self._onda2_dte_min = int(p_onda2_min.valor) if p_onda2_min else 7
         p_onda2_max = repo.get_by_chave("onda2_dte_max")
         self._onda2_dte_max = int(p_onda2_max.valor) if p_onda2_max else 180
+        p_rtd = repo.get_by_chave("rtd_refresh_timeout_ms")
+        self._rtd_refresh_timeout_ms = int(p_rtd.valor) if p_rtd else 5000
         
         # Se houve mudança em parâmetros que afetam a carga, agendamos uma revisão de carga
         if self._registrado:
@@ -379,14 +381,14 @@ class MercadoDataProvider:
                     self._refresh_pos_onda1 = True
                     logger.info("Onda 1 concluída — forçando refresh inicial...")
                     try:
-                        self.rtd.refresh()
+                        self.rtd.refresh(self._rtd_refresh_timeout_ms)
                     except Exception:
                         pass
                 t_registro = time.perf_counter() - t_reg
 
                 t0 = time.perf_counter()
                 try:
-                    self.rtd.refresh()
+                    self.rtd.refresh(self._rtd_refresh_timeout_ms)
                 except Exception as e:
                     logger.error("RTD refresh escapou: %s", e, exc_info=True)
                     return {}
