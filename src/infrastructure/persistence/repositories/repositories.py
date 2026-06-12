@@ -123,6 +123,18 @@ class InstrumentoRepository:
         finally:
             conn.close()
 
+    def get_proximos_vencimentos(self, limite: int = 30) -> list[date]:
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT DISTINCT vencimento FROM instrumentos_base "
+                "WHERE vencimento >= date('now') ORDER BY vencimento LIMIT ?",
+                (limite,),
+            ).fetchall()
+            return sorted(set(_parse_date(row["vencimento"]) for row in rows if row["vencimento"]))
+        finally:
+            conn.close()
+
     def delete_all(self) -> int:
         self.invalidate_cache()
         conn = get_connection(self.db_path)

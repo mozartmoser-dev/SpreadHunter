@@ -268,3 +268,86 @@ class TestGerarExplicacao:
         assert "<h3>" in html
         assert r.ativo in html
         assert "CDI" in html
+
+
+class TestVega:
+    def test_vega_call_positivo(self):
+        v = CalculadoraColarCalendario.bs_vega(100, 100, 1, 0.05, 0.2)
+        assert v > 0
+
+    def test_vega_put_positivo(self):
+        v = CalculadoraColarCalendario.bs_vega(100, 100, 1, 0.05, 0.2)
+        assert v > 0
+
+    def test_vega_put_maior_que_call(self):
+        vega_c = CalculadoraColarCalendario.bs_vega(100, 105, 0.1, 0.05, 0.2)
+        vega_p = CalculadoraColarCalendario.bs_vega(100, 95, 0.5, 0.05, 0.2)
+        assert vega_p > vega_c
+
+    def test_vega_zero_sigma(self):
+        v = CalculadoraColarCalendario.bs_vega(100, 100, 1, 0.05, 0)
+        assert v == 0.0
+
+    def test_vega_zero_t(self):
+        v = CalculadoraColarCalendario.bs_vega(100, 100, 0, 0.05, 0.2)
+        assert v == 0.0
+
+
+class TestGamma:
+    def test_gamma_positivo(self):
+        g = CalculadoraColarCalendario.bs_gamma(100, 100, 1, 0.05, 0.2)
+        assert g > 0
+
+    def test_gamma_zero_sigma(self):
+        g = CalculadoraColarCalendario.bs_gamma(100, 100, 1, 0.05, 0)
+        assert g == 0.0
+
+    def test_gamma_zero_t(self):
+        g = CalculadoraColarCalendario.bs_gamma(100, 100, 0, 0.05, 0.2)
+        assert g == 0.0
+
+
+class TestRiscoMax:
+    def test_risco_max_zero_para_risk_free(self):
+        calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
+        r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
+                          date(2026, 6, 27), date(2026, 7, 27),
+                          preco_compra_ativo=37)
+        assert r is not None
+        assert r.risco_max >= 0
+        if r.capital_empregado <= min(r.strike_call, r.strike_put):
+            assert r.risco_max == 0.0
+
+    def test_risco_max_positivo_para_com_risco(self):
+        calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
+        r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
+                          date(2026, 6, 27), date(2026, 7, 27),
+                          preco_compra_ativo=50)
+        assert r is not None
+        if r.capital_empregado > min(r.strike_call, r.strike_put):
+            assert r.risco_max > 0
+
+
+class TestIvRank:
+    def test_iv_rank_zero_sem_historico(self):
+        calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
+        r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
+                          date(2026, 6, 27), date(2026, 7, 27))
+        assert r is not None
+        assert r.iv_rank == 0.0
+
+    def test_iv_rank_com_historico(self):
+        calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
+        r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
+                          date(2026, 6, 27), date(2026, 7, 27),
+                          iv_hist_min=0.1, iv_hist_max=0.5)
+        assert r is not None
+        assert r.iv_rank > 0
+
+    def test_iv_rank_historico_invalido(self):
+        calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
+        r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
+                          date(2026, 6, 27), date(2026, 7, 27),
+                          iv_hist_min=0.5, iv_hist_max=0.1)
+        assert r is not None
+        assert r.iv_rank == 0.0

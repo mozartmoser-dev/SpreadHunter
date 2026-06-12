@@ -1,4 +1,5 @@
 import logging
+import math
 from collections import defaultdict
 from datetime import date
 from typing import Optional
@@ -7,6 +8,7 @@ from src.domain.services.calculadora_colar_calendario import (
     CalculadoraColarCalendario,
     ResultadoColarCalendario,
 )
+from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.infrastructure.persistence.repositories.repositories import (
     DividendoRepository,
     InstrumentoRepository,
@@ -16,7 +18,22 @@ from src.infrastructure.persistence.repositories.repositories import (
 logger = logging.getLogger(__name__)
 
 
+# Ordem dos filtros aplicados no varrer(). regras_dialog lê esta lista automaticamente.
+FILTROS_COLLAR_CALENDARIO = [
+    "1. Ativo (checklist)",
+    "2. Vencimento",
+    "3. Códigos (put e call)",
+    "4. Dias até vencimento",
+    "5. DTE (mín/máx)",
+    "6. Strike (RTD)",
+    "7. Preço (RTD OCP/OVD)",
+    "8. Liquidez (QUL)",
+]
+
+
 class MonitorColaresCalendarioUseCase:
+
+    _cache_iv_historico: dict[str, tuple[float, float, float]] = {}
 
     def __init__(self, db_path=None):
         self.db_path = db_path
@@ -39,9 +56,27 @@ class MonitorColaresCalendarioUseCase:
             self._calculadora = CalculadoraColarCalendario(taxa_cdi, premio_risco=premio_risco, custos_b3=custos_b3, limiar_pct=limiar, be_range_mult=be_mult)
         return self._calculadora
 
+    def _carregar_iv_historico(self, ativo: str) -> tuple[float, float, float] | None:
+        if ativo in self._cache_iv_historico:
+            return self._cache_iv_historico[ativo]
+        try:
+            client = OpcoesNetClient()
+            hist = client.get_stock_history_formatted(ativo, 252)
+            if not hist:
+                return None
+            valores = [c["vol_impl"] for c in hist if c.get("vol_impl") and c["vol_impl"] > 0]
+            if len(valores) < 60:
+                return None
+            stats = (min(valores), max(valores), valores[-1])
+            self._cache_iv_historico[ativo] = stats
+            return stats
+        except Exception:
+            return None
+
     def recarregar_parametros(self):
         self._calculadora = None
         self.param_repo.invalidate_cache()
+        self._cache_iv_historico.clear()
 
     def _get_param(self, chave: str, default: float) -> float:
         param = self.param_repo.get_by_chave(chave)
@@ -79,6 +114,11 @@ class MonitorColaresCalendarioUseCase:
             inst = inst_map.get(key)
             if not inst:
                 continue
+
+            if ativos_set and inst.ativo not in ativos_set:
+                stats["fora_ativo"] += 1
+                continue
+
             if not inst.vencimento or inst.vencimento <= hoje:
                 stats["sem_vencimento"] += 1
                 continue
@@ -87,10 +127,6 @@ class MonitorColaresCalendarioUseCase:
                 continue
             if inst.dias_ate_vencimento is None or inst.dias_ate_vencimento <= 0:
                 stats["sem_dias"] += 1
-                continue
-
-            if ativos_set and inst.ativo not in ativos_set:
-                stats["fora_ativo"] += 1
                 continue
 
             dte = inst.dias_ate_vencimento
@@ -201,6 +237,10 @@ class MonitorColaresCalendarioUseCase:
                 _cache_dividendos_por_ativo[ativo] = divs_futuros
             dividendos_ativo = _cache_dividendos_por_ativo.get(ativo) or []
 
+            iv_hist = self._carregar_iv_historico(ativo)
+            iv_hist_min = iv_hist[0] if iv_hist else None
+            iv_hist_max = iv_hist[1] if iv_hist else None
+
             cal_diff_max = params.get("calendario_strike_diff_max")
             if cal_diff_max is None:
                 cal_diff_max = self._get_param("calendario_strike_diff_max", 2)
@@ -249,6 +289,8 @@ class MonitorColaresCalendarioUseCase:
                         vencimento_put=put["vencimento"],
                         preco_compra_ativo=preco_compra_ativo,
                         dividendos=dividendos_ativo,
+                        iv_hist_min=iv_hist_min,
+                        iv_hist_max=iv_hist_max,
                     )
 
                     if resultado:
@@ -261,7 +303,103 @@ class MonitorColaresCalendarioUseCase:
                             if viaveis_por_call.get(call["cod_call"], 0) >= 3:
                                 break  # top-3 puts por call
 
-        resultados.sort(key=lambda r: -r.pct_cdi)
+        if not resultados:
+            logger.warning("CollarCal STATS: %s", stats)
+            return []
+
+        # ── Score de Ranking (ordenacao multicriterio) ──
+        peso_theta = self._get_param("ranking_peso_theta", 3.0)
+        peso_cdi = self._get_param("ranking_peso_cdi", 2.0)
+        peso_sigma = self._get_param("ranking_peso_sigma", 2.0)
+        peso_credito = self._get_param("ranking_peso_credito", 1.0)
+        peso_liquidez = self._get_param("ranking_peso_liquidez", 0.5)
+
+        def _sigma_folga(r):
+            if r.iv_call <= 0 or r.iv_put <= 0 or r.dte_call <= 0 or r.preco_ativo <= 0:
+                return 0.0
+            iv_media = (r.iv_call + r.iv_put) / 2 / 100
+            sigma_diario = iv_media / math.sqrt(252)
+            sigma_periodo = sigma_diario * math.sqrt(r.dte_call)
+            if sigma_periodo <= 0:
+                return 0.0
+            folga = min(abs(r.preco_ativo - r.strike_call), abs(r.preco_ativo - r.strike_put))
+            return folga / (r.preco_ativo * sigma_periodo)
+
+        raw = []
+        for r in resultados:
+            credito_ratio = max(0, r.net_credito / r.capital_empregado) if r.capital_empregado > 0 else 0.0
+            raw.append({
+                "theta": abs(r.theta_liquido),
+                "cdi": r.pct_cdi,
+                "sigma": _sigma_folga(r),
+                "credito": credito_ratio,
+                "liquidez": 1.0,
+            })
+
+        max_theta = max(x["theta"] for x in raw) or 1.0
+        max_cdi = max(x["cdi"] for x in raw) or 1.0
+        max_sigma = max(x["sigma"] for x in raw) or 1.0
+        max_credito = max(x["credito"] for x in raw) or 1.0
+
+        for r, d in zip(resultados, raw):
+            t_norm = d["theta"] / max_theta
+            c_norm = d["cdi"] / max_cdi
+            s_norm = d["sigma"] / max_sigma
+            cr_norm = d["credito"] / max_credito
+            r.score = round(
+                peso_theta * t_norm
+                + peso_cdi * c_norm
+                + peso_sigma * s_norm
+                + peso_credito * cr_norm
+                + peso_liquidez * d["liquidez"],
+                4,
+            )
+
+        # ── Score IV (alternativo com pesos recalibrados) ──
+        peso_iv_rank = self._get_param("ranking_peso_iv_rank", 25.0) / 100.0
+        peso_dist = self._get_param("ranking_peso_dist_strike", 25.0) / 100.0
+        peso_theta_margin = self._get_param("ranking_peso_theta_margin", 25.0) / 100.0
+        peso_vega = self._get_param("ranking_peso_vega", 10.0) / 100.0
+        peso_liquidez_iv = self._get_param("ranking_peso_liquidez_iv", 10.0) / 100.0
+        peso_risco_max = self._get_param("ranking_peso_risco_max", 5.0) / 100.0
+
+        raw_iv = []
+        for r in resultados:
+            iv_rank_norm = min(r.iv_rank / 100.0, 1.0) if r.iv_rank else 0.0
+            strike_menor = min(r.strike_call, r.strike_put)
+            dist_norm = max(0.0, (strike_menor - r.capital_empregado) / strike_menor) if strike_menor > 0 else 0.0
+            theta_m = abs(r.theta_liquido) / max(r.capital_empregado, 1) * 1000
+            vega_n = max(r.vega_liquido, 0) / 100
+            liq_n = 0.5
+            risco_n = 1.0 - min(r.risco_max / strike_menor, 1.0) if strike_menor > 0 else 0.0
+            raw_iv.append({
+                "iv_rank": iv_rank_norm,
+                "dist": dist_norm,
+                "theta": theta_m,
+                "vega": vega_n,
+                "liq": liq_n,
+                "risco": risco_n,
+            })
+
+        max_iv = max(x["iv_rank"] for x in raw_iv) or 1.0
+        max_dist = max(x["dist"] for x in raw_iv) or 1.0
+        max_theta = max(x["theta"] for x in raw_iv) or 1.0
+        max_vega = max(x["vega"] for x in raw_iv) or 1.0
+        max_liq = max(x["liq"] for x in raw_iv) or 1.0
+        max_risco = max(x["risco"] for x in raw_iv) or 1.0
+
+        for r, d in zip(resultados, raw_iv):
+            r.score_iv = round(
+                peso_iv_rank * (d["iv_rank"] / max_iv)
+                + peso_dist * (d["dist"] / max_dist)
+                + peso_theta_margin * (d["theta"] / max_theta)
+                + peso_vega * (d["vega"] / max_vega)
+                + peso_liquidez_iv * (d["liq"] / max_liq)
+                + peso_risco_max * (d["risco"] / max_risco),
+                4,
+            )
+
+        resultados.sort(key=lambda r: -r.score)
         logger.warning("CollarCal STATS: %s", stats)
         logger.warning("CollarCal TOTAL: %d viaveis em %d ativos", len(resultados), len(set(r.ativo for r in resultados)))
         return [r for r in resultados if r.viavel]

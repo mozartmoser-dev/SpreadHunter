@@ -48,6 +48,17 @@ class ResultadoColarCalendario:
     custo_b3: float = 0.0
     custo_ir: float = 0.0
     pct_cdi_liquido: float = 0.0
+    score: float = 0.0
+    risco_max: float = 0.0
+    iv_rank: float = 0.0
+    iv_rank_call: float = 0.0
+    iv_rank_put: float = 0.0
+    vega_call: float = 0.0
+    vega_put: float = 0.0
+    vega_liquido: float = 0.0
+    gamma_call: float = 0.0
+    gamma_put: float = 0.0
+    score_iv: float = 0.0
     be_baixa: float | None = None
     be_alta: float | None = None
     be_baixa_intrinseco: float | None = None
@@ -85,6 +96,20 @@ class CalculadoraColarCalendario:
         else:
             theta = (-S * pdf_d1 * sigma) / (2 * sqrt_T) + r * K * np.exp(-r * T) * norm.cdf(-d2)
         return theta / 365
+
+    @staticmethod
+    def bs_vega(S: float, K: float, T: float, r: float, sigma: float) -> float:
+        if sigma <= 0 or T <= 0:
+            return 0.0
+        d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        return S * norm.pdf(d1) * np.sqrt(T) / 100
+
+    @staticmethod
+    def bs_gamma(S: float, K: float, T: float, r: float, sigma: float) -> float:
+        if sigma <= 0 or T <= 0:
+            return 0.0
+        d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        return norm.pdf(d1) / (S * sigma * np.sqrt(T))
 
     @staticmethod
     def implied_volatility(S: float, K: float, T: float, r: float, market_price: float, option_type: str) -> float | None:
@@ -215,6 +240,8 @@ class CalculadoraColarCalendario:
         r: float | None = None,
         preco_compra_ativo: float | None = None,
         dividendos: list[tuple[date, float]] | None = None,
+        iv_hist_min: float | None = None,
+        iv_hist_max: float | None = None,
     ) -> ResultadoColarCalendario | None:
         if r is None:
             r = self.taxa_cdi
@@ -270,6 +297,21 @@ class CalculadoraColarCalendario:
             return None
 
         capital_empregado = preco_compra + premio_put - premio_call
+        risco_max = max(0.0, capital_empregado - min(strike_call, strike_put))
+
+        vega_call = self.bs_vega(S_bs_call, strike_call, T_call, r_cont, iv_call)
+        vega_put = self.bs_vega(S_bs_put, strike_put, T_put, r_cont, iv_put)
+        vega_liquido = vega_put - vega_call
+        gamma_call = self.bs_gamma(S_bs_call, strike_call, T_call, r_cont, iv_call)
+        gamma_put = self.bs_gamma(S_bs_put, strike_put, T_put, r_cont, iv_put)
+
+        iv_rank = 0.0
+        iv_rank_call = 0.0
+        iv_rank_put = 0.0
+        if iv_hist_min is not None and iv_hist_max is not None and iv_hist_max > iv_hist_min:
+            iv_rank_call = (iv_call - iv_hist_min) / (iv_hist_max - iv_hist_min)
+            iv_rank_put = (iv_put - iv_hist_min) / (iv_hist_max - iv_hist_min)
+            iv_rank = (iv_rank_call + iv_rank_put) / 2
 
         premio_medio = (premio_call + premio_put) / 2
         custo_b3 = (self.custos_b3.custos_opcao(premio_medio, n_pernas=2) +
@@ -332,6 +374,15 @@ class CalculadoraColarCalendario:
             be_alta=be_alta,
             be_baixa_intrinseco=be_baixa_int,
             be_alta_intrinseco=be_alta_int,
+            risco_max=round(risco_max, 4),
+            iv_rank=round(iv_rank, 4),
+            iv_rank_call=round(iv_rank_call, 4),
+            iv_rank_put=round(iv_rank_put, 4),
+            vega_call=round(vega_call, 4),
+            vega_put=round(vega_put, 4),
+            vega_liquido=round(vega_liquido, 4),
+            gamma_call=round(gamma_call, 4),
+            gamma_put=round(gamma_put, 4),
         )
 
     @staticmethod
@@ -524,5 +575,36 @@ class CalculadoraColarCalendario:
             f"<b>= PnL Líquido: R$ {pnl_liquido:.2f}</b>  ({r.pct_cdi_liquido:.2f}x CDI líquido)"
             "</p>"
         )
+
+        lines.append("<hr>")
+        lines.append("<p><b>▸ Manejos Possíveis no vencimento da CALL:</b></p><ul>")
+
+        if call_Itm:
+            lines.append(
+                f"<li><b>Exercício automático:</b> A CALL está ITM → a ação é vendida a "
+                f"<b>R$ {Kc:.2f}</b>. Você recebe R$ {Pc:.2f} de prêmio e "
+                f"a PUT residual ({r.dte_extra}d) vira proteção gratuita ou pode "
+                f"ser vendida para realizar lucro extra.</li>"
+                f"<li><b>Rolar para Bear Collar:</b> Se ainda quer exposição, recompre "
+                f"a CALL (valor intrínseco ~R$ {S0 - Kc:.2f}) e venda uma CALL mais OTM "
+                f"com o mesmo vencimento. A PUT existente vira a proteção do Bear Collar.</li>"
+            )
+        else:
+            lines.append(
+                f"<li><b>CALL OTM:</b> CALL expira sem valor. A ação fica livre — "
+                f"você pode vendê-la no mercado e manter a PUT como seguro, ou "
+                f"recomprar a PUT e encerrar tudo com lucro de R$ {Pc:.2f} (prêmio da CALL).</li>"
+                f"<li><b>Rolar a CALL:</b> Vender outra CALL com mais DTE para coletar "
+                f"mais prêmio, mantendo a PUT como proteção de longo prazo.</li>"
+            )
+
+        lines.append(
+            f"<li><b>Fechamento antecipado:</b> Recompre a CALL e venda a PUT — "
+            f"o lucro/prejuízo depende do valor de mercado no momento. "
+            f"Use o gráfico de payoff para simular cenários.</li>"
+            f"<li><b>Manutenção:</b> Se a PUT residual tem valor extrínseco significativo, "
+            f"espere até o vencimento dela para maximizar o decaimento temporal.</li>"
+        )
+        lines.append("</ul>")
 
         return "\n".join(lines)

@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QLineEdit, QFormLayout, QFrame,
-    QListWidget, QListWidgetItem, QWidget, QTextEdit,
+    QListWidget, QListWidgetItem, QWidget, QTextEdit, QSpinBox,
 )
 import winsound
 
@@ -47,6 +47,7 @@ RISCO_CORES = {
 class ColarTableModel(QAbstractTableModel):
     COLUMNS = [
         ("Ativo", "ativo"),
+        ("Score", "score"),
         ("Pop ↑", "pop_upside"),
         ("Pop ↓", "pop_downside"),
         ("Pior%xCDI", "pct_cdi"),
@@ -82,6 +83,12 @@ class ColarTableModel(QAbstractTableModel):
             if role == Qt.ToolTipRole:
                 tips = {
                     "ativo": "Código da ação objeto (ex: PETR4).",
+                    "score": "Score de ranking multicritério (0–10+). "
+                             "Fórmula: peso_pop × Pop_NORM + peso_cdi × CDI_NORM + peso_risco × RISCO.\n"
+                             "• Pop_NORM = (100 − |Pop↑ − Pop↓|) ÷ max(Pop_BALANCEADA) no lote — penaliza skew\n"
+                             "• CDI_NORM = pior%xCDI ÷ max(pior%xCDI) no lote\n"
+                             "• RISCO = 1.0 (Baixo), 0.5 (Médio), 0.0 (Alto)\n"
+                             "Ordem padrão: Score decrescente. Pesos configuráveis em Parâmetros > Colar Protetivo.",
                     "pop_upside": "Probabilidade de o ativo estar acima do strike CALL no vencimento.",
                     "pop_downside": "Probabilidade de o ativo estar abaixo do strike PUT no vencimento.",
                     "pct_cdi": "Retorno no pior cenário comparado ao CDI do período." + CUSTOS_DISCLOSURE,
@@ -117,6 +124,8 @@ class ColarTableModel(QAbstractTableModel):
                 if col_key in ("strike_put", "strike_call", "custo_liquido", "pior_retorno",
                                "pior_b3", "pior_liquido"):
                     return "R$ {:.2f}".format(val)
+                if col_key == "score":
+                    return f"{val:.2f}"
                 if col_key in ("pct_cdi", "pct_cdi_melhor"):
                     return "{:.2f}x".format(val)
                 if col_key in ("pop_upside", "pop_downside"):
@@ -141,7 +150,7 @@ class ColarTableModel(QAbstractTableModel):
             if col_key == "risco_str":
                 risco = item.get("risco_str", "")
                 return RISCO_CORES.get(risco, QBrush(QColor(Palette.TEXT_MUTED)))
-            if col_key in ("pct_cdi", "pct_cdi_melhor"):
+            if col_key in ("pct_cdi", "pct_cdi_melhor", "score"):
                 return QBrush(QColor(Palette.YELLOW))
             if col_key in ("strike_put", "strike_call", "custo_liquido", "pior_retorno"):
                 return QBrush(QColor(Palette.TEXT_PRIMARY))
@@ -155,7 +164,7 @@ class ColarTableModel(QAbstractTableModel):
             return QBrush(QColor(Palette.TEXT_MUTED))
 
         if role == Qt.TextAlignmentRole:
-            center_cols = {"strike_put", "strike_call", "custo_liquido", "pior_retorno",
+            center_cols = {"score", "strike_put", "strike_call", "custo_liquido", "pior_retorno",
                            "pior_b3", "pior_liquido",
                            "pct_cdi", "pct_cdi_melhor", "pop_upside", "pop_downside",
                            "risco_str", "dias"}
@@ -183,24 +192,67 @@ class ColarSortProxy(QSortFilterProxyModel):
         self._filtro_lista = None
         self._pop_upside_min = 0.0
         self._pop_downside_min = 0.0
+        self._top_n = 0
+        self._top_n_accept_set: set[int] | None = None
 
     def set_filtro_ativo(self, texto: str):
         self._filtro_ativo = texto.strip().upper()
         self._filtro_lista = None
+        self._top_n_accept_set = None
         self.invalidateFilter()
 
     def set_filtro_lista(self, ativos: set):
         self._filtro_lista = ativos
         self._filtro_ativo = ""
+        self._top_n_accept_set = None
         self.invalidateFilter()
 
     def set_filtro_pop_upside(self, minimo: float):
         self._pop_upside_min = minimo
+        self._top_n_accept_set = None
         self.invalidateFilter()
 
     def set_filtro_pop_downside(self, minimo: float):
         self._pop_downside_min = minimo
+        self._top_n_accept_set = None
         self.invalidateFilter()
+
+    def set_top_n(self, n: int):
+        self._top_n = n
+        self._top_n_accept_set = None
+        self.invalidateFilter()
+
+    def sort(self, column, order):
+        super().sort(column, order)
+        self._top_n_accept_set = None
+
+    def _recompute_top_n(self):
+        src = self.sourceModel()
+        n = self._top_n
+        sort_col = self.sortColumn()
+        if sort_col < 0:
+            sort_col = 3
+        sort_order = self.sortOrder()
+
+        rows_by_ativo: dict[str, list[int]] = {}
+        for row in range(src.rowCount()):
+            idx = src.index(row, 0)
+            ativo = src.data(idx, Qt.DisplayRole) or ""
+            rows_by_ativo.setdefault(ativo, []).append(row)
+
+        accept: set[int] = set()
+        for ativo, rows in rows_by_ativo.items():
+            def _sort_key(r):
+                idx = src.index(r, sort_col)
+                raw = src.data(idx, Qt.DisplayRole) or "0"
+                try:
+                    return float(str(raw).replace("R$", "").replace("x", "").replace("%", "").replace(",", ".").strip())
+                except Exception:
+                    return 0.0
+            sorted_rows = sorted(rows, key=_sort_key, reverse=(sort_order == Qt.DescendingOrder))
+            accept.update(sorted_rows[:n])
+
+        self._top_n_accept_set = accept
 
     def filterAcceptsRow(self, row, parent):
         src = self.sourceModel()
@@ -231,6 +283,12 @@ class ColarSortProxy(QSortFilterProxyModel):
                     return False
             except ValueError:
                 pass
+
+        if self._top_n > 0:
+            if self._top_n_accept_set is None:
+                self._recompute_top_n()
+            if row not in self._top_n_accept_set:
+                return False
 
         return True
 
@@ -376,6 +434,35 @@ class ColarDialog(QDialog):
         pop_row2.addStretch()
         left_panel.addLayout(pop_row2)
 
+        sep_topn = QFrame()
+        sep_topn.setFrameShape(QFrame.HLine)
+        sep_topn.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
+        left_panel.addWidget(sep_topn)
+
+        lbl_topn = QLabel("Top N por Ativo:")
+        lbl_topn.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold;".format(Palette.TEXT_MUTED))
+        left_panel.addWidget(lbl_topn)
+
+        topn_row = QHBoxLayout()
+        topn_row.setSpacing(4)
+        self.spin_topn = QSpinBox()
+        self.spin_topn.setRange(0, 20)
+        self.spin_topn.setValue(0)
+        self.spin_topn.setFixedWidth(60)
+        self.spin_topn.setToolTip("0 = mostra todos. 1 = só o melhor de cada ativo. 2 = até 2 por ativo, etc.")
+        self.spin_topn.setStyleSheet("""
+            QSpinBox {
+                background-color: #1e1e2f; color: #e0e0e0;
+                border: 1px solid #2d2d44; border-radius: 3px;
+                padding: 2px 4px; font-size: 8pt;
+            }
+            QSpinBox:focus { border-color: #1abc9c; }
+        """)
+        self.spin_topn.valueChanged.connect(self._on_topn_changed)
+        topn_row.addWidget(self.spin_topn)
+        topn_row.addStretch()
+        left_panel.addLayout(topn_row)
+
         self.txt_sel_atual = QTextEdit()
         self.txt_sel_atual.setReadOnly(True)
         self.txt_sel_atual.setFixedHeight(50)
@@ -452,6 +539,7 @@ class ColarDialog(QDialog):
             }
             QPushButton:hover { background-color: #8b8be022; }
         """)
+        self.btn_regras.setVisible(False)
         self.btn_regras.clicked.connect(self._abrir_regras)
         left_panel.addWidget(self.btn_regras)
 
@@ -479,7 +567,7 @@ class ColarDialog(QDialog):
         header.setStretchLastSection(True)
         header.setSectionsMovable(True)
         header.setDragEnabled(True)
-        header.sectionMoved.connect(lambda: salvar_ordem_colunas(header, "colar_table_order"))
+        header.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(header, "colar_table_order")))
         restaurar_ordem_colunas(header, "colar_table_order")
         header.setSectionResizeMode(QHeaderView.Interactive)
         self.table_view.verticalHeader().setDefaultSectionSize(26)
@@ -526,6 +614,10 @@ class ColarDialog(QDialog):
             dn_val = 0.0
         self.proxy.set_filtro_pop_upside(up_val)
         self.proxy.set_filtro_pop_downside(dn_val)
+
+    def _on_topn_changed(self, n: int):
+        self.proxy.set_top_n(n)
+        self._atualizar_status()
 
     def _on_search_ativos_debounced(self):
         texto = self.txt_filtro.text()
@@ -593,6 +685,8 @@ class ColarDialog(QDialog):
         filtro = self.txt_filtro.text().strip()
         rtd_str = "RTD: ON" if getattr(self, "_rtd_ok", False) else "RTD: ---"
         has_results = getattr(self, "_dados_carregados", False)
+        topn_n = self.spin_topn.value()
+        topn_suf = f" | Top {topn_n}" if topn_n > 0 else ""
         if total == 0 and filtro:
             self.lbl_status.setText(f"Nenhum colar para '{filtro}' | {rtd_str}")
         elif total == 0:
@@ -601,9 +695,9 @@ class ColarDialog(QDialog):
             else:
                 self.lbl_status.setText(f"Aguardando dados... | {rtd_str}")
         elif filtro:
-            self.lbl_status.setText(f"{total} colares para '{filtro}' | {rtd_str}")
+            self.lbl_status.setText(f"{total} colares para '{filtro}'{topn_suf} | {rtd_str}")
         else:
-            self.lbl_status.setText(f"{total} colares viáveis | {rtd_str}")
+            self.lbl_status.setText(f"{total} colares viáveis{topn_suf} | {rtd_str}")
 
     def sync_auto_active(self):
         self._auto_mode = True
@@ -1074,8 +1168,8 @@ class ColarDialog(QDialog):
         pct_melhor_cdi = pct_melhor / (cdi_periodo * 100) if cdi_periodo > 0 else 0
         pct_pior = (pior_ret / custo) * 100
 
-        BG = '#0d0d0d'; TEXT = '#c0c0c0'; RED = '#ff3355'
-        ACCENT = '#4fc3f7'; FILL_BLUE = '#1a5276'; BLUE = '#2196f3'; YELLOW = '#ffc107'
+        BG = '#0d0d0d'; TEXT = '#c0c0c0'; WHITE = '#ffffff'; RED = '#ff3355'
+        ACCENT = '#ffc107'; FILL_BLUE = '#1a5276'; BLUE = '#2196f3'; GREEN = '#4caf50'
 
         fig = Figure(figsize=(9, 5), facecolor=BG)
         ax = fig.add_subplot(111, facecolor=BG)
@@ -1090,11 +1184,14 @@ class ColarDialog(QDialog):
         hover_vline = ax.axvline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
         hover_hline = ax.axhline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
         def _on_hover(event):
+            ax.set_xlim(x_min, x_max)
+            y_pad = (total_pnl.max() - total_pnl.min()) * 0.08
+            ax.set_ylim(total_pnl.min() - y_pad, total_pnl.max() + y_pad)
             if event.inaxes != ax or event.xdata is None:
                 hover_annot.set_visible(False)
                 hover_vline.set_visible(False)
                 hover_hline.set_visible(False)
-                fig.canvas.draw()
+                fig.canvas.draw_idle()
                 return
             idx = np.argmin(np.abs(x - event.xdata))
             xv, yv = x[idx], total_pnl[idx]
@@ -1105,12 +1202,12 @@ class ColarDialog(QDialog):
             hover_vline.set_visible(True)
             hover_hline.set_ydata([yv, yv])
             hover_hline.set_visible(True)
-            fig.canvas.draw()
+            fig.canvas.draw_idle()
 
         ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
-        ax.axvline(S, color=BLUE, linewidth=0.7, linestyle='--', alpha=0.8, label='Entrada')
+        ax.axvline(S, color=WHITE, linewidth=0.7, linestyle='--', alpha=0.8, label=f'Spot {S:.2f}')
         ax.axvline(Kp, color=RED, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Put {Kp:.2f}')
-        ax.axvline(Kc, color=YELLOW, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Call {Kc:.2f}')
+        ax.axvline(Kc, color=ACCENT, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Call {Kc:.2f}')
         ax.axhline(pior_ret, color=RED, linewidth=0.6, linestyle='--', alpha=0.4, label=f'Pior R$ {pior_ret:.2f}')
 
         ax.fill_between(x, 0, total_pnl, where=(total_pnl >= 0), color=FILL_BLUE, alpha=0.12)
@@ -1220,7 +1317,7 @@ class ColarDialog(QDialog):
 
         has_vol = any(v is not None for v in vol_hists) or any(v is not None for v in vol_impls)
 
-        BG = '#0d0d0d'; TEXT = '#c0c0c0'
+        BG = '#0d0d0d'; TEXT = '#c0c0c0'; WHITE = '#ffffff'
         GREEN = '#4caf50'; RED = '#ff3355'; BLUE = '#2196f3'
         ACCENT = '#ffc107'
 
@@ -1247,10 +1344,44 @@ class ColarDialog(QDialog):
         ax1.set_xlim(dates[0], dates[-1])
 
         if preco_atual is not None and preco_atual > 0:
-            ax1.axhline(preco_atual, color='#00e5ff', linewidth=1.0, linestyle='--', alpha=0.6, zorder=4)
+            ax1.axhline(preco_atual, color=WHITE, linewidth=1.0, linestyle='--', alpha=0.6, zorder=4)
             ax1.text(dates[-1], preco_atual, f'Spot R${preco_atual:.2f}',
-                     ha='right', va='bottom', color='#00e5ff', fontsize=7, alpha=0.8,
+                     ha='right', va='bottom', color=WHITE, fontsize=7, alpha=0.8,
                      bbox=dict(boxstyle='round,pad=0.15', facecolor='#1a1a1a', edgecolor='none', alpha=0.6))
+
+        # ── Hover tooltip ──
+        hover_annot = ax1.annotate(
+            '', xy=(0, 0), fontsize=7.5, color='#fff',
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=ACCENT, alpha=0.9),
+            ha='center', va='center', visible=False, zorder=10,
+        )
+        hover_vline = ax1.axvline(0, color=ACCENT, linewidth=0.6, linestyle=':', alpha=0.3, visible=False, zorder=5)
+
+        def _on_hover(event):
+            if hasattr(ax1, 'get_xlim') and hasattr(ax1, 'get_ylim'):
+                ax1.set_xlim(ax1.get_xlim())
+                ax1.set_ylim(ax1.get_ylim())
+            if event.inaxes != ax1 or event.xdata is None:
+                hover_annot.set_visible(False)
+                hover_vline.set_visible(False)
+                fig.canvas.draw_idle()
+                return
+            import matplotlib.dates as mdates
+            t = mdates.num2date(event.xdata).replace(tzinfo=None)
+            idx = min(range(len(dates)), key=lambda i: abs((dates[i] - t).total_seconds()))
+            d = dates[idx]
+            hover_annot.xy = (mdates.date2num(d), highs[idx])
+            hover_annot.set_text(
+                f"{d.strftime('%d/%m/%Y')}  "
+                f"O={opens[idx]:.2f} H={highs[idx]:.2f} L={lows[idx]:.2f} C={closes[idx]:.2f}"
+                + (f"  Vol={volumes[idx]:,.0f}" if idx < len(volumes) and volumes[idx] is not None else "")
+            )
+            hover_annot.set_visible(True)
+            hover_vline.set_xdata([mdates.date2num(d), mdates.date2num(d)])
+            hover_vline.set_visible(True)
+            fig.canvas.draw_idle()
+
+        fig.canvas.mpl_connect('motion_notify_event', _on_hover)
 
         # Sigma levels + Gauss inset
         if len(closes) > 10:
@@ -1491,8 +1622,8 @@ class ColarDialog(QDialog):
                      ha='center', va='center', color=PURPLE, fontsize=7.5, fontweight='bold',
                      bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=PURPLE, alpha=0.85))
         else:
-            ax2.axvline(pct_call, color=RED, linewidth=2, linestyle='-', alpha=0.9, label=f'K Call {r.strike_call:.2f} ({pct_call:+.1f}%)')
-            ax2.axvline(pct_put, color=GREEN, linewidth=2, linestyle='-', alpha=0.9, label=f'K Put {r.strike_put:.2f} ({pct_put:+.1f}%)')
+            ax2.axvline(pct_call, color=ACCENT, linewidth=2, linestyle='-', alpha=0.9, label=f'K Call {r.strike_call:.2f} ({pct_call:+.1f}%)')
+            ax2.axvline(pct_put, color=RED, linewidth=2, linestyle='-', alpha=0.9, label=f'K Put {r.strike_put:.2f} ({pct_put:+.1f}%)')
 
         ax2.axhline(0, color=TEXT, linewidth=0.4, alpha=0.15)
         ax2.set_xlabel('Variacao em relacao ao spot (%)', color=TEXT, fontsize=9)
@@ -1618,38 +1749,50 @@ class ColarDialog(QDialog):
         self._on_search_ativos_debounced()
 
     def atualizar_resultados(self, resultados: list):
-        self._dados_carregados = True
-        self._resultados = resultados
-        items = []
-        for r in resultados:
-            pior_b3 = r.pior_retorno - r.custo_b3
-            pior_liquido = pior_b3 - r.custo_ir
-            items.append({
-                "ativo": r.ativo,
-                "vencimento": r.vencimento,
-                "tipo_str": r.tipo.value,
-                "strike_put": r.strike_put,
-                "strike_call": r.strike_call,
-                "cod_put": r.cod_put,
-                "cod_call": r.cod_call,
-                "custo_liquido": r.custo_liquido,
-                "pior_retorno": r.pior_retorno,
-                "custo_b3": r.custo_b3,
-                "custo_ir": r.custo_ir,
-                "pior_b3": pior_b3,
-                "pior_liquido": pior_liquido,
-                "pct_cdi": r.pct_cdi,
-                "pct_cdi_melhor": r.pct_cdi_melhor,
-                "pct_cdi_liquido": r.pct_cdi_liquido,
-                "pct_cdi_melhor_liquido": r.pct_cdi_melhor_liquido,
-                "risco_str": r.risco_leilao.value,
-                "dias": r.dias,
-                "viavel": r.viavel,
-                "pop_upside": r.pop_upside,
-                "pop_downside": r.pop_downside,
-            })
+        # Congela colunas durante reset do modelo para evitar crash
+        # se o usuário estiver arrastando uma coluna no momento do refresh
+        header = self.table_view.horizontalHeader()
+        was_blocked = header.signalsBlocked()
+        header.blockSignals(True)
+        was_movable = header.sectionsMovable()
+        header.setSectionsMovable(False)
+        try:
+            self._dados_carregados = True
+            self._resultados = resultados
+            items = []
+            for r in resultados:
+                pior_b3 = r.pior_retorno - r.custo_b3
+                pior_liquido = pior_b3 - r.custo_ir
+                items.append({
+                    "ativo": r.ativo,
+                    "score": r.score,
+                    "vencimento": r.vencimento,
+                    "tipo_str": r.tipo.value,
+                    "strike_put": r.strike_put,
+                    "strike_call": r.strike_call,
+                    "cod_put": r.cod_put,
+                    "cod_call": r.cod_call,
+                    "custo_liquido": r.custo_liquido,
+                    "pior_retorno": r.pior_retorno,
+                    "custo_b3": r.custo_b3,
+                    "custo_ir": r.custo_ir,
+                    "pior_b3": pior_b3,
+                    "pior_liquido": pior_liquido,
+                    "pct_cdi": r.pct_cdi,
+                    "pct_cdi_melhor": r.pct_cdi_melhor,
+                    "pct_cdi_liquido": r.pct_cdi_liquido,
+                    "pct_cdi_melhor_liquido": r.pct_cdi_melhor_liquido,
+                    "risco_str": r.risco_leilao.value,
+                    "dias": r.dias,
+                    "viavel": r.viavel,
+                    "pop_upside": r.pop_upside,
+                    "pop_downside": r.pop_downside,
+                })
 
-        self.model.atualizar(items)
+            self.model.atualizar(items)
+        finally:
+            header.setSectionsMovable(was_movable)
+            header.blockSignals(was_blocked)
 
         ativos_atuais = set(
             self.lista_ativos.item(i).text()
@@ -1692,6 +1835,12 @@ class ColarDialog(QDialog):
         from src.ui.desktop.regras_dialog import RegrasDialog
         dlg = RegrasDialog("COLAR", self._db_path, self)
         dlg.exec_()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_R and event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
+            self.btn_regras.setVisible(not self.btn_regras.isVisible())
+        else:
+            super().keyPressEvent(event)
 
     def _toggle_som(self, ativo: bool):
         self._som_ativado = ativo

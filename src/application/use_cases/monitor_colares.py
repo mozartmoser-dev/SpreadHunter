@@ -1,4 +1,5 @@
 import logging
+import math
 from collections import defaultdict
 from datetime import date
 from typing import Optional
@@ -8,6 +9,19 @@ from src.domain.services.calculadora_colar import CalculadoraColar, ResultadoCol
 from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository, ParametroRepository
 
 logger = logging.getLogger(__name__)
+
+
+# Ordem dos filtros aplicados no varrer(). regras_dialog lê esta lista automaticamente.
+FILTROS_COLAR = [
+    "1. Vencimento",
+    "2. Ativo (whitelist/checklist)",
+    "3. Preço do ativo (RTD)",
+    "4. Strike (RTD)",
+    "5. Prêmios PUT e CALL (RTD)",
+    "6. QUL > 0",
+    "7. DTE mínimo",
+    "8. QUL mínimo",
+]
 
 
 class MonitorColaresUseCase:
@@ -263,10 +277,47 @@ class MonitorColaresUseCase:
 
         logger.info("Collar DIAG pares: grupos=%d, <2membros=%d, pares=%d, sp>=sc=%d, fora_dist=%d, calc_ok=%d, calc_none=%d -> total=%d",
                      c_grupos, c_poucos, c_pares, c_invalid, c_dist, c_calc_ok, c_calc_none, len(resultados))
-        resultados.sort(key=lambda r: -r.pct_cdi)
+
         if resultados:
-            top5 = [(r.ativo, r.pct_cdi, r.pct_cdi_liquido, r.viavel) for r in resultados[:5]]
-            logger.info("Collar DIAG top5: %s", top5)
+            # ── Score de Ranking (Colar Protetivo) ──
+            peso_pop = self._get_param("ranking_peso_colar_pop", 3.0)
+            peso_cdi = self._get_param("ranking_peso_colar_cdi", 2.0)
+            peso_risco = self._get_param("ranking_peso_colar_risco", 1.0)
+
+            def _risco_norm(r):
+                return {"Baixo": 1.0, "Médio": 0.5, "Alto": 0.0}.get(r.risco_leilao.value, 0.0)
+
+            def _pop_balance(r):
+                pu = r.pop_upside if r.pop_upside is not None else 0
+                pd = r.pop_downside if r.pop_downside is not None else 0
+                return 100 - abs(pu - pd)
+
+            raw = []
+            for r in resultados:
+                raw.append({
+                    "pop": _pop_balance(r),
+                    "cdi": r.pct_cdi,
+                    "risco": _risco_norm(r),
+                })
+
+            max_pop = max(x["pop"] for x in raw) or 1.0
+            max_cdi = max(x["cdi"] for x in raw) or 1.0
+
+            for r, d in zip(resultados, raw):
+                pop_norm = d["pop"] / max_pop
+                cdi_norm = d["cdi"] / max_cdi
+                risco_norm = d["risco"]
+                r.score = round(
+                    peso_pop * pop_norm
+                    + peso_cdi * cdi_norm
+                    + peso_risco * risco_norm,
+                    4,
+                )
+
+            resultados.sort(key=lambda r: -r.score)
+            top5 = [(r.ativo, r.score, r.pct_cdi, r.viavel) for r in resultados[:5]]
+            logger.info("Collar DIAG top5 (score): %s", top5)
+        resultados = [r for r in resultados if r.viavel]
         return resultados
 
     def _get_param(self, chave: str, default: float) -> float:

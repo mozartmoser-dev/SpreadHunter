@@ -92,6 +92,9 @@ PARAMETROS_POR_ESTRATEGIA = {
     "COLAR": [
         ("premio_risco_colar", "Premio risco Colar (x CDI)"),
         ("colar_dist_max_pct", "Distancia maxima do strike (%)"),
+        ("ranking_peso_colar_pop", "Peso Pop no Score Ranking"),
+        ("ranking_peso_colar_cdi", "Peso % CDI no Score Ranking"),
+        ("ranking_peso_colar_risco", "Peso risco leilão (inverso) no Score Ranking"),
         ("white_list_colar", "Whitelist de ativos (separados por virgula)"),
     ],
     "COLLAR_CALENDARIO": [
@@ -105,6 +108,11 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("dte_extra_max", "Diferenca DTE put−call maxima (dias)"),
         ("dte_total_max", "DTE total maximo (dias)"),
         ("premio_risco_colar_calendario", "Premio risco (x CDI)"),
+        ("ranking_peso_theta", "Peso θ líq. no Score Ranking"),
+        ("ranking_peso_cdi", "Peso % CDI no Score Ranking"),
+        ("ranking_peso_sigma", "Peso sigma folga no Score Ranking"),
+        ("ranking_peso_credito", "Peso crédito no Score Ranking"),
+        ("ranking_peso_liquidez", "Peso liquidez no Score Ranking"),
         ("white_list_colar_calendario", "Whitelist de ativos (separados por virgula)"),
         ("telegram_cleanup_timeout", "Timeout historico Telegram (s)"),
     ],
@@ -393,6 +401,46 @@ PARAMETROS_INFO = {
         "descricao": "Tempo em segundos apos o qual uma oportunidade enviada pelo Telegram e removida do historico. Apos este prazo, a mesma oportunidade pode ser re-enviada.",
         "usado_em": "Monitor de Oportunidades (limpeza de historico).",
         "precedencia": "Spinner -> Banco de Dados -> 300 (5 min, padrao)",
+    },
+    "ranking_peso_colar_pop": {
+        "descricao": "Peso da Pop balanceada normalizada no Score de Ranking do Colar Protetivo. Pop_NORM = (100 − |Pop↑ − Pop↓|) ÷ max(Pop_BALANCEADA) no lote. Penaliza operações com distribuição assimétrica (ex: 92%% abaixo e 5%% acima). Quanto mais balanceada, maior o score.",
+        "usado_em": "Monitor de Colar Protetivo (cálculo do Score, ordenação padrão decrescente).",
+        "precedencia": "Banco de Dados -> 3.0 (padrão no seed)",
+    },
+    "ranking_peso_colar_cdi": {
+        "descricao": "Peso do % CDI (pior cenário) normalizado no Score do Colar Protetivo.  CDI_NORM = pct_cdi ÷ max(pct_cdi) no lote.",
+        "usado_em": "Monitor de Colar Protetivo (cálculo do Score).",
+        "precedencia": "Banco de Dados -> 2.0 (padrão no seed)",
+    },
+    "ranking_peso_colar_risco": {
+        "descricao": "Peso do risco de leilão (inverso) no Score do Colar Protetivo. RISCO = 1.0 (Baixo), 0.5 (Médio), 0.0 (Alto). Penaliza operações com book fino e risco de despernamento.",
+        "usado_em": "Monitor de Colar Protetivo (cálculo do Score).",
+        "precedencia": "Banco de Dados -> 1.0 (padrão no seed)",
+    },
+    "ranking_peso_theta": {
+        "descricao": "Peso do theta líquido normalizado no Score de Ranking do Collar Calendário. Quanto maior, mais o ranking favorece operações com alto decaimento temporal (theta positivo). θLíq_NORM = |theta_líquido| ÷ max(|θLíq|) no lote.",
+        "usado_em": "Monitor de Collar Calendário (cálculo do Score, ordenação padrão decrescente).",
+        "precedencia": "Banco de Dados -> 3.0 (padrão no seed)",
+    },
+    "ranking_peso_cdi": {
+        "descricao": "Peso do % CDI normalizado no Score de Ranking. Quanto maior, mais o ranking prioriza retorno sobre o CDI. CDI_NORM = pct_cdi ÷ max(pct_cdi) no lote.",
+        "usado_em": "Monitor de Collar Calendário (cálculo do Score).",
+        "precedencia": "Banco de Dados -> 2.0 (padrão no seed)",
+    },
+    "ranking_peso_sigma": {
+        "descricao": "Peso da folga sigma (distância aos strikes em desvios padrão) no Score de Ranking. Mede a probabilidade de a CALL expirar OTM. SIGMA_FOLGA = min(|spot−K_call|,|spot−K_put|) ÷ (spot × σ_IV × √(DTE_call/252)). Valores altos = mais folga = maior chance de sucesso.",
+        "usado_em": "Monitor de Collar Calendário (cálculo do Score).",
+        "precedencia": "Banco de Dados -> 2.0 (padrão no seed)",
+    },
+    "ranking_peso_credito": {
+        "descricao": "Peso do crédito líquido normalizado no Score de Ranking. Mede o carregamento positivo da estrutura. CRÉDITO_NORM = max(0, net_credito ÷ capital_empregado) ÷ max(cred_ratio) no lote.",
+        "usado_em": "Monitor de Collar Calendário (cálculo do Score).",
+        "precedencia": "Banco de Dados -> 1.0 (padrão no seed)",
+    },
+    "ranking_peso_liquidez": {
+        "descricao": "Peso da liquidez no Score de Ranking. Atualmente fixo em 1.0 (neutro) para todos os resultados — reservado para futura implementação com dados de volume/OI. LIQ = 1.0.",
+        "usado_em": "Monitor de Collar Calendário (cálculo do Score).",
+        "precedencia": "Banco de Dados -> 0.5 (padrão no seed)",
     },
     "mpp_habilitado": {
         "descricao": "Quando ativado, o Motor de Priorizacao de Pescaria (MPP) calcula o score instantaneo dos boxes periodicamente. Quando desativado, o MPP nao consome CPU e o ranking nao e atualizado automaticamente.",

@@ -23,6 +23,8 @@ logging.basicConfig(
     ],
 )
 
+logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
+
 
 def _clear_pycache():
     for pycache in Path(".").rglob("__pycache__"):

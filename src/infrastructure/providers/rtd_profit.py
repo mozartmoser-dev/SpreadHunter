@@ -1,5 +1,6 @@
 import logging
 import threading
+import time
 from typing import Optional
 
 from src.infrastructure.providers.rtd_config import RTD_SERVIDOR, rtd_topico
@@ -155,32 +156,17 @@ class RTDProfit:
     def refresh(self, timeout_ms: int = 0) -> dict[str, object]:
         if not self.disponivel or self._rtd is None:
             return {}
-        if timeout_ms <= 0:
-            try:
-                resultado = self._rtd.RefreshData(0)
-            except Exception as e:
-                logger.debug("RTD RefreshData erro: %s", e)
+        if timeout_ms > 0:
+            agora = time.time()
+            if agora - getattr(self, '_ultimo_refresh_timestamp', 0.0) < timeout_ms / 1000.0:
                 return {}
-            return self._parse_refresh_result(resultado)
-        result_container = []
-        thread = threading.Thread(target=lambda: result_container.append(self._executar_refresh()), daemon=True)
-        thread.start()
-        thread.join(timeout_ms / 1000.0)
-        if thread.is_alive():
-            logger.warning("RTD RefreshData(0) TIMEOUT apos %d ms — ciclo ignorado.", timeout_ms)
-            return {}
-        return result_container[0] if result_container else {}
-
-    def _executar_refresh(self):
-        import pythoncom
-        pythoncom.CoInitialize()
+            self._ultimo_refresh_timestamp = agora
         try:
-            return self._parse_refresh_result(self._rtd.RefreshData(0))
+            resultado = self._rtd.RefreshData(0)
         except Exception as e:
             logger.debug("RTD RefreshData erro: %s", e)
             return {}
-        finally:
-            pythoncom.CoUninitialize()
+        return self._parse_refresh_result(resultado)
 
     def refresh_seletivo(self, tids: list[int]) -> dict[str, object]:
         if not self.disponivel or self._rtd is None:

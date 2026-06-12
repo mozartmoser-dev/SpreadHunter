@@ -28,6 +28,10 @@ class BoxScore:
     strike1: float
     strike2: float
     vencimento: date
+    cod_call_k1: str = ""
+    cod_put_k1: str = ""
+    cod_call_k2: str = ""
+    cod_put_k2: str = ""
     score_estrutural_box: float = 0.0
     score_instantaneo_box: float = 0.0
     score_final: float = 0.0
@@ -556,6 +560,10 @@ class MPPUseCase:
             strike1=k1["strike"],
             strike2=k2["strike"],
             vencimento=vencimento,
+            cod_call_k1=k1.get("cod_call", ""),
+            cod_put_k1=k1.get("cod_put", ""),
+            cod_call_k2=k2.get("cod_call", ""),
+            cod_put_k2=k2.get("cod_put", ""),
             score_estrutural_box=score_estrutural_box,
             score_instantaneo_box=score_instantaneo,
             score_final=score_final,
@@ -741,7 +749,7 @@ class MPPUseCase:
             ip = self._calcular_ip(spread_pct, depth, pers, imb)
             if ip > melhor_ip:
                 melhor_ip = ip
-                melhor_perna = f"{tipo}{strike}"
+                melhor_perna = f"{tipo} {codigo}"
 
         lote_base = int(self._get_param("mre_lote_base", 100))
         max_pct = self._get_param("mre_profundidade_max_pct", 0.20)

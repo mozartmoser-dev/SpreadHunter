@@ -8,6 +8,18 @@ from PyQt5.QtGui import QFont
 from src.ui.desktop.theme import Palette
 from src.domain.entities.parametro_operacional import ParametroOperacional
 
+# Registro de ordem de filtros por estratégia — lido dinamicamente do código fonte
+_FILTROS_POR_ESTRATEGIA: dict[str, list[str]] = {}
+try:
+    from src.application.use_cases.monitor_colares_calendario import FILTROS_COLLAR_CALENDARIO
+    _FILTROS_POR_ESTRATEGIA["COLLAR_CALENDARIO"] = FILTROS_COLLAR_CALENDARIO
+except ImportError:
+    pass
+try:
+    from src.application.use_cases.monitor_colares import FILTROS_COLAR
+    _FILTROS_POR_ESTRATEGIA["COLAR"] = FILTROS_COLAR
+except ImportError:
+    pass
 
 _REGRAS_ESTRUTURAIS: dict[str, list[str]] = {
     "BOX": [
@@ -34,11 +46,21 @@ _REGRAS_ESTRUTURAIS: dict[str, list[str]] = {
         "Melhor retorno sem clamp (calculado real)",
         "Risco de leilão: Baixo/Médio/Alto por VOV+VOC",
         "IV calculada via Brent (raiz de Black-Scholes)",
+        "Score = peso_pop×Pop_NORM + peso_cdi×CDI_NORM + peso_risco×RISCO",
+        "  Pop_NORM = (100 − |Pop↑ − Pop↓|) ÷ max(Pop_BALANCEADA) no lote — penaliza skew",
+        "  CDI_NORM = pct_cdi ÷ max(pct_cdi) no lote",
+        "  RISCO = 1.0 (Baixo), 0.5 (Médio), 0.0 (Alto)",
+        "  Ordenação padrão: Score decrescente. Pesos configuráveis em Parâmetros > Colar Protetivo.",
     ],
     "COLLAR_CALENDARIO": [
         "Breakevens via Brent com e sem valor intrínseco",
         "PV futuro descontado por dividendos",
         "IR (15%%) não usado como filtro de viabilidade",
+        "Score = peso_theta×θLíq_NORM + peso_cdi×CDI_NORM + peso_sigma×SIGMA_FOLGA + peso_credito×CRÉDITO_NORM + peso_liquidez×LIQ",
+        "  θLíq_NORM = |θLíq| ÷ max|θLíq| no lote | CDI_NORM = pct_cdi ÷ max pct_cdi no lote",
+        "  SIGMA_FOLGA = min(|spot−K_call|,|spot−K_put|) ÷ (spot × σ_IV√DTE/252) | σ_IV = média(IV_call, IV_put)/100",
+        "  CRÉDITO_NORM = max(0, crédito/capital) ÷ max(cred_ratio) no lote | LIQ = 1.0 (neutro, reservado)",
+        "  Ordenação padrão: Score decrescente. Pesos configuráveis em Parâmetros > Collar Calendário.",
     ],
     "BOX_4P": [
         "CLR = (Bid_CALL_K1 + Bid_PUT_K2) − (Ask_PUT_K1 + Ask_CALL_K2)",
@@ -66,6 +88,9 @@ _REGRAS_PARAM_MAP: dict[str, dict[str, str]] = {
     "COLAR": {
         "premio_risco_colar": "Viabilidade: x CDI (pós B3, antes IR) >= {}",
         "colar_dist_max_pct": "Strike max distante = {}% do spot",
+        "ranking_peso_colar_pop": "Peso Pop no Score = {}",
+        "ranking_peso_colar_cdi": "Peso CDI no Score = {}",
+        "ranking_peso_colar_risco": "Peso risco leilão no Score = {}",
     },
     "COLLAR_CALENDARIO": {
         "premio_risco": "Viabilidade: x CDI (pós B3, antes IR) >= {}",
@@ -78,6 +103,11 @@ _REGRAS_PARAM_MAP: dict[str, dict[str, str]] = {
         "be_search_range_mult": "Margem busca breakeven = ±{}%",
         "calendario_call_otm_max": "Call OTM máxima = {}% do spot",
         "dte_total_max": "DTE total máximo = {} dias",
+        "ranking_peso_theta": "Peso theta no Score = {}",
+        "ranking_peso_cdi": "Peso CDI no Score = {}",
+        "ranking_peso_sigma": "Peso sigma folga no Score = {}",
+        "ranking_peso_credito": "Peso crédito no Score = {}",
+        "ranking_peso_liquidez": "Peso liquidez no Score = {}",
     },
     "BOX_4P": {
         "premio_risco": "Viabilidade: x CDI (pós B3, antes IR) >= {}",
@@ -213,6 +243,13 @@ class RegrasDialog(QDialog):
         param_map = {p.chave: p.valor for p in params}
 
         linhas = []
+
+        # 0. Ordem dos filtros (lida dinamicamente do código fonte)
+        filtros = _FILTROS_POR_ESTRATEGIA.get(self._estrategia)
+        if filtros:
+            linhas.append("  - Ordem dos filtros:")
+            for f in filtros:
+                linhas.append(f"      {f}")
 
         # 1. Regras paramétricas (dinâmicas — valores atuais do DB)
         param_templates = _REGRAS_PARAM_MAP.get(self._estrategia, {})

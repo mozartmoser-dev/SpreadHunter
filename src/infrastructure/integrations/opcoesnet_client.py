@@ -312,37 +312,72 @@ class OpcoesNetClient:
         self, ativo: str, delay: float = 0.5
     ) -> list[dict]:
         """
-        Busca todas as opções (CALL + PUT) de um ativo com MOD incluso.
+        Busca todas as opções (CALL + PUT) de um ativo via API, incluindo
+        séries semanais (W1/W2/W3/W4). MOD incluso.
         Retorna lista de {ticker, strike, vencimento, tipo, ativo, mod}
         """
         session = self._session_anon()
+        z = str(math.floor(time.time() / 10))
+        params = {
+            "underlying_asset_id": ativo.upper(),
+            "skip": "0",
+            "columns_info": "true",
+            "underlying_quotes": "true",
+        }
+        r1 = "r1t=OptionsChain"
+        for k, v in sorted(params.items()):
+            r1 += "&r1p." + k + "=" + urllib.parse.quote(v)
+        qs = "z=" + z + "&r0t=LastQuotesInfo&" + r1
+        url = self.API_BASE + "?" + qs
+
+        old_accept = session.headers.get("Accept", "")
+        session.headers["Accept"] = "application/json"
         try:
-            calls = self.fetch_matriz(ativo, "CALL", session)
-            if calls:
-                time.sleep(delay)
-            puts = self.fetch_matriz(ativo, "PUT", session)
-            mod_map = self.fetch_mod_mapping(ativo, session)
-
-            # API returns suffix keys like "F380W1" (month+strike+week),
-            # matrix returns full tickers like "PETRF380". Strip the
-            # trailing week code and match via stem.
-            cleaned_mod: dict[str, str] = {}
-            for k, v in mod_map.items():
-                stem = re.sub(r'W\d+$', '', k)
-                if stem not in cleaned_mod:
-                    cleaned_mod[stem] = v
-
-            # Option ticker prefix = first 4 chars of asset (PETR4 → PETR)
-            asset_prefix = ativo[:4].upper()
-
-            combinados = calls + puts
-            for r in combinados:
-                t = r["ticker"]
-                suffix = t[len(asset_prefix):] if t.startswith(asset_prefix) else t
-                r["mod"] = cleaned_mod.get(suffix, "")
-            return combinados
+            resp = session.get(url, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception:
+            return []
         finally:
+            session.headers["Accept"] = old_accept
             session.close()
+
+        if not data.get("success"):
+            return []
+
+        asset_prefix = ativo[:4].upper()
+        resultados: list[dict] = []
+
+        for req in (data.get("requests") or []):
+            if req.get("type") == "OptionsChain" and not req.get("error"):
+                for exp in ((req.get("results") or {}).get("expirations") or []):
+                    vencimento = exp.get("dt", "")
+                    if not vencimento:
+                        continue
+
+                    for opt in (exp.get("calls") or []):
+                        if len(opt) >= 4 and opt[0] and opt[3]:
+                            resultados.append({
+                                "ticker": asset_prefix + str(opt[0]),
+                                "strike": float(opt[3]),
+                                "vencimento": str(vencimento),
+                                "tipo": "CALL",
+                                "ativo": ativo.upper(),
+                                "mod": str(opt[2]).strip().upper() if len(opt) > 2 and opt[2] else "",
+                            })
+
+                    for opt in (exp.get("puts") or []):
+                        if len(opt) >= 4 and opt[0] and opt[3]:
+                            resultados.append({
+                                "ticker": asset_prefix + str(opt[0]),
+                                "strike": float(opt[3]),
+                                "vencimento": str(vencimento),
+                                "tipo": "PUT",
+                                "ativo": ativo.upper(),
+                                "mod": str(opt[2]).strip().upper() if len(opt) > 2 and opt[2] else "",
+                            })
+
+        return resultados
 
 # ------------------------------------------------------------------
 # Histórico de preços (candles)

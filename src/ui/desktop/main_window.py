@@ -376,6 +376,7 @@ class MainWindow(QMainWindow):
             }
             QPushButton:hover { background-color: #8a8ae022; color: #b0b0ff; }
         """)
+        self.btn_regras.setVisible(False)
         self.btn_regras.clicked.connect(self._abrir_regras_monitor)
         btn_layout.addWidget(self.btn_regras)
 
@@ -451,8 +452,10 @@ class MainWindow(QMainWindow):
         for w in (self.lbl_count, self._status_colar, self._status_colar_cal, self._status_box):
             self.statusBar().addPermanentWidget(w)
 
-        self._status_right = QLabel("")
-        self._status_right.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self._status_right = QPushButton("")
+        self._status_right.setFlat(True)
+        self._status_right.setCursor(Qt.PointingHandCursor)
+        self._status_right.clicked.connect(self._mostrar_vencimentos)
         self.statusBar().addPermanentWidget(self._status_right)
         self._update_cdi_display()
 
@@ -484,17 +487,93 @@ class MainWindow(QMainWindow):
         cdi_dia_365 = (1 + taxa_cdi) ** (1 / 365) - 1 if taxa_cdi > 0 else 0.0
         cdi_dia_365_pct = cdi_dia_365 * 100
         self._status_right.setText(
-            "CDI {:.2f}%a | {:.4f}%m\n"
-            "DU {:.4f}%d | DC {:.4f}%d".format(
+            "📅 CDI {:.2f}%a | {:.4f}%m\n"
+            "   DU {:.4f}%d | DC {:.4f}%d".format(
                 cdi_anual_pct, cdi_mes_pct,
                 cdi_dia_252_pct, cdi_dia_365_pct,
             )
         )
         self._status_right.setStyleSheet(
-            "background-color: #16213e; color: #00f2ff; border: 1px solid #2d2d44; "
+            "QPushButton { background-color: #16213e; color: #00f2ff; border: 1px solid #2d2d44; "
             "border-radius: 4px; padding: 4px 10px; font-family: 'JetBrains Mono', Consolas, monospace; "
-            "font-size: 8pt; font-weight: bold; line-height: 1.4; margin-right: 8px;"
+            "font-size: 8pt; font-weight: bold; margin-right: 8px; text-align: right; }"
+            "QPushButton:hover { border: 1px solid #00f2ff; background-color: #1a2a4e; }"
         )
+
+    def _mostrar_vencimentos(self):
+        from datetime import date
+        from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
+        from src.domain.services.calendario_b3 import dc_to_du
+        from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QVBoxLayout
+
+        repo = InstrumentoRepository(self.db_path)
+        vencimentos = repo.get_proximos_vencimentos(limite=30)
+        if not vencimentos:
+            return
+
+        param_repo = ParametroRepository(self.db_path)
+        param = param_repo.get_by_chave("taxa_cdi")
+        taxa_cdi = param.valor if param else 0.1450
+        hoje = date.today()
+
+        dialog = QDialog(self, Qt.Window)
+        dialog.setWindowTitle("Próximos Vencimentos")
+        dialog.setMinimumSize(420, 350)
+        dialog.setStyleSheet("background-color: #0d0d1a; color: #e0e0e0;")
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        table = QTableWidget()
+        table.setColumnCount(4)
+        table.setHorizontalHeaderLabels(["Vencimento", "DTE", "CDI D.U.", "CDI D.C."])
+        table.setRowCount(len(vencimentos))
+        table.setEditTriggers(QTableWidget.NoEditTriggers)
+        table.setSelectionMode(QTableWidget.NoSelection)
+        table.setAlternatingRowColors(True)
+        table.horizontalHeader().setStretchLastSection(True)
+        table.verticalHeader().hide()
+
+        header_style = (
+            "QHeaderView::section { background-color: #16213e; color: #00f2ff; "
+            "font-weight: bold; font-size: 9pt; padding: 4px; border: 1px solid #2d2d44; }"
+        )
+        table.horizontalHeader().setStyleSheet(header_style)
+        table.setStyleSheet(
+            "QTableWidget { background-color: #0d0d1a; color: #e0e0e0; "
+            "font-size: 9pt; font-family: Consolas; border: 1px solid #2d2d44; }"
+            "QTableWidget::item { padding: 2px 8px; }"
+        )
+
+        fmt_style = "color: #00f2ff; font-weight: bold;"
+
+        for i, venc in enumerate(vencimentos):
+            item_venc = QTableWidgetItem(venc.strftime("%d/%m/%Y"))
+            item_venc.setTextAlignment(Qt.AlignCenter)
+            table.setItem(i, 0, item_venc)
+
+            dc = (venc - hoje).days
+            du = dc_to_du(hoje, venc)
+            cdi_du = ((1 + taxa_cdi) ** (du / 252) - 1) * 100 if du > 0 else 0.0
+            cdi_dc = ((1 + taxa_cdi) ** (dc / 365) - 1) * 100 if dc > 0 else 0.0
+
+            item_dte = QTableWidgetItem(f"{dc}d")
+            item_dte.setTextAlignment(Qt.AlignCenter)
+            table.setItem(i, 1, item_dte)
+
+            item_cdi_du = QTableWidgetItem(f"{cdi_du:.4f}%")
+            item_cdi_du.setTextAlignment(Qt.AlignCenter)
+            item_cdi_du.setForeground(QColor("#00f2ff"))
+            table.setItem(i, 2, item_cdi_du)
+
+            item_cdi_dc = QTableWidgetItem(f"{cdi_dc:.4f}%")
+            item_cdi_dc.setTextAlignment(Qt.AlignCenter)
+            item_cdi_dc.setForeground(QColor("#00f2ff"))
+            table.setItem(i, 3, item_cdi_dc)
+
+        table.resizeColumnsToContents()
+        layout.addWidget(table)
+        dialog.exec_()
 
     def _aplicar_tema_configurado(self):
         param_repo = ParametroRepository(self.db_path)
@@ -506,6 +585,12 @@ class MainWindow(QMainWindow):
         from src.ui.desktop.regras_dialog import RegrasDialog
         dlg = RegrasDialog("BOX", self.db_path, self)
         dlg.exec_()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_R and event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
+            self.btn_regras.setVisible(not self.btn_regras.isVisible())
+        else:
+            super().keyPressEvent(event)
 
     def _abrir_parametros(self):
         dialog = QDialog(self)

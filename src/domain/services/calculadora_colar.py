@@ -56,6 +56,7 @@ class ResultadoColar:
     iv_put: float = 0.0
     pop_upside: float | None = None
     pop_downside: float | None = None
+    score: float = 0.0
 
 
 @dataclass

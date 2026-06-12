@@ -117,15 +117,12 @@ cosmética (sons, timers UI).
 
 ## Sessão 11/06/2026 (parte 3) — RTD Timeout + COM Thread Safety + Blacklist Final
 
-### PERF-001: Timeout no RTD RefreshData
-- `RTDProfit.refresh(timeout_ms)` executa `RefreshData(0)` em thread separada com `CoInitialize()`
-- Se exceder o timeout, pula o ciclo (log warning)
-- Parametrizável via `rtd_refresh_timeout_ms` (seed=5000ms, 0=sem timeout)
+### PERF-001: Rate Limiter no RTD RefreshData
+- `RTDProfit.refresh(timeout_ms)` usa timestamp gate: se o último `RefreshData(0)` ocorreu
+  há menos de `timeout_ms`, pula o ciclo (retorna vazio). Chamada é **síncrona** na thread
+  do worker — sem threading COM para evitar `RPC_E_WRONG_THREAD`.
+- Parametrizável via `rtd_refresh_timeout_ms` (seed=5000ms, 0=sem limite = toda ciclo)
 - Visível em Parâmetros > Geral
-
-### BUG-002: COM Thread Safety
-- `_executar_refresh` usa `pythoncom.CoInitialize/CoUninitialize` para evitar `RPC_E_WRONG_THREAD`
-- Resolve travamentos silenciosos do monitor
 
 ### Blacklist sem preservação
 - Ativos na blacklist são removidos do banco na importação (sem `preservados`)
@@ -133,4 +130,56 @@ cosmética (sons, timers UI).
 
 ### Final
 - 43.958 registros (30.464 A, 13.494 E) — 194 ativos, 53 blacklist
-- 140/140 testes passando
+- 146/146 testes passando
+
+---
+
+## Sessão 11/06/2026 (parte 4) — Crash ao Arrastar Coluna (Segfault C++)
+
+### Causa
+Conflito C++ no Qt entre `sectionMoved` (drag) e `layoutChanged` (sort) quando ambos habilitados (`setSortingEnabled=True` + `setSectionsMovable=True`). O clique no header acionava sort e drag concorrentemente, e o handler `salvar_ordem_colunas()` acessava `logicalIndex` durante layout inconsistente → segfault.
+
+### Correção
+Substituir chamada direta no `sectionMoved` por `QTimer.singleShot(0, lambda: ...)`:
+
+```python
+header.sectionMoved.connect(
+    lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(header, "key"))
+)
+```
+
+O delay de 0ms posterga a execução para o próximo ciclo do event loop, após sort/drag estarem completamente finalizados.
+
+### Arquivos alterados
+- `src/ui/desktop/colar_dialog.py:482`
+- `src/ui/desktop/colar_calendario_dialog.py:393`
+- `src/ui/desktop/box_dialog.py:8,313`
+- `tests/test_column_crash.py` — 6 testes novos
+
+### Testes
+146/146 passando (140 + 6 novos).
+
+---
+
+## Auto-documentação dos Filtros nas Regras
+
+A ordem dos filtros é declarada como constante (`FILTROS_COLLAR_CALENDARIO`,
+`FILTROS_COLAR`) no próprio use case. O `regras_dialog.py` importa dinamicamente
+e exibe sem duplicação manual.
+
+Arquivos fonte:
+- `src/application/use_cases/monitor_colares_calendario.py` (linha 20)
+- `src/application/use_cases/monitor_colares.py` (linha 20)
+- `src/ui/desktop/regras_dialog.py` (import nas linhas 12-22, exibição em `_montar_regras_codigo`)
+
+Para adicionar filtros a uma nova estratégia, basta criar a constante no use case
+e registrá-la em `_FILTROS_POR_ESTRATEGIA` no `regras_dialog.py`.
+
+---
+
+## Pendente: Migração PyQt5 → PySide6 (desbloqueia Python ≥3.12)
+
+- PyQt5 5.15.11 é EOL e não roda em Python ≥3.12.
+- PySide6 tem API ~idêntica, é mantido ativamente.
+- Migração mecânica: trocar imports + ajustar enums (estilo, alinhamento, cores).
+- Fazer na próxima sessão, se quiser. Depois instalar Python 3.12/3.13 + re-instalar libs.

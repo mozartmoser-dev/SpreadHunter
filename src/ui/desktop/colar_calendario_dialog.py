@@ -36,11 +36,21 @@ def ler_whitelist_colar_calendario(db_path: str | None = None) -> list[str]:
 class ColarCalTableModel(QAbstractTableModel):
     COLUMNS = [
         ("Ativo", "ativo"),
+        ("Preço", "preco_ativo"),
+        ("Score", "score"),
+        ("Score IV", "score_iv"),
         ("% CDI", "pct_cdi"),
         ("PnL Bruto", "pnl_projetado"),
         ("PnL B3", "pnl_b3"),
         ("PnL Líq", "pnl_liquido"),
         ("Custo", "capital_empregado"),
+        ("Risco Máx", "risco_max"),
+        ("IV Rank", "iv_rank"),
+        ("ν Call", "vega_call"),
+        ("ν Put", "vega_put"),
+        ("ν Líq", "vega_liquido"),
+        ("Γ Call", "gamma_call"),
+        ("Γ Put", "gamma_put"),
         ("Venc Call", "vencimento_call"),
         ("Venc Put", "vencimento_put"),
         ("K Call", "strike_call"),
@@ -76,6 +86,37 @@ class ColarCalTableModel(QAbstractTableModel):
             if role == Qt.ToolTipRole:
                 tips = {
                     "ativo": "Código da ação objeto (ex: PETR4).",
+                    "preco_ativo": "Preço atual do ativo objeto (RTD).",
+                    "score_iv": "Score alternativo com pesos recalibrados para B3.\n"
+                                "Fatores: IV Rank (25%) + Dist Strike/Custo (25%)\n"
+                                "+ Theta/Margin (25%) + Vega (10%) + Liquidez (10%) + Risco Máx (5%).\n"
+                                "Compare com o Score padrão (θ/CDI/Sigma/Crédito/Liquidez).\n"
+                                "Com o tempo, veja qual score traz melhores operações.",
+                    "risco_max": "Risco máximo da operação = capital_empregado − menor strike.\n"
+                                 "Se > 0, a estrutura NÃO é risk-free. Valor ideal = 0.00.\n"
+                                 "Quanto menor, mais protegido o capital.",
+                    "iv_rank": "IV Rank médio (call+put) nos últimos 252 dias.\n"
+                              "0−100: posição da IV atual dentro do range histórico.\n"
+                              "> 60 = prêmio caro (bom para vender). < 40 = prêmio barato.\n"
+                              "Fonte: opcoes.net.br (vol_impl histórico) + BS em tempo real via RTD.",
+                    "vega_call": "Vega da CALL: sensibilidade a +1% na IV.\n"
+                                 "Call curta tem pouco vega (poucos dias).",
+                    "vega_put": "Vega da PUT: sensibilidade a +1% na IV.\n"
+                                "Put longa tem vega maior — colchão em stress.",
+                    "vega_liquido": "Vega líquido = ν_Put − ν_Call.\n"
+                                    "Sempre > 0. Expansão de IV beneficia a estrutura.",
+                    "gamma_call": "Gamma da CALL: taxa de variação do Delta.\n"
+                                  "Alto se call está ATM — delta muda rápido.",
+                    "gamma_put": "Gamma da PUT: taxa de variação do Delta.\n"
+                                 "Geralmente menor que o da call (mais tempo).",
+                    "score": "Score de ranking multicritério (0–10+). "
+                             "Fórmula: peso_theta × θLíq_NORM + peso_cdi × CDI_NORM + peso_sigma × SIGMA_FOLGA + peso_credito × CRÉDITO_NORM + peso_liquidez × LIQ.\n"
+                             "• θLíq_NORM = |theta_líquido| ÷ max(|θLíq|) no lote\n"
+                             "• CDI_NORM = pct_cdi ÷ max(pct_cdi) no lote\n"
+                             "• SIGMA_FOLGA = min(|spot−K_call|,|spot−K_put|) ÷ (spot × σ_IV√DTE_call/252)\n"
+                             "• CRÉDITO_NORM = max(0, crédito/capital) ÷ max(cred_ratio) no lote\n"
+                             "• LIQ = 1.0 (neutro, disponível para futura implementação)\n"
+                             "Ordem padrão: Score decrescente. Pesos configuráveis em Parâmetros > Collar Calendário.",
                     "pct_cdi": "Retorno percentual comparado ao CDI do período." + CUSTOS_DISCLOSURE,
                     "pnl_projetado": "Resultado bruto projetado da estrutura no vencimento da CALL." + CUSTOS_DISCLOSURE,
                     "pnl_b3": "Resultado após custos B3 (emolumento + liquidação)." + CUSTOS_DISCLOSURE,
@@ -110,19 +151,25 @@ class ColarCalTableModel(QAbstractTableModel):
             val = item.get(col_key)
             if val is None:
                 return "-"
-            if col_key in ("strike_call", "strike_put", "premio_call", "premio_put",
-                           "net_credito", "valor_put_venc_call", "pnl_projetado",
-                           "pnl_b3", "pnl_liquido",
-                           "capital_empregado"):
-                return f"R$ {val:.2f}"
+                if col_key in ("preco_ativo", "strike_call", "strike_put", "premio_call",
+                               "premio_put", "net_credito", "valor_put_venc_call",
+                               "pnl_projetado", "pnl_b3", "pnl_liquido",
+                               "capital_empregado", "risco_max"):
+                    return f"R$ {val:.2f}"
+                if col_key in ("score", "score_iv"):
+                    return f"{val:.2f}"
             if col_key in ("pct_cdi",):
                 return f"{val:.2f}x"
             if col_key in ("iv_call", "iv_put"):
                 return f"{val:.1f}%"
+            if col_key in ("iv_rank",):
+                return f"{val:.1f}" if val else "-"
             if col_key in ("theta_call", "theta_put", "theta_liquido"):
                 if val == 0:
                     return "-"
                 return f"{val:.2f}"
+            if col_key in ("vega_call", "vega_put", "vega_liquido", "gamma_call", "gamma_put"):
+                return f"{val:.4f}"
             if col_key in ("pct_retorno",):
                 return f"{val:.2f}%"
             if col_key in ("vencimento_call", "vencimento_put"):
@@ -135,7 +182,7 @@ class ColarCalTableModel(QAbstractTableModel):
                 tipo = item.get("tipo_str", "")
                 cores = {"Alta": QColor("#2ecc71"), "Baixa": QColor("#e74c3c"), "Neutro": QColor("#f39c12")}
                 return QBrush(cores.get(tipo, QColor(Palette.TEXT_PRIMARY)))
-            if col_key == "pct_cdi":
+            if col_key in ("pct_cdi", "score", "score_iv"):
                 return QBrush(QColor(Palette.YELLOW))
             if col_key in ("theta_liquido",):
                 val = item.get("theta_liquido", 0)
@@ -151,11 +198,13 @@ class ColarCalTableModel(QAbstractTableModel):
                 return QBrush(QColor(Palette.TEXT_MUTED))
             return QBrush(QColor(Palette.TEXT_MUTED))
         if role == Qt.TextAlignmentRole:
-            center_cols = {"strike_call", "strike_put", "premio_call", "premio_put", "net_credito",
+            center_cols = {"score", "score_iv",
+                           "strike_call", "strike_put", "premio_call", "premio_put", "net_credito",
                            "iv_call", "iv_put", "theta_call", "theta_put", "theta_liquido",
                            "pct_cdi", "pnl_projetado", "pnl_b3", "pnl_liquido",
                            "tipo_str", "valor_put_venc_call",
-                           "capital_empregado"}
+                           "capital_empregado", "risco_max", "iv_rank",
+                           "vega_call", "vega_put", "vega_liquido", "gamma_call", "gamma_put"}
             if col_key in center_cols:
                 return Qt.AlignCenter | Qt.AlignVCenter
             return Qt.AlignLeft | Qt.AlignVCenter
@@ -176,16 +225,57 @@ class ColarCalSortProxy(QSortFilterProxyModel):
         super().__init__(parent)
         self._filtro_ativo = ""
         self._filtro_lista = None
+        self._top_n = 0
+        self._top_n_accept_set: set[int] | None = None
 
     def set_filtro_ativo(self, texto: str):
         self._filtro_ativo = texto.strip().upper()
         self._filtro_lista = None
+        self._top_n_accept_set = None
         self.invalidateFilter()
 
     def set_filtro_lista(self, ativos: set):
         self._filtro_lista = ativos
         self._filtro_ativo = ""
+        self._top_n_accept_set = None
         self.invalidateFilter()
+
+    def set_top_n(self, n: int):
+        self._top_n = n
+        self._top_n_accept_set = None
+        self.invalidateFilter()
+
+    def sort(self, column, order):
+        super().sort(column, order)
+        self._top_n_accept_set = None
+
+    def _recompute_top_n(self):
+        src = self.sourceModel()
+        n = self._top_n
+        sort_col = self.sortColumn()
+        if sort_col < 0:
+            sort_col = 3
+        sort_order = self.sortOrder()
+
+        rows_by_ativo: dict[str, list[int]] = {}
+        for row in range(src.rowCount()):
+            idx = src.index(row, 0)
+            ativo = src.data(idx, Qt.DisplayRole) or ""
+            rows_by_ativo.setdefault(ativo, []).append(row)
+
+        accept: set[int] = set()
+        for ativo, rows in rows_by_ativo.items():
+            def _sort_key(r):
+                idx = src.index(r, sort_col)
+                raw = src.data(idx, Qt.DisplayRole) or "0"
+                try:
+                    return float(str(raw).replace("R$", "").replace("x", "").replace("%", "").replace(",", ".").strip())
+                except Exception:
+                    return 0.0
+            sorted_rows = sorted(rows, key=_sort_key, reverse=(sort_order == Qt.DescendingOrder))
+            accept.update(sorted_rows[:n])
+
+        self._top_n_accept_set = accept
 
     def filterAcceptsRow(self, row, parent):
         src = self.sourceModel()
@@ -195,6 +285,13 @@ class ColarCalSortProxy(QSortFilterProxyModel):
             return ativo in self._filtro_lista
         if self._filtro_ativo:
             return self._filtro_ativo in ativo.upper()
+
+        if self._top_n > 0:
+            if self._top_n_accept_set is None:
+                self._recompute_top_n()
+            if row not in self._top_n_accept_set:
+                return False
+
         return True
 
 
@@ -332,6 +429,35 @@ class ColarCalendarioDialog(QDialog):
         self.btn_todos.clicked.connect(self._toggle_todos)
         left_panel.addWidget(self.btn_todos)
 
+        sep_topn = QFrame()
+        sep_topn.setFrameShape(QFrame.HLine)
+        sep_topn.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
+        left_panel.addWidget(sep_topn)
+
+        lbl_topn = QLabel("Top N por Ativo:")
+        lbl_topn.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold;".format(Palette.TEXT_MUTED))
+        left_panel.addWidget(lbl_topn)
+
+        topn_row = QHBoxLayout()
+        topn_row.setSpacing(4)
+        self.spin_topn = QSpinBox()
+        self.spin_topn.setRange(0, 20)
+        self.spin_topn.setValue(0)
+        self.spin_topn.setFixedWidth(60)
+        self.spin_topn.setToolTip("0 = mostra todos. 1 = só o melhor de cada ativo. 2 = até 2 por ativo, etc.")
+        self.spin_topn.setStyleSheet("""
+            QSpinBox {
+                background-color: #1e1e2f; color: #e0e0e0;
+                border: 1px solid #2d2d44; border-radius: 3px;
+                padding: 2px 4px; font-size: 8pt;
+            }
+            QSpinBox:focus { border-color: #f39c12; }
+        """)
+        self.spin_topn.valueChanged.connect(self._on_topn_changed)
+        topn_row.addWidget(self.spin_topn)
+        topn_row.addStretch()
+        left_panel.addLayout(topn_row)
+
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
         sep.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
@@ -363,6 +489,7 @@ class ColarCalendarioDialog(QDialog):
             }
             QPushButton:hover { background-color: #8b8be022; }
         """)
+        self.btn_regras.setVisible(False)
         self.btn_regras.clicked.connect(self._abrir_regras)
         left_panel.addWidget(self.btn_regras)
 
@@ -390,7 +517,7 @@ class ColarCalendarioDialog(QDialog):
         header.setStretchLastSection(True)
         header.setSectionsMovable(True)
         header.setDragEnabled(True)
-        header.sectionMoved.connect(lambda: salvar_ordem_colunas(header, "colar_cal_table_order"))
+        header.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(header, "colar_cal_table_order")))
         restaurar_ordem_colunas(header, "colar_cal_table_order")
         header.setSectionResizeMode(QHeaderView.Interactive)
         self.table_view.verticalHeader().setDefaultSectionSize(24)
@@ -414,6 +541,10 @@ class ColarCalendarioDialog(QDialog):
         self._todos_ativos_lista = todos_ativos
         if todos_ativos:
             self._popular_lista_ativos(todos_ativos)
+
+    def _on_topn_changed(self, n: int):
+        self.proxy.set_top_n(n)
+        self._atualizar_status()
 
     def _on_search_ativos_debounced(self):
         texto = self.txt_filtro.text()
@@ -483,6 +614,8 @@ class ColarCalendarioDialog(QDialog):
         total = self.proxy.rowCount()
         filtro = self.txt_filtro.text().strip()
         has_results = getattr(self, "_dados_carregados", False)
+        topn_n = getattr(self, 'spin_topn', None) and self.spin_topn.value() or 0
+        topn_suf = f" | Top {topn_n}" if topn_n > 0 else ""
         if total == 0 and filtro:
             self.lbl_status.setText(f"Nenhum colar para '{filtro}'")
         elif total == 0:
@@ -491,9 +624,9 @@ class ColarCalendarioDialog(QDialog):
             else:
                 self.lbl_status.setText("Aguardando dados...")
         elif filtro:
-            self.lbl_status.setText(f"{total} oportunidades para '{filtro}'")
+            self.lbl_status.setText(f"{total} oportunidades para '{filtro}'{topn_suf}")
         else:
-            self.lbl_status.setText(f"{total} oportunidades viáveis")
+            self.lbl_status.setText(f"{total} oportunidades viáveis{topn_suf}")
 
     def sync_auto_active(self):
         self._auto_mode = True
@@ -942,6 +1075,7 @@ class ColarCalendarioDialog(QDialog):
 
             BG = '#0d0d0d'; TEXT = '#c0c0c0'; RED = '#ff3355'
             ACCENT = '#ffc107'; FILL_BLUE = '#1a5276'; SIGMA_C = '#6c5ce7'
+            WHITE = '#ffffff'; GREEN = '#4caf50'
 
             fig = Figure(figsize=(9, 5), facecolor=BG)
             ax = fig.add_subplot(111, facecolor=BG)
@@ -951,16 +1085,21 @@ class ColarCalendarioDialog(QDialog):
             hover_annot = ax.annotate(
                 '', xy=(0, 0), fontsize=8, color='#fff',
                 bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=ACCENT, alpha=0.9),
-                ha='center', va='center', visible=False,
+                ha='center', va='center', visible=False, zorder=10,
             )
             hover_vline = ax.axvline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
             hover_hline = ax.axhline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
+            x_lim = (x_min, x_max)
+            y_pad = (pnl.max() - pnl.min()) * 0.08
+            y_lim = (pnl.min() - y_pad, pnl.max() + y_pad)
             def _on_hover(event):
+                ax.set_xlim(x_lim)
+                ax.set_ylim(y_lim)
                 if event.inaxes != ax or event.xdata is None:
                     hover_annot.set_visible(False)
                     hover_vline.set_visible(False)
                     hover_hline.set_visible(False)
-                    fig.canvas.draw()
+                    fig.canvas.draw_idle()
                     return
                 idx = np.argmin(np.abs(x - event.xdata))
                 xv, yv = x[idx], pnl[idx]
@@ -971,9 +1110,9 @@ class ColarCalendarioDialog(QDialog):
                 hover_vline.set_visible(True)
                 hover_hline.set_ydata([yv, yv])
                 hover_hline.set_visible(True)
-                fig.canvas.draw()
+                fig.canvas.draw_idle()
             ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
-            ax.axvline(S0, color='#2196f3', linewidth=0.7, linestyle='--', alpha=0.8, label=f'Entrada {S0:.2f}')
+            ax.axvline(S0, color=WHITE, linewidth=0.7, linestyle='--', alpha=0.8, label=f'Spot {S0:.2f}')
             ax.axvline(Kp, color=RED, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Put {Kp:.2f}')
             ax.axvline(Kc, color=ACCENT, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Call {Kc:.2f}')
 
@@ -990,9 +1129,10 @@ class ColarCalendarioDialog(QDialog):
             ylim_bottom, ylim_top = ax.get_ylim()
             y_bs = ylim_top * 0.05
             y_int = ylim_top * 0.14
+            x_range = x_max - x_min
             if r.be_baixa is not None:
                 ax.axvline(r.be_baixa, color=be_color_bs, linewidth=1.2, linestyle='--', alpha=0.9)
-                dx_bs = (r.be_alta - r.be_baixa) * 0.02 if r.be_alta is not None else 0
+                dx_bs = max((r.be_alta - r.be_baixa) * 0.02 if r.be_alta is not None else x_range * 0.02, x_range * 0.005)
                 ax.annotate(f'BE B&S {r.be_baixa:.2f}', xy=(r.be_baixa, 0),
                             xytext=(r.be_baixa - dx_bs, y_bs),
                             color=be_color_bs, fontsize=7, ha='center',
@@ -1000,14 +1140,14 @@ class ColarCalendarioDialog(QDialog):
             if r.be_alta is not None:
                 ax.axvline(r.be_alta, color=be_color_bs, linewidth=1.2, linestyle='--', alpha=0.9,
                            label='BE B&S')
-                dx_bs = (r.be_alta - r.be_baixa) * 0.02 if r.be_baixa is not None else 0
+                dx_bs = max((r.be_alta - r.be_baixa) * 0.02 if r.be_baixa is not None else x_range * 0.02, x_range * 0.005)
                 ax.annotate(f'BE B&S {r.be_alta:.2f}', xy=(r.be_alta, 0),
                             xytext=(r.be_alta + dx_bs, y_bs),
                             color=be_color_bs, fontsize=7, ha='center',
                             arrowprops=dict(arrowstyle='->', color=be_color_bs, lw=0.8))
             if r.be_baixa_intrinseco is not None:
                 ax.axvline(r.be_baixa_intrinseco, color=be_color_int, linewidth=1.2, linestyle=':', alpha=0.9)
-                dx_int = (r.be_alta_intrinseco - r.be_baixa_intrinseco) * 0.02 if r.be_alta_intrinseco is not None else 0
+                dx_int = max((r.be_alta_intrinseco - r.be_baixa_intrinseco) * 0.02 if r.be_alta_intrinseco is not None else x_range * 0.02, x_range * 0.005)
                 ax.annotate(f'BE Intr {r.be_baixa_intrinseco:.2f}', xy=(r.be_baixa_intrinseco, 0),
                             xytext=(r.be_baixa_intrinseco - dx_int, y_int),
                             color=be_color_int, fontsize=7, ha='center',
@@ -1015,7 +1155,7 @@ class ColarCalendarioDialog(QDialog):
             if r.be_alta_intrinseco is not None:
                 ax.axvline(r.be_alta_intrinseco, color=be_color_int, linewidth=1.2, linestyle=':', alpha=0.9,
                            label='BE Intrínseco')
-                dx_int = (r.be_alta_intrinseco - r.be_baixa_intrinseco) * 0.02 if r.be_baixa_intrinseco is not None else 0
+                dx_int = max((r.be_alta_intrinseco - r.be_baixa_intrinseco) * 0.02 if r.be_baixa_intrinseco is not None else x_range * 0.02, x_range * 0.005)
                 ax.annotate(f'BE Intr {r.be_alta_intrinseco:.2f}', xy=(r.be_alta_intrinseco, 0),
                             xytext=(r.be_alta_intrinseco + dx_int, y_int),
                             color=be_color_int, fontsize=7, ha='center',
@@ -1124,7 +1264,7 @@ class ColarCalendarioDialog(QDialog):
 
         has_vol = any(v is not None for v in vol_hists) or any(v is not None for v in vol_impls)
 
-        BG = '#0d0d0d'; TEXT = '#c0c0c0'
+        BG = '#0d0d0d'; TEXT = '#c0c0c0'; WHITE = '#ffffff'
         GREEN = '#4caf50'; RED = '#ff3355'; BLUE = '#2196f3'; ACCENT = '#ffc107'
 
         n_sub = 2 if has_vol else 1
@@ -1149,9 +1289,9 @@ class ColarCalendarioDialog(QDialog):
         ax1.set_xlim(dates[0], dates[-1])
 
         if preco_atual is not None and preco_atual > 0:
-            ax1.axhline(preco_atual, color='#00e5ff', linewidth=1.0, linestyle='--', alpha=0.6, zorder=4)
+            ax1.axhline(preco_atual, color=WHITE, linewidth=1.0, linestyle='--', alpha=0.6, zorder=4)
             ax1.text(dates[-1], preco_atual, f'Spot R${preco_atual:.2f}',
-                     ha='right', va='bottom', color='#00e5ff', fontsize=7, alpha=0.8,
+                     ha='right', va='bottom', color=WHITE, fontsize=7, alpha=0.8,
                      bbox=dict(boxstyle='round,pad=0.15', facecolor='#1a1a1a', edgecolor='none', alpha=0.6))
 
         if len(closes) > 10:
@@ -1415,9 +1555,9 @@ class ColarCalendarioDialog(QDialog):
                          bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a',
                                    edgecolor=PURPLE, alpha=0.85))
             else:
-                ax2.axvline(pct_call, color=RED, linewidth=2, linestyle='-', alpha=0.9,
+                ax2.axvline(pct_call, color=ACCENT, linewidth=2, linestyle='-', alpha=0.9,
                             label=f'K Call {r.strike_call:.2f} ({pct_call:+.1f}%)')
-                ax2.axvline(pct_put, color=GREEN, linewidth=2, linestyle='-', alpha=0.9,
+                ax2.axvline(pct_put, color=RED, linewidth=2, linestyle='-', alpha=0.9,
                             label=f'K Put {r.strike_put:.2f} ({pct_put:+.1f}%)')
 
             ax2.axhline(0, color=TEXT, linewidth=0.4, alpha=0.15)
@@ -1556,41 +1696,60 @@ class ColarCalendarioDialog(QDialog):
         self._on_search_ativos_debounced()
 
     def atualizar_resultados(self, resultados: list):
-        self._dados_carregados = True
-        self._resultados = resultados
-        items = []
-        for r in resultados:
-            pnl_b3 = r.pnl_projetado - r.custo_b3
-            pnl_liquido = pnl_b3 - r.custo_ir
-            items.append({
-                "ativo": r.ativo,
-                "vencimento_call": r.vencimento_call,
-                "vencimento_put": r.vencimento_put,
-                "strike_call": r.strike_call,
-                "strike_put": r.strike_put,
-                "cod_call": r.cod_call,
-                "cod_put": r.cod_put,
-                "iv_call": r.iv_call,
-                "iv_put": r.iv_put,
-                "premio_call": r.premio_call,
-                "premio_put": r.premio_put,
-                "net_credito": r.net_credito,
-                "theta_call": r.theta_call,
-                "theta_put": r.theta_put,
-                "theta_liquido": r.theta_liquido,
-                "valor_put_venc_call": r.valor_put_venc_call,
-                "pnl_projetado": r.pnl_projetado,
-                "custo_b3": r.custo_b3,
-                "custo_ir": r.custo_ir,
-                "pnl_b3": pnl_b3,
-                "pnl_liquido": pnl_liquido,
-                "capital_empregado": r.capital_empregado,
-                "pct_retorno": r.pct_retorno,
-                "pct_cdi": r.pct_cdi,
-                "tipo_str": r.tipo.value,
-                "viavel": r.viavel,
-            })
-        self.model.atualizar(items)
+        header = self.table_view.horizontalHeader()
+        was_blocked = header.signalsBlocked()
+        header.blockSignals(True)
+        was_movable = header.sectionsMovable()
+        header.setSectionsMovable(False)
+        try:
+            self._dados_carregados = True
+            self._resultados = resultados
+            items = []
+            for r in resultados:
+                pnl_b3 = r.pnl_projetado - r.custo_b3
+                pnl_liquido = pnl_b3 - r.custo_ir
+                items.append({
+                    "ativo": r.ativo,
+                    "preco_ativo": r.preco_ativo,
+                    "score": r.score,
+                    "score_iv": r.score_iv,
+                    "risco_max": r.risco_max,
+                    "iv_rank": r.iv_rank,
+                    "vega_call": r.vega_call,
+                    "vega_put": r.vega_put,
+                    "vega_liquido": r.vega_liquido,
+                    "gamma_call": r.gamma_call,
+                    "gamma_put": r.gamma_put,
+                    "vencimento_call": r.vencimento_call,
+                    "vencimento_put": r.vencimento_put,
+                    "strike_call": r.strike_call,
+                    "strike_put": r.strike_put,
+                    "cod_call": r.cod_call,
+                    "cod_put": r.cod_put,
+                    "iv_call": r.iv_call,
+                    "iv_put": r.iv_put,
+                    "premio_call": r.premio_call,
+                    "premio_put": r.premio_put,
+                    "net_credito": r.net_credito,
+                    "theta_call": r.theta_call,
+                    "theta_put": r.theta_put,
+                    "theta_liquido": r.theta_liquido,
+                    "valor_put_venc_call": r.valor_put_venc_call,
+                    "pnl_projetado": r.pnl_projetado,
+                    "custo_b3": r.custo_b3,
+                    "custo_ir": r.custo_ir,
+                    "pnl_b3": pnl_b3,
+                    "pnl_liquido": pnl_liquido,
+                    "capital_empregado": r.capital_empregado,
+                    "pct_retorno": r.pct_retorno,
+                    "pct_cdi": r.pct_cdi,
+                    "tipo_str": r.tipo.value,
+                    "viavel": r.viavel,
+                })
+            self.model.atualizar(items)
+        finally:
+            header.setSectionsMovable(was_movable)
+            header.blockSignals(was_blocked)
 
         ativos_atuais = set(
             self.lista_ativos.item(i).text()
@@ -1632,6 +1791,12 @@ class ColarCalendarioDialog(QDialog):
         from src.ui.desktop.regras_dialog import RegrasDialog
         dlg = RegrasDialog("COLLAR_CALENDARIO", self._db_path, self)
         dlg.exec_()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_R and event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
+            self.btn_regras.setVisible(not self.btn_regras.isVisible())
+        else:
+            super().keyPressEvent(event)
 
     def _toggle_som(self, ativo: bool):
         self._som_ativado = ativo

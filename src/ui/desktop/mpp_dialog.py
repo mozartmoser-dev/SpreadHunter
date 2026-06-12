@@ -171,6 +171,7 @@ class MppDialog(QDialog):
             }}
             QPushButton:hover {{ background-color: #8b8be022; }}
         """)
+        self.btn_regras.setVisible(False)
         self.btn_regras.clicked.connect(self._abrir_regras)
         btn_layout.addWidget(self.btn_regras)
 
@@ -201,6 +202,12 @@ class MppDialog(QDialog):
         from src.ui.desktop.regras_dialog import RegrasDialog
         dlg = RegrasDialog("MPP", self.db_path, self)
         dlg.exec_()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_R and event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
+            self.btn_regras.setVisible(not self.btn_regras.isVisible())
+        else:
+            super().keyPressEvent(event)
 
     def set_status_enabled(self, enabled: bool):
         if enabled:
@@ -275,6 +282,31 @@ class MppDialog(QDialog):
 
         html = []
         html.append(f"<h3 style='color:{Palette.CYAN}; margin:0 0 4px 0;'>{box.ativo} — {box.strike1:.0f} x {box.strike2:.0f}</h3>")
+
+        if box.cod_call_k1:
+            html.append("<table style='width:100%; font-size:9pt; margin:0 0 8px 0;'>")
+            html.append("<tr style='border-bottom:1px solid #2d2d44;'>")
+            html.append(f"  <td style='color:{Palette.TEXT_SECONDARY}; font-weight:bold; padding:2px 8px 2px 0;'>Perna 1 (K1 Call)</td>")
+            html.append(f"  <td style='color:{Palette.TEXT_PRIMARY}; font-family:Consolas; padding:2px 8px;'>{box.cod_call_k1}</td>")
+            html.append(f"  <td style='color:{Palette.TEXT_SECONDARY}; padding:2px 0;'>Strike {box.strike1:.2f}</td>")
+            html.append("</tr>")
+            html.append("<tr style='border-bottom:1px solid #2d2d44;'>")
+            html.append(f"  <td style='color:{Palette.TEXT_SECONDARY}; font-weight:bold; padding:2px 8px 2px 0;'>Perna 2 (K1 Put)</td>")
+            html.append(f"  <td style='color:{Palette.TEXT_PRIMARY}; font-family:Consolas; padding:2px 8px;'>{box.cod_put_k1}</td>")
+            html.append(f"  <td style='color:{Palette.TEXT_SECONDARY}; padding:2px 0;'>Strike {box.strike1:.2f}</td>")
+            html.append("</tr>")
+            html.append("<tr style='border-bottom:1px solid #2d2d44;'>")
+            html.append(f"  <td style='color:{Palette.TEXT_SECONDARY}; font-weight:bold; padding:2px 8px 2px 0;'>Perna 3 (K2 Call)</td>")
+            html.append(f"  <td style='color:{Palette.TEXT_PRIMARY}; font-family:Consolas; padding:2px 8px;'>{box.cod_call_k2}</td>")
+            html.append(f"  <td style='color:{Palette.TEXT_SECONDARY}; padding:2px 0;'>Strike {box.strike2:.2f}</td>")
+            html.append("</tr>")
+            html.append("<tr style='border-bottom:1px solid #2d2d44;'>")
+            html.append(f"  <td style='color:{Palette.TEXT_SECONDARY}; font-weight:bold; padding:2px 8px 2px 0;'>Perna 4 (K2 Put)</td>")
+            html.append(f"  <td style='color:{Palette.TEXT_PRIMARY}; font-family:Consolas; padding:2px 8px;'>{box.cod_put_k2}</td>")
+            html.append(f"  <td style='color:{Palette.TEXT_SECONDARY}; padding:2px 0;'>Strike {box.strike2:.2f}</td>")
+            html.append("</tr>")
+            html.append("</table>")
+
         html.append(f"<p style='color:{Palette.TEXT_MUTED}; font-size:8pt; margin:0 0 8px 0;'>Venc: {box.vencimento}</p>")
         html.append("<hr style='border-color:#2d2d44;'>")
 

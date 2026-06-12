@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
     QAbstractItemView, QLabel, QHeaderView, QFrame, QWidget,
     QDoubleSpinBox,
 )
-from PyQt5.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, pyqtSignal
+from PyQt5.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QBrush
 
 from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
@@ -254,6 +254,7 @@ class BoxDialog(QDialog):
             }
             QPushButton:hover { background-color: #8b8be022; }
         """)
+        self.btn_regras.setVisible(False)
         self.btn_regras.clicked.connect(self._abrir_regras)
         header.addWidget(self.btn_regras)
 
@@ -310,7 +311,7 @@ class BoxDialog(QDialog):
         header_h.setStretchLastSection(True)
         header_h.setSectionsMovable(True)
         header_h.setDragEnabled(True)
-        header_h.sectionMoved.connect(lambda: salvar_ordem_colunas(header_h, "box_table_order"))
+        header_h.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(header_h, "box_table_order")))
         restaurar_ordem_colunas(header_h, "box_table_order")
         self.table_view.verticalHeader().setDefaultSectionSize(22)
         self.table_view.verticalHeader().hide()
@@ -326,6 +327,12 @@ class BoxDialog(QDialog):
         from src.ui.desktop.regras_dialog import RegrasDialog
         dlg = RegrasDialog("BOX_4P", self._db_path, self)
         dlg.exec_()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_R and event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
+            self.btn_regras.setVisible(not self.btn_regras.isVisible())
+        else:
+            super().keyPressEvent(event)
 
     def _toggle_scan(self):
         if self._scanning:
