@@ -3,7 +3,7 @@ import time
 import os
 import psutil
 
-from PyQt5.QtCore import QThread, pyqtSignal, QMutex, QWaitCondition
+from PySide6.QtCore import QThread, Signal, QMutex, QWaitCondition
 
 from src.application.use_cases.monitor_oportunidades import MonitorOportunidadesUseCase
 from src.application.use_cases.monitor_colares import MonitorColaresUseCase
@@ -18,16 +18,16 @@ logger = logging.getLogger(__name__)
 
 
 class MonitorWorker(QThread):
-    oportunidades_atualizadas = pyqtSignal(list)
-    status_message = pyqtSignal(str)
-    rtd_status = pyqtSignal(bool)
-    engine_stats_updated = pyqtSignal(object)
-    colares_atualizados = pyqtSignal(list)
-    colares_calendario_atualizados = pyqtSignal(list)
-    boxes_atualizados = pyqtSignal(list)
-    mpp_atualizados = pyqtSignal(list)
-    mre_atualizados = pyqtSignal(list)
-    mpp_status_changed = pyqtSignal(bool)
+    oportunidades_atualizadas = Signal(list)
+    status_message = Signal(str)
+    rtd_status = Signal(bool)
+    engine_stats_updated = Signal(object)
+    colares_atualizados = Signal(list)
+    colares_calendario_atualizados = Signal(list)
+    boxes_atualizados = Signal(list)
+    mpp_atualizados = Signal(list)
+    mre_atualizados = Signal(list)
+    mpp_status_changed = Signal(bool)
 
     def __init__(self, db_path: str, rtd: RTDProfit, parent=None):
         super().__init__(parent)

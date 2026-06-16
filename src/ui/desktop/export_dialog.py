@@ -1,11 +1,11 @@
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QApplication,
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QGroupBox, QFormLayout, QMessageBox,
     QDoubleSpinBox, QComboBox, QFrame, QTabWidget, QWidget,
 )
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 
 from src.application.dtos.dtos import OportunidadeMonitor, TipoExportacao
 from src.application.use_cases.exportar_operacao import ExportarOperacaoUseCase
@@ -412,7 +412,7 @@ class ExportDialog(QDialog):
 
     def _enviar_para_pnt(self):
         """Aciona a integração visual com o PNT com feedback de progresso."""
-        from PyQt5.QtWidgets import QProgressDialog
+        from PySide6.QtWidgets import QProgressDialog
         progress = QProgressDialog("Enviando para PNT...", None, 0, 100, self)
         progress.setWindowTitle("Automação PNT")
         progress.setWindowModality(Qt.WindowModal)
@@ -434,7 +434,7 @@ class ExportDialog(QDialog):
             pnt.enviar_oportunidade(self.oportunidade)
         except Exception as e:
             progress.close()
-            from PyQt5.QtWidgets import QMessageBox
+            from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Automação PNT",
                 f"Erro na automação PNT:\n{e}\n\nOs dados foram copiados para a área de transferência.")
         finally:

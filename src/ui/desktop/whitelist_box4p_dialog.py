@@ -1,9 +1,9 @@
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QListWidget, QLineEdit, QMessageBox, QAbstractItemView,
 )
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 from src.domain.entities.parametro_operacional import ParametroOperacional

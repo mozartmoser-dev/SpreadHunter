@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView, QAbstractItemView,
     QMessageBox, QLabel, QHeaderView, QComboBox, QProgressBar
 )
-from PyQt5.QtCore import Qt, QAbstractTableModel, QDate, QThread, pyqtSignal, QSortFilterProxyModel
-from PyQt5.QtGui import QFont, QColor, QBrush
+from PySide6.QtCore import Qt, QAbstractTableModel, QDate, QThread, Signal, QSortFilterProxyModel
+from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.ui.desktop.theme import Palette
 
@@ -45,9 +45,9 @@ class DividendosTableModel(QAbstractTableModel):
     def columnCount(self, parent=None):
         return len(self.COLUMNS)
 
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation == Qt.Horizontal and 0 <= section < len(self.COLUMNS):
-            if role == Qt.DisplayRole:
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if orientation == Qt.Orientation.Horizontal and 0 <= section < len(self.COLUMNS):
+            if role == Qt.ItemDataRole.DisplayRole:
                 return self.COLUMNS[section][0]
         return None
 
@@ -64,14 +64,14 @@ class DividendosTableModel(QAbstractTableModel):
         except ValueError:
             return str(val)
 
-    def data(self, index, role=Qt.DisplayRole):
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or index.row() >= len(self._items):
             return None
 
         item = self._items[index.row()]
         col_key = self.COLUMNS[index.column()][1]
 
-        if role == Qt.DisplayRole:
+        if role == Qt.ItemDataRole.DisplayRole:
             if col_key in ("data_com", "data_pagamento", "atualizado_em"):
                 return self._fmt_data(item.get(col_key))
             if col_key == "valor":
@@ -79,19 +79,19 @@ class DividendosTableModel(QAbstractTableModel):
                 return "{:.6f}".format(val) if val else "-"
             return str(item.get(col_key, "-"))
 
-        if role == Qt.TextAlignmentRole:
+        if role == Qt.ItemDataRole.TextAlignmentRole:
             if col_key == "valor":
-                return Qt.AlignCenter | Qt.AlignVCenter
-            return Qt.AlignLeft | Qt.AlignVCenter
+                return Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 
-        if role == Qt.ForegroundRole:
+        if role == Qt.ItemDataRole.ForegroundRole:
             if col_key == "ativo":
                 return QBrush(QColor(Palette.ACCENT_BLUE_BRIGHT))
             if col_key == "valor":
                 return QBrush(QColor(Palette.GREEN))
             return QBrush(QColor(Palette.TEXT_PRIMARY))
 
-        if role == Qt.BackgroundRole:
+        if role == Qt.ItemDataRole.BackgroundRole:
             data_com = item.get("data_com")
             if data_com:
                 try:
@@ -114,9 +114,9 @@ class DividendosTableModel(QAbstractTableModel):
 
 
 class DividendosFetchWorker(QThread):
-    progresso = pyqtSignal(int, int, str)
-    concluido = pyqtSignal(int, str)
-    erro = pyqtSignal(str)
+    progresso = Signal(int, int, str)
+    concluido = Signal(int, str)
+    erro = Signal(str)
 
     def __init__(self, db_path, ativos: list[str], modo: str = "rapida"):
         super().__init__()

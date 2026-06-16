@@ -1,11 +1,11 @@
 import os
 import psutil
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
     QProgressBar, QFrame, QPushButton
 )
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QFont, QColor
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFont, QColor
 from src.ui.desktop.theme import Palette
 from src.application.dtos.dtos import EngineStatsDTO
 
@@ -188,7 +188,7 @@ class EngineDashboard(QDialog):
             "são monitorados via sensores leves para máxima eficiência."
         )
         footer_lbl.setStyleSheet("color: #666688; font-size: 8pt; font-style: italic;")
-        footer_lbl.setAlignment(Qt.AlignCenter)
+        footer_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.content_layout.addWidget(footer_lbl)
 
     def update_stats(self, stats: EngineStatsDTO):

@@ -1,12 +1,12 @@
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QLineEdit, QFormLayout, QFrame,
     QListWidget, QListWidgetItem, QWidget, QTextEdit, QSpinBox,
 )
 import winsound
 
-from PyQt5.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, QStringListModel, pyqtSignal
-from PyQt5.QtGui import QFont, QColor, QBrush
+from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, QStringListModel, Signal
+from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
@@ -76,11 +76,11 @@ class ColarTableModel(QAbstractTableModel):
     def columnCount(self, parent=None):
         return len(self.COLUMNS)
 
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation == Qt.Horizontal and 0 <= section < len(self.COLUMNS):
-            if role == Qt.DisplayRole:
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if orientation == Qt.Orientation.Horizontal and 0 <= section < len(self.COLUMNS):
+            if role == Qt.ItemDataRole.DisplayRole:
                 return self.COLUMNS[section][0]
-            if role == Qt.ToolTipRole:
+            if role == Qt.ItemDataRole.ToolTipRole:
                 tips = {
                     "ativo": "Código da ação objeto (ex: PETR4).",
                     "score": "Score de ranking multicritério (0–10+). "
@@ -109,14 +109,14 @@ class ColarTableModel(QAbstractTableModel):
                 return tips.get(self.COLUMNS[section][1])
         return None
 
-    def data(self, index, role=Qt.DisplayRole):
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or index.row() >= len(self._items):
             return None
 
         item = self._items[index.row()]
         col_key = self.COLUMNS[index.column()][1]
 
-        if role == Qt.DisplayRole:
+        if role == Qt.ItemDataRole.DisplayRole:
             val = item.get(col_key)
             if val is None:
                 return "-"
@@ -140,7 +140,7 @@ class ColarTableModel(QAbstractTableModel):
                 return str(val)
             return str(val)
 
-        if role == Qt.ForegroundRole:
+        if role == Qt.ItemDataRole.ForegroundRole:
             if col_key == "tipo_str":
                 tipo = item.get("tipo_str", "")
                 cor = CLASSIF_CORES.get(tipo)
@@ -163,16 +163,16 @@ class ColarTableModel(QAbstractTableModel):
                 return QBrush(QColor(Palette.TEXT_MUTED))
             return QBrush(QColor(Palette.TEXT_MUTED))
 
-        if role == Qt.TextAlignmentRole:
+        if role == Qt.ItemDataRole.TextAlignmentRole:
             center_cols = {"score", "strike_put", "strike_call", "custo_liquido", "pior_retorno",
                            "pior_b3", "pior_liquido",
                            "pct_cdi", "pct_cdi_melhor", "pop_upside", "pop_downside",
                            "risco_str", "dias"}
             if col_key in center_cols:
-                return Qt.AlignCenter | Qt.AlignVCenter
-            return Qt.AlignLeft | Qt.AlignVCenter
+                return Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 
-        if role == Qt.BackgroundRole:
+        if role == Qt.ItemDataRole.BackgroundRole:
             if not item.get("viavel", False):
                 return QBrush(QColor(Palette.ROW_NOT_VIABLE))
             return None
@@ -237,14 +237,14 @@ class ColarSortProxy(QSortFilterProxyModel):
         rows_by_ativo: dict[str, list[int]] = {}
         for row in range(src.rowCount()):
             idx = src.index(row, 0)
-            ativo = src.data(idx, Qt.DisplayRole) or ""
+            ativo = src.data(idx, Qt.ItemDataRole.DisplayRole) or ""
             rows_by_ativo.setdefault(ativo, []).append(row)
 
         accept: set[int] = set()
         for ativo, rows in rows_by_ativo.items():
             def _sort_key(r):
                 idx = src.index(r, sort_col)
-                raw = src.data(idx, Qt.DisplayRole) or "0"
+                raw = src.data(idx, Qt.ItemDataRole.DisplayRole) or "0"
                 try:
                     return float(str(raw).replace("R$", "").replace("x", "").replace("%", "").replace(",", ".").strip())
                 except Exception:
@@ -257,7 +257,7 @@ class ColarSortProxy(QSortFilterProxyModel):
     def filterAcceptsRow(self, row, parent):
         src = self.sourceModel()
         idx = src.index(row, 0)
-        ativo = src.data(idx, Qt.DisplayRole) or ""
+        ativo = src.data(idx, Qt.ItemDataRole.DisplayRole) or ""
 
         if self._filtro_lista is not None:
             if ativo not in self._filtro_lista:
@@ -268,7 +268,7 @@ class ColarSortProxy(QSortFilterProxyModel):
 
         if self._pop_upside_min > 0:
             col_upside = 1
-            val = src.data(src.index(row, col_upside), Qt.DisplayRole) or "0%"
+            val = src.data(src.index(row, col_upside), Qt.ItemDataRole.DisplayRole) or "0%"
             try:
                 if float(val.replace("%", "")) < self._pop_upside_min:
                     return False
@@ -277,7 +277,7 @@ class ColarSortProxy(QSortFilterProxyModel):
 
         if self._pop_downside_min > 0:
             col_downside = 2
-            val = src.data(src.index(row, col_downside), Qt.DisplayRole) or "0%"
+            val = src.data(src.index(row, col_downside), Qt.ItemDataRole.DisplayRole) or "0%"
             try:
                 if float(val.replace("%", "")) < self._pop_downside_min:
                     return False
@@ -294,9 +294,9 @@ class ColarSortProxy(QSortFilterProxyModel):
 
 
 class ColarDialog(QDialog):
-    iniciar_scan_signal = pyqtSignal()
-    parar_scan_signal = pyqtSignal()
-    selecao_alterada = pyqtSignal(list)
+    iniciar_scan_signal = Signal()
+    parar_scan_signal = Signal()
+    selecao_alterada = Signal(list)
 
     def __init__(self, parent=None, db_path=None):
         super().__init__(parent, Qt.Window)
@@ -1104,7 +1104,7 @@ class ColarDialog(QDialog):
         dialog.exec_()
 
     def _exportar_debug(self, r):
-        from PyQt5.QtWidgets import QApplication, QMessageBox
+        from PySide6.QtWidgets import QApplication, QMessageBox
 
         lines = [
             "=== DEBUG COLAR PROTETIVO ===",
@@ -1285,11 +1285,11 @@ class ColarDialog(QDialog):
         btn_close = QPushButton("Fechar")
         btn_close.setAutoDefault(False)
         btn_close.clicked.connect(payoff_dialog.close)
-        payoff_layout.addWidget(btn_close, alignment=Qt.AlignRight)
+        payoff_layout.addWidget(btn_close, alignment=Qt.AlignmentFlag.AlignRight)
         payoff_dialog.exec_()
 
     def _plot_historico(self, ativo: str, preco_atual: float = None, n_sessoes: int = 21):
-        from PyQt5.QtWidgets import QMessageBox
+        from PySide6.QtWidgets import QMessageBox
         import numpy as np
         from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.figure import Figure
@@ -1479,7 +1479,7 @@ class ColarDialog(QDialog):
         dialog.exec_()
 
     def _mostrar_variacao(self, r, n_sessoes=None):
-        from PyQt5.QtWidgets import QMessageBox
+        from PySide6.QtWidgets import QMessageBox
         from datetime import date, timedelta
         import re
         import numpy as np
@@ -1645,7 +1645,7 @@ class ColarDialog(QDialog):
                  bbox=dict(boxstyle='round', facecolor='#1a1a1a', edgecolor='#333'))
         fig.tight_layout()
 
-        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit
 
         input_style = """
             QLineEdit {
@@ -1732,7 +1732,7 @@ class ColarDialog(QDialog):
         self.lista_ativos.clear()
 
         item_todos = QListWidgetItem("TODOS")
-        item_todos.setFlags(item_todos.flags() & ~Qt.ItemIsUserCheckable)
+        item_todos.setFlags(item_todos.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
         item_todos.setForeground(QColor(Palette.YELLOW))
         item_todos.setToolTip("Mostrar todos os ativos")
         font_todos = QFont()
@@ -1742,7 +1742,7 @@ class ColarDialog(QDialog):
 
         for ativo in ativos:
             item = QListWidgetItem(ativo)
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             if usar_whitelist:
                 item.setCheckState(Qt.Checked if ativo in whitelist else Qt.Unchecked)
             else:
@@ -1811,7 +1811,7 @@ class ColarDialog(QDialog):
             self.lista_ativos.blockSignals(True)
             for ativo in novos_ativos:
                 item = QListWidgetItem(ativo)
-                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 if usar_whitelist:
                     item.setCheckState(Qt.Checked if ativo in whitelist else Qt.Unchecked)
                 else:

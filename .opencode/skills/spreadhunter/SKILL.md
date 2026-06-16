@@ -1,7 +1,7 @@
 ---
 name: spreadhunter
 description: |
-  Spreadhunter — B3 options trading monitor (Python/PyQt5/SQLite/RTD Profit).
+  Spreadhunter — B3 options trading monitor (Python/PySide6/SQLite/RTD Profit).
   Scan, box spreads, collars, calendar collars, MPP prioritization.
   Critical: always confirm before changes, follow DB-first parametrization,
   never hardcode strikes, read MOD only from CALL leg.
@@ -18,7 +18,7 @@ aprovação/rejeição. O fluxo deve ser: proposta → confirmação → execuç
 ## Stack
 
 - **Linguagem**: Python 3.12+
-- **UI**: PyQt5 (QTableView, QAbstractTableModel, QSortFilterProxyModel)
+- **UI**: PySide6 (QTableView, QAbstractTableModel, QSortFilterProxyModel)
 - **Banco**: SQLite via sqlite3 (threading.local pool, `synchronous=NORMAL`,
   `cache_size=-8000`, `temp_store=MEMORY`)
 - **RTD**: COM (win32com) com Profit — `RTDProfit` em
@@ -39,7 +39,7 @@ src/
       database.py            — Conexão SQLite + PRAGMAs + seed params
       repositories/          — Repositórios (cache thread-safe com Lock)
     providers/               — RTD Profit provider
-  ui/desktop/                — Telas PyQt5
+  ui/desktop/                — Telas PySide6
 ```
 
 ## Regras de Negócio Críticas

@@ -1,13 +1,13 @@
 import logging
 import winsound
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QLineEdit, QFormLayout, QFrame,
     QListWidget, QListWidgetItem, QWidget, QTextEdit, QSpinBox, QDoubleSpinBox,
 )
-from PyQt5.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, pyqtSignal
-from PyQt5.QtGui import QFont, QColor, QBrush
+from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal
+from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
@@ -79,11 +79,11 @@ class ColarCalTableModel(QAbstractTableModel):
     def columnCount(self, parent=None):
         return len(self.COLUMNS)
 
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation == Qt.Horizontal and 0 <= section < len(self.COLUMNS):
-            if role == Qt.DisplayRole:
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if orientation == Qt.Orientation.Horizontal and 0 <= section < len(self.COLUMNS):
+            if role == Qt.ItemDataRole.DisplayRole:
                 return self.COLUMNS[section][0]
-            if role == Qt.ToolTipRole:
+            if role == Qt.ItemDataRole.ToolTipRole:
                 tips = {
                     "ativo": "Código da ação objeto (ex: PETR4).",
                     "preco_ativo": "Preço atual do ativo objeto (RTD).",
@@ -142,12 +142,12 @@ class ColarCalTableModel(QAbstractTableModel):
                 return tips.get(self.COLUMNS[section][1])
         return None
 
-    def data(self, index, role=Qt.DisplayRole):
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or index.row() >= len(self._items):
             return None
         item = self._items[index.row()]
         col_key = self.COLUMNS[index.column()][1]
-        if role == Qt.DisplayRole:
+        if role == Qt.ItemDataRole.DisplayRole:
             val = item.get(col_key)
             if val is None:
                 return "-"
@@ -177,7 +177,7 @@ class ColarCalTableModel(QAbstractTableModel):
                     return val.strftime("%d/%m")
                 return str(val)
             return str(val)
-        if role == Qt.ForegroundRole:
+        if role == Qt.ItemDataRole.ForegroundRole:
             if col_key == "tipo_str":
                 tipo = item.get("tipo_str", "")
                 cores = {"Alta": QColor("#2ecc71"), "Baixa": QColor("#e74c3c"), "Neutro": QColor("#f39c12")}
@@ -197,7 +197,7 @@ class ColarCalTableModel(QAbstractTableModel):
                     return QBrush(QColor(Palette.RED))
                 return QBrush(QColor(Palette.TEXT_MUTED))
             return QBrush(QColor(Palette.TEXT_MUTED))
-        if role == Qt.TextAlignmentRole:
+        if role == Qt.ItemDataRole.TextAlignmentRole:
             center_cols = {"score", "score_iv",
                            "strike_call", "strike_put", "premio_call", "premio_put", "net_credito",
                            "iv_call", "iv_put", "theta_call", "theta_put", "theta_liquido",
@@ -206,9 +206,9 @@ class ColarCalTableModel(QAbstractTableModel):
                            "capital_empregado", "risco_max", "iv_rank",
                            "vega_call", "vega_put", "vega_liquido", "gamma_call", "gamma_put"}
             if col_key in center_cols:
-                return Qt.AlignCenter | Qt.AlignVCenter
-            return Qt.AlignLeft | Qt.AlignVCenter
-        if role == Qt.BackgroundRole:
+                return Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        if role == Qt.ItemDataRole.BackgroundRole:
             if not item.get("viavel", False):
                 return QBrush(QColor(Palette.ROW_NOT_VIABLE))
             return None
@@ -260,14 +260,14 @@ class ColarCalSortProxy(QSortFilterProxyModel):
         rows_by_ativo: dict[str, list[int]] = {}
         for row in range(src.rowCount()):
             idx = src.index(row, 0)
-            ativo = src.data(idx, Qt.DisplayRole) or ""
+            ativo = src.data(idx, Qt.ItemDataRole.DisplayRole) or ""
             rows_by_ativo.setdefault(ativo, []).append(row)
 
         accept: set[int] = set()
         for ativo, rows in rows_by_ativo.items():
             def _sort_key(r):
                 idx = src.index(r, sort_col)
-                raw = src.data(idx, Qt.DisplayRole) or "0"
+                raw = src.data(idx, Qt.ItemDataRole.DisplayRole) or "0"
                 try:
                     return float(str(raw).replace("R$", "").replace("x", "").replace("%", "").replace(",", ".").strip())
                 except Exception:
@@ -280,7 +280,7 @@ class ColarCalSortProxy(QSortFilterProxyModel):
     def filterAcceptsRow(self, row, parent):
         src = self.sourceModel()
         idx = src.index(row, 0)
-        ativo = src.data(idx, Qt.DisplayRole) or ""
+        ativo = src.data(idx, Qt.ItemDataRole.DisplayRole) or ""
         if self._filtro_lista is not None:
             return ativo in self._filtro_lista
         if self._filtro_ativo:
@@ -296,9 +296,9 @@ class ColarCalSortProxy(QSortFilterProxyModel):
 
 
 class ColarCalendarioDialog(QDialog):
-    iniciar_scan_signal = pyqtSignal(list, dict)
-    parar_scan_signal = pyqtSignal()
-    selecao_alterada = pyqtSignal(list)
+    iniciar_scan_signal = Signal(list, dict)
+    parar_scan_signal = Signal()
+    selecao_alterada = Signal(list)
 
     def __init__(self, parent=None, db_path=None):
         super().__init__(parent, Qt.Window)
@@ -675,7 +675,7 @@ class ColarCalendarioDialog(QDialog):
             if n_sel == 0 and self.lista_ativos.count() > 1:
                 return
             if n_sel > 20:
-                from PyQt5.QtWidgets import QMessageBox
+                from PySide6.QtWidgets import QMessageBox
                 resp = QMessageBox.question(
                     self, "Muitos ativos",
                     f"{n_sel} ativos selecionados.\n"
@@ -917,7 +917,7 @@ class ColarCalendarioDialog(QDialog):
         dialog.exec_()
 
     def _exportar_debug(self, r):
-        from PyQt5.QtWidgets import QApplication, QMessageBox
+        from PySide6.QtWidgets import QApplication, QMessageBox
         import numpy as np
         from scipy.stats import norm
 
@@ -1033,7 +1033,7 @@ class ColarCalendarioDialog(QDialog):
         dialog.exec_()
 
     def _plot_payoff(self, r):
-        from PyQt5.QtWidgets import QMessageBox
+        from PySide6.QtWidgets import QMessageBox
         import traceback
         try:
             import numpy as np
@@ -1225,14 +1225,14 @@ class ColarCalendarioDialog(QDialog):
             btn_close = QPushButton("Fechar")
             btn_close.setAutoDefault(False)
             btn_close.clicked.connect(payoff_dialog.close)
-            payoff_layout.addWidget(btn_close, alignment=Qt.AlignRight)
+            payoff_layout.addWidget(btn_close, alignment=Qt.AlignmentFlag.AlignRight)
             payoff_dialog.exec_()
         except Exception as e:
             logger.exception("Erro no payoff: %s", e)
             QMessageBox.critical(self, "Erro", f"Falha ao gerar payoff:\n{e}\n\n{traceback.format_exc()}")
 
     def _plot_historico(self, ativo: str, preco_atual: float = None, n_sessoes: int = 21):
-        from PyQt5.QtWidgets import QMessageBox
+        from PySide6.QtWidgets import QMessageBox
         import numpy as np
         from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.figure import Figure
@@ -1372,7 +1372,7 @@ class ColarCalendarioDialog(QDialog):
         dialog.exec_()
 
     def _mostrar_variacao(self, r, n_sessoes=None):
-        from PyQt5.QtWidgets import QMessageBox
+        from PySide6.QtWidgets import QMessageBox
         from datetime import date, timedelta
         import re
         import numpy as np
@@ -1582,7 +1582,7 @@ class ColarCalendarioDialog(QDialog):
 
             fig.tight_layout()
 
-            from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit
+            from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit
 
             input_style = """
                 QLineEdit {
@@ -1675,7 +1675,7 @@ class ColarCalendarioDialog(QDialog):
         self.lista_ativos.blockSignals(True)
         self.lista_ativos.clear()
         item_todos = QListWidgetItem("TODOS")
-        item_todos.setFlags(item_todos.flags() & ~Qt.ItemIsUserCheckable)
+        item_todos.setFlags(item_todos.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
         item_todos.setForeground(QColor(Palette.YELLOW))
         item_todos.setToolTip("Mostrar todos os ativos")
         font_todos = QFont()
@@ -1684,7 +1684,7 @@ class ColarCalendarioDialog(QDialog):
         self.lista_ativos.addItem(item_todos)
         for ativo in ativos:
             item = QListWidgetItem(ativo)
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             if usar_whitelist:
                 item.setCheckState(Qt.Checked if ativo in whitelist else Qt.Unchecked)
             else:
@@ -1762,7 +1762,7 @@ class ColarCalendarioDialog(QDialog):
             self.lista_ativos.blockSignals(True)
             for ativo in novos_ativos:
                 item = QListWidgetItem(ativo)
-                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 if usar_whitelist:
                     item.setCheckState(Qt.Checked if ativo in whitelist else Qt.Unchecked)
                 else:

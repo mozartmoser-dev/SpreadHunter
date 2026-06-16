@@ -1,11 +1,11 @@
 from datetime import date, datetime
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView, QAbstractItemView,
     QMessageBox, QLabel, QHeaderView, QComboBox, QProgressBar
 )
-from PyQt5.QtCore import Qt, QAbstractTableModel, QThread, pyqtSignal, QSortFilterProxyModel
-from PyQt5.QtGui import QFont, QColor, QBrush
+from PySide6.QtCore import Qt, QAbstractTableModel, QThread, Signal, QSortFilterProxyModel
+from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.ui.desktop.theme import Palette
 
@@ -41,8 +41,8 @@ class FeriadosTableModel(QAbstractTableModel):
     def columnCount(self, parent=None):
         return len(self.COLUMNS)
 
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole and 0 <= section < len(self.COLUMNS):
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole and 0 <= section < len(self.COLUMNS):
             return self.COLUMNS[section][0]
         return None
 
@@ -60,30 +60,30 @@ class FeriadosTableModel(QAbstractTableModel):
         labels = {"nacional": "Nacional", "estadual_sp": "SP (B3 fecha)"}
         return labels.get(str(val), str(val))
 
-    def data(self, index, role=Qt.DisplayRole):
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or index.row() >= len(self._items):
             return None
         item = self._items[index.row()]
         col_key = self.COLUMNS[index.column()][1]
 
-        if role == Qt.DisplayRole:
+        if role == Qt.ItemDataRole.DisplayRole:
             if col_key in ("data", "atualizado_em"):
                 return self._fmt_data(item.get(col_key))
             if col_key == "tipo":
                 return self._fmt_tipo(item.get(col_key))
             return str(item.get(col_key, "-"))
 
-        if role == Qt.TextAlignmentRole:
-            return Qt.AlignLeft | Qt.AlignVCenter
+        if role == Qt.ItemDataRole.TextAlignmentRole:
+            return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 
-        if role == Qt.ForegroundRole:
+        if role == Qt.ItemDataRole.ForegroundRole:
             if col_key == "data":
                 return QBrush(QColor(Palette.ACCENT_BLUE_BRIGHT))
             if col_key == "tipo" and str(item.get("tipo")) == "estadual_sp":
                 return QBrush(QColor("#f39c12"))
             return QBrush(QColor(Palette.TEXT_PRIMARY))
 
-        if role == Qt.BackgroundRole:
+        if role == Qt.ItemDataRole.BackgroundRole:
             try:
                 dt = date.fromisoformat(str(item.get("data", "")))
                 today = date.today()
@@ -102,9 +102,9 @@ class FeriadosTableModel(QAbstractTableModel):
 
 
 class FeriadosFetchWorker(QThread):
-    progresso = pyqtSignal(int, int, str)
-    concluido = pyqtSignal(int, str)
-    erro = pyqtSignal(str)
+    progresso = Signal(int, int, str)
+    concluido = Signal(int, str)
+    erro = Signal(str)
 
     def __init__(self, db_path, anos: list[int]):
         super().__init__()

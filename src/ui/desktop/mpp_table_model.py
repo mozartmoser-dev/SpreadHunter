@@ -1,5 +1,5 @@
-from PyQt5.QtCore import QAbstractTableModel, QVariant, Qt
-from PyQt5.QtGui import QColor
+from PySide6.QtCore import QAbstractTableModel, Qt
+from PySide6.QtGui import QColor
 
 
 COLUMN_TOOLTIPS = {
@@ -42,24 +42,24 @@ class MppTableModel(QAbstractTableModel):
     def columnCount(self, parent=None):
         return len(self.COLUMNS)
 
-    def data(self, index, role=Qt.DisplayRole):
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or index.row() >= len(self._data):
-            return QVariant()
+            return None
         row = self._data[index.row()]
         col_key = self.COLUMNS[index.column()][1]
 
-        if role == Qt.DisplayRole:
+        if role == Qt.ItemDataRole.DisplayRole:
             val = row.get(col_key, "")
             if val is None:
-                return QVariant()
+                return None
             return str(val)
 
-        if role == Qt.TextAlignmentRole:
+        if role == Qt.ItemDataRole.TextAlignmentRole:
             if col_key in ("score", "ip", "confianca", "lote", "persistencia", "spread", "prof_qtd"):
-                return Qt.AlignRight | Qt.AlignVCenter
-            return Qt.AlignLeft | Qt.AlignVCenter
+                return Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 
-        if role == Qt.ForegroundRole:
+        if role == Qt.ItemDataRole.ForegroundRole:
             nivel = row.get("nivel", "")
             if nivel == "crítico":
                 return QColor("#ef4444")
@@ -67,17 +67,17 @@ class MppTableModel(QAbstractTableModel):
                 return QColor("#f59e0b")
             elif nivel == "médio":
                 return QColor("#22d3ee")
-            return QVariant()
+            return None
 
-        return QVariant()
+        return None
 
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation == Qt.Horizontal:
-            if role == Qt.DisplayRole:
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if orientation == Qt.Orientation.Horizontal:
+            if role == Qt.ItemDataRole.DisplayRole:
                 return self.COLUMNS[section][0]
-            if role == Qt.ToolTipRole:
+            if role == Qt.ItemDataRole.ToolTipRole:
                 return COLUMN_TOOLTIPS.get(self.COLUMNS[section][1], self.COLUMNS[section][0])
-        return QVariant()
+        return None
 
     def atualizar(self, boxes: list, mres: list):
         mre_map = {}

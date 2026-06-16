@@ -1,12 +1,12 @@
 import winsound
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QFrame, QWidget,
     QDoubleSpinBox,
 )
-from PyQt5.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, pyqtSignal
-from PyQt5.QtGui import QFont, QColor, QBrush
+from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal
+from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
 from src.ui.desktop.theme import Palette
@@ -56,11 +56,11 @@ class BoxTableModel(QAbstractTableModel):
     def columnCount(self, parent=None):
         return len(BOX_4P_COLUMNS)
 
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation == Qt.Horizontal and 0 <= section < len(BOX_4P_COLUMNS):
-            if role == Qt.DisplayRole:
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if orientation == Qt.Orientation.Horizontal and 0 <= section < len(BOX_4P_COLUMNS):
+            if role == Qt.ItemDataRole.DisplayRole:
                 return BOX_4P_COLUMNS[section][0]
-            if role == Qt.ToolTipRole:
+            if role == Qt.ItemDataRole.ToolTipRole:
                 tips = {
                     "ativo": "Código da ação objeto (ex: PETR4).",
                     "strike_k1": "Strike mais próximo do preço atual (perna interna).",
@@ -90,14 +90,14 @@ class BoxTableModel(QAbstractTableModel):
                 return tips.get(BOX_4P_COLUMNS[section][1])
         return None
 
-    def data(self, index, role=Qt.DisplayRole):
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or index.row() >= len(self._items):
             return None
 
         item = self._items[index.row()]
         col_key = BOX_4P_COLUMNS[index.column()][1]
 
-        if role == Qt.DisplayRole:
+        if role == Qt.ItemDataRole.DisplayRole:
             val = item.get(col_key)
             if val is None:
                 return "-"
@@ -115,7 +115,7 @@ class BoxTableModel(QAbstractTableModel):
                 return str(val)
             return str(val)
 
-        if role == Qt.ForegroundRole:
+        if role == Qt.ItemDataRole.ForegroundRole:
             if col_key in ("lucro", "lucro_b3", "lucro_final", "lucro_pct", "pct_cdi"):
                 val = item.get(col_key, 0)
                 if val > 0:
@@ -130,17 +130,17 @@ class BoxTableModel(QAbstractTableModel):
                 return QBrush(QColor(Palette.TEXT_PRIMARY))
             return QBrush(QColor(Palette.TEXT_MUTED))
 
-        if role == Qt.TextAlignmentRole:
+        if role == Qt.ItemDataRole.TextAlignmentRole:
             center_cols = {"strike_k1", "strike_k2", "distancia", "clr", "lucro",
                           "lucro_b3", "lucro_final",
                           "lucro_pct", "pct_cdi", "dias", "qtd_bid_call_k1", "qtd_ask_put_k1",
                           "qtd_ask_call_k2", "qtd_bid_put_k2",
                           "bid_call_k1", "ask_put_k1", "ask_call_k2", "bid_put_k2"}
             if col_key in center_cols:
-                return Qt.AlignCenter | Qt.AlignVCenter
-            return Qt.AlignLeft | Qt.AlignVCenter
+                return Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 
-        if role == Qt.BackgroundRole:
+        if role == Qt.ItemDataRole.BackgroundRole:
             if not item.get("viavel", False):
                 return QBrush(QColor(Palette.ROW_NOT_VIABLE))
             return None
@@ -166,7 +166,7 @@ class BoxSortProxy(QSortFilterProxyModel):
         src = self.sourceModel()
         if self._cdi_min > 0:
             idx_cdi = 7
-            val = src.data(src.index(row, idx_cdi), Qt.DisplayRole) or "0.00x"
+            val = src.data(src.index(row, idx_cdi), Qt.ItemDataRole.DisplayRole) or "0.00x"
             try:
                 num = float(val.replace("x", "").strip())
                 if num < self._cdi_min:
@@ -177,9 +177,9 @@ class BoxSortProxy(QSortFilterProxyModel):
 
 
 class BoxDialog(QDialog):
-    atualizar_boxes_signal = pyqtSignal(list)
-    iniciar_scan_signal = pyqtSignal()
-    parar_scan_signal = pyqtSignal()
+    atualizar_boxes_signal = Signal(list)
+    iniciar_scan_signal = Signal()
+    parar_scan_signal = Signal()
 
     def __init__(self, parent=None, db_path=None):
         super().__init__(parent, Qt.Window)

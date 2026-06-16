@@ -1,9 +1,9 @@
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QFormLayout, QLineEdit, QRadioButton, QButtonGroup, QFrame, QTextEdit,
 )
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 
 from src.domain.services.calculadora_colar import CalculadoraColar
 from src.ui.desktop.theme import Palette
@@ -112,7 +112,7 @@ class CalculadoraDialog(QDialog):
         """)
         btn_calcular.clicked.connect(self._calcular)
         btn_calcular.setFixedWidth(160)
-        layout.addWidget(btn_calcular, alignment=Qt.AlignCenter)
+        layout.addWidget(btn_calcular, alignment=Qt.AlignmentFlag.AlignCenter)
 
         sep2 = QFrame()
         sep2.setFrameShape(QFrame.HLine)
@@ -142,7 +142,7 @@ class CalculadoraDialog(QDialog):
             QPushButton:hover {{ background-color: #3d3d55; }}
         """)
         btn_fechar.clicked.connect(self.close)
-        layout.addWidget(btn_fechar, alignment=Qt.AlignRight)
+        layout.addWidget(btn_fechar, alignment=Qt.AlignmentFlag.AlignRight)
 
     def _calcular(self):
         try:

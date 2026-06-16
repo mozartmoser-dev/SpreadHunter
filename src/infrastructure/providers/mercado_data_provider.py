@@ -1,7 +1,7 @@
 import logging
 import time
 from datetime import date
-from PyQt5.QtCore import QMutex
+from PySide6.QtCore import QMutex
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
 from src.infrastructure.importers.excel_importer import extrair_strike, sanitizar_strike

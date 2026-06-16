@@ -1,5 +1,5 @@
-from PyQt5.QtCore import Qt, QAbstractTableModel, QModelIndex
-from PyQt5.QtGui import QColor, QBrush, QFont
+from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex
+from PySide6.QtGui import QColor, QBrush, QFont
 
 from src.application.dtos.dtos import OportunidadeMonitor
 from src.ui.desktop.theme import Palette
@@ -76,14 +76,14 @@ class MonitorTableModel(QAbstractTableModel):
     def columnCount(self, parent=None):
         return len(self.COLUMNS)
 
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation != Qt.Horizontal or not (0 <= section < len(self.COLUMNS)):
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if orientation != Qt.Orientation.Horizontal or not (0 <= section < len(self.COLUMNS)):
             return None
             
-        if role == Qt.DisplayRole:
+        if role == Qt.ItemDataRole.DisplayRole:
             return self.COLUMNS[section][0]
             
-        if role == Qt.ToolTipRole:
+        if role == Qt.ItemDataRole.ToolTipRole:
             tips = {
                 "label_tipo": "Tipo de estratégia identificada (BOX, SBTH ou BOX+SBTH).",
                 "ativo": "Código da ação objeto (ex: PETR4) que dá origem às opções.",
@@ -115,29 +115,29 @@ class MonitorTableModel(QAbstractTableModel):
             
         return None
 
-    def data(self, index, role=Qt.DisplayRole):
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or index.row() >= len(self._oportunidades):
             return None
 
         opp = self._oportunidades[index.row()]
         col_key = self.COLUMNS[index.column()][1]
 
-        if role == Qt.DisplayRole:
+        if role == Qt.ItemDataRole.DisplayRole:
             return self._display_data(opp, col_key)
 
-        if role == Qt.BackgroundRole:
+        if role == Qt.ItemDataRole.BackgroundRole:
             return self._background_data(opp, col_key)
 
-        if role == Qt.ForegroundRole:
+        if role == Qt.ItemDataRole.ForegroundRole:
             return self._foreground_data(opp, col_key)
 
-        if role == Qt.FontRole:
+        if role == Qt.ItemDataRole.FontRole:
             return self._font_data(opp, col_key)
 
-        if role == Qt.TextAlignmentRole:
+        if role == Qt.ItemDataRole.TextAlignmentRole:
             if col_key in self._CENTER_COLS:
-                return Qt.AlignCenter | Qt.AlignVCenter
-            return Qt.AlignLeft | Qt.AlignVCenter
+                return Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 
         return None
 

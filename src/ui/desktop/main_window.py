@@ -3,14 +3,14 @@ import winsound
 from datetime import datetime
 from pathlib import Path
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QToolBar, QAction, QLabel, QDialog,
+    QPushButton, QToolBar, QLabel, QDialog,
     QHeaderView, QTableView, QAbstractItemView, QFrame, QMenu,
     QCheckBox, QComboBox, QStackedWidget, QGraphicsOpacityEffect,
 )
-from PyQt5.QtCore import Qt, QTimer, QSize, QProcess, QPropertyAnimation, QEasingCurve
-from PyQt5.QtGui import QFont, QColor, QBrush, QIcon, QPixmap, QPainter
+from PySide6.QtCore import Qt, QTimer, QSize, QProcess, QPropertyAnimation, QEasingCurve
+from PySide6.QtGui import QFont, QColor, QBrush, QIcon, QPixmap, QPainter, QAction
 
 
 from src.infrastructure.persistence.database import get_db_path
@@ -133,22 +133,22 @@ class MainWindow(QMainWindow):
         pix_abertura = QPixmap(str(temas_dir / "shtemaabertura.jpeg"))
         if not pix_abertura.isNull():
             self._splash_inicial.setPixmap(pix_abertura.scaled(1200, 600, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            self._splash_inicial.setAlignment(Qt.AlignCenter)
+            self._splash_inicial.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._splash_inicial.setStyleSheet("background-color: #0d0d0d;")
         else:
             self._splash_inicial.setText("SPREADHUNTER")
-            self._splash_inicial.setAlignment(Qt.AlignCenter)
+            self._splash_inicial.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._splash_inicial.setStyleSheet("color: #4fc3f7; font-size: 36pt; font-weight: bold; background-color: #0d0d0d;")
 
         self._splash_transicao = QLabel()
         pix_trans = QPixmap(str(temas_dir / "shtemainicializando.jpeg"))
         if not pix_trans.isNull():
             self._splash_transicao.setPixmap(pix_trans.scaled(1200, 600, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            self._splash_transicao.setAlignment(Qt.AlignCenter)
+            self._splash_transicao.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._splash_transicao.setStyleSheet("background-color: #0d0d0d;")
         else:
             self._splash_transicao.setText("INICIALIZANDO...")
-            self._splash_transicao.setAlignment(Qt.AlignCenter)
+            self._splash_transicao.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._splash_transicao.setStyleSheet("color: #1abc9c; font-size: 36pt; font-weight: bold; background-color: #0d0d0d;")
 
         self._transicao_opacity = QGraphicsOpacityEffect(self._splash_transicao)
@@ -166,11 +166,11 @@ class MainWindow(QMainWindow):
         pix_disc = QPixmap(str(temas_dir / "Disclaimer.jpeg"))
         if not pix_disc.isNull():
             self._disclaimer.setPixmap(pix_disc.scaled(1200, 600, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            self._disclaimer.setAlignment(Qt.AlignCenter)
+            self._disclaimer.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._disclaimer.setStyleSheet("background-color: #0d0d0d;")
         else:
             self._disclaimer.setWordWrap(True)
-            self._disclaimer.setAlignment(Qt.AlignCenter)
+            self._disclaimer.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._disclaimer.setText(
                 "<h3 style='color:#e0e0e0;'>Aviso de Risco</h3>"
                 "<p style='color:#999; font-size:10pt; line-height:1.6;'>"
@@ -401,7 +401,7 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(btn_layout)
 
     def _apply_hidden_columns(self):
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtCore import QSettings
         settings = QSettings("Spreadhunter", "DesktopMonitor")
         hidden_cols = settings.value("colunas_ocultas", None)
         
@@ -416,7 +416,7 @@ class MainWindow(QMainWindow):
             self.table_view.setColumnHidden(i, col_key in hidden_cols)
 
     def _save_column_visibility(self):
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtCore import QSettings
         settings = QSettings("Spreadhunter", "DesktopMonitor")
         hidden_cols = []
         for i, (_, col_key) in enumerate(MonitorTableModel.COLUMNS):
@@ -504,7 +504,7 @@ class MainWindow(QMainWindow):
         from datetime import date
         from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
         from src.domain.services.calendario_b3 import dc_to_du
-        from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QVBoxLayout
+        from PySide6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QVBoxLayout
 
         repo = InstrumentoRepository(self.db_path)
         vencimentos = repo.get_proximos_vencimentos(limite=30)
@@ -549,7 +549,7 @@ class MainWindow(QMainWindow):
 
         for i, venc in enumerate(vencimentos):
             item_venc = QTableWidgetItem(venc.strftime("%d/%m/%Y"))
-            item_venc.setTextAlignment(Qt.AlignCenter)
+            item_venc.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             table.setItem(i, 0, item_venc)
 
             dc = (venc - hoje).days
@@ -558,16 +558,16 @@ class MainWindow(QMainWindow):
             cdi_dc = ((1 + taxa_cdi) ** (dc / 365) - 1) * 100 if dc > 0 else 0.0
 
             item_dte = QTableWidgetItem(f"{dc}d")
-            item_dte.setTextAlignment(Qt.AlignCenter)
+            item_dte.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             table.setItem(i, 1, item_dte)
 
             item_cdi_du = QTableWidgetItem(f"{cdi_du:.4f}%")
-            item_cdi_du.setTextAlignment(Qt.AlignCenter)
+            item_cdi_du.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             item_cdi_du.setForeground(QColor("#00f2ff"))
             table.setItem(i, 2, item_cdi_du)
 
             item_cdi_dc = QTableWidgetItem(f"{cdi_dc:.4f}%")
-            item_cdi_dc.setTextAlignment(Qt.AlignCenter)
+            item_cdi_dc.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             item_cdi_dc.setForeground(QColor("#00f2ff"))
             table.setItem(i, 3, item_cdi_dc)
 
@@ -676,7 +676,7 @@ class MainWindow(QMainWindow):
             self._tocar_beep()
 
     def _tocar_beep(self):
-        from PyQt5.QtCore import QTimer
+        from PySide6.QtCore import QTimer
         QTimer.singleShot(0, lambda: winsound.Beep(1000, 200))
         QTimer.singleShot(200, lambda: winsound.Beep(1200, 150))
 

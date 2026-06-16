@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QStyledItemDelegate
-from PyQt5.QtGui import QPainter, QColor, QPen, QBrush
-from PyQt5.QtCore import Qt, QRectF
+from PySide6.QtWidgets import QStyledItemDelegate
+from PySide6.QtGui import QPainter, QColor, QPen, QBrush
+from PySide6.QtCore import Qt, QRectF
 
 
 class BadgeDelegate(QStyledItemDelegate):
@@ -10,7 +10,7 @@ class BadgeDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
         model = index.model()
         col_key = model.COLUMNS[index.column()][1]
-        text = index.data(Qt.DisplayRole)
+        text = index.data(Qt.ItemDataRole.DisplayRole)
 
         if not text or col_key not in ("label_tipo", "liq_indicator"):
             super().paint(painter, option, index)
@@ -20,7 +20,7 @@ class BadgeDelegate(QStyledItemDelegate):
         painter.setRenderHint(QPainter.Antialiasing)
 
         # 1. Desenha o fundo da celula baseado no status da linha
-        bg_brush = index.data(Qt.BackgroundRole)
+        bg_brush = index.data(Qt.ItemDataRole.BackgroundRole)
         if bg_brush:
             painter.fillRect(option.rect, bg_brush)
         else:
@@ -31,7 +31,7 @@ class BadgeDelegate(QStyledItemDelegate):
                 painter.fillRect(option.rect, QColor("#1a1a2e"))
 
         # 2. Desenha destaque de selecao ou hover
-        from PyQt5.QtWidgets import QStyle
+        from PySide6.QtWidgets import QStyle
         if option.state & QStyle.State_Selected:
             painter.fillRect(option.rect, QColor("#2d4a7a"))
         elif option.state & QStyle.State_MouseOver:
@@ -92,6 +92,6 @@ class BadgeDelegate(QStyledItemDelegate):
         else:
             font.setPointSize(8)
         painter.setFont(font)
-        painter.drawText(option.rect, Qt.AlignCenter | Qt.AlignVCenter, display_text)
+        painter.drawText(option.rect, Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter, display_text)
 
         painter.restore()

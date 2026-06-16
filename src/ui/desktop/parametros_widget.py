@@ -1,9 +1,9 @@
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QGroupBox,
     QDoubleSpinBox, QPushButton, QLabel, QScrollArea, QFrame,
     QCheckBox, QComboBox, QLineEdit, QMessageBox, QHBoxLayout,
 )
-from PyQt5.QtCore import Qt
+from PySide6.QtCore import Qt
 
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 from src.domain.entities.parametro_operacional import ParametroOperacional
@@ -607,7 +607,7 @@ class ParametrosWidget(QWidget):
         outer_layout.addWidget(self.btn_salvar)
 
         self.lbl_status = QLabel("")
-        self.lbl_status.setAlignment(Qt.AlignCenter)
+        self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         outer_layout.addWidget(self.lbl_status)
 
     def _mostrar_info(self, chave: str, display: str):

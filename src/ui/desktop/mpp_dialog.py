@@ -1,11 +1,11 @@
 import winsound
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QTableView, QHeaderView, QAbstractItemView, QTextEdit, QSplitter,
 )
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 
 from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
 from src.ui.desktop.mpp_table_model import MppTableModel
@@ -80,7 +80,7 @@ class MppDialog(QDialog):
         header_row.addStretch()
         layout.addLayout(header_row)
 
-        splitter = QSplitter(Qt.Vertical)
+        splitter = QSplitter(Qt.Orientation.Vertical)
 
         table_container = QVBoxLayout()
         self.table_view = QTableView()

@@ -4,7 +4,7 @@ import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from PyQt5.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 from src.infrastructure.persistence.bootstrap import bootstrap
 from src.ui.desktop.main_window import MainWindow

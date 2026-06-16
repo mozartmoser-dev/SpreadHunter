@@ -177,9 +177,12 @@ e registrá-la em `_FILTROS_POR_ESTRATEGIA` no `regras_dialog.py`.
 
 ---
 
-## Pendente: Migração PyQt5 → PySide6 (desbloqueia Python ≥3.12)
+## Sessão 16/06/2026 — Migração PyQt5 → PySide6 ✅
 
-- PyQt5 5.15.11 é EOL e não roda em Python ≥3.12.
-- PySide6 tem API ~idêntica, é mantido ativamente.
-- Migração mecânica: trocar imports + ajustar enums (estilo, alinhamento, cores).
-- Fazer na próxima sessão, se quiser. Depois instalar Python 3.12/3.13 + re-instalar libs.
+- PySide6 6.11.1 instalado, PyQt5 removido das dependências.
+- Migração completa: 23 arquivos .py com imports, enums, pyqtSignal, QVariant.
+- `QAction` movido de `QtWidgets` para `QtGui`.
+- `pyproject.toml`: `PyQt5>=5.15` → `PySide6>=6.5`.
+- 159/159 testes passando, app inicializando sem erros.
+- Python 3.11.0 → **Python 3.13.14** (upgrade concluído).
+- Próximo passo opcional: testar matplotlib com PySide6 backend — pode melhorar renderização de gráficos.

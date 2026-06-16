@@ -1,11 +1,11 @@
 import json
 from datetime import datetime
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView, QAbstractItemView,
     QMessageBox, QLabel, QHeaderView, QTextEdit
 )
-from PyQt5.QtCore import Qt, QAbstractTableModel
-from PyQt5.QtGui import QFont, QColor, QBrush
+from PySide6.QtCore import Qt, QAbstractTableModel
+from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.ui.desktop.theme import Palette
 
@@ -33,20 +33,20 @@ class HistoricoTableModel(QAbstractTableModel):
     def columnCount(self, parent=None):
         return len(self.COLUMNS)
 
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation == Qt.Horizontal and 0 <= section < len(self.COLUMNS):
-            if role == Qt.DisplayRole:
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if orientation == Qt.Orientation.Horizontal and 0 <= section < len(self.COLUMNS):
+            if role == Qt.ItemDataRole.DisplayRole:
                 return self.COLUMNS[section][0]
         return None
 
-    def data(self, index, role=Qt.DisplayRole):
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or index.row() >= len(self._items):
             return None
 
         item = self._items[index.row()]
         col_key = self.COLUMNS[index.column()][1]
 
-        if role == Qt.DisplayRole:
+        if role == Qt.ItemDataRole.DisplayRole:
             if col_key == "created_at":
                 dt_str = item["created_at"]
                 try:
@@ -72,12 +72,12 @@ class HistoricoTableModel(QAbstractTableModel):
                 return "{:.2f}x".format(val) if val is not None else "-"
             return str(item.get(col_key, ""))
 
-        if role == Qt.TextAlignmentRole:
+        if role == Qt.ItemDataRole.TextAlignmentRole:
             if col_key in ("strike", "operacao", "dias", "preco_ativo", "custo", "ganho", "cdi_rent"):
-                return Qt.AlignCenter | Qt.AlignVCenter
-            return Qt.AlignLeft | Qt.AlignVCenter
+                return Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 
-        if role == Qt.ForegroundRole:
+        if role == Qt.ItemDataRole.ForegroundRole:
             if col_key == "ganho":
                 op = item["operacao"]
                 val = item["pct_ganho_box"] if op in ("BOX", "BOXSBTH") else item["pct_ganho_sbth"]
