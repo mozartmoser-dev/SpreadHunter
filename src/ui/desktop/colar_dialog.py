@@ -841,7 +841,12 @@ class ColarDialog(QDialog):
 
         lbl = QLabel("1. Comprar Ativo:")
         lbl.setStyleSheet(label_style)
-        val = QLabel(f"{r.ativo} à vista — R$ {r.preco_ativo:.2f}")
+        preco_compra_real = r.custo_liquido - r.premio_put + r.premio_call
+        val = QLabel(f"{r.ativo} à vista — R$ {preco_compra_real:.2f}")
+        val.setToolTip(
+            f"Preço de compra efetivo (oferta de venda / ask). "
+            f"Spot (último negócio): R$ {r.preco_ativo:.2f}"
+        )
         val.setStyleSheet(value_style)
         form.addRow(lbl, val)
 
@@ -1145,6 +1150,7 @@ class ColarDialog(QDialog):
         from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.figure import Figure
 
+        preco_compra = r.custo_liquido - r.premio_put + r.premio_call
         S = r.preco_ativo
         Kp = r.strike_put
         Kc = r.strike_call
@@ -1156,7 +1162,7 @@ class ColarDialog(QDialog):
         x_max = max(Kc, S) * 1.15
         x = np.linspace(x_min, x_max, 500)
 
-        stock_pnl = x - S
+        stock_pnl = x - preco_compra
         put_pnl = np.maximum(Kp - x, 0) - Pp
         call_pnl = Pc - np.maximum(x - Kc, 0)
         total_pnl = stock_pnl + put_pnl + call_pnl
@@ -1176,6 +1182,8 @@ class ColarDialog(QDialog):
 
         ax.plot(x, total_pnl, color=ACCENT, linewidth=2.0, label='Payoff')
 
+        y_range = total_pnl.max() - total_pnl.min()
+        y_pad = max(y_range * 0.08, max(abs(total_pnl.max()), abs(total_pnl.min())) * 0.3, 0.3)
         hover_annot = ax.annotate(
             '', xy=(0, 0), fontsize=8, color='#fff',
             bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=ACCENT, alpha=0.9),
@@ -1185,7 +1193,6 @@ class ColarDialog(QDialog):
         hover_hline = ax.axhline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
         def _on_hover(event):
             ax.set_xlim(x_min, x_max)
-            y_pad = (total_pnl.max() - total_pnl.min()) * 0.08
             ax.set_ylim(total_pnl.min() - y_pad, total_pnl.max() + y_pad)
             if event.inaxes != ax or event.xdata is None:
                 hover_annot.set_visible(False)
@@ -1239,7 +1246,6 @@ class ColarDialog(QDialog):
         ax.set_title(f'Payoff Colar — {r.ativo}', color='#e0e0e0', fontsize=11, fontweight='bold')
 
         ax.set_xlim(x_min, x_max)
-        y_pad = (total_pnl.max() - total_pnl.min()) * 0.08
         ax.set_ylim(total_pnl.min() - y_pad, total_pnl.max() + y_pad)
 
         ax.tick_params(colors=TEXT, labelsize=8)
@@ -1259,7 +1265,7 @@ class ColarDialog(QDialog):
         payoff_layout.addWidget(canvas)
 
         footer = QLabel(
-            f"<b>Comprar Ativo:</b> {r.ativo} à vista — R$ {S:.2f}<br>"
+            f"<b>Comprar Ativo:</b> {r.ativo} à vista — R$ {preco_compra:.2f} (ask)<br>"
             f"<b>Vender Call:</b> {r.cod_call} K={Kc:.2f} — +R$ {Pc:.2f} (prêmio recebido)<br>"
             f"<b>Comprar Put:</b> {r.cod_put} K={Kp:.2f} — −R$ {Pp:.2f} (prêmio pago)<br>"
             f"<b>Custo:</b> R$ {custo:.2f}  |  "
