@@ -92,6 +92,9 @@ PARAMETROS_POR_ESTRATEGIA = {
     "COLAR": [
         ("premio_risco_colar", "Premio risco Colar (x CDI)"),
         ("colar_dist_max_pct", "Distancia maxima do strike (%)"),
+        ("colar_qtd_ativo", "Qtd compra ativo"),
+        ("colar_qtd_call", "Qtd venda CALL"),
+        ("colar_qtd_put", "Qtd compra PUT"),
         ("ranking_peso_colar_pop", "Peso Pop no Score Ranking"),
         ("ranking_peso_colar_cdi", "Peso % CDI no Score Ranking"),
         ("ranking_peso_colar_risco", "Peso risco leilão (inverso) no Score Ranking"),
@@ -102,6 +105,9 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("limiar_classificacao_calendario", "Limiar classificacao (% spread)"),
         ("be_search_range_mult", "Margem busca breakeven (+/-)"),
         ("calendario_call_otm_max", "Call OTM max (0.08 = 8% acima do spot)"),
+        ("calendario_qtd_ativo", "Qtd compra ativo"),
+        ("calendario_qtd_call", "Qtd venda CALL"),
+        ("calendario_qtd_put", "Qtd compra PUT"),
         ("dte_call_min", "DTE call minima (dias)"),
         ("dte_call_max", "DTE call maxima (dias)"),
         ("dte_extra_min", "Diferenca DTE put−call minima (dias)"),
@@ -331,6 +337,36 @@ PARAMETROS_INFO = {
         "descricao": "Taxa de liquidacao cobrada pela B3. Atualmente 0.0275% por perna. Somada aos emolumentos para calcular o custo total B3.",
         "usado_em": "Calculadora de Custos B3 (BOX 4P, Colar, Collar Calendario).",
         "precedencia": "Banco de Dados -> 0.000275 (0.0275%, padrao fixo B3)",
+    },
+    "colar_qtd_ativo": {
+        "descricao": "Quantidade de acoes para comprar em cada operacao de Colar Protetivo. Usado pelo botao 'Basket PNT' para gerar a ordem. Voce pode alterar manualmente depois de colar no PNT.",
+        "usado_em": "Dialog de detalhes do Colar Protetivo (exportacao PNT).",
+        "precedencia": "Banco de Dados -> 100 (padrao)",
+    },
+    "colar_qtd_call": {
+        "descricao": "Quantidade de opcoes CALL para vender em cada operacao de Colar Protetivo.",
+        "usado_em": "Dialog de detalhes do Colar Protetivo (exportacao PNT).",
+        "precedencia": "Banco de Dados -> 100 (padrao)",
+    },
+    "colar_qtd_put": {
+        "descricao": "Quantidade de opcoes PUT para comprar em cada operacao de Colar Protetivo.",
+        "usado_em": "Dialog de detalhes do Colar Protetivo (exportacao PNT).",
+        "precedencia": "Banco de Dados -> 100 (padrao)",
+    },
+    "calendario_qtd_ativo": {
+        "descricao": "Quantidade de acoes para comprar em cada operacao de Collar Calendario.",
+        "usado_em": "Dialog de detalhes do Collar Calendario (exportacao PNT).",
+        "precedencia": "Banco de Dados -> 100 (padrao)",
+    },
+    "calendario_qtd_call": {
+        "descricao": "Quantidade de opcoes CALL para vender em cada operacao de Collar Calendario.",
+        "usado_em": "Dialog de detalhes do Collar Calendario (exportacao PNT).",
+        "precedencia": "Banco de Dados -> 100 (padrao)",
+    },
+    "calendario_qtd_put": {
+        "descricao": "Quantidade de opcoes PUT para comprar em cada operacao de Collar Calendario.",
+        "usado_em": "Dialog de detalhes do Collar Calendario (exportacao PNT).",
+        "precedencia": "Banco de Dados -> 100 (padrao)",
     },
     "colar_qul_min_put": {
         "descricao": "Quantidade minima de negocios realizados (QUL) que a PUT precisa ter para ser considerada no Colar. Filtra opcoes com baixa liquidez.",

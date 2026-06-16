@@ -52,6 +52,7 @@ class ResultadoColar:
     custo_ir_melhor: float = 0.0
     pct_cdi_liquido: float = 0.0
     pct_cdi_melhor_liquido: float = 0.0
+    preco_compra: float = 0.0
     iv_call: float = 0.0
     iv_put: float = 0.0
     pop_upside: float | None = None
@@ -276,6 +277,7 @@ class CalculadoraColar:
             em_leilao=em_leilao,
             iv_call=round(iv_call * 100, 2) if iv_call is not None else 0.0,
             iv_put=round(iv_put * 100, 2) if iv_put is not None else 0.0,
+            preco_compra=round(preco_compra, 2),
             pop_upside=round(pop_upside * 100, 1) if pop_upside is not None else None,
             pop_downside=round(pop_downside * 100, 1) if pop_downside is not None else None,
         )

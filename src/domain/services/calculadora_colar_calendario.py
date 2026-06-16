@@ -59,6 +59,7 @@ class ResultadoColarCalendario:
     gamma_call: float = 0.0
     gamma_put: float = 0.0
     score_iv: float = 0.0
+    preco_compra: float = 0.0
     be_baixa: float | None = None
     be_alta: float | None = None
     be_baixa_intrinseco: float | None = None
@@ -383,6 +384,7 @@ class CalculadoraColarCalendario:
             vega_liquido=round(vega_liquido, 4),
             gamma_call=round(gamma_call, 4),
             gamma_put=round(gamma_put, 4),
+            preco_compra=round(preco_compra, 2),
         )
 
     @staticmethod
