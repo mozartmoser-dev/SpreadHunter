@@ -1082,13 +1082,13 @@ class ColarCalendarioDialog(QDialog):
 
             ax.plot(x, pnl, color=ACCENT, linewidth=2.0, label='Payoff')
 
-            hover_annot = ax.annotate(
-                '', xy=(0, 0), fontsize=8, color='#fff',
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=ACCENT, alpha=0.9),
-                ha='center', va='center', visible=False, zorder=10,
-            )
             hover_vline = ax.axvline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
             hover_hline = ax.axhline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
+            hover_text = ax.text(
+                0.02, 0.98, '', fontsize=8, color='#fff', visible=False, zorder=10,
+                transform=ax.transAxes, ha='left', va='top',
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=ACCENT, alpha=0.9),
+            )
             x_lim = (x_min, x_max)
             y_pad = (pnl.max() - pnl.min()) * 0.08
             y_lim = (pnl.min() - y_pad, pnl.max() + y_pad)
@@ -1096,16 +1096,15 @@ class ColarCalendarioDialog(QDialog):
                 ax.set_xlim(x_lim)
                 ax.set_ylim(y_lim)
                 if event.inaxes != ax or event.xdata is None:
-                    hover_annot.set_visible(False)
+                    hover_text.set_visible(False)
                     hover_vline.set_visible(False)
                     hover_hline.set_visible(False)
                     fig.canvas.draw_idle()
                     return
                 idx = np.argmin(np.abs(x - event.xdata))
                 xv, yv = x[idx], pnl[idx]
-                hover_annot.xy = (xv, yv)
-                hover_annot.set_text(f'R$ {xv:.2f} → R$ {yv:+.2f}')
-                hover_annot.set_visible(True)
+                hover_text.set_text(f'R$ {xv:.2f} → R$ {yv:+.2f}')
+                hover_text.set_visible(True)
                 hover_vline.set_xdata([xv, xv])
                 hover_vline.set_visible(True)
                 hover_hline.set_ydata([yv, yv])
