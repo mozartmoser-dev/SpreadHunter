@@ -1103,7 +1103,7 @@ class ColarCalendarioDialog(QDialog):
                     return
                 idx = np.argmin(np.abs(x - event.xdata))
                 xv, yv = x[idx], pnl[idx]
-                hover_text.set_text(f'R$ {xv:.2f} → R$ {yv:+.2f}')
+                hover_text.set_text(f'Preço: R$ {xv:.2f}  |  PnL: R$ {yv:+.2f}')
                 hover_text.set_visible(True)
                 hover_vline.set_xdata([xv, xv])
                 hover_vline.set_visible(True)
