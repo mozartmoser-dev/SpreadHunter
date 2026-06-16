@@ -186,3 +186,30 @@ e registrá-la em `_FILTROS_POR_ESTRATEGIA` no `regras_dialog.py`.
 - 159/159 testes passando, app inicializando sem erros.
 - Python 3.11.0 → **Python 3.13.14** (upgrade concluído).
 - Próximo passo opcional: testar matplotlib com PySide6 backend — pode melhorar renderização de gráficos.
+
+---
+
+## Stack atual (16/06/2026)
+
+| Ferramenta | Versão | Instalação |
+|------------|--------|-----------|
+| **Python** | 3.13.14 | `C:\Program Files\Python313\python.exe` |
+| **PySide6** | 6.11.1 | pip |
+| **pywin32** | 312 | pip (DLLs em `pywin32_system32`) |
+| **scipy** | 1.17.1 | pip |
+| **numpy** | 2.4.6 | pip |
+| **matplotlib** | 3.11.0 | pip |
+| **requests** | 2.34.2 | pip |
+| **beautifulsoup4** | 4.15.0 | pip |
+| **psutil** | 7.2.2 | pip |
+| **openpyxl** | 3.1.5 | pip |
+| **python-dotenv** | 1.2.2 | pip |
+| **pytest** | 9.1.0 | pip |
+
+Python 3.11.0 ainda presente em `C:\Users\Mozart\AppData\Local\Programs\Python\Python311\` como fallback.
+
+---
+
+## Horário do Mercado
+
+B3 — Segunda a Sexta, **10:00 às 17:00** (horário de Brasília). Fora desse horário não há dados RTD do Profit, então scans não retornam oportunidades.

@@ -17,15 +17,17 @@ aprovação/rejeição. O fluxo deve ser: proposta → confirmação → execuç
 
 ## Stack
 
-- **Linguagem**: Python 3.12+
-- **UI**: PySide6 (QTableView, QAbstractTableModel, QSortFilterProxyModel)
+- **Linguagem**: Python 3.13.14 (`C:\Program Files\Python313\python.exe`)
+- **UI**: PySide6 6.11.1 (QTableView, QAbstractTableModel, QSortFilterProxyModel)
 - **Banco**: SQLite via sqlite3 (threading.local pool, `synchronous=NORMAL`,
   `cache_size=-8000`, `temp_store=MEMORY`)
-- **RTD**: COM (win32com) com Profit — `RTDProfit` em
+- **RTD**: COM (win32com, pywin32 312) com Profit — `RTDProfit` em
   `src/infrastructure/providers/rtd_profit.py`
-- **API externa**: opcoes.net.br (requests + JSON API `OptionsChain`) em
+- **API externa**: opcoes.net.br (requests 2.34 + JSON API `OptionsChain`) em
   `src/infrastructure/integrations/opcoesnet_client.py`
-- **Testes**: pytest (140 testes, sem skip)
+- **Matemática**: scipy 1.17.1, numpy 2.4.6
+- **Gráficos**: matplotlib 3.11.0 (backend qtagg)
+- **Testes**: pytest 9.1.0 (159 testes)
 
 ## Estrutura de Pastas
 

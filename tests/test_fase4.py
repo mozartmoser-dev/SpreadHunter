@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from PyQt5.QtCore import Qt
+from PySide6.QtCore import Qt
 
 from src.infrastructure.persistence.database import init_db
 from src.infrastructure.persistence.repositories.repositories import (
@@ -76,7 +76,7 @@ class TestMonitorTableModel:
         model.atualizar([_make_opp()])
         ativo_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "ativo"][0]
         index = model.index(0, ativo_col)
-        result = model.data(index, Qt.DisplayRole)
+        result = model.data(index, Qt.ItemDataRole.DisplayRole)
         assert str(result) == "PETR4"
 
     def test_label_tipo_column(self):
@@ -84,14 +84,14 @@ class TestMonitorTableModel:
         model.atualizar([_make_opp(classificacao="1BOX")])
         tipo_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "label_tipo"][0]
         index = model.index(0, tipo_col)
-        assert model.data(index, Qt.DisplayRole) == "BOX"
+        assert model.data(index, Qt.ItemDataRole.DisplayRole) == "BOX"
 
     def test_label_tipo_sbth(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(classificacao="2SBTH", operacao="SBTH")])
         tipo_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "label_tipo"][0]
         index = model.index(0, tipo_col)
-        assert model.data(index, Qt.DisplayRole) == "SBTH"
+        assert model.data(index, Qt.ItemDataRole.DisplayRole) == "SBTH"
 
     def test_get_oportunidade_valid(self):
         model = MonitorTableModel()
@@ -115,43 +115,43 @@ class TestMonitorTableModel:
         model.atualizar([_make_opp(classificacao="1BOX")])
         ganho_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "ganho_display"][0]
         index = model.index(0, ganho_col)
-        assert "80.00%" == model.data(index, Qt.DisplayRole)
+        assert "80.00%" == model.data(index, Qt.ItemDataRole.DisplayRole)
 
     def test_ganho_display_sbth(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(classificacao="2SBTH", operacao="SBTH")])
         ganho_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "ganho_display"][0]
         index = model.index(0, ganho_col)
-        assert "30.00%" == model.data(index, Qt.DisplayRole)
+        assert "30.00%" == model.data(index, Qt.ItemDataRole.DisplayRole)
 
     def test_strike_display(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(strike=18.50)])
         strike_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "strike"][0]
         index = model.index(0, strike_col)
-        assert model.data(index, Qt.DisplayRole) == "18.50"
+        assert model.data(index, Qt.ItemDataRole.DisplayRole) == "18.50"
 
     def test_custo_sbth_display(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(custo_sbth=50.25)])
         col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_sbth_display"][0]
         index = model.index(0, col)
-        assert model.data(index, Qt.DisplayRole) == "50.25"
+        assert model.data(index, Qt.ItemDataRole.DisplayRole) == "50.25"
 
     def test_custo_box_display(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(custo_box=100.75)])
         col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_box_display"][0]
         index = model.index(0, col)
-        assert model.data(index, Qt.DisplayRole) == "100.75"
+        assert model.data(index, Qt.ItemDataRole.DisplayRole) == "100.75"
 
     def test_custo_zero_display(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(custo_sbth=0.0, custo_box=0.0)])
         sbth_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_sbth_display"][0]
         box_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_box_display"][0]
-        assert model.data(model.index(0, sbth_col), Qt.DisplayRole) == "-"
-        assert model.data(model.index(0, box_col), Qt.DisplayRole) == "-"
+        assert model.data(model.index(0, sbth_col), Qt.ItemDataRole.DisplayRole) == "-"
+        assert model.data(model.index(0, box_col), Qt.ItemDataRole.DisplayRole) == "-"
 
     def test_none_value_returns_empty_string(self):
         model = MonitorTableModel()
@@ -159,7 +159,7 @@ class TestMonitorTableModel:
         opp.vencimento = None
         model.atualizar([opp])
         venc_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "vencimento"][0]
-        result = model.data(model.index(0, venc_col), Qt.DisplayRole)
+        result = model.data(model.index(0, venc_col), Qt.ItemDataRole.DisplayRole)
         assert result == ""
 
     def test_custo_sbth_struck_when_box_only(self):
@@ -167,9 +167,9 @@ class TestMonitorTableModel:
         model.atualizar([_make_opp(classificacao="1BOX", custo_sbth=50.0)])
         col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_sbth_display"][0]
         index = model.index(0, col)
-        font = model.data(index, Qt.FontRole)
+        font = model.data(index, Qt.ItemDataRole.FontRole)
         assert font is not None and font.strikeOut() is True
-        fg = model.data(index, Qt.ForegroundRole)
+        fg = model.data(index, Qt.ItemDataRole.ForegroundRole)
         assert fg is not None
 
     def test_custo_box_struck_when_sbth_only(self):
@@ -177,7 +177,7 @@ class TestMonitorTableModel:
         model.atualizar([_make_opp(classificacao="2SBTH", custo_box=100.0)])
         col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_box_display"][0]
         index = model.index(0, col)
-        font = model.data(index, Qt.FontRole)
+        font = model.data(index, Qt.ItemDataRole.FontRole)
         assert font is not None and font.strikeOut() is True
 
     def test_custo_not_struck_when_both(self):
@@ -185,39 +185,39 @@ class TestMonitorTableModel:
         model.atualizar([_make_opp(classificacao="3BOXSBTH", custo_sbth=50.0, custo_box=100.0)])
         sbth_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_sbth_display"][0]
         box_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "custo_box_display"][0]
-        assert model.data(model.index(0, sbth_col), Qt.FontRole) is None
-        assert model.data(model.index(0, box_col), Qt.FontRole) is None
+        assert model.data(model.index(0, sbth_col), Qt.ItemDataRole.FontRole) is None
+        assert model.data(model.index(0, box_col), Qt.ItemDataRole.FontRole) is None
 
     def test_liq_put_display_positive(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(liq_put_x_lote=500.0)])
         col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "liq_put_display"][0]
-        assert model.data(model.index(0, col), Qt.DisplayRole) == "500"
-        fg = model.data(model.index(0, col), Qt.ForegroundRole)
+        assert model.data(model.index(0, col), Qt.ItemDataRole.DisplayRole) == "500"
+        fg = model.data(model.index(0, col), Qt.ItemDataRole.ForegroundRole)
         assert fg is not None and fg.color().green() > 0
 
     def test_liq_put_display_negative(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(liq_put_x_lote=-200.0)])
         col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "liq_put_display"][0]
-        assert model.data(model.index(0, col), Qt.DisplayRole) == "-200"
-        fg = model.data(model.index(0, col), Qt.ForegroundRole)
+        assert model.data(model.index(0, col), Qt.ItemDataRole.DisplayRole) == "-200"
+        fg = model.data(model.index(0, col), Qt.ItemDataRole.ForegroundRole)
         assert fg is not None and fg.color().red() > 0
 
     def test_liq_call_display_positive(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(liq_call_x_lote=300.0)])
         col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "liq_call_display"][0]
-        assert model.data(model.index(0, col), Qt.DisplayRole) == "300"
-        fg = model.data(model.index(0, col), Qt.ForegroundRole)
+        assert model.data(model.index(0, col), Qt.ItemDataRole.DisplayRole) == "300"
+        fg = model.data(model.index(0, col), Qt.ItemDataRole.ForegroundRole)
         assert fg is not None and fg.color().green() > 0
 
     def test_liq_call_display_negative(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(liq_call_x_lote=-100.0)])
         col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "liq_call_display"][0]
-        assert model.data(model.index(0, col), Qt.DisplayRole) == "-100"
-        fg = model.data(model.index(0, col), Qt.ForegroundRole)
+        assert model.data(model.index(0, col), Qt.ItemDataRole.DisplayRole) == "-100"
+        fg = model.data(model.index(0, col), Qt.ItemDataRole.ForegroundRole)
         assert fg is not None and fg.color().red() > 0
 
     def test_leilao_display_red(self):
@@ -226,8 +226,8 @@ class TestMonitorTableModel:
         opp.em_leilao = True
         model.atualizar([opp])
         col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "leilao_display"][0]
-        assert model.data(model.index(0, col), Qt.DisplayRole) == "\u26a0 LEILAO"
-        fg = model.data(model.index(0, col), Qt.ForegroundRole)
+        assert model.data(model.index(0, col), Qt.ItemDataRole.DisplayRole) == "\u26a0 LEILAO"
+        fg = model.data(model.index(0, col), Qt.ItemDataRole.ForegroundRole)
         assert fg is not None and fg.color().red() > 0
 
     def test_money_display(self):
@@ -237,13 +237,13 @@ class TestMonitorTableModel:
         opp.money_call = 0.0
         model.atualizar([opp])
         col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "money_display"][0]
-        assert "P:2.00" == model.data(model.index(0, col), Qt.DisplayRole)
+        assert "P:2.00" == model.data(model.index(0, col), Qt.ItemDataRole.DisplayRole)
 
     def test_tipo_opcao_display(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp()])
         col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "tipo_opcao"][0]
-        assert model.data(model.index(0, col), Qt.DisplayRole) == "AMER"
+        assert model.data(model.index(0, col), Qt.ItemDataRole.DisplayRole) == "AMER"
 
 
 class TestMockMarketDataProvider:
@@ -455,7 +455,7 @@ class TestRTDProfitWithoutCOM:
 class TestMonitorWorker:
     def test_worker_emits_signal(self, populated_db):
         from src.ui.desktop.monitor_worker import MonitorWorker
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         import sys
 
         app = QApplication.instance() or QApplication(sys.argv)
@@ -476,7 +476,7 @@ class TestMonitorWorker:
 
     def test_worker_pause_resume(self, populated_db):
         from src.ui.desktop.monitor_worker import MonitorWorker
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         import sys
 
         app = QApplication.instance() or QApplication(sys.argv)
