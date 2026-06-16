@@ -7,7 +7,7 @@ class Lado(Enum):
     VENDA = "V"
 
 
-@dataclass
+@dataclass(slots=True)
 class PernaOperacao:
     estrutura_id: int
     codigo: str

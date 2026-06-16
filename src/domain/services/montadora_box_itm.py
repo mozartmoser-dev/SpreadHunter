@@ -4,7 +4,7 @@ from src.domain.entities.estrutura_operacional import TipoEstrutura
 from src.domain.entities.perna_operacao import PernaOperacao, Lado
 
 
-@dataclass
+@dataclass(slots=True)
 class BoxItmBasket:
     tipo: TipoEstrutura
     pernas: list[PernaOperacao]

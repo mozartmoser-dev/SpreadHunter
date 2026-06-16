@@ -8,14 +8,14 @@ class TipoExportacao(Enum):
     LOG_OPERACAO = "LOG_OPERACAO"
 
 
-@dataclass
+@dataclass(slots=True)
 class ImportarResultado:
     total_importados: int
     total_removidos: int
     ativos: list[str] = field(default_factory=list)
 
 
-@dataclass
+@dataclass(slots=True)
 class OportunidadeMonitor:
     instrumento_id: int
     ativo: str
@@ -115,7 +115,7 @@ class OportunidadeMonitor:
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class BasketGerada:
     estrutura_id: int
     tipo: str
@@ -127,7 +127,7 @@ class BasketGerada:
     coefic_mercado: float = 0.0
 
 
-@dataclass
+@dataclass(slots=True)
 class ExportarResultado:
     estrutura_id: int
     tipo_exportacao: str
@@ -144,7 +144,7 @@ class ExportarResultado:
     oportunidade_id: int = 0
 
 
-@dataclass
+@dataclass(slots=True)
 class EngineStatsDTO:
     scan_time_ms: int
     cpu_pct: float

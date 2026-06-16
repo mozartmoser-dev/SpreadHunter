@@ -11,7 +11,7 @@ from src.infrastructure.persistence.repositories.repositories import ParametroRe
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class PernaImediata:
     codigo: str
     bid: float
@@ -22,7 +22,7 @@ class PernaImediata:
     tipo: str
 
 
-@dataclass
+@dataclass(slots=True)
 class BoxScore:
     ativo: str
     strike1: float
@@ -45,7 +45,7 @@ class BoxScore:
     justificativa: str = ""
 
 
-@dataclass
+@dataclass(slots=True)
 class MreResultado:
     ativo: str
     strike1: float

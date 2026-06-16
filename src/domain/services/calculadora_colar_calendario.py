@@ -15,7 +15,7 @@ class TipoColarCalendario(Enum):
     NEUTRO = "Neutro"
 
 
-@dataclass
+@dataclass(slots=True)
 class ResultadoColarCalendario:
     ativo: str
     vencimento_call: date

@@ -19,7 +19,7 @@ def rtd_topico(codigo: str) -> str:
     return "{}_B_0".format(codigo)
 
 
-@dataclass
+@dataclass(slots=True)
 class DadosRTDInstrumento:
     ativo: str
     cod_put: str

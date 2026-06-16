@@ -9,7 +9,7 @@ class ClassificacaoOp(Enum):
     TP_OP = "TP.Op"
 
 
-@dataclass
+@dataclass(slots=True)
 class Oportunidade:
     instrumento_id: int
     preco_ativo: float

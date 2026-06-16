@@ -25,7 +25,7 @@ class RiscoLeilao(Enum):
     ALTO = "Alto"
 
 
-@dataclass
+@dataclass(slots=True)
 class ResultadoColar:
     ativo: str
     vencimento: date
@@ -59,7 +59,7 @@ class ResultadoColar:
     score: float = 0.0
 
 
-@dataclass
+@dataclass(slots=True)
 class DadosPata:
     strike: float
     codigo: str

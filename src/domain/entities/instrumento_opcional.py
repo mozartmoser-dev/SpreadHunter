@@ -8,7 +8,7 @@ class TipoOpcao(Enum):
     EUROPEIA = "E"
 
 
-@dataclass
+@dataclass(slots=True)
 class InstrumentoOpcional:
     ativo: str
     cod_put: str

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(slots=True)
 class CandidatoPescaria:
     instrumento_id: int
     ativo: str

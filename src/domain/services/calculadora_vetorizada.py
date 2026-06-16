@@ -6,7 +6,7 @@ from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(slots=True)
 class ResultadoVetorizado:
     indices_viaveis: np.ndarray
     pct_cdi_box: np.ndarray

@@ -5,7 +5,7 @@ from src.domain.services.calendario_b3 import dc_to_du
 from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
 
 
-@dataclass
+@dataclass(slots=True)
 class ResultadoBox:
     ativo: str
     vencimento: date

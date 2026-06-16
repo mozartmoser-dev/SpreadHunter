@@ -8,7 +8,7 @@ class TipoEstrutura(Enum):
     SBTH = "SBTH"
 
 
-@dataclass
+@dataclass(slots=True)
 class EstruturaOperacional:
     oportunidade_id: int | None
     tipo: TipoEstrutura
