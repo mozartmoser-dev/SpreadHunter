@@ -1147,7 +1147,7 @@ class ColarDialog(QDialog):
 
     def _plot_payoff(self, r):
         import numpy as np
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.figure import Figure
 
         preco_compra = r.custo_liquido - r.premio_put + r.premio_call
@@ -1291,7 +1291,7 @@ class ColarDialog(QDialog):
     def _plot_historico(self, ativo: str, preco_atual: float = None, n_sessoes: int = 21):
         from PySide6.QtWidgets import QMessageBox
         import numpy as np
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.figure import Figure
         import matplotlib.dates as mdates
 
@@ -1484,7 +1484,7 @@ class ColarDialog(QDialog):
         import re
         import numpy as np
         from scipy.stats import norm
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.figure import Figure
 
         if n_sessoes is None:

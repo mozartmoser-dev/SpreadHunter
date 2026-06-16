@@ -1038,7 +1038,7 @@ class ColarCalendarioDialog(QDialog):
         try:
             import numpy as np
             from scipy.stats import norm
-            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+            from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
             from matplotlib.figure import Figure
 
             S0 = r.preco_ativo
@@ -1234,7 +1234,7 @@ class ColarCalendarioDialog(QDialog):
     def _plot_historico(self, ativo: str, preco_atual: float = None, n_sessoes: int = 21):
         from PySide6.QtWidgets import QMessageBox
         import numpy as np
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.figure import Figure
         import matplotlib.dates as mdates
         import datetime
@@ -1377,7 +1377,7 @@ class ColarCalendarioDialog(QDialog):
         import re
         import numpy as np
         from scipy.stats import norm
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.figure import Figure
         import traceback
 
