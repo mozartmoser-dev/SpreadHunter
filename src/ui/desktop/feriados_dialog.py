@@ -2,7 +2,8 @@ from datetime import date, datetime
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView, QAbstractItemView,
-    QMessageBox, QLabel, QHeaderView, QComboBox, QProgressBar
+    QMessageBox, QLabel, QHeaderView, QComboBox, QProgressBar, QGroupBox,
+    QFormLayout, QSpinBox, QFrame,
 )
 from PySide6.QtCore import Qt, QAbstractTableModel, QThread, Signal, QSortFilterProxyModel
 from PySide6.QtGui import QFont, QColor, QBrush
@@ -243,6 +244,55 @@ class FeriadosDialog(QDialog):
         header.resizeSection(3, 100)
         layout.addWidget(self.table_view, stretch=1)
 
+        cdi_group = QGroupBox("Calculadora CDI")
+        cdi_group.setStyleSheet(f"""
+            QGroupBox {{
+                color: {Palette.TEXT_PRIMARY}; font-size: 10pt; font-weight: bold;
+                border: 1px solid {Palette.BORDER}; border-radius: 6px;
+                margin-top: 10px; padding-top: 14px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 6px;
+            }}
+        """)
+        cdi_layout = QFormLayout(cdi_group)
+        cdi_layout.setSpacing(4)
+        cdi_layout.setContentsMargins(10, 16, 10, 10)
+
+        self._taxa_cdi = self._ler_taxa_cdi()
+        taxa_label = QLabel(f"<b>{self._taxa_cdi * 100:.2f}% a.a.</b>")
+        taxa_label.setStyleSheet(f"color: {Palette.YELLOW}; font-size: 10pt; font-family: Consolas;")
+        cdi_layout.addRow("Taxa CDI:", taxa_label)
+
+        self.spin_dc = QSpinBox()
+        self.spin_dc.setRange(1, 3650)
+        self.spin_dc.setValue(30)
+        self.spin_dc.setStyleSheet(f"""
+            QSpinBox {{
+                background-color: #1e1e2f; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid {Palette.BORDER}; border-radius: 4px;
+                padding: 2px 6px; font-size: 10pt; font-family: Consolas;
+            }}
+        """)
+        self.spin_dc.valueChanged.connect(self._calcular_cdi)
+        cdi_layout.addRow("Dias Corridos (DC):", self.spin_dc)
+
+        self.lbl_du = QLabel("—")
+        self.lbl_du.setStyleSheet(f"color: {Palette.CYAN}; font-size: 10pt; font-family: Consolas;")
+        cdi_layout.addRow("Dias Úteis (DU):", self.lbl_du)
+
+        self.lbl_cdi_dc = QLabel("—")
+        self.lbl_cdi_dc.setStyleSheet(f"color: {Palette.GREEN}; font-size: 10pt; font-family: Consolas;")
+        cdi_layout.addRow("CDI (DC/365):", self.lbl_cdi_dc)
+
+        self.lbl_cdi_du = QLabel("—")
+        self.lbl_cdi_du.setStyleSheet(f"color: {Palette.GREEN}; font-size: 10pt; font-family: Consolas;")
+        cdi_layout.addRow("CDI (DU/252):", self.lbl_cdi_du)
+
+        layout.addWidget(cdi_group)
+
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(10)
         btn_layout.addStretch()
@@ -252,6 +302,24 @@ class FeriadosDialog(QDialog):
         btn_layout.addWidget(self.btn_fechar)
 
         layout.addLayout(btn_layout)
+
+        self._calcular_cdi()
+
+    def _ler_taxa_cdi(self) -> float:
+        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+        repo = ParametroRepository(self.db_path)
+        p = repo.get_by_chave("taxa_cdi")
+        return p.valor if p else 0.1450
+
+    def _calcular_cdi(self):
+        from src.domain.services.calendario_b3 import dc_to_du_aproximado
+        dc = self.spin_dc.value()
+        du = dc_to_du_aproximado(dc)
+        cdi_du = (1 + self._taxa_cdi) ** (du / 252) - 1
+        cdi_dc = (1 + self._taxa_cdi) ** (dc / 365) - 1
+        self.lbl_du.setText(str(du))
+        self.lbl_cdi_dc.setText(f"{cdi_dc * 100:.4f}%")
+        self.lbl_cdi_du.setText(f"{cdi_du * 100:.4f}%")
 
     def carregar_dados(self):
         from src.infrastructure.persistence.repositories.repositories import FeriadoB3Repository
