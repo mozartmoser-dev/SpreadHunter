@@ -298,7 +298,8 @@ class CalculadoraColarCalendario:
             return None
 
         capital_empregado = preco_compra + premio_put - premio_call
-        risco_max = max(0.0, capital_empregado - min(strike_call, strike_put))
+        capital_base = abs(capital_empregado) if capital_empregado <= 0 else capital_empregado
+        risco_max = max(0.0, capital_empregado - min(strike_call, strike_put)) if capital_empregado > 0 else capital_base
 
         vega_call = self.bs_vega(S_bs_call, strike_call, T_call, r_cont, iv_call)
         vega_put = self.bs_vega(S_bs_put, strike_put, T_put, r_cont, iv_put)
@@ -323,11 +324,11 @@ class CalculadoraColarCalendario:
         custo_ir = self.custos_b3.ajustar_ir(ganho_base)
         pnl_projetado_ir = pnl_projetado_liquido - custo_ir
 
-        pct_retorno = pnl_projetado_liquido / capital_empregado if capital_empregado > 0 else 0
-        pct_retorno_bruto = pnl_projetado / capital_empregado if capital_empregado > 0 else 0
+        pct_retorno = pnl_projetado_liquido / capital_base
+        pct_retorno_bruto = pnl_projetado / capital_base
         pct_cdi_bruto = pct_retorno_bruto / cdi_periodo if cdi_periodo > 0 else 0
         pct_cdi = pct_retorno / cdi_periodo if cdi_periodo > 0 else 0
-        pct_cdi_liquido = (pnl_projetado_ir / capital_empregado) / cdi_periodo if capital_empregado > 0 and cdi_periodo > 0 else 0.0
+        pct_cdi_liquido = (pnl_projetado_ir / capital_base) / cdi_periodo if cdi_periodo > 0 else 0.0
         viavel = pct_cdi_bruto >= self.premio_risco
 
         be_baixa, be_alta = self._calcular_breakevens(

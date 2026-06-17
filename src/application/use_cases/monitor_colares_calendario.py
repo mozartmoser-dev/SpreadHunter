@@ -161,7 +161,10 @@ class MonitorColaresCalendarioUseCase:
 
             qul_min_put = params.get("qul_min_put", 100)
             qul_min_call = params.get("qul_min_call", 100)
-            if (qul_put > 0 or qul_call > 0) and (qul_put < qul_min_put or qul_call < qul_min_call):
+            if qul_put <= 0 and qul_call <= 0:
+                stats["sem_qul"] += 1
+                continue
+            if (qul_put > 0 and qul_put < qul_min_put) or (qul_call > 0 and qul_call < qul_min_call):
                 stats["sem_qul"] += 1
                 continue
 
@@ -327,7 +330,8 @@ class MonitorColaresCalendarioUseCase:
 
         raw = []
         for r in resultados:
-            credito_ratio = max(0, r.net_credito / r.capital_empregado) if r.capital_empregado > 0 else 0.0
+            cap_base = abs(r.capital_empregado) if r.capital_empregado <= 0 else r.capital_empregado
+            credito_ratio = max(0, r.net_credito / cap_base) if cap_base > 0 else 0.0
             raw.append({
                 "theta": abs(r.theta_liquido),
                 "cdi": r.pct_cdi,

@@ -399,8 +399,17 @@ class MercadoDataProvider:
 
                 dados_mercado: dict[str, dict] = {}
                 sem_ativo_atual: dict[str, int] = {}
+                t_onda2_detalhes = 0.0
+                t_onda1_basico = 0.0
+                t_cab_cache = 0.0
+                t_status = 0.0
+                count_onda2 = 0
+                count_onda1 = 0
+                count_cab_skip = 0
 
+                t_inst_map = time.perf_counter()
                 inst_map = self.inst_repo.get_all_mapped()
+                t_inst_map = time.perf_counter() - t_inst_map
 
                 for key in list(self._chaves_com_book):
                     inst = inst_map.get(key)
@@ -408,12 +417,14 @@ class MercadoDataProvider:
                         continue
 
                     if key in self._chaves_detalhes_completos:
+                        t0_onda2 = time.perf_counter()
                         cab_put = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
                         cab_call = self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
                         cab_prev = self._cab_anterior.get(key)
                         cab_mudou = cab_prev is None or cab_prev[0] != cab_put or cab_prev[1] != cab_call
 
                         if not cab_mudou and key in self._dados_cache:
+                            t0_status = time.perf_counter()
                             entry = self._dados_cache[key]
                             entry["status_put"] = self.rtd.ler_status_cache(inst.cod_put)
                             entry["status_call"] = self.rtd.ler_status_cache(inst.cod_call)
@@ -423,7 +434,9 @@ class MercadoDataProvider:
                                 and entry["status_call"].lower() == "aberto"
                                 and entry["status_ativo"].lower() == "aberto"
                             )
+                            t_status += time.perf_counter() - t0_status
                             dados_mercado[key] = entry
+                            count_cab_skip += 1
                             continue
 
                         self._cab_anterior[key] = (cab_put, cab_call)
@@ -445,9 +458,12 @@ class MercadoDataProvider:
                             self._dados_cache[key] = entry
                         else:
                             self._dados_cache.pop(key, None)
+                        t_onda2_detalhes += time.perf_counter() - t0_onda2
+                        count_onda2 += 1
                         continue
 
                     # Onda 1: dados basicos para collars (strike + OCP/OVD)
+                    t0_onda1 = time.perf_counter()
                     strike_put = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_STRIKE)
                     if not strike_put or strike_put <= 0:
                         strike_put = self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_STRIKE)
@@ -480,6 +496,8 @@ class MercadoDataProvider:
                         "status_ativo": self.rtd.ler_status_cache(inst.ativo) or "aberto",
                     }
                     dados_mercado[key] = entry
+                    t_onda1_basico += time.perf_counter() - t0_onda1
+                    count_onda1 += 1
 
                 t_varredura = time.perf_counter() - t_scan0
                 self._sem_ativo_skip = sem_ativo_atual
@@ -489,9 +507,19 @@ class MercadoDataProvider:
                 else:
                     self._ciclos_sem_dados += 1
                 t_total = time.perf_counter() - t0 - t_registro
-                logger.info("Varredura: %d monitored, %d with book | registro=%.3fs refresh=%.3fs scan=%.3fs total=%.3fs",
-                             len(self._chaves_registradas), len(dados_mercado),
-                             t_registro, t_refresh, t_varredura, t_total)
+                logger.info(
+                    "Varredura(%s): monitor=%d book=%d | "
+                    "reg=%.3f ref=%.3f var=%.3f total=%.3f | "
+                    "inst_map=%.3f | "
+                    "onda2=%d(%.3f) onda1=%d(%.3f) cab_skip=%d status=%.3f",
+                    "G" if (self._scan_count % 10 == 0) else "F",
+                    len(self._chaves_registradas), len(dados_mercado),
+                    t_registro, t_refresh, t_varredura, t_total,
+                    t_inst_map,
+                    count_onda2, t_onda2_detalhes,
+                    count_onda1, t_onda1_basico,
+                    count_cab_skip, t_status,
+                )
                 return dados_mercado
             except Exception as e:
                 logger.error("capturar_dados_mercado: erro inesperado: %s", e, exc_info=True)

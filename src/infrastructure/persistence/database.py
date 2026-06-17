@@ -1,3 +1,4 @@
+import hashlib
 import sqlite3
 import threading
 from pathlib import Path
@@ -13,7 +14,7 @@ def get_db_path() -> Path:
 
 def get_connection(db_path: Path | str | None = None) -> sqlite3.Connection:
     path = Path(db_path) if db_path else get_db_path()
-    local_key = str(path)
+    local_key = "db_" + hashlib.md5(str(path).encode()).hexdigest()[:8]
     if hasattr(_db_local, local_key):
         conn = getattr(_db_local, local_key)
         try:

@@ -432,6 +432,7 @@ class MPPUseCase:
             return None
         t = dias_uteis / 252.0
         r = cdi
+        r_cont = math.log(1 + r) if r > 0 else 0.0
 
         call_k1_mid = (k1["bid_call"] + k1["ask_call"]) / 2
         put_k1_mid  = (k1["bid_put"]  + k1["ask_put"])  / 2
@@ -441,12 +442,12 @@ class MPPUseCase:
         call_k1, put_k1 = k1["bid_call"], k1["ask_put"]
         call_k2, put_k2 = k2["ask_call"], k2["bid_put"]
 
-        paridade_k1 = spot - k1["strike"] * math.exp(-r * t)
+        paridade_k1 = spot - k1["strike"] * math.exp(-r_cont * t)
         erro_k1 = abs((call_k1_mid - put_k1_mid) - paridade_k1)
         spread_k1 = (k1["ask_call"] - k1["bid_call"]) + (k1["ask_put"] - k1["bid_put"])
         erro_k1_pct = erro_k1 / max(spread_k1, 0.01)
 
-        paridade_k2 = spot - k2["strike"] * math.exp(-r * t)
+        paridade_k2 = spot - k2["strike"] * math.exp(-r_cont * t)
         erro_k2 = abs((call_k2_mid - put_k2_mid) - paridade_k2)
         spread_k2 = (k2["ask_call"] - k2["bid_call"]) + (k2["ask_put"] - k2["bid_put"])
         erro_k2_pct = erro_k2 / max(spread_k2, 0.01)
@@ -454,7 +455,7 @@ class MPPUseCase:
         erro_box = max(erro_k1_pct, erro_k2_pct)
         fator_premio = self._calcular_fator_premio_cdi(
             k1["bid_call"], k1["ask_put"], k2["ask_call"], k2["bid_put"],
-            spot, k1["strike"], k2["strike"], r, t
+            spot, k1["strike"], k2["strike"], r, r_cont, t
         )
         normalizador_paridade = self._get_param("mpp_paridade_normalizador", 0.10)
         if normalizador_paridade <= 0:
@@ -593,10 +594,10 @@ class MPPUseCase:
         return 1.0
 
     def _calcular_fator_premio_cdi(self, call_k1, put_k1, call_k2, put_k2,
-                                    spot, k1, k2, r, t) -> float:
+                                    spot, k1, k2, r, r_cont, t) -> float:
         premio_risco = self._get_param("box_premio_risco", 1.08)
         box_valor = (call_k1 - put_k1) - (call_k2 - put_k2)
-        box_teorico = (k2 - k1) * math.exp(-r * t)
+        box_teorico = (k2 - k1) * math.exp(-r_cont * t)
         premio_abs = box_teorico - box_valor
         if premio_abs <= 0:
             return 0.0
