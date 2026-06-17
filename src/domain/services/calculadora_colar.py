@@ -157,7 +157,7 @@ class CalculadoraColar:
         return TipoColar.TRADICIONAL
 
     def calcular_pior_retorno(self, custo_liquido: float, strike_put: float, strike_call: float) -> float:
-        return min(strike_put, strike_call) - custo_liquido
+        return strike_put - custo_liquido
 
     def calcular_risco_leilao(self, vov_put: float, voc_call: float, status_put: str, status_call: str) -> RiscoLeilao:
         if status_put != "Aberto" or status_call != "Aberto":
@@ -210,7 +210,7 @@ class CalculadoraColar:
             return None
 
         pior_retorno = self.calcular_pior_retorno(custo_liquido, strike_put, strike_call)
-        melhor_retorno = max(strike_put, strike_call) - custo_liquido
+        melhor_retorno = strike_call - custo_liquido
 
         premio_medio = (premio_put + premio_call) / 2
         custo_b3 = (self.custos_b3.custos_opcao(premio_medio, n_pernas=2) +
@@ -237,16 +237,9 @@ class CalculadoraColar:
         iv_call = self.calcular_iv(preco_ativo, strike_call, T, r, premio_call, 'call')
         iv_put = self.calcular_iv(preco_ativo, strike_put, T, r, premio_put, 'put')
         pop_upside = pop_downside = None
-        if iv_call is not None and iv_put is not None:
-            sigma_medio = (iv_call + iv_put) / 2
-            if sigma_medio > 0:
-                pop_upside = self.calcular_probabilidade_upside(preco_ativo, strike_call, T, r, sigma_medio)
-                pop_downside = self.calcular_probabilidade_downside(preco_ativo, strike_put, T, r, sigma_medio)
-        elif iv_call is not None and iv_call > 0:
+        if iv_call is not None and iv_call > 0:
             pop_upside = self.calcular_probabilidade_upside(preco_ativo, strike_call, T, r, iv_call)
-            pop_downside = self.calcular_probabilidade_downside(preco_ativo, strike_put, T, r, iv_call)
-        elif iv_put is not None and iv_put > 0:
-            pop_upside = self.calcular_probabilidade_upside(preco_ativo, strike_call, T, r, iv_put)
+        if iv_put is not None and iv_put > 0:
             pop_downside = self.calcular_probabilidade_downside(preco_ativo, strike_put, T, r, iv_put)
 
         return ResultadoColar(

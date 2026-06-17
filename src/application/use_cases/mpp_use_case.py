@@ -664,13 +664,12 @@ class MPPUseCase:
                     "INSERT INTO mpp_spread_history (codigo, spread_pct) VALUES (?, ?)",
                     inserts
                 )
-                placeholders = ",".join("?" * len(codigos_atuais))
-                conn.execute(
-                    f"DELETE FROM mpp_spread_history WHERE codigo IN ({placeholders}) AND id NOT IN ("
-                    f"SELECT id FROM mpp_spread_history WHERE codigo = mpp_spread_history.codigo "
-                    f"ORDER BY created_at DESC LIMIT ?)",
-                    list(codigos_atuais) + [hist_len]
-                )
+                for codigo in codigos_atuais:
+                    conn.execute(
+                        "DELETE FROM mpp_spread_history WHERE codigo = ? AND id NOT IN ("
+                        "SELECT id FROM mpp_spread_history WHERE codigo = ? ORDER BY created_at DESC LIMIT ?)",
+                        (codigo, codigo, hist_len)
+                    )
                 conn.commit()
             finally:
                 conn.close()
