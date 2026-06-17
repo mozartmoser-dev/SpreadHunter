@@ -811,9 +811,9 @@ class MPPUseCase:
         if box.score_final_pct < self.SNAPSHOT_THRESHOLD:
             return
         chave = f"{box.ativo}_{box.strike1}_{box.strike2}"
-        count = self._snapshot_counter.get(chave, 0)
-        if count % self.SNAPSHOT_INTERVAL != 0:
-            self._snapshot_counter[chave] = count + 1
+        count = self._snapshot_counter.get(chave, 0) + 1
+        if count < self.SNAPSHOT_INTERVAL:
+            self._snapshot_counter[chave] = count
             return
         self._snapshot_counter[chave] = 0
 

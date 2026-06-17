@@ -54,7 +54,10 @@ def dc_to_du_aproximado(dias_corridos: int) -> int:
 def dc_to_du_exato(data_inicio: date, data_fim: date) -> int:
     if data_inicio >= data_fim:
         return 0
-    return int(np.busday_count(data_inicio, data_fim, busdaycal=_B3_CALENDAR))
+    try:
+        return int(np.busday_count(data_inicio, data_fim, busdaycal=_B3_CALENDAR))
+    except ValueError:
+        return dc_to_du_aproximado((data_fim - data_inicio).days)
 
 
 def dc_to_du_vetorizado(data_inicio: date, vencimentos: np.ndarray) -> np.ndarray:
@@ -62,7 +65,10 @@ def dc_to_du_vetorizado(data_inicio: date, vencimentos: np.ndarray) -> np.ndarra
         return np.array([], dtype=int)
     datas_fim = np.array(vencimentos, dtype="datetime64[D]")
     datas_ini = np.full(len(vencimentos), np.datetime64(data_inicio, "D"))
-    du = np.busday_count(datas_ini, datas_fim, busdaycal=B3_CALENDAR)
+    try:
+        du = np.busday_count(datas_ini, datas_fim, busdaycal=B3_CALENDAR)
+    except ValueError:
+        return np.zeros(len(vencimentos), dtype=int)
     return np.maximum(du, 0)
 
 
