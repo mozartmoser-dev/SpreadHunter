@@ -83,3 +83,20 @@ src/
 - Repositórios: `get_by_chave()`, `save()`, `delete_all()`
 - Thread safety: `threading.Lock` em caches de repositório
 - Diálogos: `setup_ui()`, `atualizar_resultados()`
+
+## Histórico de Sessões
+
+### 17/06/2026 — 11 correções do novaavaliacao.md
+- **BUG-002**: Filtro liquidez calendário (rejeita QUL≤0 em ambas pernas)
+- **FIN-006**: Taxa contínua `log(1+r)` na paridade MPP
+- **BUG-007**: `threading.local` usa hash md5 do path
+- **FIN-003**: capital_empregado negativo não zera retornos (`abs()`)
+- **FIN-001+BUG-001**: Pior retorno = strike_put, melhor = strike_call
+- **BUG-004**: DELETE SQL com loop por código (correlated subquery não funciona no SQLite)
+- **BUG-008**: pop_upside usa iv_call, pop_downside usa iv_put
+- **BUG-009**: Score normaliza apenas viáveis
+- **BUG-010**: `if be_baixa` → `is not None`
+- Crash fim de semana: try/except no `np.busday_count`
+- Snapshot MPP: contador agora incrementa corretamente (salva a cada 10 ciclos)
+- **Box 4P**: `lucro = clr - distancia` é short box, fórmula correta
+- **159/159 testes**

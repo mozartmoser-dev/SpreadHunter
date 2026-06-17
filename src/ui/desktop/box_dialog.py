@@ -595,7 +595,7 @@ class BoxDialog(QDialog):
             }}
             QPushButton:hover {{ background-color: #3d3d55; }}
         """)
-        btn_pnt.clicked.connect(lambda: self._copiar_basket_box(r))
+        btn_pnt.clicked.connect(lambda: self._abrir_boleta_box(r))
         btn_row.addWidget(btn_pnt)
 
         btn_row.addStretch()
@@ -609,22 +609,10 @@ class BoxDialog(QDialog):
         layout.addLayout(btn_row)
         dialog.exec_()
 
-    def _copiar_basket_box(self, r):
-        from src.ui.desktop.pnt_utils import copiar_basket_pnt, fmt_br
-        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
-        from src.infrastructure.persistence.database import get_db_path
-        repo = ParametroRepository(get_db_path())
-        p = repo.get_by_chave("box_qtd_put")
-        qtd_put = int(p.valor) if p else 1000
-        c = repo.get_by_chave("box_qtd_call")
-        qtd_call = int(c.valor) if c else 1000
-        linhas = [
-            f"{r.cod_put_k1}\tC\t{qtd_put}\t{fmt_br(r.ask_put_k1 * qtd_put)}",
-            f"{r.cod_put_k2}\tV\t{qtd_put}\t{fmt_br(r.bid_put_k2 * qtd_put)}",
-            f"{r.cod_call_k1}\tV\t{qtd_call}\t{fmt_br(r.bid_call_k1 * qtd_call)}",
-            f"{r.cod_call_k2}\tC\t{qtd_call}\t{fmt_br(r.ask_call_k2 * qtd_call)}",
-        ]
-        copiar_basket_pnt(linhas)
+    def _abrir_boleta_box(self, r):
+        from src.ui.desktop.boleta_dialog import BoletaDialog
+        dlg = BoletaDialog("BOX 4P", r, self._db_path, self)
+        dlg.exec_()
 
     def closeEvent(self, event):
         self.parar_scan_signal.emit()

@@ -44,7 +44,7 @@ def run_app(db_path=None):
     window = MainWindow(db_path)
     window.show()
 
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

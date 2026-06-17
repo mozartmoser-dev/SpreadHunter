@@ -903,7 +903,7 @@ class ColarCalendarioDialog(QDialog):
             }}
             QPushButton:hover {{ background-color: #3d3d55; }}
         """)
-        btn_pnt.clicked.connect(lambda: self._copiar_basket_calendario(r))
+        btn_pnt.clicked.connect(lambda: self._abrir_boleta_calendario(r))
         btn_row.addWidget(btn_pnt)
 
         btn_export = QPushButton("📋 Exportar Debug")
@@ -929,23 +929,10 @@ class ColarCalendarioDialog(QDialog):
         layout.addLayout(btn_row)
         dialog.exec_()
 
-    def _copiar_basket_calendario(self, r):
-        from src.ui.desktop.pnt_utils import copiar_basket_pnt, fmt_br
-        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
-        from src.infrastructure.persistence.database import get_db_path
-        repo = ParametroRepository(get_db_path())
-        p = repo.get_by_chave("calendario_qtd_ativo")
-        qtd_ativo = int(p.valor) if p else 100
-        p = repo.get_by_chave("calendario_qtd_call")
-        qtd_call = int(p.valor) if p else 100
-        p = repo.get_by_chave("calendario_qtd_put")
-        qtd_put = int(p.valor) if p else 100
-        linhas = [
-            f"{r.ativo}\tC\t{qtd_ativo}\t{fmt_br(r.preco_compra * qtd_ativo)}",
-            f"{r.cod_call}\tV\t{qtd_call}\t{fmt_br(r.premio_call * qtd_call)}",
-            f"{r.cod_put}\tC\t{qtd_put}\t{fmt_br(r.premio_put * qtd_put)}",
-        ]
-        copiar_basket_pnt(linhas)
+    def _abrir_boleta_calendario(self, r):
+        from src.ui.desktop.boleta_dialog import BoletaDialog
+        dlg = BoletaDialog("COLLAR CALENDARIO", r, self._db_path, self)
+        dlg.exec_()
 
     def _exportar_debug(self, r):
         from PySide6.QtWidgets import QApplication, QMessageBox

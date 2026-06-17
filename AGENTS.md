@@ -213,3 +213,30 @@ Python 3.11.0 ainda presente em `C:\Users\Mozart\AppData\Local\Programs\Python\P
 ## Horário do Mercado
 
 B3 — Segunda a Sexta, **10:00 às 17:00** (horário de Brasília). Fora desse horário não há dados RTD do Profit, então scans não retornam oportunidades.
+
+---
+
+## Sessão 17/06/2026 — Correções do novaavaliacao.md (11 itens)
+
+### Fixes aplicados
+
+| # | Item | Arquivo | Mudança |
+|---|------|---------|---------|
+| 1 | BUG-002 | `monitor_colares_calendario.py:164` | Filtro de liquidez: rejeita se QUL≤0 em ambas pernas |
+| 2 | FIN-006 | `mpp_use_case.py:432,596` | `r_cont = log(1+r)` na paridade contínua; `_calcular_fator_premio_cdi` aceita `r_cont` |
+| 3 | BUG-007 | `database.py:16` | `threading.local` usa `hashlib.md5` do path (evita `AttributeError` com `\` e `:`) |
+| 4 | FIN-003 | `calculadora_colar_calendario.py:300-331` | `capital_base = abs(capital)` p/ denominador; `risco_max` não zera; `credito_ratio` no monitor |
+| 5 | FIN-001+BUG-001 | `calculadora_colar.py:160,213` | Pior retorno = sempre `strike_put`; melhor = sempre `strike_call` |
+| 6 | BUG-004 | `mpp_use_case.py:667-673` | DELETE loop por código (correlated subquery não funciona no SQLite) |
+| 7 | BUG-008 | `calculadora_colar.py:240-250` | `pop_upside` usa `iv_call`, `pop_downside` usa `iv_put` (sem `sigma_medio`) |
+| 8 | BUG-009 | `monitor_colares.py:295-321` | Score normaliza apenas viáveis; `max_cdi` não poluído por inviáveis |
+| 9 | BUG-010 | `calculadora_colar_calendario.py:197,225` | `if be_baixa` → `if be_baixa is not None` (evita falso None se 0.0) |
+| 10 | — | `calendario_b3.py:57,65` | `np.busday_count` encapsulado em try/except p/ datas não-úteis (crash fim de semana) |
+| 11 | — | `mpp_use_case.py:814-818` | Snapshot counter inicia em 1 e só salva a cada `SNAPSHOT_INTERVAL` ciclos |
+
+### Observações importantes p/ sessões futuras
+
+- **Box 4P (`calculadora_box.py:87`)**: fórmula `lucro = clr - distancia` está **correta** — é um short box. Não inverter.
+- **Performance**: várias escolhas de design são intencionais (conexões abrindo/fechando, O(n²) em listas pequenas, `except Exception: pass` em não-críticos). Não "corrigir" sem confirmar.
+- **Testes**: 159/159 passando em todas as batidas.
+- **Stack atual**: Python 3.13.14, PySide6 6.11.1, numpy 2.4.6, scipy 1.17.1, matplotlib 3.11.0.

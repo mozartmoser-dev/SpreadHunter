@@ -301,10 +301,13 @@ class MonitorColaresUseCase:
                     "risco": _risco_norm(r),
                 })
 
+            if not raw:
+                return [r for r in resultados if r.viavel]
+
             max_pop = max(x["pop"] for x in raw) or 1.0
             max_cdi = max(x["cdi"] for x in raw) or 1.0
 
-            for r, d in zip(resultados, raw):
+            for r, d in zip(viaveis, raw):
                 pop_norm = d["pop"] / max_pop
                 cdi_norm = d["cdi"] / max_cdi
                 risco_norm = d["risco"]
