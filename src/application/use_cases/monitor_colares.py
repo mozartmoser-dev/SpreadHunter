@@ -292,8 +292,9 @@ class MonitorColaresUseCase:
                 pd = r.pop_downside if r.pop_downside is not None else 0
                 return 100 - abs(pu - pd)
 
+            viaveis = [r for r in resultados if r.viavel]
             raw = []
-            for r in resultados:
+            for r in viaveis:
                 raw.append({
                     "pop": _pop_balance(r),
                     "cdi": r.pct_cdi,

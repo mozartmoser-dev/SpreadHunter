@@ -194,7 +194,8 @@ class CalculadoraColarCalendario:
                 be_alta = brentq(_f, Kc, x_max)
             except (ValueError, RuntimeError):
                 pass
-        return round(be_baixa, 2) if be_baixa else None, round(be_alta, 2) if be_alta else None
+        return (round(be_baixa, 2) if be_baixa is not None else None,
+                round(be_alta, 2) if be_alta is not None else None)
 
     def _calcular_breakevens_intrinseco(
         self, S0: float, Kc: float, Kp: float,
@@ -222,7 +223,8 @@ class CalculadoraColarCalendario:
                 be_alta = brentq(_pnl_intrinseco, Kc, x_max)
             except (ValueError, RuntimeError):
                 pass
-        return round(be_baixa, 2) if be_baixa else None, round(be_alta, 2) if be_alta else None
+        return (round(be_baixa, 2) if be_baixa is not None else None,
+                round(be_alta, 2) if be_alta is not None else None)
 
     def calcular(
         self,
