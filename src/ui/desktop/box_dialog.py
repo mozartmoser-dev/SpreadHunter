@@ -559,14 +559,11 @@ class BoxDialog(QDialog):
         val.setStyleSheet(value_style)
         form.addRow(lbl, val)
 
+        paga_cdi = r.pct_cdi_liquido >= 1.0
         lbl = QLabel("Status:")
         lbl.setStyleSheet(label_style)
-        if r.viavel:
-            txt = "✅ VIÁVEL (paga CDI+)"
-            cor = Palette.GREEN
-        else:
-            txt = "❌ Abaixo do CDI ou sem profundidade"
-            cor = Palette.RED
+        txt = "✅ Paga o CDI+" if paga_cdi else "❌ Paga abaixo do CDI"
+        cor = Palette.GREEN if paga_cdi else Palette.RED
         val = QLabel(txt)
         val.setStyleSheet(f"color: {cor}; font-size: 10pt; font-weight: bold;")
         form.addRow(lbl, val)

@@ -155,7 +155,7 @@ class MonitorTableModel(QAbstractTableModel):
         if col_key == "custo_box_display":
             return opp.custo_box_display
         if col_key == "ganho_display":
-            if opp.classificacao in ("1BOX", "3BOXSBTH"):
+            if opp.classificacao == "1BOX":
                 return "{:.2f}%".format(opp.pct_ganho_box * 100)
             if opp.classificacao == "2SBTH":
                 return "{:.2f}%".format(opp.pct_ganho_sbth * 100)

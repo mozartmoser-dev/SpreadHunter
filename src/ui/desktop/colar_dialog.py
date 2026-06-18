@@ -926,11 +926,13 @@ class ColarDialog(QDialog):
         val.setStyleSheet(value_style)
         form.addRow(lbl, val)
 
-        val_color = Palette.GREEN if r.pct_cdi_liquido >= 1.0 else Palette.RED
+        paga_cdi = r.pct_cdi_liquido >= 1.0
         lbl = QLabel("Status:")
         lbl.setStyleSheet(label_style)
-        val = QLabel(f"{'✅ VIÁVEL (paga CDI+)' if r.viavel else '❌ Abaixo do CDI'}")
-        val.setStyleSheet(f"color: {val_color}; font-size: 10pt; font-weight: bold;")
+        txt = "✅ Paga o CDI+" if paga_cdi else "❌ Paga abaixo do CDI"
+        cor = Palette.GREEN if paga_cdi else Palette.RED
+        val = QLabel(txt)
+        val.setStyleSheet(f"color: {cor}; font-size: 10pt; font-weight: bold;")
         form.addRow(lbl, val)
 
         lbl = QLabel("Risco de Leilão:")

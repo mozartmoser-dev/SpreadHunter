@@ -1,6 +1,7 @@
 import json
 import threading
 from datetime import date, datetime
+from pathlib import Path
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOpcao
 from src.domain.entities.oportunidade import Oportunidade, ClassificacaoOp
@@ -148,16 +149,21 @@ class InstrumentoRepository:
 
 
 class ParametroRepository:
-    _cache = None
-    _lock = threading.Lock()
+    _caches: dict[str, dict] = {}
+    _locks: dict[str, threading.Lock] = {}
+    _dict_lock = threading.Lock()
 
     def __init__(self, db_path=None):
         self.db_path = db_path
 
-    @classmethod
-    def invalidate_cache(cls):
-        with cls._lock:
-            cls._cache = None
+    def _cache_key(self) -> str:
+        return str(Path(self.db_path).resolve()) if self.db_path else "default"
+
+    def invalidate_cache(self):
+        key = self._cache_key()
+        with self._dict_lock:
+            self._caches.pop(key, None)
+            self._locks.pop(key, None)
 
     def save(self, param: ParametroOperacional) -> ParametroOperacional:
         self.invalidate_cache()
@@ -176,12 +182,20 @@ class ParametroRepository:
             conn.close()
 
     def get_by_chave(self, chave: str) -> ParametroOperacional | None:
-        with self.__class__._lock:
-            if self.__class__._cache is None:
-                self._fill_cache()
-            return self.__class__._cache.get(chave)
+        key = self._cache_key()
+        with self._dict_lock:
+            if key not in self._locks:
+                self._locks[key] = threading.Lock()
+            lock = self._locks[key]
+        with lock:
+            cache = self._caches.get(key)
+            if cache is None:
+                cache = self._fill_cache()
+                with self._dict_lock:
+                    self._caches[key] = cache
+            return cache.get(chave)
 
-    def _fill_cache(self):
+    def _fill_cache(self) -> dict:
         conn = get_connection(self.db_path)
         try:
             rows = conn.execute("SELECT * FROM parametros_operacionais").fetchall()
@@ -196,15 +210,23 @@ class ParametroRepository:
                     id=row["id"], chave=row["chave"], valor=valor,
                     estrategia=row["estrategia"], descricao=row["descricao"]
                 )
-            self.__class__._cache = cache
+            return cache
         finally:
             conn.close()
 
     def get_by_estrategia(self, estrategia: str) -> list[ParametroOperacional]:
-        with self.__class__._lock:
-            if self.__class__._cache is None:
-                self._fill_cache()
-            return [p for p in self.__class__._cache.values() if p.estrategia == estrategia]
+        key = self._cache_key()
+        with self._dict_lock:
+            if key not in self._locks:
+                self._locks[key] = threading.Lock()
+            lock = self._locks[key]
+        with lock:
+            cache = self._caches.get(key)
+            if cache is None:
+                cache = self._fill_cache()
+                with self._dict_lock:
+                    self._caches[key] = cache
+            return [p for p in cache.values() if p.estrategia == estrategia]
 
     def seed_defaults(self) -> None:
         self.invalidate_cache()

@@ -10,6 +10,7 @@ from src.infrastructure.persistence.database import get_db_path
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 from src.ui.desktop.theme import Palette
 from src.ui.desktop.pnt_utils import copiar_basket_pnt, fmt_br
+from src.infrastructure.integrations.pnt import executar_automacao_pnt
 
 OBSERVACAO = "Spreadhunter"
 QTD_APREGoada = 100
@@ -139,6 +140,19 @@ class BoletaDialog(QDialog):
         """)
         btn_copiar.clicked.connect(self._copiar)
         btn_row.addWidget(btn_copiar)
+
+        btn_montar = QPushButton("Monta no PNT")
+        btn_montar.setAutoDefault(False)
+        btn_montar.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #1a3d1a; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid #2d5a2d; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #2a5a2a; }}
+        """)
+        btn_montar.clicked.connect(self._montar_pnt)
+        btn_row.addWidget(btn_montar)
 
         self.chk_acumular = QCheckBox("Acumular baskets")
         self.chk_acumular.setStyleSheet(f"""
@@ -311,6 +325,11 @@ class BoletaDialog(QDialog):
         msg.setStandardButtons(QMessageBox.StandardButton.Ok)
         QTimer.singleShot(3000, msg.close)
         msg.exec_()
+
+    def _montar_pnt(self):
+        linha = self._montar_linha()
+        copiar_basket_pnt([linha])
+        executar_automacao_pnt()
 
     def _on_acumular_toggled(self, checked: bool):
         if not checked:

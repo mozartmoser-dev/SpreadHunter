@@ -151,13 +151,13 @@ class ColarCalTableModel(QAbstractTableModel):
             val = item.get(col_key)
             if val is None:
                 return "-"
-                if col_key in ("preco_ativo", "strike_call", "strike_put", "premio_call",
-                               "premio_put", "net_credito", "valor_put_venc_call",
-                               "pnl_projetado", "pnl_b3", "pnl_liquido",
-                               "capital_empregado", "risco_max"):
-                    return f"R$ {val:.2f}"
-                if col_key in ("score", "score_iv"):
-                    return f"{val:.2f}"
+            if col_key in ("preco_ativo", "strike_call", "strike_put", "premio_call",
+                           "premio_put", "net_credito", "valor_put_venc_call",
+                           "pnl_projetado", "pnl_b3", "pnl_liquido",
+                           "capital_empregado", "risco_max"):
+                return f"R$ {val:.2f}"
+            if col_key in ("score", "score_iv"):
+                return f"{val:.2f}"
             if col_key in ("pct_cdi",):
                 return f"{val:.2f}x"
             if col_key in ("iv_call", "iv_put"):

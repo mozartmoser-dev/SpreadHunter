@@ -105,7 +105,7 @@ class MppTableModel(QAbstractTableModel):
                 "score": f"{b.score_final_pct:.0f}",
                 "nivel": nivel,
                 "isca": m.isca_recomendada if m else "",
-                "ip": f"{m.ip_isca:.0f}" if m else "",
+                "ip": f"{m.ip_isca * 100:.0f}" if m else "",
                 "lote": str(m.lote_sugerido) if m else "",
                 "confianca": f"{m.confianca_completar:.0%}" if m else "",
                 "persistencia": f"{b.persistencia_ciclos}c" if b.persistencia_ciclos > 0 else "",

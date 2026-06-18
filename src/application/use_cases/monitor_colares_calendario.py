@@ -310,6 +310,10 @@ class MonitorColaresCalendarioUseCase:
             logger.warning("CollarCal STATS: %s", stats)
             return []
 
+        resultados = [r for r in resultados if r.viavel]
+        if not resultados:
+            return []
+
         # ── Score de Ranking (ordenacao multicriterio) ──
         peso_theta = self._get_param("ranking_peso_theta", 3.0)
         peso_cdi = self._get_param("ranking_peso_cdi", 2.0)
@@ -406,4 +410,4 @@ class MonitorColaresCalendarioUseCase:
         resultados.sort(key=lambda r: -r.score)
         logger.warning("CollarCal STATS: %s", stats)
         logger.warning("CollarCal TOTAL: %d viaveis em %d ativos", len(resultados), len(set(r.ativo for r in resultados)))
-        return [r for r in resultados if r.viavel]
+        return resultados
