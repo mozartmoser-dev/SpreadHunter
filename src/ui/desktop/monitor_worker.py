@@ -47,7 +47,7 @@ class MonitorWorker(QThread):
         self._monitor_box_uc = MonitorBoxUseCase(db_path, self._monitor_mpp_uc)
         self._running = False
         self._paused = False
-        self._interval_ms = 2500
+        self._interval_ms = 3000
         self._mostrar_tp_op = False
         self._colar_cycle = 0
         self._colar_interval = 10
@@ -443,22 +443,42 @@ class MonitorWorker(QThread):
         self._mpp_interval_cache = None
 
     def _verificar_e_forcar_refresh_ex_dividendo(self):
-        """Nível 2: Verifica ativos ex-dividendo do dia e força refresh RTD."""
+        """Nível 2: Verifica ativos ex-dividendo (janela lookback).
+        Marca ativos p/ forcar leitura one-shot do strike na Wave 1,
+        e tambem força refresh RTD para ativos ex-hoje."""
         try:
-            from src.infrastructure.persistence.repositories.repositories import DividendoRepository
-            from datetime import date
+            from src.infrastructure.persistence.repositories.repositories import (
+                DividendoRepository, ParametroRepository,
+            )
+            from datetime import date, timedelta
 
             div_repo = DividendoRepository(self.db_path)
-            divs_hoje = div_repo.get_ex_hoje()
 
-            if divs_hoje:
-                ativos_ex = list(set(d["ativo"] for d in divs_hoje))
-                self.status_message.emit(
-                    f"⚠️ Dia ex de dividendo: {', '.join(ativos_ex)} — Forcando refresh RTD..."
-                )
-                self._mercado_provider.forcar_refresh_ex_dividendo(ativos_ex)
-                self.status_message.emit("Refresh RTD ex-dividendo concluído.")
+            param_repo = ParametroRepository(self.db_path)
+            p_lookback = param_repo.get_by_chave("ex_dividendo_lookback_dias")
+            lookback = int(float(p_lookback.valor)) if p_lookback else 5
+            inicio = (date.today() - timedelta(days=lookback * 2)).isoformat()
+            fim = date.today().isoformat()
+
+            divs = div_repo.get_ex_range(inicio, fim)
+
+            if divs:
+                ativos_ex = list(set(d["ativo"] for d in divs))
+                # Marca para forcar leitura one-shot do strike na Wave 1
+                self._mercado_provider.marcar_ativos_ex_recentes(ativos_ex)
+                hoje_str = date.today().isoformat()
+                divs_hoje = [d for d in divs if d.get("data_ex") == hoje_str]
+                if divs_hoje:
+                    self.status_message.emit(
+                        f"⚠️ Dia ex de dividendo: {', '.join(set(d['ativo'] for d in divs_hoje))} — Forcando refresh RTD..."
+                    )
+                    self._mercado_provider.forcar_refresh_ex_dividendo(ativos_ex)
+                    self.status_message.emit("Refresh RTD ex-dividendo concluído.")
+                else:
+                    self.status_message.emit(
+                        f"ℹ️ Ex-dividendo recente ({', '.join(ativos_ex)}) — Strike forcado na Wave 1."
+                    )
             else:
-                logger.info("Nenhum ativo ex-dividendo detectado hoje.")
+                logger.info("Nenhum ativo ex-dividendo detectado na janela de %d dias.", lookback)
         except Exception as e:
             logger.warning("Erro ao verificar ex-dividendo: %s", e)

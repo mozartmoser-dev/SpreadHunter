@@ -221,6 +221,26 @@ class RTDProfit:
         except Exception:
             return None
 
+    def forcar_leitura(self, codigo: str, campo: str) -> Optional[float]:
+        """Leitura one-shot (ConnectData False) que força o servidor RTD
+        a buscar o valor na fonte, sem usar cache interno do servidor.
+        Atualiza o cache local com o valor obtido."""
+        if not self.disponivel or self._rtd is None:
+            return None
+        try:
+            topico = rtd_topico(codigo)
+            tid = self._topic_id(codigo, campo)
+            resultado = self._rtd.ConnectData(tid, [topico, campo], False)
+            valor = resultado[0] if isinstance(resultado, tuple) else resultado
+            if valor is not None:
+                v = float(str(valor).replace(",", "."))
+                with self._lock:
+                    self._valores[tid] = v
+                return v if v > 0 else 0.0
+            return None
+        except Exception:
+            return None
+
     def ler_status(self, codigo: str) -> str:
         if not self.disponivel or self._rtd is None:
             return ""

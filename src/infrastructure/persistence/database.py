@@ -73,6 +73,7 @@ def _seed_parametros_colar(conn):
         ("ranking_peso_colar_risco", "1.0", "COLAR", "Peso do risco de leilão (inverso) no Score do Colar Protetivo"),
         ("taxa_ir_pct", "0.15", "GERAL", "Aliquota de IR sobre lucro em operacoes (15% swing trade)"),
         ("rtd_refresh_timeout_ms", "5000", "GERAL", "Timeout do RTD RefreshData em ms (0 = sem timeout)"),
+        ("ex_dividendo_lookback_dias", "5", "GERAL", "Janela (dias uteis) para forcar refresh RTD em ativos ex-dividendo"),
         ("elegibilidade_strike_max_pct", "0.70", "BOX_SINTETICO", "Strike máximo % do spot para elegibilidade de pescaria"),
         ("dte_call_min", "25", "COLLAR_CALENDARIO", "DTE mínimo para call no collar calendário"),
         ("dte_call_max", "60", "COLLAR_CALENDARIO", "DTE máximo para call no collar calendário"),

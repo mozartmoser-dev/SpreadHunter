@@ -303,6 +303,8 @@ class ColarDialog(QDialog):
         self.setWindowTitle("🛡 Monitor de Colares Protetivos")
         self.setMinimumSize(1000, 500)
         self._resultados = []
+        self._pending_resultados = []
+        self._update_pending = False
         self._db_path = db_path
         self._scanning = False
         self._auto_mode = False
@@ -1774,8 +1776,15 @@ class ColarDialog(QDialog):
         self._on_search_ativos_debounced()
 
     def atualizar_resultados(self, resultados: list):
-        # Congela colunas durante reset do modelo para evitar crash
-        # se o usuário estiver arrastando uma coluna no momento do refresh
+        self._pending_resultados = resultados
+        if not self._update_pending:
+            self._update_pending = True
+            QTimer.singleShot(0, self._processar_resultados)
+
+    def _processar_resultados(self):
+        self._update_pending = False
+        resultados = self._pending_resultados
+
         header = self.table_view.horizontalHeader()
         was_blocked = header.signalsBlocked()
         header.blockSignals(True)

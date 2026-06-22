@@ -51,6 +51,8 @@ class MercadoDataProvider:
         self._caminho_prioridade = self._resolver_caminho_prioridade()
         self._cab_anterior: dict[str, tuple[float | None, float | None]] = {}
         self._dados_cache: dict[str, dict] = {}
+        self._ativos_ex_recentes: set[str] = set()
+        self._strike_ref: dict[str, float] = {}  # cod_opcao -> strike via API
         self._onda2_dte_min: int = 7
         self._onda2_dte_max: int = 180
         self.recarregar_parametros()
@@ -155,6 +157,35 @@ class MercadoDataProvider:
         
         logger.info("MercadoDataProvider: Parametros de performance atualizados.")
 
+    def marcar_ativos_ex_recentes(self, ativos: list[str]):
+        """Marca ativos com ex-dividendo recente para:
+        1. Forcar leitura one-shot do strike na Wave 1 (forcar_leitura)
+        2. Buscar strike de referencia via API opcoes.net.br p/ validacao
+        Se a API retornar strike menor que o RTD (desatualizado),
+        o cache e atualizado com o valor da API como fallback."""
+        if not ativos:
+            return
+        self._ativos_ex_recentes.update(ativos)
+        logger.debug("RTD: %d ativos marcados p/ forcar leitura strike (ex-dividendo recente).", len(ativos))
+        # Busca strikes via API como referencia
+        try:
+            from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
+            inst_map = self.inst_repo.get_all_mapped()
+            api = OpcoesNetClient()
+            for ativo in ativos:
+                opcoes_api = api.fetch_all_options(ativo)
+                if not opcoes_api:
+                    continue
+                for opt in opcoes_api:
+                    ticker = opt.get("ticker", "").upper()
+                    strike_api = opt.get("strike")
+                    if ticker and strike_api:
+                        self._strike_ref[ticker] = float(strike_api)
+            logger.info("API: Strikes de referencia obtidos para %d opcoes (%d ativos).",
+                         len(self._strike_ref), len(ativos))
+        except Exception as e:
+            logger.warning("API: Erro ao buscar strikes referencia: %s", e)
+
     def _registrar_ativos_prioritarios(self, instrumentos: list[InstrumentoOpcional]):
         """Registra apenas os ativos (underlyings) para obter preços de referência rápido."""
         rtd = self.rtd
@@ -194,10 +225,10 @@ class MercadoDataProvider:
         logger.debug("RTD: Detalhes completos registrados para %s (Liquidez detectada)", key)
 
     def forcar_refresh_ex_dividendo(self, ativos_ex: list[str]):
-        """Forca registro completo (Wave 2) para ativos em dia ex-dividendo.
-        Invalida o cache RTD e re-registra todos os topicos para garantir
-        que o sistema busque dados frescos do servidor, essencial para
-        capturar ajustes de strike e preco pos-dividendo."""
+        """Forca registro completo (Wave 2) para ativos ex-dividendo.
+        Invalida o cache RTD e re-registra todos os topicos, alem de
+        forcar leitura one-shot do strike (forcar_leitura) para bypassar
+        cache interno do servidor."""
         if not ativos_ex or not self.rtd.disponivel:
             return
 
@@ -241,6 +272,17 @@ class MercadoDataProvider:
 
         if count > 0:
             logger.info("RTD: Refresh forcado para %d instrumentos de %d ativos ex-dividendo.", count, len(ativos_registrados))
+            self.rtd.refresh(0)
+            for key, inst in inst_map.items():
+                if inst.ativo in ativos_ex:
+                    strike_put = self.rtd.forcar_leitura(inst.cod_put, RTD_CAMPO_STRIKE)
+                    strike_call = self.rtd.forcar_leitura(inst.cod_call, RTD_CAMPO_STRIKE)
+                    if strike_put is not None or strike_call is not None:
+                        logger.info(
+                            "RTD: Strike forcado %s=%.2f %s=%.2f",
+                            inst.cod_put, strike_put or 0,
+                            inst.cod_call, strike_call or 0,
+                        )
 
     def _deve_pular_instrumento(self, inst: InstrumentoOpcional) -> bool:
         if not self._carga_inteligente_habilitada:
@@ -278,6 +320,27 @@ class MercadoDataProvider:
 
         rtd.registrar_topico(inst.cod_put, RTD_CAMPO_STRIKE)
         rtd.registrar_topico(inst.cod_call, RTD_CAMPO_STRIKE)
+
+        # Forca leitura one-shot do strike se ativo teve ex-dividendo recente
+        # (bypassa cache interno do servidor RTD do Profit)
+        if inst.ativo in self._ativos_ex_recentes:
+            rtd.forcar_leitura(inst.cod_put, RTD_CAMPO_STRIKE)
+            rtd.forcar_leitura(inst.cod_call, RTD_CAMPO_STRIKE)
+            # Validacao cruzada com API opcoes.net.br
+            for cod_opcao in (inst.cod_put, inst.cod_call):
+                strike_ref = self._strike_ref.get(cod_opcao)
+                if strike_ref is None:
+                    continue
+                strike_rtd = rtd.ler_campo_cache(cod_opcao, RTD_CAMPO_STRIKE)
+                if strike_rtd is not None and strike_rtd > 0 and strike_ref < strike_rtd:
+                    logger.warning(
+                        "API x RTD: %s API=%.2f RTD=%.2f — RTD desatualizado. Usando strike API.",
+                        cod_opcao, strike_ref, strike_rtd,
+                    )
+                    # Atualiza cache interno com strike da API
+                    tid = rtd._topic_id(cod_opcao, RTD_CAMPO_STRIKE)
+                    with rtd._lock:
+                        rtd._valores[tid] = strike_ref
 
         if not self._deve_pular_por_strike(inst):
             rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)

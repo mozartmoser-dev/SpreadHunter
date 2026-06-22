@@ -186,6 +186,8 @@ class BoxDialog(QDialog):
         self.setWindowTitle("📦 Box Spread 4 Pontas")
         self.setMinimumSize(1100, 500)
         self._resultados = []
+        self._pending_resultados = []
+        self._update_pending = False
         self._scanning = False
         self._som_ativado = False
         self._db_path = db_path
@@ -350,6 +352,14 @@ class BoxDialog(QDialog):
         self.proxy.set_filtro_cdi_min(valor)
 
     def atualizar_resultados(self, resultados: list):
+        self._pending_resultados = resultados
+        if not self._update_pending:
+            self._update_pending = True
+            QTimer.singleShot(0, self._processar_resultados)
+
+    def _processar_resultados(self):
+        self._update_pending = False
+        resultados = self._pending_resultados
         self._resultados = resultados
         rows = []
         for r in resultados:

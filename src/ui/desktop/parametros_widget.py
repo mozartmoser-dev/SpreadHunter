@@ -49,6 +49,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("taxa_cdi", "Taxa CDI/Selic"),
         ("tema_visual", "Aspecto do Sistema"),
         ("rtd_refresh_timeout_ms", "Timeout RTD RefreshData (ms, 0=sem timeout)"),
+        ("ex_dividendo_lookback_dias", "Janela ex-div (dias) p/ refresh RTD"),
     ],
     "BOX": [
         ("premio_risco_box", "Premio risco BOX (x CDI)"),

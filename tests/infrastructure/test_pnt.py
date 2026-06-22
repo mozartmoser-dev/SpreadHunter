@@ -90,18 +90,29 @@ class TestRoboComAcento:
 
     def test_pyautogui_altdown_home_down_enter(self):
         mock_pyauto = MagicMock()
+        mock_win32gui = MagicMock()
+        mock_win32con = MagicMock()
+        mock_ctypes = MagicMock()
+        # _forcar_foco inline chama win32gui.GetForegroundWindow e SetForegroundWindow
+        mock_win32gui.GetForegroundWindow.return_value = 12345
+        mock_win32gui.IsChild.return_value = False
+        mock_win32gui.IsIconic.return_value = False
+        mock_win32gui.GetWindowRect.return_value = (0, 0, 800, 600)
+        # _forcar_foco faz import dentro da função, então sys.modules precisa ser patchado
+        import sys
+        sys_mod_win32 = {"win32gui": mock_win32gui, "win32con": mock_win32con}
 
         patches = [
             patch("src.infrastructure.integrations.pnt.pyautogui", mock_pyauto),
-            patch("src.infrastructure.integrations.pnt._focar_janela_pnt",
-                  return_value=True),
-            patch("src.infrastructure.integrations.pnt._obter_rect_pnt",
-                  return_value=(0, 0, 800, 600)),
+            patch("src.infrastructure.integrations.pnt.ctypes", mock_ctypes),
+            patch("src.infrastructure.integrations.pnt._achar_janela_pnt_por_processo",
+                  return_value=12345),
             patch("src.infrastructure.integrations.pnt._minimizar_ide"),
             patch("src.infrastructure.integrations.pnt._debug_screenshot"),
             patch("src.infrastructure.integrations.pnt._achar_combobox",
                   return_value=None),
             patch("src.infrastructure.integrations.pnt.time"),
+            patch.dict("sys.modules", sys_mod_win32),
         ]
 
         for p in patches:
