@@ -6,6 +6,7 @@ from typing import Optional
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
 from src.domain.services.calculadora_colar import CalculadoraColar, ResultadoColar, RiscoLeilao, TipoColar
+from src.domain.services.pipeline_tracker import PipelineTracker
 from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository, ParametroRepository
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ class MonitorColaresUseCase:
             return None
         return {a.strip().upper() for a in str(param.valor).split(",") if a.strip()}
 
-    def varrer(self, rtd=None, dados_mercado: dict | None = None, params: dict | None = None) -> list[ResultadoColar]:
+    def varrer(self, rtd=None, dados_mercado: dict | None = None, params: dict | None = None, pipeline_tracker: PipelineTracker | None = None) -> list[ResultadoColar]:
         calc = self._get_calculadora()
         inst_map = self.inst_repo.get_all_mapped()
         self._whitelist_cache = self._get_whitelist()
@@ -69,16 +70,16 @@ class MonitorColaresUseCase:
         hoje = date.today()
 
         if dados_mercado is not None:
-            dados = self._extrair_de_dados_mercado(dados_mercado, inst_map, params, hoje)
+            dados = self._extrair_de_dados_mercado(dados_mercado, inst_map, params, hoje, pipeline_tracker)
         else:
-            dados = self._ler_dados_rtd_all(inst_map, rtd, params, hoje)
+            dados = self._ler_dados_rtd_all(inst_map, rtd, params, hoje, pipeline_tracker)
 
-        return self._combinar_pares(dados, calc, params)
+        return self._combinar_pares(dados, calc, params, pipeline_tracker)
 
-    def _extrair_de_dados_mercado(self, dados_mercado, inst_map, params, hoje):
+    def _extrair_de_dados_mercado(self, dados_mercado, inst_map, params, hoje, pipeline_tracker=None):
         grupos = defaultdict(list)
         whitelist = getattr(self, '_whitelist_cache', None)
-        c_total = c_venc = c_white = c_preco = c_strike = c_premio = c_qul0 = c_dte = c_qulmin = 0
+        c_total = c_venc = c_white = c_preco = c_strike = c_premio = c_qul0 = c_dte = c_qulmin = c_pca_zero = 0
         for key, dm in dados_mercado.items():
             c_total += 1
             inst = inst_map.get(key)
@@ -117,12 +118,13 @@ class MonitorColaresUseCase:
                 c_dte += 1
                 continue
 
+            of_venda_ativo = dm.get("of_venda_ativo", 0.0) or 0.0
             dados_item = {
                 "strike": strike,
                 "cod_put": inst.cod_put,
                 "cod_call": inst.cod_call,
                 "preco_ativo": preco_ativo,
-                "preco_compra_ativo": dm.get("of_venda_ativo", 0.0) or 0.0,
+                "preco_compra_ativo": of_venda_ativo if of_venda_ativo > 0 else 0.0,
                 "premio_put": premio_put,
                 "premio_call": premio_call,
                 "vov_put": dm.get("vov_put_boca", 0.0) or 0.0,
@@ -142,40 +144,114 @@ class MonitorColaresUseCase:
                 c_qulmin += 1
                 continue
 
+            if dados_item["preco_compra_ativo"] <= 0:
+                c_pca_zero += 1
+                continue
+
             grupo_key = (inst.ativo, inst.vencimento)
             grupos[grupo_key].append(dados_item)
 
-        logger.info("Collar DIAG extrair: total=%d, venc=%d, whitelist=%d, preco_ativo=%d, strike=%d, premio=%d, qul0=%d, dte=%d, qulmin=%d -> grupos=%d",
-                     c_total, c_venc, c_white, c_preco, c_strike, c_premio, c_qul0, c_dte, c_qulmin, len(grupos))
+        logger.info("Collar DIAG extrair: total=%d, venc=%d, whitelist=%d, preco_ativo=%d, strike=%d, premio=%d, qul0=%d, dte=%d, qulmin=%d, pca_zero=%d -> grupos=%d",
+                     c_total, c_venc, c_white, c_preco, c_strike, c_premio, c_qul0, c_dte, c_qulmin, c_pca_zero, len(grupos))
+
+        if pipeline_tracker is not None:
+            pipeline_tracker.nome_estrategia = "COLAR"
+            n0 = c_total
+            n1 = n0 - c_venc
+            n2 = n1 - c_white
+            n3 = n2 - c_preco
+            n4 = n3 - c_strike
+            n5 = n4 - c_premio
+            n6 = n5 - c_qul0
+            n7 = n6 - c_dte
+            n8 = n7 - c_qulmin
+            n9 = n8 - c_pca_zero
+            pipeline_tracker.add_stage("1. Vencimento", n0, n1,
+                "Opção sem vencimento futuro ou já vencida (vencimento <= hoje)")
+            pipeline_tracker.add_stage("2. Ativo (whitelist)", n1, n2,
+                "Ativo não está na whitelist configurada em Parâmetros > COLAR (white_list_colar)")
+            pipeline_tracker.add_stage("3. Preço do ativo (RTD)", n2, n3,
+                "Preço do ativo zerado no RTD (ULT ou oferta de venda não disponível)")
+            pipeline_tracker.add_stage("4. Strike (RTD)", n3, n4,
+                "Strike não disponível no RTD (PEX zerado)")
+            pipeline_tracker.add_stage("5. Prêmios PUT/CALL (RTD)", n4, n5,
+                "Prêmio da PUT ou CALL zerado no RTD — sem oferta de compra/venda")
+            pipeline_tracker.add_stage("6. QUL > 0", n5, n6,
+                "QUL = 0 em PUT ou CALL — sem negócio no pregão")
+            pipeline_tracker.add_stage("7. DTE mínimo", n6, n7,
+                f"DTE < {params.get('dias_minimos', 0)}d (Parâmetros > PERFORMANCE > perf_dias_minimos)")
+            pipeline_tracker.add_stage("8. QUL mínimo", n7, n8,
+                f"QUL abaixo do mínimo: PUT≥{params.get('qul_min_put',100)} CALL≥{params.get('qul_min_call',100)} (Parâmetros > COLAR)")
+            pipeline_tracker.add_stage("9. Preço compra ativo", n8, n9,
+                "Ask do ativo zerado no RTD — sem oferta de venda disponível")
+            logger.info("PipelineTracker (%s): %d -> %d", pipeline_tracker.nome_estrategia, c_total, n9)
+            self._ultimo_pipeline = pipeline_tracker
+
         return grupos
 
-    def _ler_dados_rtd_all(self, inst_map, rtd, params, hoje):
+    def _ler_dados_rtd_all(self, inst_map, rtd, params, hoje, pipeline_tracker=None):
         grupos = defaultdict(list)
         whitelist = getattr(self, '_whitelist_cache', None)
+        c_total = c_venc = c_white = c_rtd = c_dte = c_qul0 = c_qulmin = c_pca_zero = 0
 
         for key, inst in inst_map.items():
+            c_total += 1
             if not inst.vencimento or inst.vencimento <= hoje:
+                c_venc += 1
                 continue
             if whitelist is not None and inst.ativo.upper() not in whitelist:
+                c_white += 1
                 continue
 
             dados = self._ler_dados_rtd(inst, rtd)
             if not dados:
+                c_rtd += 1
                 continue
 
             dias_min = params.get("dias_minimos", 0)
             if dias_min > 0 and dados["dias"] < dias_min:
+                c_dte += 1
                 continue
 
             if dados["qul_put"] <= 0 or dados["qul_call"] <= 0:
+                c_qul0 += 1
                 continue
             qul_min_put = params.get("qul_min_put", 100)
             qul_min_call = params.get("qul_min_call", 100)
             if dados["qul_put"] < qul_min_put or dados["qul_call"] < qul_min_call:
+                c_qulmin += 1
+                continue
+
+            if dados["preco_compra_ativo"] <= 0:
+                c_pca_zero += 1
                 continue
 
             grupo_key = (inst.ativo, inst.vencimento)
             grupos[grupo_key].append(dados)
+
+        if pipeline_tracker is not None:
+            n0 = c_total
+            n1 = n0 - c_venc
+            n2 = n1 - c_white
+            n3 = n2 - c_rtd
+            n4 = n3 - c_dte
+            n5 = n4 - c_qul0
+            n6 = n5 - c_qulmin
+            n7 = n6 - c_pca_zero
+            pipeline_tracker.add_stage("1. Vencimento", n0, n1,
+                "Opção sem vencimento futuro ou já vencida")
+            pipeline_tracker.add_stage("2. Ativo (whitelist/checklist)", n1, n2,
+                "Ativo não está na whitelist (Parâmetros > COLAR)")
+            pipeline_tracker.add_stage("3. Dados RTD", n2, n3,
+                "RTD não retornou dados completos (strike/prêmio/liquidez)")
+            pipeline_tracker.add_stage("4. DTE mínimo", n3, n4,
+                f"DTE < {params.get('dias_minimos', 0)}d (Parâmetros > PERFORMANCE)")
+            pipeline_tracker.add_stage("5. QUL > 0", n4, n5,
+                "QUL = 0 em PUT ou CALL — sem negócio no pregão")
+            pipeline_tracker.add_stage("6. QUL mínimo", n5, n6,
+                f"QUL abaixo do mínimo: PUT≥{params.get('qul_min_put',100)} CALL≥{params.get('qul_min_call',100)} (Parâmetros > COLAR)")
+            pipeline_tracker.add_stage("7. Preço compra ativo", n6, n7,
+                "Ask do ativo zerado no RTD — sem oferta de venda disponível")
 
         return grupos
 
@@ -226,9 +302,10 @@ class MonitorColaresUseCase:
             "vencimento": inst.vencimento,
         }
 
-    def _combinar_pares(self, grupos: dict, calc: CalculadoraColar, params: dict) -> list[ResultadoColar]:
+    def _combinar_pares(self, grupos: dict, calc: CalculadoraColar, params: dict, pipeline_tracker=None) -> list[ResultadoColar]:
         resultados = []
         c_grupos = c_poucos = c_pares = c_invalid = c_dist = c_calc_ok = c_calc_none = 0
+        total_members = sum(len(m) for m in grupos.values())
 
         for (ativo, vencimento), members in grupos.items():
             c_grupos += 1
@@ -260,12 +337,12 @@ class MonitorColaresUseCase:
                         premio_put=put_data["premio_put"],
                         premio_call=call_data["premio_call"],
                         cod_put=put_data["cod_put"],
-                        cod_call=call_data["cod_call"],
+                        cod_call=put_data["cod_call"],
                         dias=put_data["dias"],
                         vov_put=put_data["vov_put"],
-                        voc_call=call_data["voc_call"],
+                        voc_call=put_data["voc_call"],
                         status_put=put_data["status_put"],
-                        status_call=call_data["status_call"],
+                        status_call=put_data["status_call"],
                         ativo=ativo, vencimento=vencimento,
                         preco_compra_ativo=put_data.get("preco_compra_ativo"),
                     )
@@ -274,6 +351,18 @@ class MonitorColaresUseCase:
                         c_calc_ok += 1
                     else:
                         c_calc_none += 1
+
+        if pipeline_tracker is not None:
+            n_entrada = sum(s.saida for s in pipeline_tracker.stages[-1:]) if pipeline_tracker.stages else total_members
+            pipeline_tracker.add_stage("10. Agrupamento (call+put)", total_members, c_grupos,
+                "Itens agrupados por ativo+vencimento")
+            pipeline_tracker.add_stage("11. Pares válidos", c_pares, c_pares,
+                f"{c_invalid} pares com PUT≥CALL, {c_dist} fora da distância máxima")
+            pipeline_tracker.add_stage("12. Cálculo de viabilidade", c_pares - c_invalid - c_dist, c_calc_ok,
+                f"{c_calc_none} pares inviáveis (prêmio-risco, B3, etc.)")
+            pipeline_tracker.add_stage("13. Resultado final", c_calc_ok, sum(1 for r in resultados if r.viavel),
+                f"{sum(1 for r in resultados if r.viavel)} viáveis no monitor")
+            self._ultimo_pipeline = pipeline_tracker
 
         logger.info("Collar DIAG pares: grupos=%d, <2membros=%d, pares=%d, sp>=sc=%d, fora_dist=%d, calc_ok=%d, calc_none=%d -> total=%d",
                      c_grupos, c_poucos, c_pares, c_invalid, c_dist, c_calc_ok, c_calc_none, len(resultados))

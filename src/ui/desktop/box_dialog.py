@@ -333,8 +333,19 @@ class BoxDialog(QDialog):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_R and event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
             self.btn_regras.setVisible(not self.btn_regras.isVisible())
+        elif event.key() == Qt.Key_F and event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
+            self._abrir_pipeline()
         else:
             super().keyPressEvent(event)
+
+    def _abrir_pipeline(self):
+        from src.ui.desktop.pipeline_dialog import PipelineDialog
+        tracker = None
+        parent = self.parent()
+        if parent and hasattr(parent, '_worker') and hasattr(parent._worker, '_monitor_box_uc'):
+            tracker = getattr(parent._worker._monitor_box_uc, '_ultimo_pipeline', None)
+        dlg = PipelineDialog(tracker, self)
+        dlg.exec_()
 
     def _toggle_scan(self):
         if self._scanning:

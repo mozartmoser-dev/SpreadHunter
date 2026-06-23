@@ -3,6 +3,7 @@ from datetime import date
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOpcao
 from src.domain.services.calculadora_box import CalculadoraBox, ResultadoBox
+from src.domain.services.pipeline_tracker import PipelineTracker
 from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository, ParametroRepository
 
 
@@ -90,7 +91,7 @@ class MonitorBoxUseCase:
             return False
         return True
 
-    def varrer(self, rtd) -> list[ResultadoBox]:
+    def varrer(self, rtd, pipeline_tracker: PipelineTracker | None = None) -> list[ResultadoBox]:
         calc = self._get_calculadora()
         inst_map = self.inst_repo.get_all_mapped()
         qtd_min = self._get_qtd_min_perna()
@@ -100,22 +101,55 @@ class MonitorBoxUseCase:
         hoje = date.today()
         grupos: dict[tuple[str, date], list[dict]] = defaultdict(list)
 
+        filtro = {"total": 0, "venc": 0, "tipo": 0, "white": 0, "rtd": 0, "filtros": 0, "grupos": 0}
+        n_passou = 0
+
         for key, inst in inst_map.items():
+            filtro["total"] += 1
             if not inst.vencimento or inst.vencimento <= hoje:
+                filtro["venc"] += 1
                 continue
             if soh_europeia and inst.tipo_opcao != TipoOpcao.EUROPEIA:
+                filtro["tipo"] += 1
                 continue
             if whitelist is not None and inst.ativo.upper() not in whitelist:
+                filtro["white"] += 1
                 continue
 
             dados = self._extrair(inst, rtd)
             if not dados:
+                filtro["rtd"] += 1
                 continue
             if not self._passa_filtros(dados):
+                filtro["filtros"] += 1
                 continue
 
             grupo_key = (inst.ativo, inst.vencimento)
             grupos[grupo_key].append(dados)
+            n_passou += 1
+
+        if pipeline_tracker is not None:
+            pipeline_tracker.nome_estrategia = "BOX_4P"
+            n0 = filtro["total"]
+            n1 = n0 - filtro["venc"]
+            n2 = n1 - filtro["tipo"]
+            n3 = n2 - filtro["white"]
+            n4 = n3 - filtro["rtd"]
+            n5 = n4 - filtro["filtros"]
+            pipeline_tracker.add_stage("1. Vencimento", n0, n1,
+                "Opção sem vencimento futuro ou já vencida")
+            pipeline_tracker.add_stage("2. Tipo (Europeia)", n1, n2,
+                "Só aceita opções Europeias (Parâmetros > BOX_4P > box_soh_europeia)")
+            pipeline_tracker.add_stage("3. Ativo (whitelist)", n2, n3,
+                "Ativo não está na whitelist (Parâmetros > BOX_4P > white_list_box4p)")
+            pipeline_tracker.add_stage("4. Dados RTD", n3, n4,
+                "RTD não retornou strike (PEX) para PUT ou CALL")
+            pipeline_tracker.add_stage("5. Filtros (DTE/leilão)", n4, n5,
+                f"DTE < {self._get_param('perf_dias_minimos', 10)}d ou dias <= 0")
+            pipeline_tracker.add_stage("6. Pareamento", n5, n_passou,
+                "Agrupados por ativo+vencimento para formar pares de strike")
+            logger.info("PipelineTracker BOX_4P: %d -> %d", n0, n_passou)
+            self._ultimo_pipeline = pipeline_tracker
 
         resultados = []
 

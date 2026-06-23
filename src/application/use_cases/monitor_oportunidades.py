@@ -5,6 +5,7 @@ from datetime import date
 from src.application.dtos.dtos import OportunidadeMonitor
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
 from src.domain.services.calculadora_box_sbth import CalculadoraBoxSbth, DadosMercado
+from src.domain.services.pipeline_tracker import PipelineTracker
 from src.domain.services.calculadora_vetorizada import CalculadoraVetorizada
 from src.infrastructure.importers.excel_importer import extrair_strike
 from src.infrastructure.persistence.repositories.repositories import (
@@ -67,13 +68,17 @@ class MonitorOportunidadesUseCase:
             return self._lotes_cache["lote_call_box"]
         return 0.0
 
-    def varrer(self, dados_mercado: dict[str, dict]) -> list[OportunidadeMonitor]:
+    def varrer(self, dados_mercado: dict[str, dict], pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeMonitor]:
         calc_oo, calc_vec = self._get_calculadoras()
         inst_map = self.inst_repo.get_all_mapped()
         resultados = []
         hoje = date.today()
 
         if not dados_mercado:
+            if pipeline_tracker is not None:
+                pipeline_tracker.nome_estrategia = "BOX/SBTH"
+                pipeline_tracker.add_stage("1. Dados de mercado", 0, 0, "Nenhum dado do RTD disponível")
+                self._ultimo_pipeline = pipeline_tracker
             return []
 
         # 1. Preparação dos dados para vetorização
@@ -83,15 +88,31 @@ class MonitorOportunidadesUseCase:
         # Filtra instrumentos válidos, não vencidos e com dias mínimos
         dias_minimos = self._get_param("perf_dias_minimos", 10)
         indices_validos = []
+        filtro_sem_inst = 0
+        filtro_dte = 0
         for i, k in enumerate(chaves):
             inst = inst_map.get(k)
             if not inst or (inst.vencimento and inst.vencimento <= hoje):
+                filtro_sem_inst += 1
                 continue
             if inst.dias_ate_vencimento is not None and inst.dias_ate_vencimento < dias_minimos:
+                filtro_dte += 1
                 continue
             indices_validos.append(i)
         
+        if pipeline_tracker is not None:
+            pipeline_tracker.nome_estrategia = "BOX/SBTH"
+            n0 = n
+            n1 = n0 - filtro_sem_inst
+            n2 = n1 - filtro_dte
+            pipeline_tracker.add_stage("1. Dados de mercado", n0, n0, f"{n0} instrumentos na base")
+            pipeline_tracker.add_stage("2. Instrumento válido", n0, n1, "Instrumento não encontrado ou já vencido")
+            pipeline_tracker.add_stage("3. DTE mínimo", n1, n2, f"DTE < {dias_minimos}d (Parâmetros > PERFORMANCE)")
+            # os próximos estágios serão preenchidos após a vetorização
+
         if not indices_validos:
+            if pipeline_tracker is not None:
+                self._ultimo_pipeline = pipeline_tracker
             return []
             
         # Extrai arrays apenas para os válidos
@@ -131,16 +152,50 @@ class MonitorOportunidadesUseCase:
 
         # 3. Criação de DTOs apenas para o que for minimamente interessante
         # (Viáveis ou com prêmio razoável)
+        n_calc = 0
+        c_pca_zero = 0
         for i in range(len(keys_validas)):
             # Se não for viavel e tiver prêmio baixo, ignora para economizar objetos
             # Sempre inclui a oportunidade calculada
             key = keys_validas[i]
             inst = inst_map[key]
             mercado = dados_mercado[key]
+
+            pca = mercado.get("of_venda_ativo", 0.0) or 0.0
+            if pca <= 0:
+                pca = mercado.get("preco_ativo", 0.0) or 0.0
+            if pca <= 0:
+                c_pca_zero += 1
+                continue
+
+            n_calc += 1
             
             opp = self._calcular_oportunidade(inst, mercado, calc_oo)
             if opp:
                 resultados.append(opp)
+
+        if pipeline_tracker is not None:
+            n_opps = len(resultados)
+            n_viaveis = sum(1 for r in resultados if r.viavel)
+            c_tp_op = sum(1 for r in resultados if r.classificacao == "TP.Op")
+            c_leilao = sum(1 for r in resultados if r.em_leilao and r.classificacao != "TP.Op")
+            c_sem_liq = sum(1 for r in resultados if not r.viavel and not r.em_leilao and r.classificacao != "TP.Op")
+            pipeline_tracker.add_stage("4. Preço compra ativo", n2, n2 - c_pca_zero,
+                "Ask do ativo zerado — sem oferta de venda disponível")
+            pipeline_tracker.add_stage("5. Cálculo vetorizado", n2 - c_pca_zero, n_calc,
+                "Strike/Preço zerados ou fora da faixa de cálculo")
+            pipeline_tracker.add_stage("6. Oportunidades calculadas", n_calc, n_opps,
+                "_calcular_oportunidade retornou None (dados incompletos)")
+            pipeline_tracker.add_stage("7. Classificação (prêmio-risco)", n_opps, n_opps - c_tp_op,
+                f"{c_tp_op} não atingem prêmio-risco BOX nem SBTH (Parâmetros > BOX)")
+            pipeline_tracker.add_stage("8. Em leilão", n_opps - c_tp_op, n_opps - c_tp_op - c_leilao,
+                f"{c_leilao} em leilão (Parâmetros > BOX > lote_liquidez_box)")
+            pipeline_tracker.add_stage("9. Liquidez (lote)", n_opps - c_tp_op - c_leilao, n_viaveis,
+                f"{c_sem_liq} com volume abaixo do lote mínimo")
+            pipeline_tracker.add_stage("10. Resultados", n_viaveis, n_viaveis,
+                f"{n_viaveis} viáveis, {n_opps - n_viaveis} não viáveis")
+            logger.info("PipelineTracker BOX/SBTH: %d -> %d (viaveis=%d)", n, n_opps, n_viaveis)
+            self._ultimo_pipeline = pipeline_tracker
 
         resultados.sort(key=lambda o: (not o.viavel, -max(o.pct_cdi_box, o.pct_cdi_sbth)))
         # Envio opcional de notificação por Telegram quando há oportunidades viáveis

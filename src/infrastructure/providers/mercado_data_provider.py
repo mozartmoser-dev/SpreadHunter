@@ -497,6 +497,16 @@ class MercadoDataProvider:
                                 and entry["status_call"].lower() == "aberto"
                                 and entry["status_ativo"].lower() == "aberto"
                             )
+                            # Atualiza campos do ativo em tempo real (não congela da primeira leitura)
+                            p_ativo = self._precos_ativo_cache.get(inst.ativo)
+                            if p_ativo:
+                                entry["preco_ativo"] = p_ativo
+                            of_venda = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
+                            if of_venda is not None:
+                                entry["of_venda_ativo"] = of_venda
+                            of_compra = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
+                            if of_compra is not None:
+                                entry["of_compra_ativo"] = of_compra
                             t_status += time.perf_counter() - t0_status
                             dados_mercado[key] = entry
                             count_cab_skip += 1

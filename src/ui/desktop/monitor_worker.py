@@ -10,6 +10,7 @@ from src.application.use_cases.monitor_colares import MonitorColaresUseCase
 from src.application.use_cases.monitor_colares_calendario import MonitorColaresCalendarioUseCase
 from src.application.use_cases.monitor_box import MonitorBoxUseCase
 from src.application.use_cases.mpp_use_case import MPPUseCase
+from src.domain.services.pipeline_tracker import PipelineTracker
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
 from src.infrastructure.providers.rtd_profit import RTDProfit
 from src.application.dtos.dtos import EngineStatsDTO
@@ -70,6 +71,7 @@ class MonitorWorker(QThread):
         self._ultimo_dados_mercado: dict | None = None
         self._rtd_estava_stale: bool = False
         self._manutencao_cycle = 0
+        self._rtd_reconnect_cycle = 0
 
     def run(self):
         com_initialized = False
@@ -127,7 +129,18 @@ class MonitorWorker(QThread):
                 self._processar_manutencao()
                 t5 = time.perf_counter()
 
-                # 6. MPP — Motor de Priorização de Pescaria (só após carga completa)
+                # 6. Tentativa de reconexão RTD a cada ~30s se estiver offline
+                if not rtd.disponivel:
+                    self._rtd_reconnect_cycle += 1
+                    if self._rtd_reconnect_cycle % 10 == 0:
+                        if rtd.reconectar():
+                            logger.info("RTD reconectado durante ciclo de varredura.")
+                            self.rtd_status.emit(True)
+                            self._mercado_provider.rtd = rtd
+                else:
+                    self._rtd_reconnect_cycle = 0
+
+                # 7. MPP — Motor de Priorização de Pescaria (só após carga completa)
                 if self._mpp_habilitado and self._mpp_carga_completa:
                     self._processar_mpp(rtd)
                 t6 = time.perf_counter()
@@ -164,6 +177,14 @@ class MonitorWorker(QThread):
 
     def retomar(self):
         self._paused = False
+        if self._mercado_provider and hasattr(self._mercado_provider, 'rtd'):
+            rtd = self._mercado_provider.rtd
+            if not rtd.disponivel:
+                if rtd.reconectar():
+                    logger.info("RTD reconectado ao retomar.")
+                else:
+                    logger.info("RTD ainda indisponivel ao retomar.")
+            self.rtd_status.emit(rtd.disponivel)
         self._mutex.lock()
         self._wait_condition.wakeAll()
         self._mutex.unlock()
@@ -281,8 +302,8 @@ class MonitorWorker(QThread):
         if not dados_mercado:
             return
 
-        resultados = self._monitor_uc.varrer(dados_mercado)
-
+        resultados = self._monitor_uc.varrer(dados_mercado, pipeline_tracker=PipelineTracker())
+        
         if not self._mostrar_tp_op:
             resultados = [r for r in resultados
                           if not (hasattr(r, 'classificacao')
@@ -304,7 +325,8 @@ class MonitorWorker(QThread):
             dados_md = getattr(self, '_ultimo_dados_mercado', None)
             if not dados_md or len(dados_md) < 50:
                 return
-            resultados = self._monitor_colares_uc.varrer(None, dados_mercado=dados_md)
+            tracker = PipelineTracker()
+            resultados = self._monitor_colares_uc.varrer(None, dados_mercado=dados_md, pipeline_tracker=tracker)
             self.colares_atualizados.emit(resultados)
 
     def _processar_colar_calendario(self, rtd):
@@ -322,7 +344,8 @@ class MonitorWorker(QThread):
 
         if deve_escanear:
             dados_md = getattr(self, '_ultimo_dados_mercado', None)
-            resultados = self._monitor_colares_cal_uc.varrer(rtd, dados_md, params, ativos)
+            tracker = PipelineTracker()
+            resultados = self._monitor_colares_cal_uc.varrer(rtd, dados_md, params, ativos, pipeline_tracker=tracker)
             self.colares_calendario_atualizados.emit(resultados)
 
     def _processar_box_4p(self, rtd):
@@ -337,7 +360,8 @@ class MonitorWorker(QThread):
         self._box_mutex.unlock()
 
         if deve_escanear:
-            resultados = self._monitor_box_uc.varrer(rtd)
+            tracker = PipelineTracker()
+            resultados = self._monitor_box_uc.varrer(rtd, pipeline_tracker=tracker)
             self.boxes_atualizados.emit(resultados)
 
     def _emitir_estatisticas_engine(self, t_start_cycle):

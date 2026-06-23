@@ -589,8 +589,16 @@ class MainWindow(QMainWindow):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_R and event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
             self.btn_regras.setVisible(not self.btn_regras.isVisible())
+        elif event.key() == Qt.Key_F and event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
+            self._abrir_pipeline()
         else:
             super().keyPressEvent(event)
+
+    def _abrir_pipeline(self):
+        from src.ui.desktop.pipeline_dialog import PipelineDialog
+        tracker = getattr(self._worker._monitor_uc, '_ultimo_pipeline', None) if hasattr(self, '_worker') else None
+        dlg = PipelineDialog(tracker, self)
+        dlg.exec_()
 
     def _abrir_parametros(self):
         dialog = QDialog(self)

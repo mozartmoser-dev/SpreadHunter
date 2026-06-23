@@ -254,6 +254,21 @@ class RTDProfit:
         except Exception:
             return ""
 
+    def reconectar(self) -> bool:
+        """Tenta reconectar ao servidor RTD (ServerStart + RefreshData)."""
+        if self._rtd is not None:
+            try:
+                self._rtd.ServerStart(None)
+                self.disponivel = True
+                logger.info("RTD reconectado com sucesso.")
+                return True
+            except Exception:
+                self.disponivel = False
+        else:
+            self._conectar()
+            return self.disponivel
+        return False
+
     def desconectar(self):
         if not self.disponivel or self._rtd is None:
             return

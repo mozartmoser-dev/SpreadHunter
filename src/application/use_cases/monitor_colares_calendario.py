@@ -8,6 +8,7 @@ from src.domain.services.calculadora_colar_calendario import (
     CalculadoraColarCalendario,
     ResultadoColarCalendario,
 )
+from src.domain.services.pipeline_tracker import PipelineTracker
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.infrastructure.persistence.repositories.repositories import (
     DividendoRepository,
@@ -82,7 +83,7 @@ class MonitorColaresCalendarioUseCase:
         param = self.param_repo.get_by_chave(chave)
         return param.valor if param else default
 
-    def varrer(self, rtd, dados_mercado: dict | None = None, params: dict | None = None, ativos: list[str] | None = None) -> list[ResultadoColarCalendario]:
+    def varrer(self, rtd, dados_mercado: dict | None = None, params: dict | None = None, ativos: list[str] | None = None, pipeline_tracker: PipelineTracker | None = None) -> list[ResultadoColarCalendario]:
         calc = self._get_calculadora()
         inst_map = self.inst_repo.get_all_mapped()
         ativos_set = set(ativos) if ativos else None
@@ -108,33 +109,51 @@ class MonitorColaresCalendarioUseCase:
         stats = {"total": 0, "sem_vencimento": 0, "sem_codigos": 0, "sem_dias": 0, "sem_strike": 0, "sem_strike_registrado": 0, "sem_ocp_ovd": 0, "sem_ocp_registrado": 0, "sem_ovd_registrado": 0, "sem_preco": 0, "sem_qul": 0, "calls": 0, "puts": 0, "fora_dte": 0, "fora_ativo": 0}
 
         source = dados_mercado if dados_mercado else inst_map
+        n_total = 0
+        n_sem_inst = 0
+        n_fora_ativo = 0
+        n_sem_venc = 0
+        n_sem_cod = 0
+        n_sem_dias = 0
+        n_fora_dte = 0
+        n_sem_strike = 0
+        n_sem_preco = 0
+        n_sem_qul = 0
+        n_passaram = 0
+
         for key in source:
             stats["total"] += 1
+            n_total += 1
             dm = dados_mercado.get(key) if dados_mercado else None
             inst = inst_map.get(key)
             if not inst:
+                n_sem_inst += 1
                 continue
 
             if ativos_set and inst.ativo not in ativos_set:
                 stats["fora_ativo"] += 1
+                n_fora_ativo += 1
                 continue
 
             if not inst.vencimento or inst.vencimento <= hoje:
                 stats["sem_vencimento"] += 1
+                n_sem_venc += 1
                 continue
             if not inst.cod_put or not inst.cod_call:
                 stats["sem_codigos"] += 1
+                n_sem_cod += 1
                 continue
             if inst.dias_ate_vencimento is None or inst.dias_ate_vencimento <= 0:
                 stats["sem_dias"] += 1
+                n_sem_dias += 1
                 continue
 
             dte = inst.dias_ate_vencimento
             if dte < params["dte_call_min"] or dte > params["dte_total_max"]:
                 stats["fora_dte"] += 1
+                n_fora_dte += 1
                 continue
 
-            # ---- FILTRO 3: LIQUIDEZ (dados_mercado > RTD cache) ----
             if dm:
                 strike = dm.get("strike_rtd")
                 preco_call = dm.get("of_compra_call") or 0.0
@@ -154,20 +173,25 @@ class MonitorColaresCalendarioUseCase:
 
             if not strike or strike <= 0:
                 stats["sem_strike"] += 1
+                n_sem_strike += 1
                 continue
             if preco_call <= 0 or preco_put <= 0:
                 stats["sem_preco"] += 1
+                n_sem_preco += 1
                 continue
 
             qul_min_put = params.get("qul_min_put", 100)
             qul_min_call = params.get("qul_min_call", 100)
             if qul_put <= 0 and qul_call <= 0:
                 stats["sem_qul"] += 1
+                n_sem_qul += 1
                 continue
             if (qul_put > 0 and qul_put < qul_min_put) or (qul_call > 0 and qul_call < qul_min_call):
                 stats["sem_qul"] += 1
+                n_sem_qul += 1
                 continue
 
+            n_passaram += 1
             dados = {
                 "strike": strike,
                 "cod_call": inst.cod_call,
@@ -185,6 +209,29 @@ class MonitorColaresCalendarioUseCase:
                 puts_por_ativo[inst.ativo].append(dados)
                 stats["puts"] += 1
 
+        if pipeline_tracker is not None:
+            pipeline_tracker.nome_estrategia = "COLLAR_CALENDARIO"
+            pipeline_tracker.add_stage("1. Ativo válido", n_total, n_total - n_sem_inst,
+                "Instrumento não encontrado no banco (instância None)")
+            pipeline_tracker.add_stage("2. Ativo (checklist)", n_total - n_sem_inst, n_total - n_sem_inst - n_fora_ativo,
+                "Ativo não está na check-list ou whitelist configurada em Parâmetros > COLLAR_CALENDARIO")
+            pipeline_tracker.add_stage("3. Vencimento", n_total - n_sem_inst - n_fora_ativo, n_total - n_sem_inst - n_fora_ativo - n_sem_venc,
+                "Sem vencimento futuro — opção já venceu ou data inválida")
+            pipeline_tracker.add_stage("4. Códigos", n_total - n_sem_inst - n_fora_ativo - n_sem_venc, n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod,
+                "Código do PUT ou CALL não cadastrado no banco (instrumentos_base)")
+            pipeline_tracker.add_stage("5. Dias (DTE)", n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod, n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias,
+                "dias_ate_vencimento inválido ou <= 0 (RTD não retornou DTE)")
+            pipeline_tracker.add_stage("6. DTE (mín/máx)", n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias, n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias - n_fora_dte,
+                f"Fora da faixa DTE call={params['dte_call_min']}–{params['dte_call_max']}d ou total >{params['dte_total_max']}d (Parâmetros > COLLAR_CALENDARIO)")
+            pipeline_tracker.add_stage("7. Strike (RTD)", n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias - n_fora_dte, n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias - n_fora_dte - n_sem_strike,
+                "Strike não disponível no RTD (PEX zerado ou cache não populado)")
+            pipeline_tracker.add_stage("8. Preço (RTD)", n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias - n_fora_dte - n_sem_strike, n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias - n_fora_dte - n_sem_strike - n_sem_preco,
+                "OCP (call) ou OVD (put) zerado no RTD — sem oferta de compra/venda")
+            pipeline_tracker.add_stage("9. Liquidez (QUL)", n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias - n_fora_dte - n_sem_strike - n_sem_preco, n_passaram,
+                f"QUL abaixo do mínimo configurado (put≥{params.get('qul_min_put',100)} call≥{params.get('qul_min_call',100)}) em Parâmetros > COLLAR_CALENDARIO")
+            logger.info("PipelineTracker (%s): %d -> %d", pipeline_tracker.nome_estrategia, n_total, n_passaram)
+            self._ultimo_pipeline = pipeline_tracker
+
         if "PETR4" in calls_por_ativo or "PETR4" in puts_por_ativo:
             logger.debug("CollarCal PETR4: calls=%d puts=%d",
                          len(calls_por_ativo.get("PETR4", [])),
@@ -200,6 +247,8 @@ class MonitorColaresCalendarioUseCase:
 
         resultados = []
         _cache_dividendos_por_ativo: dict[str, list[tuple[date, float]]] = {}
+        c_pares = c_calc_ok = c_viaveis = c_filtro_dist = c_filtro_dte = 0
+        c_ativos_com_dados = 0
 
         for ativo in calls_por_ativo:
             if ativo not in puts_por_ativo:
@@ -223,6 +272,8 @@ class MonitorColaresCalendarioUseCase:
                     continue
                 of_venda_ativo = rtd.ler_campo_cache(ativo, "OVD")
                 preco_compra_ativo = of_venda_ativo if (of_venda_ativo and of_venda_ativo > 0) else 0.0
+
+            c_ativos_com_dados += 1
 
             if ativo not in _cache_dividendos_por_ativo:
                 divs = DividendoRepository(self.db_path).get_by_ativo(ativo)
@@ -271,11 +322,15 @@ class MonitorColaresCalendarioUseCase:
                 for put in puts_ordenadas:
                     sp = put["strike"]
                     if abs(sp - sc) > strike_diff_max:
+                        c_filtro_dist += 1
                         continue
                     dte_extra = put["dte"] - dte_call
 
                     if dte_extra < params["dte_extra_min"] or dte_extra > params["dte_extra_max"]:
+                        c_filtro_dte += 1
                         continue
+
+                    c_pares += 1
 
                     resultado = calc.calcular(
                         preco_ativo=preco_ativo,
@@ -298,13 +353,26 @@ class MonitorColaresCalendarioUseCase:
 
                     if resultado:
                         resultados.append(resultado)
+                        c_calc_ok += 1
                         if resultado.viavel:
+                            c_viaveis += 1
                             logger.debug("CollarCal PAR VIÁVEL %s: call=%s(%.0f) put=%s(%.0f) DTE %d+%d |ΔK|=%.1f pct_cdi=%.2f",
                                          ativo, call["cod_call"], sc, put["cod_put"], sp,
                                          dte_call, dte_extra, abs(sc - sp), resultado.pct_cdi)
                             viaveis_por_call[call["cod_call"]] = viaveis_por_call.get(call["cod_call"], 0) + 1
                             if viaveis_por_call.get(call["cod_call"], 0) >= 3:
                                 break  # top-3 puts por call
+
+        if pipeline_tracker is not None:
+            pipeline_tracker.add_stage("10. Ativos com dados", c_ativos_com_dados, c_ativos_com_dados,
+                "Ativos com preço e OVD disponíveis")
+            pipeline_tracker.add_stage("11. Pares (strike+DTE)", c_pares + c_filtro_dist + c_filtro_dte, c_pares,
+                f"{c_filtro_dist} fora da distância de strike, {c_filtro_dte} fora do DTE extra")
+            pipeline_tracker.add_stage("12. Cálculo viabilidade", c_pares, c_calc_ok,
+                f"{c_pares - c_calc_ok} pares inviáveis (prêmio-risco, B3, dividendos, etc.)")
+            pipeline_tracker.add_stage("13. Resultado final", c_calc_ok, c_viaveis,
+                f"{c_viaveis} viáveis no monitor")
+            self._ultimo_pipeline = pipeline_tracker
 
         if not resultados:
             logger.warning("CollarCal STATS: %s", stats)
