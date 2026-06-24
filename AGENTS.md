@@ -234,9 +234,98 @@ B3 — Segunda a Sexta, **10:00 às 17:00** (horário de Brasília). Fora desse 
 | 10 | — | `calendario_b3.py:57,65` | `np.busday_count` encapsulado em try/except p/ datas não-úteis (crash fim de semana) |
 | 11 | — | `mpp_use_case.py:814-818` | Snapshot counter inicia em 1 e só salva a cada `SNAPSHOT_INTERVAL` ciclos |
 
+## Sessão 24/06/2026 — Correções Deploy + RTD Estável
+
+### Database path (crítico para deploy)
+
+**NUNCA use path hardcoded.** O banco DEVE ficar em `%APPDATA%/Spreadhunter/spreadhunter.db`
+para persistir entre atualizações. Função `get_db_path()` em `database.py`:
+
+```python
+def get_db_path() -> Path:
+    return Path(os.environ["APPDATA"]) / "Spreadhunter" / DB_NAME
+```
+
+**Migração automática**: na primeira execução, copia o banco antigo de `config/` para
+`%APPDATA%/` sem deletar o original (`_migrar_banco_legado()` em `database.py:28`).
+
+### importflash.py — path do banco
+
+**NUNCA use `PROJECT_DIR / "config" / "spreadhunter.db"`.** Sempre importe e use
+`get_db_path()` de `database.py`. Path hardcoded quebra no .exe compilado (PyInstaller
+resolve `__file__` para temp dir). Arquivo: `scripts/validar_opcoes/importflash.py:22`.
+
+### Import roda em QThread (não QProcess)
+
+`QProcess` com `sys.executable` **não funciona** no .exe compilado (não há Python para
+chamar). O import agora roda em `QThread` interno via `_ImportThread` em
+`main_window.py:735`. Output vai para stdout do processo principal.
+
+### RTD não fica flickando ON/OFF
+
+Removido o `rtd_status.emit(False)` baseado em `dados_stale` em
+`monitor_worker.py:378-383`. O status do RTD agora reflete apenas se `Dispatch` COM
+funcionou — não se `RefreshData` retornou dados (já que `ServerStart` crasha sem Profit).
+
+### Erro `name 'logger' is not defined`
+
+Pode ocorrer no PyInstaller se `__name__` no logger não corresponder ao módulo real.
+Garantir `logger = logging.getLogger(__name__)` no topo do arquivo (linha 18 em
+`monitor_worker.py`). Se persistir, usar `logging.getLogger()` sem argumento.
+
+### Build e Deploy
+
+```powershell
+# 1. Testar localmente — NUNCA pule esta etapa
+python -m pytest tests/ -x -q --tb=short
+
+# 2. Build
+python -m PyInstaller --clean --distpath "$env:USERPROFILE\Desktop\dist" --workpath "$env:USERPROFILE\Desktop\build_pyi" spreadhunter.spec
+
+# 3. Substituir deploy antigo
+Remove-Item -Recurse -Force "$env:USERPROFILE\Desktop\Spreadhunter"
+Move-Item "$env:USERPROFILE\Desktop\dist\Spreadhunter" "$env:USERPROFILE\Desktop\Spreadhunter"
+
+# 4. Limpar artefatos
+Remove-Item -Recurse -Force "$env:USERPROFILE\Desktop\dist", "$env:USERPROFILE\Desktop\build_pyi"
+
+# 5. Recriar INSTRUCOES.txt
+@"
+╔══════════════════════════════════════════════════════╗
+║             SPREADHUNTER — INSTRUCOES              ║
+╚══════════════════════════════════════════════════════╝
+
+1. Renomeie .env.example para .env e edite com seu CPF e
+   senha do site opcoes.net.br
+
+2. Execute Spreadhunter.exe
+
+3. Clique em ⚡ Importar (aguarde ~1-2 minutos)
+
+4. Clique em Iniciar Monitoramento
+
+5. Pronto! As oportunidades aparecerão nas abas:
+   - Colar Protetivo
+   - Colar Calendário
+   - Box 4P
+
+┌─────────────────────────────────────────────────────┐
+│ Para alterar parametros: Menu > Arquivo > Parametros │
+└─────────────────────────────────────────────────────┘
+"@ | Out-File -Encoding utf8 "$env:USERPROFILE\Desktop\Spreadhunter\INSTRUCOES.txt"
+
+# 6. Recriar .env.example
+@"
+# Credenciais opcoes.net.br
+OPCOESNET_CPF=SEU_CPF_AQUI
+OPCOESNET_SENHA=SUA_SENHA_AQUI
+"@ | Out-File -Encoding utf8 "$env:USERPROFILE\Desktop\Spreadhunter\.env.example"
+```
+
 ### Observações importantes p/ sessões futuras
 
 - **Box 4P (`calculadora_box.py:87`)**: fórmula `lucro = clr - distancia` está **correta** — é um short box. Não inverter.
 - **Performance**: várias escolhas de design são intencionais (conexões abrindo/fechando, O(n²) em listas pequenas, `except Exception: pass` em não-críticos). Não "corrigir" sem confirmar.
-- **Testes**: 159/159 passando em todas as batidas.
+- **Testes**: 285/285 passando em todas as batidas (24/06).
 - **Stack atual**: Python 3.13.14, PySide6 6.11.1, numpy 2.4.6, scipy 1.17.1, matplotlib 3.11.0.
+- **Deploy sempre pela pasta `C:\Users\Mozart\Desktop\Spreadhunter\`**.

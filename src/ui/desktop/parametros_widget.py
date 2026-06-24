@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QGroupBox,
     QDoubleSpinBox, QPushButton, QLabel, QScrollArea, QFrame,
@@ -722,6 +725,7 @@ class ParametrosWidget(QWidget):
                             descricao=d["descricao"],
                         )
                         self.repo.save(p)
+            self._exportar_json()
             self.lbl_status.setText("Parametros salvos com sucesso.")
             self.lbl_status.setStyleSheet(
                 "color: {}; font-weight: bold; padding: 4px;".format(Palette.GREEN)
@@ -731,3 +735,24 @@ class ParametrosWidget(QWidget):
             self.lbl_status.setStyleSheet(
                 "color: {}; font-weight: bold; padding: 4px;".format(Palette.RED)
             )
+
+    def _exportar_json(self):
+        json_path = Path(__file__).resolve().parent.parent.parent.parent / "config" / "parametros_default.json"
+        try:
+            all_params = self.repo.list_all()
+            parametros = []
+            for p in all_params:
+                parametros.append({
+                    "chave": p.chave,
+                    "valor": str(p.valor),
+                    "estrategia": p.estrategia,
+                    "descricao": p.descricao or "",
+                })
+            data = {
+                "_comment": "Blueprint de parametros do SpreadHunter. Valores usados como seed na criacao do banco. Altere aqui para customizar sua instalacao.",
+                "parametros": parametros,
+            }
+            with open(str(json_path), "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass

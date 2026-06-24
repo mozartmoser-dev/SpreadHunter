@@ -19,7 +19,8 @@ PROJECT_DIR = SCRIPTS_DIR.parent.parent
 
 sys.path.insert(0, str(PROJECT_DIR))
 
-REAL_DB = PROJECT_DIR / "config" / "spreadhunter.db"
+from src.infrastructure.persistence.database import get_db_path
+REAL_DB = get_db_path()
 
 
 def main():

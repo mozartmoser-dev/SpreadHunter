@@ -1,15 +1,47 @@
 import hashlib
+import json
+import logging
+import os
+import shutil
 import sqlite3
+import sys
 import threading
 from pathlib import Path
 
 DB_NAME = "spreadhunter.db"
 
 _db_local = threading.local()
+_logger = logging.getLogger(__name__)
+
+
+def _get_appdata_dir() -> Path:
+    return Path(os.environ.get("APPDATA", Path.home() / ".local/share")) / "Spreadhunter"
 
 
 def get_db_path() -> Path:
-    return Path(__file__).resolve().parent.parent.parent.parent / "config" / DB_NAME
+    appdata_dir = _get_appdata_dir()
+    db_path = appdata_dir / DB_NAME
+    if not db_path.exists():
+        _migrar_banco_legado(db_path)
+    return db_path
+
+
+def _migrar_banco_legado(novo_path: Path) -> None:
+    """Copia banco existente de config/ para %APPDATA%/Spreadhunter/ na 1ª execução."""
+    candidatos = [
+        Path(__file__).resolve().parent.parent.parent.parent / "config" / DB_NAME,
+        Path(sys.argv[0]).parent / "config" / DB_NAME if hasattr(sys, "argv") and sys.argv else None,
+    ]
+    for velho in candidatos:
+        if velho and velho.exists():
+            try:
+                novo_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(velho), str(novo_path))
+                _logger.info("Banco migrado de %s para %s", velho, novo_path)
+            except Exception as e:
+                _logger.warning("Falha ao migrar banco de %s: %s", velho, e)
+            return
+    novo_path.parent.mkdir(parents=True, exist_ok=True)
 
 
 def get_connection(db_path: Path | str | None = None) -> sqlite3.Connection:
@@ -45,6 +77,20 @@ def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
 
 
 def _seed_parametros_colar(conn):
+    _base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent.parent.parent))
+    json_path = _base / "config" / "parametros_default.json"
+    if json_path.is_file():
+        try:
+            with open(str(json_path), "r", encoding="utf-8") as f:
+                data = json.load(f)
+            for p in data.get("parametros", []):
+                conn.execute(
+                    "INSERT OR IGNORE INTO parametros_operacionais (chave, valor, estrategia, descricao) VALUES (?, ?, ?, ?)",
+                    (p["chave"], p["valor"], p.get("estrategia", ""), p.get("descricao", "")),
+                )
+            return
+        except Exception:
+            pass
     params = [
         ("premio_risco_colar", "0.7", "COLAR", "Premio risco Colar (x CDI)"),
         ("colar_dist_max_pct", "0.15", "COLAR", "Distancia maxima do strike (%)"),
@@ -141,16 +187,11 @@ def _seed_parametros_colar(conn):
         ("onda2_dte_max", "180", "PERFORMANCE", "DTE maximo para registrar Onda 2"),
         ("box_scan_interval", "5", "BOX_4P", "Ciclos entre varreduras de Box 4P"),
     ]
-    params.extend(perf_params)
-    params.extend(mpp_params)
-    for chave, valor, estrategia, descricao in params:
-        try:
-            conn.execute(
-                "INSERT OR IGNORE INTO parametros_operacionais (chave, valor, estrategia, descricao) VALUES (?, ?, ?, ?)",
-                (chave, valor, estrategia, descricao),
-            )
-        except sqlite3.OperationalError:
-            pass
+    for p in params + mpp_params + perf_params:
+        conn.execute(
+            "INSERT OR IGNORE INTO parametros_operacionais (chave, valor, estrategia, descricao) VALUES (?, ?, ?, ?)",
+            p,
+        )
 
 
 def _migrar_feriados_b3(conn):

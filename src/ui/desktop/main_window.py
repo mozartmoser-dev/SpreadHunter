@@ -5,12 +5,12 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QToolBar, QLabel, QDialog,
+    QPushButton, QToolBar, QLabel, QDialog, QMessageBox,
     QHeaderView, QTableView, QAbstractItemView, QFrame, QMenu,
     QCheckBox, QComboBox, QStackedWidget, QGraphicsOpacityEffect,
 )
-from PySide6.QtCore import Qt, QTimer, QSize, QProcess, QPropertyAnimation, QEasingCurve
-from PySide6.QtGui import QFont, QColor, QBrush, QIcon, QPixmap, QPainter, QAction
+from PySide6.QtCore import Qt, QTimer, QSize, QProcess, QPropertyAnimation, QEasingCurve, QThread, Signal
+from PySide6.QtGui import QFont, QColor, QBrush, QIcon, QPixmap, QPainter, QAction, QShortcut, QKeySequence
 
 
 from src.infrastructure.persistence.database import get_db_path
@@ -82,6 +82,8 @@ class MainWindow(QMainWindow):
 
         self._setup_ui()
         self._setup_status_bar()
+
+        QShortcut(QKeySequence("Ctrl+Shift+F"), self, self._abrir_pipeline)
 
         self._scan_timer = QTimer(self)
         self._scan_timer.timeout.connect(self._update_scan_status)
@@ -589,8 +591,6 @@ class MainWindow(QMainWindow):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_R and event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
             self.btn_regras.setVisible(not self.btn_regras.isVisible())
-        elif event.key() == Qt.Key_F and event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
-            self._abrir_pipeline()
         else:
             super().keyPressEvent(event)
 
@@ -724,46 +724,75 @@ class MainWindow(QMainWindow):
         if dlg.exec_() != QDialog.Accepted:
             return
 
-        script_dir = Path(__file__).resolve().parent.parent.parent.parent / "scripts" / "validar_opcoes"
-        self._importflash_process = QProcess(self)
-        self._importflash_process.setWorkingDirectory(str(script_dir))
-        script = str(script_dir / "importflash.py")
-
-        self._importflash_process.readyReadStandardOutput.connect(
-            lambda: self._on_importflash_output(
-                self._importflash_process.readAllStandardOutput().data().decode("utf-8", errors="replace")
-            )
-        )
-        self._importflash_process.readyReadStandardError.connect(
-            lambda: self._on_importflash_output(
-                self._importflash_process.readAllStandardError().data().decode("utf-8", errors="replace"),
-                is_error=True,
-            )
-        )
-        self._importflash_process.finished.connect(self._on_importflash_finished)
-
         self.btn_importflash.setEnabled(False)
         self.btn_importflash.setText("⏳  Importar...")
         self._status_left.setText("ImportFlash: varrendo opcoes.net.br...")
         self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.YELLOW))
 
-        self._importflash_process.start(
-            sys.executable, [script, "--excluir", "IBOV11", "--delay", "0.35"]
+        class _ImportThread(QThread):
+            finished = Signal(int)
+            progress = Signal(str)
+
+            def run(self):
+                import io, contextlib
+
+                class _LineCapture(io.StringIO):
+                    def __init__(self, sig_target):
+                        super().__init__()
+                        self._buf = io.StringIO()
+                        self._partial = ""
+                        self._sig_target = sig_target
+
+                    def write(self, s):
+                        self._buf.write(s)
+                        self._partial += s
+                        while "\n" in self._partial:
+                            idx = self._partial.index("\n")
+                            line = self._partial[:idx]
+                            self._partial = self._partial[idx + 1 :]
+                            if line:
+                                self._sig_target.emit(line)
+
+                    def flush(self):
+                        pass
+
+                    def getvalue(self):
+                        return self._buf.getvalue()
+
+                captura = _LineCapture(self.progress)
+                with contextlib.redirect_stdout(captura), contextlib.redirect_stderr(captura):
+                    try:
+                        from scripts.validar_opcoes.importflash import main
+                        rc = main()
+                    except Exception as e:
+                        print(f"ERRO: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        rc = 1
+                output = captura.getvalue()
+                if output:
+                    print(output, end="", flush=True)
+                self.finished.emit(rc if rc is not None else 1)
+
+        self._import_thread = _ImportThread()
+        self._import_thread.finished.connect(self._on_importflash_finished)
+        self._import_thread.progress.connect(
+            lambda msg: self._status_left.setText(f"ImportFlash: {msg[:120]}")
         )
+        self._import_thread.start()
 
-    def _on_importflash_output(self, text: str, is_error=False):
-        print(text, end="", flush=True)
-
-    def _on_importflash_finished(self, exit_code, exit_status):
+    def _on_importflash_finished(self, exit_code: int):
         self.btn_importflash.setEnabled(True)
         self.btn_importflash.setText("⚡  Importar")
         if exit_code == 0:
             self._worker.recarregar_instrumentos()
             self._status_left.setText("ImportFlash: concluido com sucesso!")
             self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
+            QMessageBox.information(self, "Importação", "Importação concluída com sucesso!")
         else:
             self._status_left.setText(f"ImportFlash: erro (codigo {exit_code})")
             self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.RED))
+            QMessageBox.critical(self, "Importação", f"Importação falhou (código {exit_code}).")
 
     def _abrir_historico(self):
         from src.ui.desktop.historico_dialog import HistoricoDialog

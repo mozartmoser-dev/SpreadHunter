@@ -375,12 +375,6 @@ class MonitorWorker(QThread):
 
         engine_stats = self._mercado_provider.get_engine_stats() if self._mercado_provider else {}
         stale = engine_stats.get('dados_stale', False)
-        if stale:
-            self.rtd_status.emit(False)
-            self._rtd_estava_stale = True
-        elif self._rtd_estava_stale:
-            self._rtd_estava_stale = False
-            self.rtd_status.emit(True)
         stats = EngineStatsDTO(
             scan_time_ms=t_elapsed_ms,
             cpu_pct=cpu,

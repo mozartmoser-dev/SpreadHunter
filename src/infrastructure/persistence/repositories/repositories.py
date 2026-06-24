@@ -214,6 +214,20 @@ class ParametroRepository:
         finally:
             conn.close()
 
+    def list_all(self) -> list[ParametroOperacional]:
+        key = self._cache_key()
+        with self._dict_lock:
+            if key not in self._locks:
+                self._locks[key] = threading.Lock()
+            lock = self._locks[key]
+        with lock:
+            cache = self._caches.get(key)
+            if cache is None:
+                cache = self._fill_cache()
+                with self._dict_lock:
+                    self._caches[key] = cache
+            return list(cache.values())
+
     def get_by_estrategia(self, estrategia: str) -> list[ParametroOperacional]:
         key = self._cache_key()
         with self._dict_lock:
