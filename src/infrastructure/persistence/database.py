@@ -70,6 +70,7 @@ def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
     conn = get_connection(db_path)
     conn.executescript(SCHEMA)
     _migrar_dividendos(conn)
+    _migrar_strike_column(conn)
     _seed_parametros_colar(conn)
     _migrar_feriados_b3(conn)
     conn.commit()
@@ -119,7 +120,8 @@ def _seed_parametros_colar(conn):
         ("ranking_peso_colar_risco", "1.0", "COLAR", "Peso do risco de leilão (inverso) no Score do Colar Protetivo"),
         ("taxa_ir_pct", "0.15", "GERAL", "Aliquota de IR sobre lucro em operacoes (15% swing trade)"),
         ("rtd_refresh_timeout_ms", "5000", "GERAL", "Timeout do RTD RefreshData em ms (0 = sem timeout)"),
-        ("ex_dividendo_lookback_dias", "5", "GERAL", "Janela (dias uteis) para forcar refresh RTD em ativos ex-dividendo"),
+        ("fonte_market_data", "0", "GERAL", "Fonte de market data (0=Profit RTD, 1=Open Fast Socket)"),
+        ("openfast_send_delay_ms", "5", "GERAL", "Delay entre comandos SQT (ms). 5 = 5ms. 0 = sem delay"),
         ("elegibilidade_strike_max_pct", "0.70", "BOX_SINTETICO", "Strike máximo % do spot para elegibilidade de pescaria"),
         ("dte_call_min", "25", "COLLAR_CALENDARIO", "DTE mínimo para call no collar calendário"),
         ("dte_call_max", "60", "COLLAR_CALENDARIO", "DTE máximo para call no collar calendário"),
@@ -192,6 +194,14 @@ def _seed_parametros_colar(conn):
             "INSERT OR IGNORE INTO parametros_operacionais (chave, valor, estrategia, descricao) VALUES (?, ?, ?, ?)",
             p,
         )
+
+
+def _migrar_strike_column(conn):
+    """Adiciona coluna strike em instrumentos_base se nao existir."""
+    try:
+        conn.execute("ALTER TABLE instrumentos_base ADD COLUMN strike REAL")
+    except sqlite3.OperationalError:
+        pass
 
 
 def _migrar_feriados_b3(conn):

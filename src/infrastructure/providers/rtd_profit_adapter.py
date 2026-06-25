@@ -1,0 +1,52 @@
+import logging
+
+from src.domain.services.market_data_source import FieldName, PROFIT_FIELD_STR
+from src.infrastructure.providers.rtd_profit import RTDProfit
+
+logger = logging.getLogger(__name__)
+
+
+class RTDProfitAdapter:
+    """Traduz FieldName → str Profit. RTDProfit permanece intacto."""
+
+    suporta_push: bool = False
+    suporta_cab_skip: bool = True
+
+    def __init__(self):
+        self._rtd = RTDProfit()
+
+    @property
+    def disponivel(self) -> bool:
+        return self._rtd.disponivel
+
+    def _resolver(self, campo: FieldName | str) -> str:
+        if isinstance(campo, FieldName):
+            return PROFIT_FIELD_STR.get(campo, "")
+        return campo
+
+    def registrar_topico(self, codigo: str, campo: FieldName) -> int:
+        return self._rtd.registrar_topico(codigo, self._resolver(campo))
+
+    def registrar_status(self, codigo: str) -> int:
+        return self._rtd.registrar_status(codigo)
+
+    def ler_campo_cache(self, codigo: str, campo: FieldName) -> float | None:
+        return self._rtd.ler_campo_cache(codigo, self._resolver(campo))
+
+    def ler_status_cache(self, codigo: str) -> str:
+        return self._rtd.ler_status_cache(codigo)
+
+    def forcar_leitura(self, codigo: str, campo: FieldName) -> float | None:
+        return self._rtd.forcar_leitura(codigo, self._resolver(campo))
+
+    def refresh(self, timeout_ms: int = 0) -> dict[str, object]:
+        return self._rtd.refresh(timeout_ms)
+
+    def reconectar(self) -> bool:
+        return self._rtd.reconectar()
+
+    def invalidar_cache(self, codigo: str, campo: FieldName):
+        self._rtd.invalidar_cache(codigo, self._resolver(campo))
+
+    def desconectar(self):
+        self._rtd.desconectar()

@@ -2,118 +2,10 @@
   "_comment": "Blueprint de parametros do SpreadHunter. Valores usados como seed na criacao do banco. Altere aqui para customizar sua instalacao.",
   "parametros": [
     {
-      "chave": "box_prof_ativo",
-      "valor": "1",
-      "estrategia": "BOX",
-      "descricao": "Profundidade book ativo"
-    },
-    {
-      "chave": "box_prof_call",
-      "valor": "1",
-      "estrategia": "BOX",
-      "descricao": "Profundidade book Call"
-    },
-    {
-      "chave": "box_prof_put",
-      "valor": "-1",
-      "estrategia": "BOX",
-      "descricao": "Profundidade book PUT"
-    },
-    {
-      "chave": "box_qtd_ativo",
-      "valor": "1000",
-      "estrategia": "BOX",
-      "descricao": "Qtd compra ativo"
-    },
-    {
-      "chave": "box_qtd_call",
-      "valor": "1000",
-      "estrategia": "BOX",
-      "descricao": "Qtd venda Call"
-    },
-    {
-      "chave": "box_qtd_put",
-      "valor": "1000",
-      "estrategia": "BOX",
-      "descricao": "Qtd compra PUT"
-    },
-    {
-      "chave": "premio_risco_box",
-      "valor": "1.3",
-      "estrategia": "BOX",
-      "descricao": "Premio risco BOX"
-    },
-    {
-      "chave": "box_qtd_min",
-      "valor": "100",
-      "estrategia": "BOX_4P",
-      "descricao": "Qtd min contratos por perna"
-    },
-    {
-      "chave": "box_scan_interval",
-      "valor": "5",
-      "estrategia": "BOX_4P",
-      "descricao": "Ciclos entre varreduras de Box 4P"
-    },
-    {
-      "chave": "box_soh_europeia",
-      "valor": "1.0",
-      "estrategia": "BOX_4P",
-      "descricao": "So aceitar opcoes europeias (1=sim, 0=aceita americanas)"
-    },
-    {
-      "chave": "white_list_box4p",
-      "valor": "",
-      "estrategia": "BOX_4P",
-      "descricao": "Whitelist de ativos para Box 4P"
-    },
-    {
-      "chave": "basket_prof_call",
-      "valor": "-1",
-      "estrategia": "BOX_SINTETICO",
-      "descricao": "Profundidade Call ATM"
-    },
-    {
-      "chave": "basket_prof_call_itm",
-      "valor": "1",
-      "estrategia": "BOX_SINTETICO",
-      "descricao": "Profundidade Call ITM"
-    },
-    {
-      "chave": "basket_prof_put",
-      "valor": "-1",
-      "estrategia": "BOX_SINTETICO",
-      "descricao": "Profundidade PUT"
-    },
-    {
-      "chave": "basket_qtd_call",
-      "valor": "100",
-      "estrategia": "BOX_SINTETICO",
-      "descricao": "Qtd venda Call ATM"
-    },
-    {
-      "chave": "basket_qtd_call_itm",
-      "valor": "100",
-      "estrategia": "BOX_SINTETICO",
-      "descricao": "Qtd compra Call ITM"
-    },
-    {
-      "chave": "basket_qtd_put",
-      "valor": "100",
-      "estrategia": "BOX_SINTETICO",
-      "descricao": "Qtd compra PUT"
-    },
-    {
-      "chave": "elegibilidade_strike_max_pct",
-      "valor": "0.7",
-      "estrategia": "BOX_SINTETICO",
-      "descricao": "Strike máximo % do spot para elegibilidade de pescaria"
-    },
-    {
-      "chave": "premio_box_sintetico_call_itm",
-      "valor": "3.0",
-      "estrategia": "BOX_SINTETICO",
-      "descricao": "Premio BOX sintetico call ITM"
+      "chave": "premio_risco_colar",
+      "valor": "0.85",
+      "estrategia": "COLAR",
+      "descricao": "Premio risco Colar (x CDI)"
     },
     {
       "chave": "colar_dist_max_pct",
@@ -122,94 +14,16 @@
       "descricao": "Distancia maxima do strike (%)"
     },
     {
-      "chave": "colar_prof_ativo",
+      "chave": "calendario_strike_diff_max",
       "valor": "1.0",
-      "estrategia": "COLAR",
-      "descricao": "Profundidade book ativo"
-    },
-    {
-      "chave": "colar_prof_call",
-      "valor": "-1.0",
-      "estrategia": "COLAR",
-      "descricao": "Profundidade book Call"
-    },
-    {
-      "chave": "colar_prof_put",
-      "valor": "-1.0",
-      "estrategia": "COLAR",
-      "descricao": "Profundidade book Put"
-    },
-    {
-      "chave": "colar_qtd_ativo",
-      "valor": "100.0",
-      "estrategia": "COLAR",
-      "descricao": "Qtd compra ativo"
-    },
-    {
-      "chave": "colar_qtd_call",
-      "valor": "100.0",
-      "estrategia": "COLAR",
-      "descricao": "Qtd venda CALL"
-    },
-    {
-      "chave": "colar_qtd_put",
-      "valor": "100.0",
-      "estrategia": "COLAR",
-      "descricao": "Qtd compra PUT"
-    },
-    {
-      "chave": "colar_qul_min_call",
-      "valor": "100.0",
-      "estrategia": "COLAR",
-      "descricao": "Qtd minima negociada (QUL) para CALL"
-    },
-    {
-      "chave": "colar_qul_min_put",
-      "valor": "100.0",
-      "estrategia": "COLAR",
-      "descricao": "Qtd minima negociada (QUL) para PUT"
-    },
-    {
-      "chave": "colar_risco_baixo_vov_min",
-      "valor": "1000.0",
-      "estrategia": "COLAR",
-      "descricao": "VOV/VOC mínimo para risco baixo de despernamento"
-    },
-    {
-      "chave": "premio_risco_colar",
-      "valor": "0.7",
-      "estrategia": "COLAR",
-      "descricao": "Premio risco Colar (x CDI)"
-    },
-    {
-      "chave": "ranking_peso_colar_cdi",
-      "valor": "2.0",
-      "estrategia": "COLAR",
-      "descricao": "Peso do % CDI no Score do Colar Protetivo"
-    },
-    {
-      "chave": "ranking_peso_colar_pop",
-      "valor": "3.0",
-      "estrategia": "COLAR",
-      "descricao": "Peso da Pop no Score do Colar Protetivo"
-    },
-    {
-      "chave": "ranking_peso_colar_risco",
-      "valor": "1.0",
-      "estrategia": "COLAR",
-      "descricao": "Peso do risco de leilão (inverso) no Score do Colar Protetivo"
-    },
-    {
-      "chave": "white_list_colar",
-      "valor": "",
-      "estrategia": "COLAR",
-      "descricao": "Whitelist de ativos para Colar Protetivo"
-    },
-    {
-      "chave": "be_search_range_mult",
-      "valor": "0.15",
       "estrategia": "COLLAR_CALENDARIO",
-      "descricao": "Margem +/- busca breakeven (ex: 0.15 = 0.85x a 1.15x)"
+      "descricao": "Max strikes de diferenca entre call e put"
+    },
+    {
+      "chave": "premio_risco_colar_calendario",
+      "valor": "0.9",
+      "estrategia": "COLLAR_CALENDARIO",
+      "descricao": "Premio risco Collar Calendario (x CDI)"
     },
     {
       "chave": "calendario_call_otm_max",
@@ -218,21 +32,51 @@
       "descricao": "Max OTM da call (% do spot)"
     },
     {
-      "chave": "calendario_prof_ativo",
+      "chave": "taxa_emolumento_pct",
+      "valor": "0.00025",
+      "estrategia": "GERAL",
+      "descricao": "Taxa de emolumento B3 (% do financeiro)"
+    },
+    {
+      "chave": "taxa_liquidacao_pct",
+      "valor": "0.000275",
+      "estrategia": "GERAL",
+      "descricao": "Taxa de liquidacao B3 (% do financeiro)"
+    },
+    {
+      "chave": "colar_qtd_ativo",
+      "valor": "100.0",
+      "estrategia": "COLAR",
+      "descricao": "Qtd compra ativo"
+    },
+    {
+      "chave": "colar_prof_ativo",
       "valor": "1.0",
-      "estrategia": "COLLAR_CALENDARIO",
+      "estrategia": "COLAR",
       "descricao": "Profundidade book ativo"
     },
     {
-      "chave": "calendario_prof_call",
+      "chave": "colar_qtd_call",
+      "valor": "100.0",
+      "estrategia": "COLAR",
+      "descricao": "Qtd venda CALL"
+    },
+    {
+      "chave": "colar_prof_call",
       "valor": "-1.0",
-      "estrategia": "COLLAR_CALENDARIO",
+      "estrategia": "COLAR",
       "descricao": "Profundidade book Call"
     },
     {
-      "chave": "calendario_prof_put",
+      "chave": "colar_qtd_put",
+      "valor": "100.0",
+      "estrategia": "COLAR",
+      "descricao": "Qtd compra PUT"
+    },
+    {
+      "chave": "colar_prof_put",
       "valor": "-1.0",
-      "estrategia": "COLLAR_CALENDARIO",
+      "estrategia": "COLAR",
       "descricao": "Profundidade book Put"
     },
     {
@@ -242,10 +86,22 @@
       "descricao": "Qtd compra ativo"
     },
     {
+      "chave": "calendario_prof_ativo",
+      "valor": "1.0",
+      "estrategia": "COLLAR_CALENDARIO",
+      "descricao": "Profundidade book ativo"
+    },
+    {
       "chave": "calendario_qtd_call",
       "valor": "100.0",
       "estrategia": "COLLAR_CALENDARIO",
       "descricao": "Qtd venda CALL"
+    },
+    {
+      "chave": "calendario_prof_call",
+      "valor": "-1.0",
+      "estrategia": "COLLAR_CALENDARIO",
+      "descricao": "Profundidade book Call"
     },
     {
       "chave": "calendario_qtd_put",
@@ -254,16 +110,70 @@
       "descricao": "Qtd compra PUT"
     },
     {
-      "chave": "calendario_strike_diff_max",
-      "valor": "1.0",
+      "chave": "calendario_prof_put",
+      "valor": "-1.0",
       "estrategia": "COLLAR_CALENDARIO",
-      "descricao": "Max strikes de diferenca entre call e put"
+      "descricao": "Profundidade book Put"
     },
     {
-      "chave": "dte_call_max",
-      "valor": "60.0",
-      "estrategia": "COLLAR_CALENDARIO",
-      "descricao": "DTE máximo para call no collar calendário"
+      "chave": "colar_qul_min_put",
+      "valor": "100.0",
+      "estrategia": "COLAR",
+      "descricao": "Qtd minima negociada (QUL) para PUT"
+    },
+    {
+      "chave": "colar_qul_min_call",
+      "valor": "100.0",
+      "estrategia": "COLAR",
+      "descricao": "Qtd minima negociada (QUL) para CALL"
+    },
+    {
+      "chave": "colar_risco_baixo_vov_min",
+      "valor": "1000.0",
+      "estrategia": "COLAR",
+      "descricao": "VOV/VOC mínimo para risco baixo de despernamento"
+    },
+    {
+      "chave": "ranking_peso_colar_pop",
+      "valor": "3.0",
+      "estrategia": "COLAR",
+      "descricao": "Peso da Pop no Score do Colar Protetivo"
+    },
+    {
+      "chave": "ranking_peso_colar_cdi",
+      "valor": "2.0",
+      "estrategia": "COLAR",
+      "descricao": "Peso do % CDI no Score do Colar Protetivo"
+    },
+    {
+      "chave": "ranking_peso_colar_risco",
+      "valor": "1.0",
+      "estrategia": "COLAR",
+      "descricao": "Peso do risco de leilão (inverso) no Score do Colar Protetivo"
+    },
+    {
+      "chave": "taxa_ir_pct",
+      "valor": "0.15",
+      "estrategia": "GERAL",
+      "descricao": "Aliquota de IR sobre lucro em operacoes (15% swing trade)"
+    },
+    {
+      "chave": "rtd_refresh_timeout_ms",
+      "valor": "5000.0",
+      "estrategia": "GERAL",
+      "descricao": "Timeout do RTD RefreshData em ms (0 = sem timeout)"
+    },
+    {
+      "chave": "ex_dividendo_lookback_dias",
+      "valor": "5.0",
+      "estrategia": "GERAL",
+      "descricao": "Janela (dias uteis) para forcar refresh RTD em ativos ex-dividendo"
+    },
+    {
+      "chave": "elegibilidade_strike_max_pct",
+      "valor": "0.7",
+      "estrategia": "BOX_SINTETICO",
+      "descricao": "Strike máximo % do spot para elegibilidade de pescaria"
     },
     {
       "chave": "dte_call_min",
@@ -272,10 +182,10 @@
       "descricao": "DTE mínimo para call no collar calendário"
     },
     {
-      "chave": "dte_extra_max",
-      "valor": "120.0",
+      "chave": "dte_call_max",
+      "valor": "60.0",
       "estrategia": "COLLAR_CALENDARIO",
-      "descricao": "Spread DTE máximo entre put e call"
+      "descricao": "DTE máximo para call no collar calendário"
     },
     {
       "chave": "dte_extra_min",
@@ -284,10 +194,28 @@
       "descricao": "Spread DTE mínimo entre put e call"
     },
     {
+      "chave": "dte_extra_max",
+      "valor": "120.0",
+      "estrategia": "COLLAR_CALENDARIO",
+      "descricao": "Spread DTE máximo entre put e call"
+    },
+    {
       "chave": "dte_total_max",
       "valor": "180.0",
       "estrategia": "COLLAR_CALENDARIO",
       "descricao": "DTE máximo total para qualquer perna"
+    },
+    {
+      "chave": "import_max_months",
+      "valor": "6.0",
+      "estrategia": "IMPORTACAO",
+      "descricao": "Meses a frente da data para importar series"
+    },
+    {
+      "chave": "white_list_box4p",
+      "valor": "ABEV3,AXIA3,B3SA3,BBAS3,BBDC3,BBDC4,BBSE3,BOVA11,BPAC11,CMIG4,CSMG3,EQTL3,ITSA4,ITUB4,PETR3,PETR4,PRIO3,SANB11,SUZB3,VALE3,WEGE3",
+      "estrategia": "BOX_4P",
+      "descricao": "Whitelist de ativos para Box 4P"
     },
     {
       "chave": "limiar_classificacao_calendario",
@@ -296,10 +224,34 @@
       "descricao": "Limiar de classificacao (% do spread entre strikes)"
     },
     {
-      "chave": "premio_risco_colar_calendario",
-      "valor": "0.9",
+      "chave": "be_search_range_mult",
+      "valor": "0.15",
       "estrategia": "COLLAR_CALENDARIO",
-      "descricao": "Premio risco Collar Calendario (x CDI)"
+      "descricao": "Margem +/- busca breakeven (ex: 0.15 = 0.85x a 1.15x)"
+    },
+    {
+      "chave": "white_list_colar_calendario",
+      "valor": "ABEV3,AXIA3,B3SA3,BBAS3,BBDC3,BBDC4,BBSE3,BOVA11,BPAC11,CMIG4,CSMG3,EQTL3,ITSA4,ITUB4,PETR3,PETR4,PRIO3,SANB11,SUZB3,VALE3,WEGE3",
+      "estrategia": "COLLAR_CALENDARIO",
+      "descricao": "Whitelist de ativos para Collar Calendario"
+    },
+    {
+      "chave": "white_list_colar",
+      "valor": "ABEV3,AXIA3,B3SA3,BBAS3,BBDC3,BBDC4,BBSE3,BOVA11,BPAC11,CMIG4,CSMG3,EQTL3,ITSA4,ITUB4,PETR3,PETR4,PRIO3,SANB11,SUZB3,VALE3,WEGE3",
+      "estrategia": "COLAR",
+      "descricao": "Whitelist de ativos para Colar Protetivo"
+    },
+    {
+      "chave": "telegram_cleanup_timeout",
+      "valor": "300.0",
+      "estrategia": "TELEGRAM",
+      "descricao": "Timeout de limpeza do historico Telegram (segundos)"
+    },
+    {
+      "chave": "ranking_peso_theta",
+      "valor": "3.0",
+      "estrategia": "COLLAR_CALENDARIO",
+      "descricao": "Peso do theta líquido no ranking (Score)"
     },
     {
       "chave": "ranking_peso_cdi",
@@ -308,22 +260,16 @@
       "descricao": "Peso do % CDI no ranking (Score)"
     },
     {
+      "chave": "ranking_peso_sigma",
+      "valor": "2.0",
+      "estrategia": "COLLAR_CALENDARIO",
+      "descricao": "Peso da folga sigma (distância strikes) no ranking (Score)"
+    },
+    {
       "chave": "ranking_peso_credito",
       "valor": "1.0",
       "estrategia": "COLLAR_CALENDARIO",
       "descricao": "Peso do crédito líquido no ranking (Score)"
-    },
-    {
-      "chave": "ranking_peso_dist_strike",
-      "valor": "25.0",
-      "estrategia": "COLLAR_CALENDARIO",
-      "descricao": "Peso da Dist Strike/Custo no Score IV"
-    },
-    {
-      "chave": "ranking_peso_iv_rank",
-      "valor": "25.0",
-      "estrategia": "COLLAR_CALENDARIO",
-      "descricao": "Peso do IV Rank no Score IV (0-100)"
     },
     {
       "chave": "ranking_peso_liquidez",
@@ -332,28 +278,16 @@
       "descricao": "Peso da liquidez no ranking (Score)"
     },
     {
-      "chave": "ranking_peso_liquidez_iv",
-      "valor": "10.0",
+      "chave": "ranking_peso_iv_rank",
+      "valor": "25.0",
       "estrategia": "COLLAR_CALENDARIO",
-      "descricao": "Peso da Liquidez no Score IV"
+      "descricao": "Peso do IV Rank no Score IV (0-100)"
     },
     {
-      "chave": "ranking_peso_risco_max",
-      "valor": "5.0",
+      "chave": "ranking_peso_dist_strike",
+      "valor": "25.0",
       "estrategia": "COLLAR_CALENDARIO",
-      "descricao": "Peso do Risco Máx (invertido) no Score IV"
-    },
-    {
-      "chave": "ranking_peso_sigma",
-      "valor": "2.0",
-      "estrategia": "COLLAR_CALENDARIO",
-      "descricao": "Peso da folga sigma (distância strikes) no ranking (Score)"
-    },
-    {
-      "chave": "ranking_peso_theta",
-      "valor": "3.0",
-      "estrategia": "COLLAR_CALENDARIO",
-      "descricao": "Peso do theta líquido no ranking (Score)"
+      "descricao": "Peso da Dist Strike/Custo no Score IV"
     },
     {
       "chave": "ranking_peso_theta_margin",
@@ -368,124 +302,64 @@
       "descricao": "Peso do Vega líquido no Score IV"
     },
     {
-      "chave": "white_list_colar_calendario",
-      "valor": "",
-      "estrategia": "COLLAR_CALENDARIO",
-      "descricao": "Whitelist de ativos para Collar Calendario"
-    },
-    {
-      "chave": "ex_dividendo_lookback_dias",
-      "valor": "5.0",
-      "estrategia": "GERAL",
-      "descricao": "Janela ex-div (dias) p/ refresh RTD"
-    },
-    {
-      "chave": "rtd_refresh_timeout_ms",
-      "valor": "5000.0",
-      "estrategia": "GERAL",
-      "descricao": "Timeout RTD RefreshData (ms, 0=sem timeout)"
-    },
-    {
-      "chave": "taxa_cdi",
-      "valor": "0.145",
-      "estrategia": "GERAL",
-      "descricao": "Taxa CDI/Selic"
-    },
-    {
-      "chave": "taxa_emolumento_pct",
-      "valor": "0.00025",
-      "estrategia": "GERAL",
-      "descricao": "Taxa de emolumento B3 (0.025%)"
-    },
-    {
-      "chave": "taxa_ir_pct",
-      "valor": "0.15",
-      "estrategia": "GERAL",
-      "descricao": "Aliquota IR (15% swing trade)"
-    },
-    {
-      "chave": "taxa_iss_pct",
-      "valor": "0.0",
-      "estrategia": "GERAL",
-      "descricao": "ISS sobre corretagem"
-    },
-    {
-      "chave": "taxa_liquidacao_pct",
-      "valor": "0.000275",
-      "estrategia": "GERAL",
-      "descricao": "Taxa de liquidacao B3 (0.0275%)"
-    },
-    {
-      "chave": "taxa_registro_pct",
-      "valor": "0.0001",
-      "estrategia": "GERAL",
-      "descricao": "Taxa de registro B3 para opcoes"
-    },
-    {
-      "chave": "tema_visual",
-      "valor": "0.0",
-      "estrategia": "GERAL",
-      "descricao": "Tema Visual (0=Marinho, 1=Grafite, 2=Charcoal)"
-    },
-    {
-      "chave": "black_list_import",
-      "valor": "A1MD34,AAPL34,AMZO34,ASML34,AUAU99,AXIA99,AZUL53,BABA34,BERK34,BOVA11,BPAN4,CHVX34,COCA34,CPLE99,CYRE99,E1MR34,EXXO34,GMCO34,GOGL34,GSGI34,IBOV11,INBR32,ITLC34,JBSS32,JNJB34,JPMC34,LILY34,M1TA34,MCDC34,MELI34,MSFT34,N1VO34,NEOE3,NFLX34,NVDC34,OXYP34,P1GR34,PAGS34,PYPL34,RENT99,RIOT34,ROXO34,SANB3,SIMN34,SRNA3,TMOS34,TSLA34,TSMC34,VAMO99,VERZ34,VISA34,WALM34,ZAMP3",
-      "estrategia": "IMPORTACAO",
-      "descricao": "Blacklist de ativos (separados por virgula)"
-    },
-    {
-      "chave": "import_max_months",
-      "valor": "9.0",
-      "estrategia": "IMPORTACAO",
-      "descricao": "Meses a frente para importar series"
-    },
-    {
-      "chave": "box_premio_risco",
-      "valor": "1.08",
-      "estrategia": "MPP",
-      "descricao": "Premio risco minimo sobre CDI para pescaria de Box"
-    },
-    {
-      "chave": "mpp_bonus_max",
-      "valor": "0.15",
-      "estrategia": "MPP",
-      "descricao": "Bonus maximo historico"
-    },
-    {
-      "chave": "mpp_bonus_taxa",
-      "valor": "0.25",
-      "estrategia": "MPP",
-      "descricao": "Taxa de conversao sucesso em bonus"
-    },
-    {
-      "chave": "mpp_curvatura_normalizador",
-      "valor": "0.1",
-      "estrategia": "MPP",
-      "descricao": "Denominador de normalizacao da curvatura IV"
-    },
-    {
-      "chave": "mpp_dte_fator_min",
-      "valor": "0.6",
-      "estrategia": "MPP",
-      "descricao": "Fator DTE minimo (para vencimentos extremos)"
-    },
-    {
-      "chave": "mpp_dte_ideal_max",
-      "valor": "25.0",
-      "estrategia": "MPP",
-      "descricao": "DTE maximo da janela ideal"
-    },
-    {
-      "chave": "mpp_dte_ideal_min",
+      "chave": "ranking_peso_liquidez_iv",
       "valor": "10.0",
-      "estrategia": "MPP",
-      "descricao": "DTE minimo da janela ideal"
+      "estrategia": "COLLAR_CALENDARIO",
+      "descricao": "Peso da Liquidez no Score IV"
     },
     {
-      "chave": "mpp_erro_paridade_limiar",
-      "valor": "0.02",
-      "estrategia": "MPP",
-      "descricao": "Limiar de erro de paridade para acumular persistencia"
+      "chave": "ranking_peso_risco_max",
+      "valor": "5.0",
+      "estrategia": "COLLAR_CALENDARIO",
+      "descricao": "Peso do Risco Máx (invertido) no Score IV"
+    },
+    {
+      "chave": "perf_carga_inteligente",
+      "valor": "1.0",
+      "estrategia": "PERFORMANCE",
+      "descricao": "Habilitar carga inteligente"
+    },
+    {
+      "chave": "perf_range_min",
+      "valor": "-70.0",
+      "estrategia": "PERFORMANCE",
+      "descricao": "Range minimo de strike (%)"
+    },
+    {
+      "chave": "perf_range_max",
+      "valor": "70.0",
+      "estrategia": "PERFORMANCE",
+      "descricao": "Range maximo de strike (%)"
+    },
+    {
+      "chave": "perf_limite_meses",
+      "valor": "6.0",
+      "estrategia": "PERFORMANCE",
+      "descricao": "Limite de meses (max) para registrar Onda 1"
+    },
+    {
+      "chave": "perf_dias_minimos",
+      "valor": "7.0",
+      "estrategia": "PERFORMANCE",
+      "descricao": "Dias minimos ate o vencimento (min) para registrar Onda 1"
+    },
+    {
+      "chave": "onda2_dte_min",
+      "valor": "7.0",
+      "estrategia": "PERFORMANCE",
+      "descricao": "DTE minimo para registrar Onda 2"
+    },
+    {
+      "chave": "onda2_dte_max",
+      "valor": "180.0",
+      "estrategia": "PERFORMANCE",
+      "descricao": "DTE maximo para registrar Onda 2"
+    },
+    {
+      "chave": "box_scan_interval",
+      "valor": "5.0",
+      "estrategia": "BOX_4P",
+      "descricao": "Ciclos entre varreduras de Box 4P"
     },
     {
       "chave": "mpp_habilitado",
@@ -494,70 +368,16 @@
       "descricao": "Habilitar Motor de Priorizacao de Pescaria"
     },
     {
-      "chave": "mpp_instantaneo_interval",
-      "valor": "4.0",
-      "estrategia": "MPP",
-      "descricao": "Ciclos entre calculos MPP instantaneos"
-    },
-    {
-      "chave": "mpp_iv_delta_max",
-      "valor": "0.85",
-      "estrategia": "MPP",
-      "descricao": "Delta máximo para IV válida"
-    },
-    {
-      "chave": "mpp_iv_delta_min",
+      "chave": "mpp_peso_oi",
       "valor": "0.15",
       "estrategia": "MPP",
-      "descricao": "Delta mínimo para IV válida"
+      "descricao": "Peso concentracao OI no score estrutural"
     },
     {
-      "chave": "mpp_iv_min_negocios",
-      "valor": "10.0",
-      "estrategia": "MPP",
-      "descricao": "Núm. mínimo negócios para IV válida"
-    },
-    {
-      "chave": "mpp_iv_min_oi",
-      "valor": "500.0",
-      "estrategia": "MPP",
-      "descricao": "OI mínimo para IV válida"
-    },
-    {
-      "chave": "mpp_oi_cap_absoluto",
-      "valor": "10000.0",
-      "estrategia": "MPP",
-      "descricao": "Cap de OI absoluto para normalizacao"
-    },
-    {
-      "chave": "mpp_oi_peso_absoluto",
-      "valor": "0.4",
-      "estrategia": "MPP",
-      "descricao": "Peso do tamanho absoluto OI no score OI"
-    },
-    {
-      "chave": "mpp_oi_peso_concentracao",
-      "valor": "0.6",
-      "estrategia": "MPP",
-      "descricao": "Peso da concentracao relativa OI no score OI"
-    },
-    {
-      "chave": "mpp_paridade_normalizador",
+      "chave": "mpp_peso_volume",
       "valor": "0.1",
       "estrategia": "MPP",
-      "descricao": "Fator de normalizacao do erro de paridade do Box"
-    },
-    {
-      "chave": "mpp_persistencia_divisor",
-      "valor": "20.0",
-      "estrategia": "MPP",
-      "descricao": "Ciclos para atingir 1x de bonus de persistencia"
-    },
-    {
-      "chave": "mpp_persistencia_max_mult",
-      "valor": "0.5",
-      "estrategia": "MPP",
-      "descricao": "Multiplicador maximo da persistencia"
+      "descricao": "Peso baixo volume no score estrutural"
     },
     {
       "chave": "mpp_peso_curvatura_iv",
@@ -566,40 +386,10 @@
       "descricao": "Peso curvatura IV no score estrutural"
     },
     {
-      "chave": "mpp_peso_estrutural",
-      "valor": "0.35",
-      "estrategia": "MPP",
-      "descricao": "Peso do score estrutural no score final"
-    },
-    {
-      "chave": "mpp_peso_imbalance",
-      "valor": "0.05",
-      "estrategia": "MPP",
-      "descricao": "Peso book imbalance no score instantaneo"
-    },
-    {
-      "chave": "mpp_peso_instantaneo",
-      "valor": "0.65",
-      "estrategia": "MPP",
-      "descricao": "Peso do score instantaneo no score final"
-    },
-    {
-      "chave": "mpp_peso_oi",
-      "valor": "0.15",
-      "estrategia": "MPP",
-      "descricao": "Peso concentracao OI no score estrutural"
-    },
-    {
       "chave": "mpp_peso_paridade",
       "valor": "0.25",
       "estrategia": "MPP",
       "descricao": "Peso erro de paridade no score instantaneo"
-    },
-    {
-      "chave": "mpp_peso_profundidade",
-      "valor": "0.1",
-      "estrategia": "MPP",
-      "descricao": "Peso profundidade no score instantaneo"
     },
     {
       "chave": "mpp_peso_spread",
@@ -608,16 +398,22 @@
       "descricao": "Peso spread medio no score instantaneo"
     },
     {
+      "chave": "mpp_peso_profundidade",
+      "valor": "0.1",
+      "estrategia": "MPP",
+      "descricao": "Peso profundidade no score instantaneo"
+    },
+    {
+      "chave": "mpp_peso_imbalance",
+      "valor": "0.05",
+      "estrategia": "MPP",
+      "descricao": "Peso book imbalance no score instantaneo"
+    },
+    {
       "chave": "mpp_peso_spread_anomalia",
       "valor": "0.05",
       "estrategia": "MPP",
       "descricao": "Peso anomalia de spread no score instantaneo"
-    },
-    {
-      "chave": "mpp_peso_volume",
-      "valor": "0.1",
-      "estrategia": "MPP",
-      "descricao": "Peso baixo volume no score estrutural"
     },
     {
       "chave": "mpp_spread_history_len",
@@ -632,6 +428,108 @@
       "descricao": "Spread minimo para considerar anomalia (2%)"
     },
     {
+      "chave": "mpp_curvatura_normalizador",
+      "valor": "0.1",
+      "estrategia": "MPP",
+      "descricao": "Denominador de normalizacao da curvatura IV"
+    },
+    {
+      "chave": "mpp_oi_peso_absoluto",
+      "valor": "0.4",
+      "estrategia": "MPP",
+      "descricao": "Peso do tamanho absoluto OI no score OI"
+    },
+    {
+      "chave": "mpp_oi_peso_concentracao",
+      "valor": "0.6",
+      "estrategia": "MPP",
+      "descricao": "Peso da concentracao relativa OI no score OI"
+    },
+    {
+      "chave": "mpp_oi_cap_absoluto",
+      "valor": "10000.0",
+      "estrategia": "MPP",
+      "descricao": "Cap de OI absoluto para normalizacao"
+    },
+    {
+      "chave": "mpp_dte_fator_min",
+      "valor": "0.6",
+      "estrategia": "MPP",
+      "descricao": "Fator DTE minimo (para vencimentos extremos)"
+    },
+    {
+      "chave": "mpp_dte_ideal_min",
+      "valor": "10.0",
+      "estrategia": "MPP",
+      "descricao": "DTE minimo da janela ideal"
+    },
+    {
+      "chave": "mpp_dte_ideal_max",
+      "valor": "25.0",
+      "estrategia": "MPP",
+      "descricao": "DTE maximo da janela ideal"
+    },
+    {
+      "chave": "mpp_instantaneo_interval",
+      "valor": "4.0",
+      "estrategia": "MPP",
+      "descricao": "Ciclos entre calculos MPP instantaneos"
+    },
+    {
+      "chave": "mpp_persistencia_max_mult",
+      "valor": "0.5",
+      "estrategia": "MPP",
+      "descricao": "Multiplicador maximo da persistencia"
+    },
+    {
+      "chave": "mpp_persistencia_divisor",
+      "valor": "20.0",
+      "estrategia": "MPP",
+      "descricao": "Ciclos para atingir 1x de bonus de persistencia"
+    },
+    {
+      "chave": "box_premio_risco",
+      "valor": "1.5",
+      "estrategia": "MPP",
+      "descricao": "Premio risco minimo sobre CDI para pescaria de Box"
+    },
+    {
+      "chave": "mpp_paridade_normalizador",
+      "valor": "0.1",
+      "estrategia": "MPP",
+      "descricao": "Fator de normalizacao do erro de paridade do Box"
+    },
+    {
+      "chave": "mpp_erro_paridade_limiar",
+      "valor": "0.02",
+      "estrategia": "MPP",
+      "descricao": "Limiar de erro de paridade para acumular persistencia"
+    },
+    {
+      "chave": "mpp_peso_estrutural",
+      "valor": "0.35",
+      "estrategia": "MPP",
+      "descricao": "Peso do score estrutural no score final"
+    },
+    {
+      "chave": "mpp_peso_instantaneo",
+      "valor": "0.65",
+      "estrategia": "MPP",
+      "descricao": "Peso do score instantaneo no score final"
+    },
+    {
+      "chave": "mpp_bonus_max",
+      "valor": "0.15",
+      "estrategia": "MPP",
+      "descricao": "Bonus maximo historico"
+    },
+    {
+      "chave": "mpp_bonus_taxa",
+      "valor": "0.25",
+      "estrategia": "MPP",
+      "descricao": "Taxa de conversao sucesso em bonus"
+    },
+    {
       "chave": "mre_lote_base",
       "valor": "100.0",
       "estrategia": "MRE",
@@ -644,76 +542,130 @@
       "descricao": "Maximo %% da profundidade a consumir"
     },
     {
-      "chave": "onda2_dte_max",
-      "valor": "180.0",
-      "estrategia": "PERFORMANCE",
-      "descricao": "DTE maximo para registrar Onda 2"
+      "chave": "taxa_cdi",
+      "valor": "0.1425",
+      "estrategia": "GERAL",
+      "descricao": "Taxa CDI/Selic (usuario atualiza manualmente na tabela, nao e bug estar fixo)"
     },
     {
-      "chave": "onda2_dte_min",
-      "valor": "7.0",
-      "estrategia": "PERFORMANCE",
-      "descricao": "DTE minimo para registrar Onda 2"
-    },
-    {
-      "chave": "perf_carga_inteligente",
-      "valor": "1.0",
-      "estrategia": "PERFORMANCE",
-      "descricao": "Habilitar carga inteligente"
-    },
-    {
-      "chave": "perf_dias_minimos",
-      "valor": "10.0",
-      "estrategia": "PERFORMANCE",
-      "descricao": "Dias minimos ate o vencimento (min) para registrar Onda 1"
-    },
-    {
-      "chave": "perf_limite_meses",
-      "valor": "0.0",
-      "estrategia": "PERFORMANCE",
-      "descricao": "Limite de meses (max) para registrar Onda 1"
-    },
-    {
-      "chave": "perf_range_max",
-      "valor": "50.0",
-      "estrategia": "PERFORMANCE",
-      "descricao": "Range maximo de strike (%)"
-    },
-    {
-      "chave": "perf_range_min",
-      "valor": "-50.0",
-      "estrategia": "PERFORMANCE",
-      "descricao": "Range minimo de strike (%)"
+      "chave": "premio_risco_box",
+      "valor": "1.5",
+      "estrategia": "BOX",
+      "descricao": "Premio risco BOX"
     },
     {
       "chave": "premio_risco_sbth",
-      "valor": "1.1",
+      "valor": "1.0",
       "estrategia": "SBTH",
       "descricao": "Premio risco SBTH (ajustavel pelo usuario, nao e bug)"
     },
     {
-      "chave": "sbth_prof_ativo",
-      "valor": "1",
-      "estrategia": "SBTH",
-      "descricao": "Profundidade book ativo"
-    },
-    {
-      "chave": "sbth_prof_put",
-      "valor": "-1",
-      "estrategia": "SBTH",
-      "descricao": "Profundidade book PUT"
+      "chave": "premio_box_sintetico_call_itm",
+      "valor": "3.0",
+      "estrategia": "BOX_SINTETICO",
+      "descricao": "Premio BOX sintetico call ITM"
     },
     {
       "chave": "sbth_qtd_ativo",
-      "valor": "1000",
+      "valor": "1000.0",
       "estrategia": "SBTH",
       "descricao": "Qtd compra ativo"
     },
     {
+      "chave": "sbth_prof_ativo",
+      "valor": "-1.0",
+      "estrategia": "SBTH",
+      "descricao": "Profundidade book ativo"
+    },
+    {
       "chave": "sbth_qtd_put",
-      "valor": "1000",
+      "valor": "1000.0",
       "estrategia": "SBTH",
       "descricao": "Qtd compra PUT"
+    },
+    {
+      "chave": "sbth_prof_put",
+      "valor": "1.0",
+      "estrategia": "SBTH",
+      "descricao": "Profundidade book PUT"
+    },
+    {
+      "chave": "box_qtd_ativo",
+      "valor": "1000.0",
+      "estrategia": "BOX",
+      "descricao": "Qtd compra ativo"
+    },
+    {
+      "chave": "box_prof_ativo",
+      "valor": "-1.0",
+      "estrategia": "BOX",
+      "descricao": "Profundidade book ativo"
+    },
+    {
+      "chave": "box_qtd_put",
+      "valor": "1000.0",
+      "estrategia": "BOX",
+      "descricao": "Qtd compra PUT"
+    },
+    {
+      "chave": "box_prof_put",
+      "valor": "1.0",
+      "estrategia": "BOX",
+      "descricao": "Profundidade book PUT"
+    },
+    {
+      "chave": "box_qtd_call",
+      "valor": "1000.0",
+      "estrategia": "BOX",
+      "descricao": "Qtd venda Call"
+    },
+    {
+      "chave": "box_prof_call",
+      "valor": "-1.0",
+      "estrategia": "BOX",
+      "descricao": "Profundidade book Call"
+    },
+    {
+      "chave": "basket_qtd_call_itm",
+      "valor": "100.0",
+      "estrategia": "BOX_SINTETICO",
+      "descricao": "Qtd compra Call ITM"
+    },
+    {
+      "chave": "basket_prof_call_itm",
+      "valor": "1.0",
+      "estrategia": "BOX_SINTETICO",
+      "descricao": "Profundidade Call ITM"
+    },
+    {
+      "chave": "basket_qtd_put",
+      "valor": "100.0",
+      "estrategia": "BOX_SINTETICO",
+      "descricao": "Qtd compra PUT"
+    },
+    {
+      "chave": "basket_prof_put",
+      "valor": "-1.0",
+      "estrategia": "BOX_SINTETICO",
+      "descricao": "Profundidade PUT"
+    },
+    {
+      "chave": "basket_qtd_call",
+      "valor": "100.0",
+      "estrategia": "BOX_SINTETICO",
+      "descricao": "Qtd venda Call ATM"
+    },
+    {
+      "chave": "basket_prof_call",
+      "valor": "-1.0",
+      "estrategia": "BOX_SINTETICO",
+      "descricao": "Profundidade Call ATM"
+    },
+    {
+      "chave": "tema_visual",
+      "valor": "2.0",
+      "estrategia": "GERAL",
+      "descricao": "Tema Visual (0=Marinho, 1=Grafite, 2=Charcoal)"
     },
     {
       "chave": "notif_telegram_enable",
@@ -723,21 +675,81 @@
     },
     {
       "chave": "telegram_bot_token",
-      "valor": "0",
+      "valor": "0.0",
       "estrategia": "TELEGRAM",
       "descricao": "Token Telegram"
     },
     {
       "chave": "telegram_chat_id",
-      "valor": "0",
+      "valor": "0.0",
       "estrategia": "TELEGRAM",
       "descricao": "Chat ID Telegram"
     },
     {
-      "chave": "telegram_cleanup_timeout",
-      "valor": "300.0",
-      "estrategia": "TELEGRAM",
-      "descricao": "Timeout de limpeza do historico Telegram (segundos)"
+      "chave": "taxa_registro_pct",
+      "valor": "0.0001",
+      "estrategia": "GERAL",
+      "descricao": "Taxa de registro B3 para opcoes (% do financeiro)"
+    },
+    {
+      "chave": "taxa_iss_pct",
+      "valor": "0.0",
+      "estrategia": "GERAL",
+      "descricao": "ISS sobre corretagem (5% tipico = 0.00025 do financeiro)"
+    },
+    {
+      "chave": "box_qtd_min",
+      "valor": "100.0",
+      "estrategia": "BOX_4P",
+      "descricao": "Qtd min contratos por perna"
+    },
+    {
+      "chave": "box_soh_europeia",
+      "valor": "1.0",
+      "estrategia": "BOX_4P",
+      "descricao": "So aceitar opcoes europeias (1=sim, 0=aceita americanas)"
+    },
+    {
+      "chave": "mpp_iv_min_negocios",
+      "valor": "10.0",
+      "estrategia": "MPP",
+      "descricao": "Núm. mínimo negócios para IV válida"
+    },
+    {
+      "chave": "mpp_iv_min_oi",
+      "valor": "500.0",
+      "estrategia": "MPP",
+      "descricao": "OI mínimo para IV válida"
+    },
+    {
+      "chave": "mpp_iv_delta_min",
+      "valor": "0.15",
+      "estrategia": "MPP",
+      "descricao": "Delta mínimo para IV válida"
+    },
+    {
+      "chave": "mpp_iv_delta_max",
+      "valor": "0.85",
+      "estrategia": "MPP",
+      "descricao": "Delta máximo para IV válida"
+    },
+    {
+      "chave": "black_list_import",
+      "valor": "A1MD34,AAPL34,AMZO34,ASML34,AUAU99,AXIA99,AZUL53,BABA34,BERK34,BOVA11,BPAN4,CHVX34,COCA34,CPLE99,CYRE99,E1MR34,EXXO34,GMCO34,GOGL34,GSGI34,IBOV11,INBR32,ITLC34,JBSS32,JNJB34,JPMC34,LILY34,M1TA34,MCDC34,MELI34,MSFT34,N1VO34,NEOE3,NFLX34,NVDC34,OXYP34,P1GR34,PAGS34,PYPL34,RENT99,RIOT34,ROXO34,SANB3,SIMN34,SRNA3,TMOS34,TSLA34,TSMC34,VAMO99,VERZ34,VISA34,WALM34,ZAMP3",
+      "estrategia": "IMPORTACAO",
+      "descricao": "Ativos excluidos do ImportFlash (separados por virgula)"
+    },
+    {
+      "chave": "fonte_market_data",
+      "valor": "0.0",
+      "estrategia": "GERAL",
+      "descricao": "Fonte de market data (0=Profit RTD, 1=Open Fast Socket)"
+    },
+    {
+      "chave": "openfast_send_delay_ms",
+      "valor": "5.0",
+      "estrategia": "GERAL",
+      "descricao": "Delay entre comandos SQT (ms). 5 = 5ms. 0 = sem delay"
     }
   ]
 }

@@ -93,8 +93,10 @@ class CalculadoraBox:
         custo_ir = self.custos_b3.ajustar_ir(lucro_liquido)
         lucro_liquido_pos_ir = lucro_liquido - custo_ir
 
+        lucro_pct_bruto = lucro / distancia if distancia > 0 else 0.0
         lucro_pct = lucro_liquido / distancia if distancia > 0 else 0.0
         cdi_periodo = self.calcular_cdi_periodo(dias)
+        pct_cdi_bruto = lucro_pct_bruto / cdi_periodo if cdi_periodo > 0 else 0.0
         pct_cdi = lucro_pct / cdi_periodo if cdi_periodo > 0 else 0.0
         lucro_pct_liq = lucro_liquido_pos_ir / distancia if distancia > 0 else 0.0
         pct_cdi_liquido = lucro_pct_liq / cdi_periodo if cdi_periodo > 0 else 0.0
@@ -117,7 +119,7 @@ class CalculadoraBox:
         )
 
         viavel = (
-            pct_cdi >= self.premio_risco
+            pct_cdi_bruto >= self.premio_risco
             and lucro_liquido > 0
             and not em_leilao
             and profundidade_ok

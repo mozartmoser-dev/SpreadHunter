@@ -214,6 +214,13 @@ class BoxDialog(QDialog):
         self.lbl_viaveis.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold; padding: 0 8px;".format(Palette.YELLOW))
         header.addWidget(self.lbl_viaveis)
 
+        self.lbl_div_warn = QLabel("")
+        self.lbl_div_warn.setStyleSheet(
+            "color: {}; font-size: 9pt; font-weight: bold; padding: 0 4px;".format(Palette.RED)
+        )
+        self.lbl_div_warn.setVisible(False)
+        header.addWidget(self.lbl_div_warn)
+
         self.btn_bell = QPushButton("🔔")
         self.btn_bell.setFixedSize(26, 24)
         self.btn_bell.setToolTip("Som: desligado (clique para ligar)")
@@ -414,6 +421,29 @@ class BoxDialog(QDialog):
         if self._som_ativado and viaveis > 0:
             winsound.Beep(1000, 200)
             winsound.Beep(1200, 150)
+
+        self._verificar_ex_dividendo(resultados)
+
+    def _verificar_ex_dividendo(self, resultados):
+        """Alerta se algum ativo nos resultados está em dia ex de dividendo."""
+        if not self._db_path:
+            return
+        try:
+            from src.infrastructure.persistence.repositories.repositories import DividendoRepository
+            from datetime import date
+
+            ativos = list(set(r.ativo for r in resultados))
+            div_repo = DividendoRepository(self._db_path)
+            divs_hoje = div_repo.get_ex_hoje()
+            divs_presentes = [d for d in divs_hoje if d["ativo"] in ativos]
+            if divs_presentes:
+                nomes = ", ".join(set(d["ativo"] for d in divs_presentes))
+                self.lbl_div_warn.setText(f"⚠ {nomes} ex-div hoje — strike pode estar errado")
+                self.lbl_div_warn.setVisible(True)
+            else:
+                self.lbl_div_warn.setVisible(False)
+        except Exception:
+            self.lbl_div_warn.setVisible(False)
 
     def _toggle_som(self, ativo: bool):
         self._som_ativado = ativo

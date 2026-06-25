@@ -12,7 +12,7 @@ from src.application.use_cases.monitor_box import MonitorBoxUseCase
 from src.application.use_cases.mpp_use_case import MPPUseCase
 from src.domain.services.pipeline_tracker import PipelineTracker
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
-from src.infrastructure.providers.rtd_profit import RTDProfit
+from src.domain.services.market_data_source import criar_data_source, MarketDataSource
 from src.application.dtos.dtos import EngineStatsDTO
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class MonitorWorker(QThread):
     mre_atualizados = Signal(list)
     mpp_status_changed = Signal(bool)
 
-    def __init__(self, db_path: str, rtd: RTDProfit, parent=None):
+    def __init__(self, db_path: str, rtd: object = None, parent=None):
         super().__init__(parent)
         self.db_path = db_path
         self._rtd_main = rtd
@@ -75,22 +75,23 @@ class MonitorWorker(QThread):
 
     def run(self):
         com_initialized = False
-        try:
-            import pythoncom
-            pythoncom.CoInitializeEx(pythoncom.COINIT_APARTMENTTHREADED)
-            com_initialized = True
-        except ImportError:
-            logger.warning("MonitorWorker: pythoncom não disponível. Thread rodará sem inicializar COM.")
-            self.status_message.emit("Aviso: pythoncom ausente. RTD indisponível.")
+        fonte = self._ler_param_str("fonte_market_data", "0")
+        usa_com = (fonte != "1")
+        if usa_com:
+            try:
+                import pythoncom
+                pythoncom.CoInitializeEx(pythoncom.COINIT_APARTMENTTHREADED)
+                com_initialized = True
+                logger.info("COM inicializado para fonte de dados.")
+            except ImportError:
+                logger.warning("MonitorWorker: pythoncom não disponível. Thread rodará sem COM.")
+                self.status_message.emit("Aviso: pythoncom ausente. RTD indisponível.")
 
         rtd = self._rtd_main
-        if not rtd or not rtd.disponivel:
-            rtd = RTDProfit()
+        if not rtd or not getattr(rtd, 'disponivel', False):
+            rtd = criar_data_source("openfast" if fonte == "1" else "profit")
         self._mercado_provider = MercadoDataProvider(self.db_path, rtd)
-        self.rtd_status.emit(rtd.disponivel)
-
-        # Nível 2: Forca refresh RTD para ativos ex-dividendo do dia
-        self._verificar_e_forcar_refresh_ex_dividendo()
+        self.rtd_status.emit(getattr(rtd, 'disponivel', False))
 
         self._running = True
         logger.info("MonitorWorker: thread iniciada (COM inicializado).")
@@ -129,14 +130,14 @@ class MonitorWorker(QThread):
                 self._processar_manutencao()
                 t5 = time.perf_counter()
 
-                # 6. Tentativa de reconexão RTD a cada ~30s se estiver offline
+                # 6. Tentativa de reconexão da fonte a cada ~30s se estiver offline
                 if not rtd.disponivel:
                     self._rtd_reconnect_cycle += 1
                     if self._rtd_reconnect_cycle % 10 == 0:
                         if rtd.reconectar():
-                            logger.info("RTD reconectado durante ciclo de varredura.")
+                            logger.info("Fonte de dados reconectada durante ciclo de varredura.")
                             self.rtd_status.emit(True)
-                            self._mercado_provider.rtd = rtd
+                            self._mercado_provider.source = rtd
                 else:
                     self._rtd_reconnect_cycle = 0
 
@@ -177,14 +178,14 @@ class MonitorWorker(QThread):
 
     def retomar(self):
         self._paused = False
-        if self._mercado_provider and hasattr(self._mercado_provider, 'rtd'):
-            rtd = self._mercado_provider.rtd
-            if not rtd.disponivel:
-                if rtd.reconectar():
-                    logger.info("RTD reconectado ao retomar.")
+        if self._mercado_provider and hasattr(self._mercado_provider, 'source'):
+            source = self._mercado_provider.source
+            if source and not source.disponivel:
+                if source.reconectar():
+                    logger.info("Fonte de dados reconectada ao retomar.")
                 else:
-                    logger.info("RTD ainda indisponivel ao retomar.")
-            self.rtd_status.emit(rtd.disponivel)
+                    logger.info("Fonte de dados ainda indisponivel ao retomar.")
+            self.rtd_status.emit(source.disponivel if source else False)
         self._mutex.lock()
         self._wait_condition.wakeAll()
         self._mutex.unlock()
@@ -209,6 +210,17 @@ class MonitorWorker(QThread):
         if param is not None:
             try:
                 return int(param.valor)
+            except (ValueError, TypeError):
+                pass
+        return default
+
+    def _ler_param_str(self, chave: str, default: str) -> str:
+        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+        repo = ParametroRepository(self.db_path)
+        param = repo.get_by_chave(chave)
+        if param is not None:
+            try:
+                return str(param.valor)
             except (ValueError, TypeError):
                 pass
         return default
@@ -460,43 +472,4 @@ class MonitorWorker(QThread):
     def invalidar_cache_mpp_interval(self):
         self._mpp_interval_cache = None
 
-    def _verificar_e_forcar_refresh_ex_dividendo(self):
-        """Nível 2: Verifica ativos ex-dividendo (janela lookback).
-        Marca ativos p/ forcar leitura one-shot do strike na Wave 1,
-        e tambem força refresh RTD para ativos ex-hoje."""
-        try:
-            from src.infrastructure.persistence.repositories.repositories import (
-                DividendoRepository, ParametroRepository,
-            )
-            from datetime import date, timedelta
 
-            div_repo = DividendoRepository(self.db_path)
-
-            param_repo = ParametroRepository(self.db_path)
-            p_lookback = param_repo.get_by_chave("ex_dividendo_lookback_dias")
-            lookback = int(float(p_lookback.valor)) if p_lookback else 5
-            inicio = (date.today() - timedelta(days=lookback * 2)).isoformat()
-            fim = date.today().isoformat()
-
-            divs = div_repo.get_ex_range(inicio, fim)
-
-            if divs:
-                ativos_ex = list(set(d["ativo"] for d in divs))
-                # Marca para forcar leitura one-shot do strike na Wave 1
-                self._mercado_provider.marcar_ativos_ex_recentes(ativos_ex)
-                hoje_str = date.today().isoformat()
-                divs_hoje = [d for d in divs if d.get("data_ex") == hoje_str]
-                if divs_hoje:
-                    self.status_message.emit(
-                        f"⚠️ Dia ex de dividendo: {', '.join(set(d['ativo'] for d in divs_hoje))} — Forcando refresh RTD..."
-                    )
-                    self._mercado_provider.forcar_refresh_ex_dividendo(ativos_ex)
-                    self.status_message.emit("Refresh RTD ex-dividendo concluído.")
-                else:
-                    self.status_message.emit(
-                        f"ℹ️ Ex-dividendo recente ({', '.join(ativos_ex)}) — Strike forcado na Wave 1."
-                    )
-            else:
-                logger.info("Nenhum ativo ex-dividendo detectado na janela de %d dias.", lookback)
-        except Exception as e:
-            logger.warning("Erro ao verificar ex-dividendo: %s", e)

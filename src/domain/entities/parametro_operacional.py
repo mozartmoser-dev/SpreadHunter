@@ -17,7 +17,7 @@ class ParametroOperacional:
         ]
 
     PARAMETROS_DEFAULT = {
-        "taxa_cdi": {"valor": 0.1450, "estrategia": "GERAL", "descricao": "Taxa CDI/Selic (usuario atualiza manualmente na tabela, nao e bug estar fixo)"},
+        "taxa_cdi": {"valor": 0.1425, "estrategia": "GERAL", "descricao": "Taxa CDI/Selic (usuario atualiza manualmente na tabela, nao e bug estar fixo)"},
         "premio_risco_box": {"valor": 1.3, "estrategia": "BOX", "descricao": "Premio risco BOX"},
         "premio_risco_sbth": {"valor": 1.1, "estrategia": "SBTH", "descricao": "Premio risco SBTH (ajustavel pelo usuario, nao e bug)"},
         "premio_box_sintetico_call_itm": {"valor": 3.0, "estrategia": "BOX_SINTETICO", "descricao": "Premio BOX sintetico call ITM"},
@@ -46,7 +46,8 @@ class ParametroOperacional:
         "onda2_dte_max": {"valor": 180.0, "estrategia": "PERFORMANCE", "descricao": "DTE maximo para registrar Onda 2"},
         "tema_visual": {"valor": 0.0, "estrategia": "GERAL", "descricao": "Tema Visual (0=Marinho, 1=Grafite, 2=Charcoal)"},
         "rtd_refresh_timeout_ms": {"valor": 5000.0, "estrategia": "GERAL", "descricao": "Timeout do RTD RefreshData em ms (0=sem timeout)"},
-        "ex_dividendo_lookback_dias": {"valor": 5.0, "estrategia": "GERAL", "descricao": "Janela (dias uteis) para forcar refresh RTD em ativos ex-dividendo"},
+        "fonte_market_data": {"valor": 0.0, "estrategia": "GERAL", "descricao": "Fonte de market data (0=Profit RTD, 1=Open Fast Socket)"},
+        "openfast_send_delay_ms": {"valor": 5.0, "estrategia": "GERAL", "descricao": "Delay entre comandos SQT (ms). 5 = 5ms. 0 = sem delay"},
         "notif_telegram_enable": {"valor": 0.0, "estrategia": "TELEGRAM", "descricao": "Habilitar Telegram"},
         "telegram_bot_token": {"valor": "0", "estrategia": "TELEGRAM", "descricao": "Token Telegram"},
         "telegram_chat_id": {"valor": "0", "estrategia": "TELEGRAM", "descricao": "Chat ID Telegram"},

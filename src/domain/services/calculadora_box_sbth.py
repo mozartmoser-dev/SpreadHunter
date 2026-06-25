@@ -72,8 +72,10 @@ class CalculadoraBoxSbth:
         ganho_sbth = ganho_sbth_bruto - custo_b3_sbth
         ir_sbth = self.custos_b3.ajustar_ir(max(ganho_sbth, 0.0))
         ganho_sbth_liq = ganho_sbth - ir_sbth
+        pct_ganho_sbth_bruto = ganho_sbth_bruto / custo_sbth if custo_sbth > 0 else 0.0
         pct_ganho_sbth = ganho_sbth / custo_sbth if custo_sbth > 0 else 0.0
         pct_ganho_sbth_liq = ganho_sbth_liq / custo_sbth if custo_sbth > 0 else 0.0
+        pct_cdi_sbth_bruto = self._calcular_pct_cdi(pct_ganho_sbth_bruto, cdi_periodo)
         pct_cdi_sbth = self._calcular_pct_cdi(pct_ganho_sbth, cdi_periodo)
         pct_cdi_sbth_liquido = self._calcular_pct_cdi(pct_ganho_sbth_liq, cdi_periodo)
 
@@ -85,12 +87,14 @@ class CalculadoraBoxSbth:
         ganho_box = ganho_box_bruto - custo_b3_box
         ir_box = self.custos_b3.ajustar_ir(max(ganho_box, 0.0))
         ganho_box_liq = ganho_box - ir_box
+        pct_ganho_box_bruto = ganho_box_bruto / max(custo_box, 0.01) if custo_box != 0 else 0.0
         pct_ganho_box = ganho_box / max(custo_box, 0.01) if custo_box != 0 else 0.0
         pct_ganho_box_liq = ganho_box_liq / max(custo_box, 0.01) if custo_box != 0 else 0.0
+        pct_cdi_box_bruto = self._calcular_pct_cdi(pct_ganho_box_bruto, cdi_periodo)
         pct_cdi_box = self._calcular_pct_cdi(pct_ganho_box, cdi_periodo)
         pct_cdi_box_liquido = self._calcular_pct_cdi(pct_ganho_box_liq, cdi_periodo)
 
-        classificacao = self._classificar(pct_cdi_box, pct_cdi_sbth)
+        classificacao = self._classificar(pct_cdi_box_bruto, pct_cdi_sbth_bruto)
         operacao = self._determinar_operacao(classificacao, pct_ganho_sbth, pct_ganho_box)
 
         return ResultadoBOXSBTH(

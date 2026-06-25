@@ -88,7 +88,7 @@ class TestParametroOperacional:
     def test_valor_taxa_cdi(self):
         defaults = ParametroOperacional.defaults()
         cdi = next(p for p in defaults if p.chave == "taxa_cdi")
-        assert cdi.valor == 0.1450
+        assert cdi.valor == 0.1425
 
 
 class TestOportunidade:
@@ -146,7 +146,7 @@ class TestParametroRepository:
         parametro_repo.seed_defaults()
         cdi = parametro_repo.get_by_chave("taxa_cdi")
         assert cdi is not None
-        assert cdi.valor == 0.1450
+        assert cdi.valor == 0.1425
 
     def test_upsert(self, parametro_repo):
         parametro_repo.save(ParametroOperacional(

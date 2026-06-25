@@ -149,8 +149,8 @@ def main():
     for ativo, cod_put, cod_call, ven, strike, tipo in todos_pares:
         try:
             conn.execute(
-                "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao) VALUES (?, ?, ?, ?, ?)",
-                (ativo, cod_put, cod_call, ven, tipo),
+                "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao, strike) VALUES (?, ?, ?, ?, ?, ?)",
+                (ativo, cod_put, cod_call, ven, tipo, float(strike) if strike else None),
             )
             inseridas += 1
         except sqlite3.IntegrityError:

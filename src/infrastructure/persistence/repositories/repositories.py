@@ -1,4 +1,5 @@
 import json
+import sqlite3
 import threading
 from datetime import date, datetime
 from pathlib import Path
@@ -17,6 +18,14 @@ def _parse_date(val) -> date | None:
     if isinstance(val, date):
         return val
     return date.fromisoformat(str(val))
+
+
+def _row_strike(row: sqlite3.Row) -> float | None:
+    """Safely extract strike column (may not exist in legacy DB)."""
+    try:
+        return row["strike"]
+    except (IndexError, KeyError):
+        return None
 
 
 class InstrumentoRepository:
@@ -83,6 +92,7 @@ class InstrumentoRepository:
                     cod_call=row["cod_call"],
                     vencimento=_parse_date(row["vencimento"]),
                     tipo_opcao=TipoOpcao(row["tipo_opcao"]),
+                    strike=_row_strike(row),
                 )
                 for row in rows
             ]
@@ -118,6 +128,7 @@ class InstrumentoRepository:
                     cod_call=row["cod_call"],
                     vencimento=_parse_date(row["vencimento"]),
                     tipo_opcao=TipoOpcao(row["tipo_opcao"]),
+                    strike=_row_strike(row),
                 )
                 for row in rows
             ]

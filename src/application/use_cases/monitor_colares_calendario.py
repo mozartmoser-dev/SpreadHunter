@@ -8,6 +8,7 @@ from src.domain.services.calculadora_colar_calendario import (
     CalculadoraColarCalendario,
     ResultadoColarCalendario,
 )
+from src.domain.services.market_data_source import FieldName
 from src.domain.services.pipeline_tracker import PipelineTracker
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.infrastructure.persistence.repositories.repositories import (
@@ -161,15 +162,15 @@ class MonitorColaresCalendarioUseCase:
                 qul_put = dm.get("qul_put") or 0
                 qul_call = dm.get("qul_call") or 0
             else:
-                strike = rtd.ler_campo_cache(inst.cod_put, "PEX")
+                strike = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
                 if not strike or strike <= 0:
-                    strike = rtd.ler_campo_cache(inst.cod_call, "PEX")
-                ocp = rtd.ler_campo_cache(inst.cod_call, "OCP")
-                ovd = rtd.ler_campo_cache(inst.cod_put, "OVD")
+                    strike = rtd.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
+                ocp = rtd.ler_campo_cache(inst.cod_call, FieldName.BID)
+                ovd = rtd.ler_campo_cache(inst.cod_put, FieldName.ASK)
                 preco_call = ocp or 0.0
                 preco_put = ovd or 0.0
-                qul_put = rtd.ler_campo_cache(inst.cod_put, "QUL") or 0
-                qul_call = rtd.ler_campo_cache(inst.cod_call, "QUL") or 0
+                qul_put = rtd.ler_campo_cache(inst.cod_put, FieldName.QTD_LAST) or 0
+                qul_call = rtd.ler_campo_cache(inst.cod_call, FieldName.QTD_LAST) or 0
 
             if not strike or strike <= 0:
                 stats["sem_strike"] += 1
@@ -267,10 +268,10 @@ class MonitorColaresCalendarioUseCase:
                         preco_compra_ativo = dm_item.get("of_venda_ativo") or 0.0
                         break
             if preco_ativo <= 0:
-                preco_ativo = rtd.ler_campo_cache(ativo, "ULT") or 0.0
+                preco_ativo = rtd.ler_campo_cache(ativo, FieldName.ASK) or 0.0
                 if preco_ativo <= 0:
                     continue
-                of_venda_ativo = rtd.ler_campo_cache(ativo, "OVD")
+                of_venda_ativo = rtd.ler_campo_cache(ativo, FieldName.ASK)
                 preco_compra_ativo = of_venda_ativo if (of_venda_ativo and of_venda_ativo > 0) else 0.0
 
             c_ativos_com_dados += 1

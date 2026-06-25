@@ -51,8 +51,9 @@ PARAMETROS_POR_ESTRATEGIA = {
     "GERAL": [
         ("taxa_cdi", "Taxa CDI/Selic"),
         ("tema_visual", "Aspecto do Sistema"),
+        ("fonte_market_data", "Fonte de Market Data"),
+        ("openfast_send_delay_ms", "Delay SQT (ms)"),
         ("rtd_refresh_timeout_ms", "Timeout RTD RefreshData (ms, 0=sem timeout)"),
-        ("ex_dividendo_lookback_dias", "Janela ex-div (dias) p/ refresh RTD"),
     ],
     "BOX": [
         ("premio_risco_box", "Premio risco BOX (x CDI)"),
@@ -157,6 +158,16 @@ PARAMETROS_INFO = {
         "descricao": "Escolhe a aparencia visual do sistema. Voce pode escolher entre Azul Marinho (claro), Grafite (escuro) ou Charcoal (mais escuro ainda).",
         "usado_em": "Interface grafica como um todo.",
         "precedencia": "Banco de Dados -> Azul Marinho (padrao)",
+    },
+    "fonte_market_data": {
+        "descricao": "Define a fonte de dados de mercado em tempo real. 'Profit RTD' usa o servidor RTD do Profit Pro via COM/DCOM. 'Open Fast Socket' usa conexao TCP direta (localhost:557) sem COM.",
+        "usado_em": "MercadoDataProvider — todas as estrategias que consomem precos em tempo real.",
+        "precedencia": "Banco de Dados -> 0 (Profit RTD, padrao)",
+    },
+    "openfast_send_delay_ms": {
+        "descricao": "Delay em milissegundos entre comandos SQT enviados ao servidor Open Fast. 5ms evita sobrecarga na rede local. 0 = sem delay (maxima velocidade, pode causar perda de pacotes).",
+        "usado_em": "OpenFastSocketAdapter — controle de taxa de envio de assinaturas.",
+        "precedencia": "Banco de Dados -> 5 (padrao)",
     },
     "premio_risco_box": {
         "descricao": "Retorno minimo exigido para aceptar uma operacao de BOX Comprado 3 Pontas, medido em vezes o CDI. Exemplo: 1.3 significa que a operacao precisa render pelo menos 1.3x o CDI para ser viavel.",
@@ -541,6 +552,9 @@ class ParametrosWidget(QWidget):
                 elif "tema_visual" in chave:
                     widget = QComboBox()
                     widget.addItems(["Azul Marinho", "Grafite / Slate", "True Dark / Charcoal"])
+                elif "fonte_market_data" in chave:
+                    widget = QComboBox()
+                    widget.addItems(["Profit RTD", "Open Fast Socket"])
                 elif "telegram_bot_token" in chave or "telegram_chat_id" in chave or "_list_" in chave:
                     widget = QLineEdit()
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
@@ -652,6 +666,12 @@ class ParametrosWidget(QWidget):
         self.btn_salvar.clicked.connect(self._salvar)
         outer_layout.addWidget(self.btn_salvar)
 
+        btn_export = QPushButton("💾 Exportar Config")
+        btn_export.setFixedHeight(24)
+        btn_export.setStyleSheet("font-size: 8pt;")
+        btn_export.clicked.connect(self._exportar_json)
+        outer_layout.addWidget(btn_export)
+
         self.lbl_status = QLabel("")
         self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         outer_layout.addWidget(self.lbl_status)
@@ -737,7 +757,9 @@ class ParametrosWidget(QWidget):
             )
 
     def _exportar_json(self):
-        json_path = Path(__file__).resolve().parent.parent.parent.parent / "config" / "parametros_default.json"
+        base = Path(__file__).resolve().parent.parent.parent.parent
+        json_path = base / "config" / "parametros_default.json"
+        backup_path = base / "backconfsh" / "configsh.json"
         try:
             all_params = self.repo.list_all()
             parametros = []
@@ -753,6 +775,9 @@ class ParametrosWidget(QWidget):
                 "parametros": parametros,
             }
             with open(str(json_path), "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            backup_path.parent.mkdir(exist_ok=True)
+            with open(str(backup_path), "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
         except Exception:
             pass

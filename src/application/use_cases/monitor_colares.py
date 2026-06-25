@@ -6,6 +6,7 @@ from typing import Optional
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
 from src.domain.services.calculadora_colar import CalculadoraColar, ResultadoColar, RiscoLeilao, TipoColar
+from src.domain.services.market_data_source import FieldName
 from src.domain.services.pipeline_tracker import PipelineTracker
 from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository, ParametroRepository
 
@@ -256,30 +257,24 @@ class MonitorColaresUseCase:
         return grupos
 
     def _ler_dados_rtd(self, inst: InstrumentoOpcional, rtd) -> dict | None:
-        from src.infrastructure.providers.rtd_config import (
-            RTD_CAMPO_OFERTA_VENDA, RTD_CAMPO_OFERTA_COMPRA,
-            RTD_CAMPO_QTDE_ULT_NEG, RTD_CAMPO_VOL_VENDA, RTD_CAMPO_VOL_COMPRA,
-            RTD_CAMPO_STRIKE, RTD_CAMPO_ULTIMO_PRECO,
-        )
-
-        preco_ativo = rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+        preco_ativo = rtd.ler_campo_cache(inst.ativo, FieldName.ASK)
         if not preco_ativo or preco_ativo <= 0:
             return None
 
-        of_venda_ativo = rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
+        of_venda_ativo = rtd.ler_campo_cache(inst.ativo, FieldName.ASK)
 
-        strike_rtd = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_STRIKE)
+        strike_rtd = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
         if not strike_rtd or strike_rtd <= 0:
-            strike_rtd = rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_STRIKE)
+            strike_rtd = rtd.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
         if not strike_rtd or strike_rtd <= 0:
             return None
 
-        of_v_put = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_OFERTA_VENDA) or 0.0
-        of_c_call = rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_OFERTA_COMPRA) or 0.0
-        vov_put = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_VOL_VENDA) or 0.0
-        voc_call = rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_VOL_COMPRA) or 0.0
-        qul_put = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_QTDE_ULT_NEG) or 0.0
-        qul_call = rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_QTDE_ULT_NEG) or 0.0
+        of_v_put = rtd.ler_campo_cache(inst.cod_put, FieldName.ASK) or 0.0
+        of_c_call = rtd.ler_campo_cache(inst.cod_call, FieldName.BID) or 0.0
+        vov_put = rtd.ler_campo_cache(inst.cod_put, FieldName.VOL_ASK) or 0.0
+        voc_call = rtd.ler_campo_cache(inst.cod_call, FieldName.VOL_BID) or 0.0
+        qul_put = rtd.ler_campo_cache(inst.cod_put, FieldName.QTD_LAST) or 0.0
+        qul_call = rtd.ler_campo_cache(inst.cod_call, FieldName.QTD_LAST) or 0.0
         status_put = rtd.ler_status_cache(inst.cod_put)
         status_call = rtd.ler_status_cache(inst.cod_call)
 

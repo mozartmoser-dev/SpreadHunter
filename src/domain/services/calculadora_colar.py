@@ -224,12 +224,14 @@ class CalculadoraColar:
         melhor_retorno_liquido_ir = melhor_retorno_liquido - custo_ir_melhor
 
         pct_ganho = pior_retorno_liquido / custo_liquido
+        pct_ganho_bruto = pior_retorno / custo_liquido
         pct_cdi = pct_ganho / cdi_periodo
+        pct_cdi_bruto = pct_ganho_bruto / cdi_periodo if cdi_periodo > 0 else 0
         pct_cdi_melhor = (melhor_retorno_liquido / custo_liquido) / cdi_periodo if cdi_periodo > 0 else 0
         pct_cdi_liquido = (pior_retorno_liquido_ir / custo_liquido) / cdi_periodo if cdi_periodo > 0 else 0.0
         pct_cdi_melhor_liquido = (melhor_retorno_liquido_ir / custo_liquido) / cdi_periodo if cdi_periodo > 0 else 0.0
         risco = self.calcular_risco_leilao(vov_put, voc_call, status_put, status_call)
-        viavel = pct_cdi >= self.premio_risco_colar and not em_leilao
+        viavel = pct_cdi_bruto >= self.premio_risco_colar and not em_leilao
 
         du_bs = dc_to_du(None, None, dias)
         T = du_bs / 252.0

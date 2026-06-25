@@ -3,6 +3,7 @@ from datetime import date
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOpcao
 from src.domain.services.calculadora_box import CalculadoraBox, ResultadoBox
+from src.domain.services.market_data_source import FieldName
 from src.domain.services.pipeline_tracker import PipelineTracker
 from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository, ParametroRepository
 
@@ -51,9 +52,9 @@ class MonitorBoxUseCase:
         return None
 
     def _extrair(self, inst: InstrumentoOpcional, rtd) -> dict | None:
-        strike = rtd.ler_campo_cache(inst.cod_put, "PEX")
+        strike = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
         if not strike or strike <= 0:
-            strike = rtd.ler_campo_cache(inst.cod_call, "PEX")
+            strike = rtd.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
         if not strike or strike <= 0:
             return None
 
@@ -65,14 +66,14 @@ class MonitorBoxUseCase:
             "strike": strike,
             "cod_put": inst.cod_put,
             "cod_call": inst.cod_call,
-            "bid_call": rtd.ler_campo_cache(inst.cod_call, "OCP") or 0.0,
-            "ask_call": rtd.ler_campo_cache(inst.cod_call, "OVD") or 0.0,
-            "bid_put": rtd.ler_campo_cache(inst.cod_put, "OCP") or 0.0,
-            "ask_put": rtd.ler_campo_cache(inst.cod_put, "OVD") or 0.0,
-            "qtd_bid_call": int(rtd.ler_campo_cache(inst.cod_call, "VOC") or 0),
-            "qtd_ask_call": int(rtd.ler_campo_cache(inst.cod_call, "VOV") or 0),
-            "qtd_bid_put": int(rtd.ler_campo_cache(inst.cod_put, "VOC") or 0),
-            "qtd_ask_put": int(rtd.ler_campo_cache(inst.cod_put, "VOV") or 0),
+            "bid_call": rtd.ler_campo_cache(inst.cod_call, FieldName.BID) or 0.0,
+            "ask_call": rtd.ler_campo_cache(inst.cod_call, FieldName.ASK) or 0.0,
+            "bid_put": rtd.ler_campo_cache(inst.cod_put, FieldName.BID) or 0.0,
+            "ask_put": rtd.ler_campo_cache(inst.cod_put, FieldName.ASK) or 0.0,
+            "qtd_bid_call": int(rtd.ler_campo_cache(inst.cod_call, FieldName.VOL_BID) or 0),
+            "qtd_ask_call": int(rtd.ler_campo_cache(inst.cod_call, FieldName.VOL_ASK) or 0),
+            "qtd_bid_put": int(rtd.ler_campo_cache(inst.cod_put, FieldName.VOL_BID) or 0),
+            "qtd_ask_put": int(rtd.ler_campo_cache(inst.cod_put, FieldName.VOL_ASK) or 0),
             "em_leilao": not (
                 status_put.lower() == "aberto"
                 and status_call.lower() == "aberto"

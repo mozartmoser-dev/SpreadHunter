@@ -5,6 +5,7 @@ from datetime import date, datetime
 from dataclasses import dataclass, field
 
 from src.domain.services.calendario_b3 import dc_to_du
+from src.domain.services.market_data_source import FieldName
 from src.infrastructure.persistence.database import get_connection
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 
@@ -327,21 +328,21 @@ class MPPUseCase:
             if inst["ativo"].upper() not in ativos:
                 continue
 
-            bid_call = rtd.ler_campo_cache(inst["cod_call"], "OCP") or 0.0
-            ask_call = rtd.ler_campo_cache(inst["cod_call"], "OVD") or 0.0
-            bid_put = rtd.ler_campo_cache(inst["cod_put"], "OCP") or 0.0
-            ask_put = rtd.ler_campo_cache(inst["cod_put"], "OVD") or 0.0
-            qtd_bid_call = int(rtd.ler_campo_cache(inst["cod_call"], "VOC") or 0)
-            qtd_ask_call = int(rtd.ler_campo_cache(inst["cod_call"], "VOV") or 0)
-            qtd_bid_put = int(rtd.ler_campo_cache(inst["cod_put"], "VOC") or 0)
-            qtd_ask_put = int(rtd.ler_campo_cache(inst["cod_put"], "VOV") or 0)
+            bid_call = rtd.ler_campo_cache(inst["cod_call"], FieldName.BID) or 0.0
+            ask_call = rtd.ler_campo_cache(inst["cod_call"], FieldName.ASK) or 0.0
+            bid_put = rtd.ler_campo_cache(inst["cod_put"], FieldName.BID) or 0.0
+            ask_put = rtd.ler_campo_cache(inst["cod_put"], FieldName.ASK) or 0.0
+            qtd_bid_call = int(rtd.ler_campo_cache(inst["cod_call"], FieldName.VOL_BID) or 0)
+            qtd_ask_call = int(rtd.ler_campo_cache(inst["cod_call"], FieldName.VOL_ASK) or 0)
+            qtd_bid_put = int(rtd.ler_campo_cache(inst["cod_put"], FieldName.VOL_BID) or 0)
+            qtd_ask_put = int(rtd.ler_campo_cache(inst["cod_put"], FieldName.VOL_ASK) or 0)
 
             if bid_call <= 0 or ask_call <= 0 or bid_put <= 0 or ask_put <= 0:
                 continue
 
-            strike = rtd.ler_campo_cache(inst["cod_put"], "PEX") or 0.0
+            strike = rtd.ler_campo_cache(inst["cod_put"], FieldName.STRIKE) or 0.0
             if not strike or strike <= 0:
-                strike = rtd.ler_campo_cache(inst["cod_call"], "PEX") or 0.0
+                strike = rtd.ler_campo_cache(inst["cod_call"], FieldName.STRIKE) or 0.0
             if not strike or strike <= 0:
                 continue
 
@@ -368,7 +369,7 @@ class MPPUseCase:
         resultados_mre: list[MreResultado] = []
 
         for (ativo, vencimento), members in grupos.items():
-            spot = rtd.ler_campo_cache(ativo, "ULT") or 0.0
+            spot = rtd.ler_campo_cache(ativo, FieldName.ASK) or 0.0
             if spot <= 0:
                 continue
 

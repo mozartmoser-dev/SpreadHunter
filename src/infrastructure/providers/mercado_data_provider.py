@@ -4,16 +4,10 @@ from datetime import date
 from PySide6.QtCore import QMutex
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
+from src.domain.services.market_data_source import FieldName, MarketDataSource
 from src.infrastructure.importers.excel_importer import extrair_strike, sanitizar_strike
 from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
-from src.infrastructure.providers.rtd_config import (
-    RTD_CAMPO_ULTIMO_PRECO, RTD_CAMPO_STRIKE,
-    RTD_CAMPO_OFERTA_VENDA, RTD_CAMPO_OFERTA_COMPRA,
-    RTD_CAMPO_CABECALHO_BOOK, RTD_CAMPO_QTDE_ULT_NEG,
-    RTD_CAMPO_VOL_VENDA, RTD_CAMPO_VOL_COMPRA,
-    DadosRTDInstrumento,
-)
-from src.infrastructure.providers.rtd_profit import RTDProfit
+from src.infrastructure.providers.rtd_config import DadosRTDInstrumento
 
 logger = logging.getLogger(__name__)
 
@@ -22,15 +16,15 @@ class MercadoDataProvider:
     SEM_BOOK_SKIP_CYCLES = 6
     SEM_ATIVO_SKIP_CYCLES = 10
 
-    _CAMPOS_PUT = [RTD_CAMPO_STRIKE, RTD_CAMPO_OFERTA_VENDA, RTD_CAMPO_OFERTA_COMPRA,
-                   RTD_CAMPO_CABECALHO_BOOK, RTD_CAMPO_QTDE_ULT_NEG, RTD_CAMPO_VOL_VENDA]
-    _CAMPOS_CALL = [RTD_CAMPO_STRIKE, RTD_CAMPO_OFERTA_VENDA, RTD_CAMPO_OFERTA_COMPRA,
-                    RTD_CAMPO_CABECALHO_BOOK, RTD_CAMPO_QTDE_ULT_NEG, RTD_CAMPO_VOL_COMPRA]
+    _CAMPOS_PUT = [FieldName.STRIKE, FieldName.ASK, FieldName.BID,
+                   FieldName.BOOK_HEADER, FieldName.QTD_LAST, FieldName.VOL_ASK]
+    _CAMPOS_CALL = [FieldName.STRIKE, FieldName.ASK, FieldName.BID,
+                    FieldName.BOOK_HEADER, FieldName.QTD_LAST, FieldName.VOL_BID]
 
-    def __init__(self, db_path=None, rtd: RTDProfit | None = None):
+    def __init__(self, db_path=None, source: MarketDataSource | None = None):
         self.db_path = db_path
         self.inst_repo = InstrumentoRepository(db_path)
-        self.rtd = rtd or RTDProfit()
+        self.source = source
         self._registrado = False
         self._registro_idx = 0
         self._ativos_registrados: set[str] = set()
@@ -51,8 +45,7 @@ class MercadoDataProvider:
         self._caminho_prioridade = self._resolver_caminho_prioridade()
         self._cab_anterior: dict[str, tuple[float | None, float | None]] = {}
         self._dados_cache: dict[str, dict] = {}
-        self._ativos_ex_recentes: set[str] = set()
-        self._strike_ref: dict[str, float] = {}  # cod_opcao -> strike via API
+        self._strike_cache: dict[str, float] = {}  # cache opcional (nao usado atualmente)
         self._onda2_dte_min: int = 7
         self._onda2_dte_max: int = 180
         self.recarregar_parametros()
@@ -157,45 +150,16 @@ class MercadoDataProvider:
         
         logger.info("MercadoDataProvider: Parametros de performance atualizados.")
 
-    def marcar_ativos_ex_recentes(self, ativos: list[str]):
-        """Marca ativos com ex-dividendo recente para:
-        1. Forcar leitura one-shot do strike na Wave 1 (forcar_leitura)
-        2. Buscar strike de referencia via API opcoes.net.br p/ validacao
-        Se a API retornar strike menor que o RTD (desatualizado),
-        o cache e atualizado com o valor da API como fallback."""
-        if not ativos:
-            return
-        self._ativos_ex_recentes.update(ativos)
-        logger.debug("RTD: %d ativos marcados p/ forcar leitura strike (ex-dividendo recente).", len(ativos))
-        # Busca strikes via API como referencia
-        try:
-            from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
-            inst_map = self.inst_repo.get_all_mapped()
-            api = OpcoesNetClient()
-            for ativo in ativos:
-                opcoes_api = api.fetch_all_options(ativo)
-                if not opcoes_api:
-                    continue
-                for opt in opcoes_api:
-                    ticker = opt.get("ticker", "").upper()
-                    strike_api = opt.get("strike")
-                    if ticker and strike_api:
-                        self._strike_ref[ticker] = float(strike_api)
-            logger.info("API: Strikes de referencia obtidos para %d opcoes (%d ativos).",
-                         len(self._strike_ref), len(ativos))
-        except Exception as e:
-            logger.warning("API: Erro ao buscar strikes referencia: %s", e)
-
     def _registrar_ativos_prioritarios(self, instrumentos: list[InstrumentoOpcional]):
         """Registra apenas os ativos (underlyings) para obter preços de referência rápido."""
-        rtd = self.rtd
+        rtd = self.source
         t0 = time.perf_counter()
         count = 0
         for inst in instrumentos:
             if inst.ativo not in self._ativos_registrados:
-                rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
-                rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
-                rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
+                rtd.registrar_topico(inst.ativo, FieldName.LAST_PRICE)
+                rtd.registrar_topico(inst.ativo, FieldName.ASK)
+                rtd.registrar_topico(inst.ativo, FieldName.BID)
                 rtd.registrar_status(inst.ativo)
                 self._ativos_registrados.add(inst.ativo)
                 count += 1
@@ -208,14 +172,14 @@ class MercadoDataProvider:
         if key in self._chaves_detalhes_completos:
             return
         
-        rtd = self.rtd
+        rtd = self.source
         # Campos de PUT
         for campo in self._CAMPOS_PUT:
-            if campo != RTD_CAMPO_CABECALHO_BOOK: # Já registrado na onda 1
+            if campo != FieldName.BOOK_HEADER: # Já registrado na onda 1
                 rtd.registrar_topico(inst.cod_put, campo)
         # Campos de CALL
         for campo in self._CAMPOS_CALL:
-            if campo != RTD_CAMPO_CABECALHO_BOOK:
+            if campo != FieldName.BOOK_HEADER:
                 rtd.registrar_topico(inst.cod_call, campo)
         
         rtd.registrar_status(inst.cod_put)
@@ -223,66 +187,6 @@ class MercadoDataProvider:
         
         self._chaves_detalhes_completos.add(key)
         logger.debug("RTD: Detalhes completos registrados para %s (Liquidez detectada)", key)
-
-    def forcar_refresh_ex_dividendo(self, ativos_ex: list[str]):
-        """Forca registro completo (Wave 2) para ativos ex-dividendo.
-        Invalida o cache RTD e re-registra todos os topicos, alem de
-        forcar leitura one-shot do strike (forcar_leitura) para bypassar
-        cache interno do servidor."""
-        if not ativos_ex or not self.rtd.disponivel:
-            return
-
-        inst_map = self.inst_repo.get_all_mapped()
-        ativos_registrados = set()
-        count = 0
-
-        for key, inst in inst_map.items():
-            if inst.ativo in ativos_ex and inst.ativo not in ativos_registrados:
-                for campo in (RTD_CAMPO_ULTIMO_PRECO, RTD_CAMPO_OFERTA_VENDA, RTD_CAMPO_OFERTA_COMPRA):
-                    self.rtd.invalidar_cache(inst.ativo, campo)
-                    self.rtd.registrar_topico(inst.ativo, campo)
-                self.rtd.invalidar_cache(inst.ativo, "EST")
-                self.rtd.registrar_status(inst.ativo)
-                ativos_registrados.add(inst.ativo)
-
-            if inst.ativo in ativos_ex:
-                campos_put = [RTD_CAMPO_STRIKE, RTD_CAMPO_OFERTA_VENDA, RTD_CAMPO_OFERTA_COMPRA,
-                              RTD_CAMPO_CABECALHO_BOOK, RTD_CAMPO_QTDE_ULT_NEG, RTD_CAMPO_VOL_VENDA]
-                campos_call = [RTD_CAMPO_STRIKE, RTD_CAMPO_OFERTA_VENDA, RTD_CAMPO_OFERTA_COMPRA,
-                               RTD_CAMPO_CABECALHO_BOOK, RTD_CAMPO_QTDE_ULT_NEG, RTD_CAMPO_VOL_COMPRA]
-
-                for campo in campos_put:
-                    self.rtd.invalidar_cache(inst.cod_put, campo)
-                    self.rtd.registrar_topico(inst.cod_put, campo)
-                for campo in campos_call:
-                    self.rtd.invalidar_cache(inst.cod_call, campo)
-                    self.rtd.registrar_topico(inst.cod_call, campo)
-
-                self.rtd.invalidar_cache(inst.cod_put, "EST")
-                self.rtd.registrar_status(inst.cod_put)
-                self.rtd.invalidar_cache(inst.cod_call, "EST")
-                self.rtd.registrar_status(inst.cod_call)
-                
-                self._chaves_registradas.add(key)
-                self._chaves_detalhes_completos.add(key)
-                self._chaves_com_book.add(key)
-                self._cab_anterior.pop(key, None)
-                self._dados_cache.pop(key, None)
-                count += 1
-
-        if count > 0:
-            logger.info("RTD: Refresh forcado para %d instrumentos de %d ativos ex-dividendo.", count, len(ativos_registrados))
-            self.rtd.refresh(0)
-            for key, inst in inst_map.items():
-                if inst.ativo in ativos_ex:
-                    strike_put = self.rtd.forcar_leitura(inst.cod_put, RTD_CAMPO_STRIKE)
-                    strike_call = self.rtd.forcar_leitura(inst.cod_call, RTD_CAMPO_STRIKE)
-                    if strike_put is not None or strike_call is not None:
-                        logger.info(
-                            "RTD: Strike forcado %s=%.2f %s=%.2f",
-                            inst.cod_put, strike_put or 0,
-                            inst.cod_call, strike_call or 0,
-                        )
 
     def _deve_pular_instrumento(self, inst: InstrumentoOpcional) -> bool:
         if not self._carga_inteligente_habilitada:
@@ -299,17 +203,17 @@ class MercadoDataProvider:
     def _deve_pular_por_strike(self, inst: InstrumentoOpcional) -> bool:
         if not self._carga_inteligente_habilitada or not (self._range_min < 0 or self._range_max > 0):
             return False
-        strike_val = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_STRIKE)
+        strike_val = inst.strike if inst.strike else self.source.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
         if not strike_val or strike_val <= 0:
             return False
-        preco = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+        preco = self.source.ler_campo_cache(inst.ativo, FieldName.ASK)
         if not preco or preco <= 0:
             return False
         ratio = (strike_val / preco) - 1
         return ratio < self._range_min or ratio > self._range_max
 
     def _registrar_instrumento(self, inst: InstrumentoOpcional):
-        rtd = self.rtd
+        rtd = self.source
         key = inst.cod_put
         if key in self._chaves_registradas:
             return False
@@ -318,40 +222,51 @@ class MercadoDataProvider:
             self._chaves_registradas.add(key)
             return False
 
-        rtd.registrar_topico(inst.cod_put, RTD_CAMPO_STRIKE)
-        rtd.registrar_topico(inst.cod_call, RTD_CAMPO_STRIKE)
+        rtd.registrar_topico(inst.cod_put, FieldName.STRIKE)
+        rtd.registrar_topico(inst.cod_call, FieldName.STRIKE)
 
-        # Forca leitura one-shot do strike se ativo teve ex-dividendo recente
-        # (bypassa cache interno do servidor RTD do Profit)
-        if inst.ativo in self._ativos_ex_recentes:
-            rtd.forcar_leitura(inst.cod_put, RTD_CAMPO_STRIKE)
-            rtd.forcar_leitura(inst.cod_call, RTD_CAMPO_STRIKE)
-            # Validacao cruzada com API opcoes.net.br
-            for cod_opcao in (inst.cod_put, inst.cod_call):
-                strike_ref = self._strike_ref.get(cod_opcao)
-                if strike_ref is None:
-                    continue
-                strike_rtd = rtd.ler_campo_cache(cod_opcao, RTD_CAMPO_STRIKE)
-                if strike_rtd is not None and strike_rtd > 0 and strike_ref < strike_rtd:
-                    logger.warning(
-                        "API x RTD: %s API=%.2f RTD=%.2f — RTD desatualizado. Usando strike API.",
-                        cod_opcao, strike_ref, strike_rtd,
+        # min(strike_db, strike_rtd): corrige strike quando API < RTD (ex-dividendo)
+        # API (OptionsChain) tem ajustes corretos; RTD pode estar desatualizado.
+        strike_db = inst.strike
+        for cod_opcao in (inst.cod_put, inst.cod_call):
+            strike_rtd = rtd.ler_campo_cache(cod_opcao, FieldName.STRIKE)
+            if strike_rtd and strike_rtd > 0 and strike_db and strike_db > 0:
+                strike_final = min(strike_db, strike_rtd)
+                if strike_final < strike_rtd:
+                    logger.info(
+                        "Strike corrigido %s: DB=%.2f RTD=%.2f -> %.2f",
+                        cod_opcao, strike_db, strike_rtd, strike_final,
                     )
-                    # Atualiza cache interno com strike da API
-                    tid = rtd._topic_id(cod_opcao, RTD_CAMPO_STRIKE)
-                    with rtd._lock:
-                        rtd._valores[tid] = strike_ref
+                    rtd_raw = getattr(rtd, '_rtd', None)
+                    if rtd_raw is not None:
+                        tid = rtd_raw._topic_id(cod_opcao, "PEX")
+                        with rtd_raw._lock:
+                            rtd_raw._valores[tid] = strike_final
+                    else:
+                        rtd.invalidar_cache(cod_opcao, FieldName.STRIKE)
+                        rtd.registrar_topico(cod_opcao, FieldName.STRIKE)
+                    self._strike_cache[cod_opcao] = strike_final
+            elif strike_db and strike_db > 0:
+                strike_final = strike_db
+                rtd_raw = getattr(rtd, '_rtd', None)
+                if rtd_raw is not None:
+                    tid = rtd_raw._topic_id(cod_opcao, "PEX")
+                    with rtd_raw._lock:
+                        rtd_raw._valores[tid] = strike_final
+                else:
+                    rtd.invalidar_cache(cod_opcao, FieldName.STRIKE)
+                    rtd.registrar_topico(cod_opcao, FieldName.STRIKE)
 
         if not self._deve_pular_por_strike(inst):
-            rtd.registrar_topico(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
-            rtd.registrar_topico(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
-            rtd.registrar_topico(inst.cod_put, RTD_CAMPO_OFERTA_VENDA)
-            rtd.registrar_topico(inst.cod_call, RTD_CAMPO_OFERTA_COMPRA)
+            rtd.registrar_topico(inst.cod_put, FieldName.BOOK_HEADER)
+            rtd.registrar_topico(inst.cod_call, FieldName.BOOK_HEADER)
+            rtd.registrar_topico(inst.cod_put, FieldName.ASK)
+            rtd.registrar_topico(inst.cod_call, FieldName.BID)
 
         if inst.ativo not in self._ativos_registrados:
-            rtd.registrar_topico(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
-            rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
-            rtd.registrar_topico(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
+            rtd.registrar_topico(inst.ativo, FieldName.LAST_PRICE)
+            rtd.registrar_topico(inst.ativo, FieldName.ASK)
+            rtd.registrar_topico(inst.ativo, FieldName.BID)
             rtd.registrar_status(inst.ativo)
             self._ativos_registrados.add(inst.ativo)
 
@@ -410,7 +325,7 @@ class MercadoDataProvider:
             logger.info("Background scan: ciclo completo. Total monitorados: %d", len(self._chaves_registradas))
 
     def capturar_dados_mercado(self) -> dict[str, dict]:
-        if not self.rtd.disponivel:
+        if not self.source.disponivel:
             logger.warning("RTD nao disponivel — retornando dados vazios.")
             return {}
 
@@ -444,18 +359,24 @@ class MercadoDataProvider:
                     self._refresh_pos_onda1 = True
                     logger.info("Onda 1 concluída — forçando refresh inicial...")
                     try:
-                        self.rtd.refresh(self._rtd_refresh_timeout_ms)
+                        self.source.refresh(self._rtd_refresh_timeout_ms)
                     except Exception:
                         pass
                 t_registro = time.perf_counter() - t_reg
 
                 t0 = time.perf_counter()
+                mudancas: dict = {}
                 try:
-                    self.rtd.refresh(self._rtd_refresh_timeout_ms)
+                    mudancas = self.source.refresh(self._rtd_refresh_timeout_ms) or {}
                 except Exception as e:
                     logger.error("RTD refresh escapou: %s", e, exc_info=True)
                     return {}
                 t_refresh = time.perf_counter() - t0
+
+                suporta_push = getattr(self.source, 'suporta_push', False)
+                suporta_cab_skip = getattr(self.source, 'suporta_cab_skip', False)
+                cab_skip_habilitado = not suporta_push and suporta_cab_skip
+
                 t_scan0 = time.perf_counter()
                 self._scan_count += 1
                 self._ultimo_refresh_timestamp = time.time()
@@ -474,6 +395,11 @@ class MercadoDataProvider:
                 inst_map = self.inst_repo.get_all_mapped()
                 t_inst_map = time.perf_counter() - t_inst_map
 
+                # Pré-computa set de códigos que mudaram (push-based)
+                codigos_mudados: set[str] | None = None
+                if suporta_push and mudancas:
+                    codigos_mudados = {ch.split("|")[0] for ch in mudancas}
+
                 for key in list(self._chaves_com_book):
                     inst = inst_map.get(key)
                     if not inst:
@@ -481,24 +407,38 @@ class MercadoDataProvider:
 
                     if key in self._chaves_detalhes_completos:
                         t0_onda2 = time.perf_counter()
-                        cab_put = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
-                        cab_call = self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
-                        cab_prev = self._cab_anterior.get(key)
-                        cab_mudou = cab_prev is None or cab_prev[0] != cab_put or cab_prev[1] != cab_call
+
+                        # CAB skip (Profit RTD) ou dirty keys (Open Fast)
+                        if cab_skip_habilitado:
+                            cab_put = self.source.ler_campo_cache(inst.cod_put, FieldName.BOOK_HEADER)
+                            cab_call = self.source.ler_campo_cache(inst.cod_call, FieldName.BOOK_HEADER)
+                            cab_prev = self._cab_anterior.get(key)
+                            cab_mudou = cab_prev is None or cab_prev[0] != cab_put or cab_prev[1] != cab_call
+                        elif suporta_push:
+                            tem_mudanca = (
+                                codigos_mudados is None
+                                or inst.cod_put in codigos_mudados
+                                or inst.cod_call in codigos_mudados
+                            )
+                            cab_mudou = tem_mudanca
+                            cab_put = cab_call = None
+                        else:
+                            cab_mudou = True
+                            cab_put = cab_call = None
 
                         if not cab_mudou and key in self._dados_cache:
                             t0_status = time.perf_counter()
                             entry = self._dados_cache[key]
-                            entry["status_put"] = self.rtd.ler_status_cache(inst.cod_put)
-                            entry["status_call"] = self.rtd.ler_status_cache(inst.cod_call)
-                            entry["status_ativo"] = self.rtd.ler_status_cache(inst.ativo)
+                            entry["status_put"] = self.source.ler_status_cache(inst.cod_put)
+                            entry["status_call"] = self.source.ler_status_cache(inst.cod_call)
+                            entry["status_ativo"] = self.source.ler_status_cache(inst.ativo)
                             entry["em_leilao"] = not (
                                 entry["status_put"].lower() == "aberto"
                                 and entry["status_call"].lower() == "aberto"
                                 and entry["status_ativo"].lower() == "aberto"
                             )
                             # Atualiza campos do ativo em tempo real (não congela da primeira leitura)
-                            p_ativo = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                            p_ativo = self.source.ler_campo_cache(inst.ativo, FieldName.ASK)
                             if p_ativo is not None and p_ativo > 0:
                                 entry["preco_ativo"] = p_ativo
                                 self._precos_ativo_cache[inst.ativo] = p_ativo
@@ -506,20 +446,42 @@ class MercadoDataProvider:
                                 p_ativo = self._precos_ativo_cache.get(inst.ativo)
                                 if p_ativo:
                                     entry["preco_ativo"] = p_ativo
-                            of_venda = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
+                            of_venda = self.source.ler_campo_cache(inst.ativo, FieldName.ASK)
                             if of_venda is not None:
                                 entry["of_venda_ativo"] = of_venda
-                            of_compra = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
+                            of_compra = self.source.ler_campo_cache(inst.ativo, FieldName.BID)
                             if of_compra is not None:
                                 entry["of_compra_ativo"] = of_compra
+                            # Atualiza preços das opções em tempo real (CAB skip não congela)
+                            of_c_call = self.source.ler_campo_cache(inst.cod_call, FieldName.BID)
+                            if of_c_call is not None:
+                                entry["of_compra_call"] = of_c_call
+                                entry["premio_call"] = of_c_call
+                            of_v_put = self.source.ler_campo_cache(inst.cod_put, FieldName.ASK)
+                            if of_v_put is not None:
+                                entry["of_venda_put"] = of_v_put
+                                entry["premio_put"] = of_v_put
+                            vov = self.source.ler_campo_cache(inst.cod_put, FieldName.VOL_ASK)
+                            if vov is not None:
+                                entry["vov_put"] = vov
+                            voc = self.source.ler_campo_cache(inst.cod_call, FieldName.VOL_BID)
+                            if voc is not None:
+                                entry["voc_call"] = voc
+                            qul_p = self.source.ler_campo_cache(inst.cod_put, FieldName.QTD_LAST)
+                            if qul_p is not None:
+                                entry["qul_put"] = qul_p
+                            qul_c = self.source.ler_campo_cache(inst.cod_call, FieldName.QTD_LAST)
+                            if qul_c is not None:
+                                entry["qul_call"] = qul_c
                             t_status += time.perf_counter() - t0_status
                             dados_mercado[key] = entry
                             count_cab_skip += 1
                             continue
 
-                        self._cab_anterior[key] = (cab_put, cab_call)
+                        if cab_skip_habilitado:
+                            self._cab_anterior[key] = (cab_put, cab_call)
 
-                        preco_ativo_rtd = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                        preco_ativo_rtd = self.source.ler_campo_cache(inst.ativo, FieldName.ASK)
                         if preco_ativo_rtd is not None and preco_ativo_rtd > 0:
                             preco_ativo = preco_ativo_rtd
                             self._precos_ativo_cache[inst.ativo] = preco_ativo
@@ -545,22 +507,21 @@ class MercadoDataProvider:
 
                     # Onda 1: dados basicos para collars (strike + OCP/OVD)
                     t0_onda1 = time.perf_counter()
-                    strike_put = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_STRIKE)
+                    strike_put = self.source.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
                     if not strike_put or strike_put <= 0:
-                        strike_put = self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_STRIKE)
+                        strike_put = self.source.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
                     if not strike_put or strike_put <= 0:
                         continue
-                    ocp = self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_OFERTA_COMPRA)
-                    ovd = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_OFERTA_VENDA)
+                    ocp = self.source.ler_campo_cache(inst.cod_call, FieldName.BID)
+                    ovd = self.source.ler_campo_cache(inst.cod_put, FieldName.ASK)
                     if not ocp or not ovd:
                         continue
-                    preco_ativo_rtd = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                    preco_ativo_rtd = self.source.ler_campo_cache(inst.ativo, FieldName.ASK)
                     if preco_ativo_rtd is not None and preco_ativo_rtd > 0:
                         preco_ativo = preco_ativo_rtd
                         self._precos_ativo_cache[inst.ativo] = preco_ativo
                     else:
                         preco_ativo = self._precos_ativo_cache.get(inst.ativo)
-
                     if not preco_ativo or preco_ativo <= 0:
                         continue
                     entry = {
@@ -568,16 +529,16 @@ class MercadoDataProvider:
                         "strike_rtd": strike_put,
                         "of_compra_call": ocp,
                         "of_venda_put": ovd,
-                        "of_compra_put": self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_OFERTA_COMPRA) or 0.0,
-                        "of_venda_call": self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_OFERTA_VENDA) or 0.0,
+                        "of_compra_put": self.source.ler_campo_cache(inst.cod_put, FieldName.BID) or 0.0,
+                        "of_venda_call": self.source.ler_campo_cache(inst.cod_call, FieldName.ASK) or 0.0,
                         "qul_put": 0,
                         "qul_call": 0,
                         "vov_put": 0,
                         "voc_call": 0,
                         "em_leilao": False,
-                        "status_put": self.rtd.ler_status_cache(inst.cod_put) or "aberto",
-                        "status_call": self.rtd.ler_status_cache(inst.cod_call) or "aberto",
-                        "status_ativo": self.rtd.ler_status_cache(inst.ativo) or "aberto",
+                        "status_put": self.source.ler_status_cache(inst.cod_put) or "aberto",
+                        "status_call": self.source.ler_status_cache(inst.cod_call) or "aberto",
+                        "status_ativo": self.source.ler_status_cache(inst.ativo) or "aberto",
                     }
                     dados_mercado[key] = entry
                     t_onda1_basico += time.perf_counter() - t0_onda1
@@ -627,9 +588,9 @@ class MercadoDataProvider:
                     continue
                 # Usa OVD (ask da put) como sinal primário de liquidez real.
                 # CAB isolado não é confiável para opções B3 (retorna > 0 mesmo sem book ativo).
-                ovd_put = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_OFERTA_VENDA)
-                cab_put = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK)
-                cab_call = self.rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK)
+                ovd_put = self.source.ler_campo_cache(inst.cod_put, FieldName.ASK)
+                cab_put = self.source.ler_campo_cache(inst.cod_put, FieldName.BOOK_HEADER)
+                cab_call = self.source.ler_campo_cache(inst.cod_call, FieldName.BOOK_HEADER)
                 tem_negocio = (ovd_put is not None and ovd_put > 0)
                 tem_book = (cab_put is not None and cab_put > 0) or (cab_call is not None and cab_call > 0)
                 if tem_negocio or tem_book:
@@ -671,26 +632,26 @@ class MercadoDataProvider:
             self._lock.unlock()
 
     def _ler_instrumento_cache(self, inst: InstrumentoOpcional, preco_ativo: float | None) -> DadosRTDInstrumento | None:
-        rtd = self.rtd
+        rtd = self.source
 
-        of_venda_put = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_OFERTA_VENDA)
-        of_compra_put = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_OFERTA_COMPRA)
-        of_venda_call = rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_OFERTA_VENDA)
-        of_compra_call = rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_OFERTA_COMPRA)
+        of_venda_put = rtd.ler_campo_cache(inst.cod_put, FieldName.ASK)
+        of_compra_put = rtd.ler_campo_cache(inst.cod_put, FieldName.BID)
+        of_venda_call = rtd.ler_campo_cache(inst.cod_call, FieldName.ASK)
+        of_compra_call = rtd.ler_campo_cache(inst.cod_call, FieldName.BID)
 
         if not of_venda_put and not of_compra_put and not of_venda_call and not of_compra_call:
             return None
 
         # Prioridade Única: RTD (Garantido pelo Profit)
-        strike_rtd = rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_STRIKE)
+        strike_rtd = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
         if not strike_rtd or strike_rtd <= 0:
-            strike_rtd = rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_STRIKE)
+            strike_rtd = rtd.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
         
         if not strike_rtd or strike_rtd <= 0:
             return None # Sem strike real, não calculamos para evitar erro
 
-        of_venda_ativo = rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
-        of_compra_ativo = rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_OFERTA_COMPRA)
+        of_venda_ativo = rtd.ler_campo_cache(inst.ativo, FieldName.ASK)
+        of_compra_ativo = rtd.ler_campo_cache(inst.ativo, FieldName.BID)
 
         status_put = rtd.ler_status_cache(inst.cod_put)
         status_call = rtd.ler_status_cache(inst.cod_call)
@@ -712,10 +673,10 @@ class MercadoDataProvider:
             status_put=status_put,
             status_call=status_call,
             status_ativo=status_ativo,
-            cab_put=rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_CABECALHO_BOOK),
-            qul_put=rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_QTDE_ULT_NEG),
-            vov_put=rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_VOL_VENDA),
-            cab_call=rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_CABECALHO_BOOK),
-            qul_call=rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_QTDE_ULT_NEG),
-            voc_call=rtd.ler_campo_cache(inst.cod_call, RTD_CAMPO_VOL_COMPRA),
+            cab_put=rtd.ler_campo_cache(inst.cod_put, FieldName.BOOK_HEADER),
+            qul_put=rtd.ler_campo_cache(inst.cod_put, FieldName.QTD_LAST),
+            vov_put=rtd.ler_campo_cache(inst.cod_put, FieldName.VOL_ASK),
+            cab_call=rtd.ler_campo_cache(inst.cod_call, FieldName.BOOK_HEADER),
+            qul_call=rtd.ler_campo_cache(inst.cod_call, FieldName.QTD_LAST),
+            voc_call=rtd.ler_campo_cache(inst.cod_call, FieldName.VOL_BID),
         )
