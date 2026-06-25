@@ -498,9 +498,14 @@ class MercadoDataProvider:
                                 and entry["status_ativo"].lower() == "aberto"
                             )
                             # Atualiza campos do ativo em tempo real (não congela da primeira leitura)
-                            p_ativo = self._precos_ativo_cache.get(inst.ativo)
-                            if p_ativo:
+                            p_ativo = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                            if p_ativo is not None and p_ativo > 0:
                                 entry["preco_ativo"] = p_ativo
+                                self._precos_ativo_cache[inst.ativo] = p_ativo
+                            else:
+                                p_ativo = self._precos_ativo_cache.get(inst.ativo)
+                                if p_ativo:
+                                    entry["preco_ativo"] = p_ativo
                             of_venda = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_OFERTA_VENDA)
                             if of_venda is not None:
                                 entry["of_venda_ativo"] = of_venda
@@ -514,15 +519,18 @@ class MercadoDataProvider:
 
                         self._cab_anterior[key] = (cab_put, cab_call)
 
-                        preco_ativo = self._precos_ativo_cache.get(inst.ativo)
-                        if preco_ativo is None:
-                            preco_ativo = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
-                            if not preco_ativo or preco_ativo <= 0:
-                                if inst.ativo in self._sem_ativo_skip:
-                                    continue
-                                sem_ativo_atual[inst.ativo] = self.SEM_ATIVO_SKIP_CYCLES
-                                continue
+                        preco_ativo_rtd = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                        if preco_ativo_rtd is not None and preco_ativo_rtd > 0:
+                            preco_ativo = preco_ativo_rtd
                             self._precos_ativo_cache[inst.ativo] = preco_ativo
+                        else:
+                            preco_ativo = self._precos_ativo_cache.get(inst.ativo)
+
+                        if not preco_ativo or preco_ativo <= 0:
+                            if inst.ativo in self._sem_ativo_skip:
+                                continue
+                            sem_ativo_atual[inst.ativo] = self.SEM_ATIVO_SKIP_CYCLES
+                            continue
 
                         dados_rtd = self._ler_instrumento_cache(inst, preco_ativo)
                         if dados_rtd:
@@ -546,12 +554,15 @@ class MercadoDataProvider:
                     ovd = self.rtd.ler_campo_cache(inst.cod_put, RTD_CAMPO_OFERTA_VENDA)
                     if not ocp or not ovd:
                         continue
-                    preco_ativo = self._precos_ativo_cache.get(inst.ativo)
-                    if not preco_ativo or preco_ativo <= 0:
-                        preco_ativo = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
-                        if not preco_ativo or preco_ativo <= 0:
-                            continue
+                    preco_ativo_rtd = self.rtd.ler_campo_cache(inst.ativo, RTD_CAMPO_ULTIMO_PRECO)
+                    if preco_ativo_rtd is not None and preco_ativo_rtd > 0:
+                        preco_ativo = preco_ativo_rtd
                         self._precos_ativo_cache[inst.ativo] = preco_ativo
+                    else:
+                        preco_ativo = self._precos_ativo_cache.get(inst.ativo)
+
+                    if not preco_ativo or preco_ativo <= 0:
+                        continue
                     entry = {
                         "preco_ativo": preco_ativo,
                         "strike_rtd": strike_put,
