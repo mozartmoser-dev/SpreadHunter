@@ -282,14 +282,24 @@ python -m pytest tests/ -x -q --tb=short
 # 2. Build
 python -m PyInstaller --clean --distpath "$env:USERPROFILE\Desktop\dist" --workpath "$env:USERPROFILE\Desktop\build_pyi" spreadhunter.spec
 
-# 3. Substituir deploy antigo
+# 3. Backup .env antes de remover
+$envPath = "$env:USERPROFILE\Desktop\Spreadhunter\.env"
+if (Test-Path $envPath) { Copy-Item $envPath "$env:USERPROFILE\Desktop\.env.spreadhunter.bak" }
+
+# 4. Substituir deploy antigo
 Remove-Item -Recurse -Force "$env:USERPROFILE\Desktop\Spreadhunter"
 Move-Item "$env:USERPROFILE\Desktop\dist\Spreadhunter" "$env:USERPROFILE\Desktop\Spreadhunter"
 
-# 4. Limpar artefatos
+# 5. Restaurar .env
+if (Test-Path "$env:USERPROFILE\Desktop\.env.spreadhunter.bak") {
+    Copy-Item "$env:USERPROFILE\Desktop\.env.spreadhunter.bak" $envPath
+    Remove-Item "$env:USERPROFILE\Desktop\.env.spreadhunter.bak"
+}
+
+# 6. Limpar artefatos
 Remove-Item -Recurse -Force "$env:USERPROFILE\Desktop\dist", "$env:USERPROFILE\Desktop\build_pyi"
 
-# 5. Recriar INSTRUCOES.txt
+# 7. Recriar INSTRUCOES.txt
 @"
 ╔══════════════════════════════════════════════════════╗
 ║             SPREADHUNTER — INSTRUCOES              ║
@@ -314,7 +324,7 @@ Remove-Item -Recurse -Force "$env:USERPROFILE\Desktop\dist", "$env:USERPROFILE\D
 └─────────────────────────────────────────────────────┘
 "@ | Out-File -Encoding utf8 "$env:USERPROFILE\Desktop\Spreadhunter\INSTRUCOES.txt"
 
-# 6. Recriar .env.example
+# 8. Recriar .env.example
 @"
 # Credenciais opcoes.net.br
 OPCOESNET_CPF=SEU_CPF_AQUI
@@ -327,5 +337,35 @@ OPCOESNET_SENHA=SUA_SENHA_AQUI
 - **Box 4P (`calculadora_box.py:87`)**: fórmula `lucro = clr - distancia` está **correta** — é um short box. Não inverter.
 - **Performance**: várias escolhas de design são intencionais (conexões abrindo/fechando, O(n²) em listas pequenas, `except Exception: pass` em não-críticos). Não "corrigir" sem confirmar.
 - **Testes**: 285/285 passando em todas as batidas (24/06).
-- **Stack atual**: Python 3.13.14, PySide6 6.11.1, numpy 2.4.6, scipy 1.17.1, matplotlib 3.11.0.
+- **Stack atual**: Python 3.13.14, PySide6 6.11.1, numpy 2.4.6, scipy 1.17.1, matplotlib 3.11.0, Pillow 12.2.0.
+
+### Build — Hidden Imports obrigatórios no `.spec`
+
+Sempre que adicionar uma lib nova, verificar se ela precisa estar em `hiddenimports` no `spreadhunter.spec`.
+Libs já mapeadas (NÃO remover):
+
+- **PIL/Pillow**: matplotlib `colors.py` depende de `PIL` e `PIL._tkinter_finder`. Não colocar em `excludes`.
+- **matplotlib.backends.backend_qtagg**: necessário para gráficos em dialogs PySide6.
+- **win32com/pythoncom/pywintypes**: RTD Profit (COM).
+- **scipy.stats / scipy.optimize**: cálculos de volatilidade e MPP.
+
+Se um gráfico der `ModuleNotFoundError` no .exe mas funcionar no código fonte, é hidden import faltando no `.spec`.
 - **Deploy sempre pela pasta `C:\Users\Mozart\Desktop\Spreadhunter\`**.
+
+---
+
+## Pendência — Validação do calendário de DU no Black-Scholes
+
+Testar se o Profit Pro usa **DC->DU exato (com feriados)** ou **aproximado (252/365)**
+para o `T` no cálculo de IV e gregas.
+
+**Como testar:**
+1. Pegar um papel com vencimento conhecido
+2. Ver o IV que o Profit mostra
+3. Calcular IV próprio com `T_exato = dc_to_du_exato(hoje, venc) / 252` vs
+   `T_aproximado = dc_to_du_aproximado(dte) / 252`
+4. Ver qual valor bate com o do Profit
+
+Se o Profit usar exato, vale migrar as calculadoras de spread (colar, calendário,
+box) para usar `dc_to_du_exato(hoje, inst.vencimento)` em vez de
+`dc_to_du(None, None, dias)`.

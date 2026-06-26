@@ -505,8 +505,11 @@ class MainWindow(QMainWindow):
     def _mostrar_vencimentos(self):
         from datetime import date
         from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
-        from src.domain.services.calendario_b3 import dc_to_du
-        from PySide6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QVBoxLayout
+        from src.domain.services.calendario_b3 import dc_to_du, dc_to_du_aproximado
+        from PySide6.QtWidgets import (
+            QTableWidget, QTableWidgetItem, QHeaderView, QVBoxLayout,
+            QHBoxLayout, QSpinBox, QLabel, QGroupBox, QFormLayout, QPushButton,
+        )
 
         repo = InstrumentoRepository(self.db_path)
         vencimentos = repo.get_proximos_vencimentos(limite=30)
@@ -520,12 +523,14 @@ class MainWindow(QMainWindow):
 
         dialog = QDialog(self, Qt.Window)
         dialog.setWindowTitle("Próximos Vencimentos")
-        dialog.setMinimumSize(420, 350)
+        dialog.setMinimumSize(440, 520)
         dialog.setStyleSheet("background-color: #0d0d1a; color: #e0e0e0;")
 
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
 
+        # ── Tabela de Vencimentos ──
         table = QTableWidget()
         table.setColumnCount(4)
         table.setHorizontalHeaderLabels(["Vencimento", "DTE", "CDI D.U.", "CDI D.C."])
@@ -546,8 +551,6 @@ class MainWindow(QMainWindow):
             "font-size: 9pt; font-family: Consolas; border: 1px solid #2d2d44; }"
             "QTableWidget::item { padding: 2px 8px; }"
         )
-
-        fmt_style = "color: #00f2ff; font-weight: bold;"
 
         for i, venc in enumerate(vencimentos):
             item_venc = QTableWidgetItem(venc.strftime("%d/%m/%Y"))
@@ -575,6 +578,75 @@ class MainWindow(QMainWindow):
 
         table.resizeColumnsToContents()
         layout.addWidget(table)
+
+        # ── Calculadora CDI ──
+        cdi_group = QGroupBox("Calculadora CDI")
+        cdi_group.setStyleSheet("""
+            QGroupBox {
+                color: #e0e0e0; font-size: 10pt; font-weight: bold;
+                border: 1px solid #2d2d44; border-radius: 6px;
+                margin-top: 10px; padding-top: 14px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 6px;
+            }
+        """)
+        cdi_form = QFormLayout(cdi_group)
+        cdi_form.setSpacing(4)
+        cdi_form.setContentsMargins(10, 16, 10, 10)
+
+        taxa_label = QLabel(f"<b>{taxa_cdi * 100:.2f}% a.a.</b>")
+        taxa_label.setStyleSheet("color: #f0c040; font-size: 10pt; font-family: Consolas;")
+        cdi_form.addRow("Taxa CDI:", taxa_label)
+
+        spin_dc = QSpinBox()
+        spin_dc.setRange(1, 3650)
+        spin_dc.setValue(30)
+        spin_dc.setStyleSheet("""
+            QSpinBox {
+                background-color: #1e1e2f; color: #e0e0e0;
+                border: 1px solid #2d2d44; border-radius: 4px;
+                padding: 2px 6px; font-size: 10pt; font-family: Consolas;
+            }
+        """)
+        cdi_form.addRow("Dias Corridos (DC):", spin_dc)
+
+        lbl_du = QLabel("—")
+        lbl_du.setStyleSheet("color: #00f2ff; font-size: 10pt; font-family: Consolas;")
+        cdi_form.addRow("Dias Úteis (DU):", lbl_du)
+
+        lbl_cdi_dc = QLabel("—")
+        lbl_cdi_dc.setStyleSheet("color: #40c040; font-size: 10pt; font-family: Consolas;")
+        cdi_form.addRow("CDI (DC/365):", lbl_cdi_dc)
+
+        lbl_cdi_du = QLabel("—")
+        lbl_cdi_du.setStyleSheet("color: #40c040; font-size: 10pt; font-family: Consolas;")
+        cdi_form.addRow("CDI (DU/252):", lbl_cdi_du)
+
+        def _calcular():
+            dc_val = spin_dc.value()
+            du_val = dc_to_du_aproximado(dc_val)
+            cdi_du_val = (1 + taxa_cdi) ** (du_val / 252) - 1
+            cdi_dc_val = (1 + taxa_cdi) ** (dc_val / 365) - 1
+            lbl_du.setText(str(du_val))
+            lbl_cdi_dc.setText(f"{cdi_dc_val * 100:.4f}%")
+            lbl_cdi_du.setText(f"{cdi_du_val * 100:.4f}%")
+
+        spin_dc.valueChanged.connect(_calcular)
+        _calcular()
+
+        layout.addWidget(cdi_group)
+
+        # ── Fechar ──
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.clicked.connect(dialog.accept)
+        btn_layout.addWidget(btn_fechar)
+        layout.addLayout(btn_layout)
+
         dialog.exec_()
 
     def _aplicar_tema_configurado(self):
