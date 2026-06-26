@@ -879,7 +879,7 @@ class ColarCalendarioDialog(QDialog):
             QPushButton:hover {{ background-color: #3d3d55; }}
         """)
         n_sig = max(5, r.dte_call)
-        btn_grafico.clicked.connect(lambda: self._plot_historico(r.ativo, r.preco_ativo, n_sig))
+        btn_grafico.clicked.connect(lambda: self._plot_historico(r.ativo, r.preco_ativo, r.strike_put, r.strike_call, n_sig))
         btn_row.addWidget(btn_grafico)
 
         btn_explicar = QPushButton("🔍 Explicar")
@@ -1250,7 +1250,7 @@ class ColarCalendarioDialog(QDialog):
             logger.exception("Erro no payoff: %s", e)
             QMessageBox.critical(self, "Erro", f"Falha ao gerar payoff:\n{e}\n\n{traceback.format_exc()}")
 
-    def _plot_historico(self, ativo: str, preco_atual: float = None, n_sessoes: int = 21):
+    def _plot_historico(self, ativo: str, preco_atual: float = None, strike_put: float = None, strike_call: float = None, n_sessoes: int = 21):
         from PySide6.QtWidgets import QMessageBox
         import numpy as np
         from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -1307,11 +1307,36 @@ class ColarCalendarioDialog(QDialog):
         ax1.tick_params(axis='x', colors=TEXT)
         ax1.set_xlim(dates[0], dates[-1])
 
-        if preco_atual is not None and preco_atual > 0:
-            ax1.axhline(preco_atual, color=WHITE, linewidth=1.0, linestyle='--', alpha=0.6, zorder=4)
-            ax1.text(dates[-1], preco_atual, f'Spot R${preco_atual:.2f}',
-                     ha='right', va='bottom', color=WHITE, fontsize=7, alpha=0.8,
-                     bbox=dict(boxstyle='round,pad=0.15', facecolor='#1a1a1a', edgecolor='none', alpha=0.6))
+        # ── Linhas com rótulo central (tracejado interrompido) ──
+        if dates:
+            x0n = mdates.date2num(dates[0])
+            x1n = mdates.date2num(dates[-1])
+            span = x1n - x0n
+            linhas = []
+            if preco_atual is not None and preco_atual > 0:
+                linhas.append((preco_atual, WHITE, WHITE, f'Ativo R${preco_atual:.2f}'))
+            for strike, cor_linha, cor_box, rotulo in [
+                (strike_put, RED, '#4caf50', 'C-PUT'),
+                (strike_call, ACCENT, '#ff3355', 'V-CALL'),
+            ]:
+                if strike is not None and strike > 0:
+                    linhas.append((strike, cor_linha, cor_box, f'{rotulo} R${strike:.2f}'))
+            linhas.sort(key=lambda x: x[0])  # do menor y (mais embaixo) para o maior
+            n = len(linhas)
+            proximas = any(abs(linhas[i][0] - linhas[i + 1][0]) < 1.5 for i in range(n - 1))
+            for i, (y, cor_linha, cor_box, texto) in enumerate(linhas):
+                pct = 0.85 - (i / (n - 1)) * 0.35 if (proximas and n > 1) else 0.7
+                xc = x0n + pct * span
+                gap = 0.035 * span
+                if xc - gap > x0n:
+                    ax1.plot([x0n, xc - gap], [y, y], color=cor_linha, linewidth=1.2, linestyle='--', alpha=0.9, zorder=4)
+                if xc + gap < x1n:
+                    ax1.plot([xc + gap, x1n], [y, y], color=cor_linha, linewidth=1.2, linestyle='--', alpha=0.9, zorder=4)
+                cor_fundo = cor_box if cor_box != WHITE else '#0d0d0d'
+                ax1.text(xc, y, texto, ha='center', va='center', color=WHITE, fontsize=8,
+                         bbox=dict(boxstyle='round,pad=0.15', facecolor=cor_fundo, edgecolor=cor_linha, alpha=0.9))
+        if strike_put is not None and strike_put > 0 and strike_call is not None and strike_call > 0:
+            ax1.fill_between(dates, strike_put, strike_call, color='#42a5f5', alpha=0.04, zorder=1)
 
         if len(closes) > 10:
             from scipy.stats import norm
@@ -1338,6 +1363,15 @@ class ColarCalendarioDialog(QDialog):
             ax_inset.plot(x_gauss, y_gauss, color=ACCENT, linewidth=1.2, alpha=0.8)
             ax_inset.fill_between(x_gauss, 0, y_gauss, color=ACCENT, alpha=0.1)
             ax_inset.axvline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
+            # Marcar strikes no Gauss
+            for strike, cor, letra in [(strike_put, '#4caf50', 'P'),
+                                        (strike_call, '#ff3355', 'C')]:
+                if strike is not None and strike > 0:
+                    desvio = (strike - spot) / spot / sigma_periodo
+                    ax_inset.axvline(desvio, color=cor, linewidth=1.5, linestyle='-', alpha=0.9)
+                    ax_inset.text(desvio, ax_inset.get_ylim()[1] * 0.9, letra,
+                                  ha='center', va='top', color=cor, fontsize=5.5,
+                                  bbox=dict(boxstyle='round,pad=0.1', facecolor='#1a1a1a', edgecolor=cor, alpha=0.5))
             for i in range(1, 4):
                 for s in (-i*sigma_periodo, i*sigma_periodo):
                     ax_inset.axvline(s, color=ACCENT, linewidth=0.4, linestyle=':', alpha=0.2)
@@ -1345,7 +1379,7 @@ class ColarCalendarioDialog(QDialog):
             ax_inset.tick_params(colors=TEXT, labelsize=5)
             for spine in ax_inset.spines.values():
                 spine.set_color('#333')
-            ax_inset.set_title(f'{n_sessoes} preg', color=TEXT, fontsize=6)
+            ax_inset.set_title(f'{n_sessoes} preg — strikes no Gauss', color=TEXT, fontsize=6)
             ax_inset.set_ylabel('dens.', color=TEXT, fontsize=5)
 
         if has_vol:
@@ -1388,7 +1422,11 @@ class ColarCalendarioDialog(QDialog):
         btn_fechar.setProperty("class", "primary")
         btn_row.addWidget(btn_fechar)
         layout.addLayout(btn_row)
-        dialog.exec_()
+        try:
+            dialog.exec_()
+        except Exception as e:
+            import traceback
+            QMessageBox.critical(self, "Erro", f"Falha ao abrir o grafico:\n{e}\n\n{traceback.format_exc()}")
 
     def _mostrar_variacao(self, r, n_sessoes=None):
         from PySide6.QtWidgets import QMessageBox

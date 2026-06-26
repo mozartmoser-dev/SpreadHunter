@@ -168,7 +168,7 @@ class MercadoDataProvider:
 
     def _registrar_detalhes_completos(self, inst: InstrumentoOpcional):
         """Registra todos os campos de um instrumento quando detectamos liquidez."""
-        key = inst.cod_put
+        key = f"{inst.ativo}|{inst.cod_put}"
         if key in self._chaves_detalhes_completos:
             return
         
@@ -187,6 +187,12 @@ class MercadoDataProvider:
         
         self._chaves_detalhes_completos.add(key)
         logger.debug("RTD: Detalhes completos registrados para %s (Liquidez detectada)", key)
+
+        # Força leitura do preço do ativo para evitar delay de 1 ciclo
+        preco = rtd.forcar_leitura(inst.ativo, FieldName.ASK)
+        if preco and preco > 0:
+            self._precos_ativo_cache[inst.ativo] = preco
+            logger.debug("RTD: preco_ativo %s=%.2f forçado com sucesso", inst.ativo, preco)
 
     def _deve_pular_instrumento(self, inst: InstrumentoOpcional) -> bool:
         if not self._carga_inteligente_habilitada:
@@ -214,7 +220,7 @@ class MercadoDataProvider:
 
     def _registrar_instrumento(self, inst: InstrumentoOpcional):
         rtd = self.source
-        key = inst.cod_put
+        key = f"{inst.ativo}|{inst.cod_put}"
         if key in self._chaves_registradas:
             return False
 
@@ -346,7 +352,7 @@ class MercadoDataProvider:
                     # Onda 1
                     if not self._registrado:
                         if self._prioridade_set:
-                            prio = [inst for inst in instrumentos if inst.cod_put in self._prioridade_set]
+                            prio = [inst for inst in instrumentos if f"{inst.ativo}|{inst.cod_put}" in self._prioridade_set or inst.cod_put in self._prioridade_set]
                             self._registrar_batch_inteligente(prio, batch_size=2000)
                             if self._registrado:
                                 self._background_offset = len(prio)
@@ -390,6 +396,10 @@ class MercadoDataProvider:
                 count_onda2 = 0
                 count_onda1 = 0
                 count_cab_skip = 0
+                count_sem_preco = 0
+                count_sem_dados_rtd = 0
+                logger.debug("Varredura: _chaves_com_book=%d _chaves_detalhes=%d",
+                             len(self._chaves_com_book), len(self._chaves_detalhes_completos))
 
                 t_inst_map = time.perf_counter()
                 inst_map = self.inst_repo.get_all_mapped()
@@ -401,7 +411,10 @@ class MercadoDataProvider:
                     codigos_mudados = {ch.split("|")[0] for ch in mudancas}
 
                 for key in list(self._chaves_com_book):
-                    inst = inst_map.get(key)
+                    if "|" not in key:
+                        continue
+                    ativo, cod_put = key.split("|", 1)
+                    inst = inst_map.get((ativo, cod_put))
                     if not inst:
                         continue
 
@@ -490,8 +503,10 @@ class MercadoDataProvider:
 
                         if not preco_ativo or preco_ativo <= 0:
                             if inst.ativo in self._sem_ativo_skip:
+                                count_sem_preco += 1
                                 continue
                             sem_ativo_atual[inst.ativo] = self.SEM_ATIVO_SKIP_CYCLES
+                            count_sem_preco += 1
                             continue
 
                         dados_rtd = self._ler_instrumento_cache(inst, preco_ativo)
@@ -500,6 +515,7 @@ class MercadoDataProvider:
                             dados_mercado[key] = entry
                             self._dados_cache[key] = entry
                         else:
+                            count_sem_dados_rtd += 1
                             self._dados_cache.pop(key, None)
                         t_onda2_detalhes += time.perf_counter() - t0_onda2
                         count_onda2 += 1
@@ -552,6 +568,13 @@ class MercadoDataProvider:
                 else:
                     self._ciclos_sem_dados += 1
                 t_total = time.perf_counter() - t0 - t_registro
+                if count_sem_preco > 0 or count_sem_dados_rtd > 0:
+                    logger.debug(
+                        "Varredura: sem_preco=%d sem_dados_rtd=%d "
+                        "chaves_com_book=%d",
+                        count_sem_preco, count_sem_dados_rtd,
+                        len(self._chaves_com_book),
+                    )
                 logger.info(
                     "Varredura(%s): monitor=%d book=%d | "
                     "reg=%.3f ref=%.3f var=%.3f total=%.3f | "
@@ -583,7 +606,10 @@ class MercadoDataProvider:
             MAX_REG_ONDA2 = 500
 
             for key in list(sem_detalhes):
-                inst = inst_map.get(key)
+                if "|" not in key:
+                    continue
+                ativo, cod_put = key.split("|", 1)
+                inst = inst_map.get((ativo, cod_put))
                 if not inst:
                     continue
                 # Usa OVD (ask da put) como sinal primário de liquidez real.

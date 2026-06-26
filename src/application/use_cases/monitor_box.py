@@ -1,3 +1,4 @@
+import time
 from collections import defaultdict
 from datetime import date
 
@@ -104,6 +105,7 @@ class MonitorBoxUseCase:
 
         filtro = {"total": 0, "venc": 0, "tipo": 0, "white": 0, "rtd": 0, "filtros": 0, "grupos": 0}
         n_passou = 0
+        _t0 = time.perf_counter()
 
         for key, inst in inst_map.items():
             filtro["total"] += 1
@@ -137,18 +139,25 @@ class MonitorBoxUseCase:
             n3 = n2 - filtro["white"]
             n4 = n3 - filtro["rtd"]
             n5 = n4 - filtro["filtros"]
+            tempo_filtro = time.perf_counter() - _t0
             pipeline_tracker.add_stage("1. Vencimento", n0, n1,
-                "Opção sem vencimento futuro ou já vencida")
+                "Opção sem vencimento futuro ou já vencida",
+                tempo_s=tempo_filtro)
             pipeline_tracker.add_stage("2. Tipo (Europeia)", n1, n2,
-                "Só aceita opções Europeias (Parâmetros > BOX_4P > box_soh_europeia)")
+                "Só aceita opções Europeias (Parâmetros > BOX_4P > box_soh_europeia)",
+                tempo_s=0.0)
             pipeline_tracker.add_stage("3. Ativo (whitelist)", n2, n3,
-                "Ativo não está na whitelist (Parâmetros > BOX_4P > white_list_box4p)")
+                "Ativo não está na whitelist (Parâmetros > BOX_4P > white_list_box4p)",
+                tempo_s=0.0)
             pipeline_tracker.add_stage("4. Dados RTD", n3, n4,
-                "RTD não retornou strike (PEX) para PUT ou CALL")
+                "RTD não retornou strike (PEX) para PUT ou CALL",
+                tempo_s=0.0)
             pipeline_tracker.add_stage("5. Filtros (DTE/leilão)", n4, n5,
-                f"DTE < {self._get_param('perf_dias_minimos', 10)}d ou dias <= 0")
+                f"DTE < {self._get_param('perf_dias_minimos', 10)}d ou dias <= 0",
+                tempo_s=0.0)
             pipeline_tracker.add_stage("6. Pareamento", n5, n_passou,
-                "Agrupados por ativo+vencimento para formar pares de strike")
+                "Agrupados por ativo+vencimento para formar pares de strike",
+                tempo_s=0.0)
             logger.info("PipelineTracker BOX_4P: %d -> %d", n0, n_passou)
             self._ultimo_pipeline = pipeline_tracker
 

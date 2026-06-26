@@ -102,14 +102,16 @@ class InstrumentoRepository:
         finally:
             conn.close()
 
-    def get_all_mapped(self) -> dict[str, InstrumentoOpcional]:
-        """Retorna dicionário {cod_put: InstrumentoOpcional}."""
+    def get_all_mapped(self) -> dict[tuple[str, str], InstrumentoOpcional]:
+        """Retorna dicionário {(ativo, cod_put): InstrumentoOpcional}.
+        Chave composta evita confusao entre ativos com mesmo codigo de opcao.
+        """
         with self.__class__._lock:
             if self.__class__._cache_mapped is not None:
                 return dict(self.__class__._cache_mapped)
         
         all_inst = self.get_all()
-        mapped = {i.cod_put: i for i in all_inst}
+        mapped = {(i.ativo, i.cod_put): i for i in all_inst}
         with self.__class__._lock:
             self.__class__._cache_mapped = mapped
         return dict(mapped)

@@ -30,11 +30,12 @@ a = Analysis(
         "win32com", "win32api", "win32con", "win32gui",
         "win32process", "win32clipboard", "pythoncom",
         "hashlib", "logging.handlers", "sqlite3",
+        "PIL", "PIL._tkinter_finder",
     ],
     excludes=[
         "tkinter", "pytest",
         "_distutils_hack", "setuptools", "pkg_resources",
-        "PIL", "cairo", "sphinx", "IPython", "zmq", "jedi", "parso",
+        "cairo", "sphinx", "IPython", "zmq", "jedi", "parso",
         "matplotlib.tests", "scipy.tests",
         "mpl_toolkits", "pygments",
         "PyQt5", "PyQt5.QtCore", "PyQt5.QtGui", "PyQt5.QtWidgets",

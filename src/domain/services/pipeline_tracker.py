@@ -1,5 +1,6 @@
 import logging
-from dataclasses import dataclass, field
+import time
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +12,7 @@ class PipelineStage:
     saida: int
     rejeitados: int = 0
     motivo: str = ""
+    tempo_s: float = 0.0
 
 
 class PipelineTracker:
@@ -26,14 +28,21 @@ class PipelineTracker:
     def __init__(self, nome_estrategia: str = ""):
         self.nome_estrategia = nome_estrategia
         self.stages: list[PipelineStage] = []
+        self._last_t: float = time.perf_counter()
 
-    def add_stage(self, nome: str, entrada: int, saida: int, motivo: str = ""):
+    def add_stage(self, nome: str, entrada: int, saida: int, motivo: str = "",
+                  tempo_s: float | None = None):
+        now = time.perf_counter()
+        if tempo_s is None:
+            tempo_s = now - self._last_t
+        self._last_t = now
         self.stages.append(PipelineStage(
             nome=nome,
             entrada=entrada,
             saida=saida,
             rejeitados=entrada - saida,
             motivo=motivo,
+            tempo_s=tempo_s,
         ))
 
     @property

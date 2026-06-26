@@ -134,9 +134,10 @@ class OpenFastSocketAdapter:
 
     def _thread_leitora(self):
         buffer = ""
+        meu_socket = self._socket
         while self._conectado:
             try:
-                dados = self._socket.recv(4096).decode("utf-8", errors="ignore")
+                dados = meu_socket.recv(4096).decode("utf-8", errors="ignore")
                 if not dados:
                     self._conectado = False
                     break
@@ -148,7 +149,9 @@ class OpenFastSocketAdapter:
                 continue
             except Exception as e:
                 logger.warning("Open Fast: leitura interrompida: %s", e)
-                self._conectado = False
+                with self._mutex:
+                    if self._socket is meu_socket:
+                        self._conectado = False
                 break
 
     def _processar_linha(self, linha: str):
@@ -185,6 +188,11 @@ class OpenFastSocketAdapter:
 
     def desconectar(self):
         self._conectado = False
+        try:
+            if self._socket:
+                self._socket.shutdown(socket.SHUT_RDWR)
+        except Exception:
+            pass
         try:
             if self._socket:
                 self._socket.close()

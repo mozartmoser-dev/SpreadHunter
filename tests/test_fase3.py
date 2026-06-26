@@ -52,7 +52,7 @@ class TestMonitorOportunidadesUseCase:
         venc = (date.today() + timedelta(days=20)).isoformat()
         monitor_uc = MonitorOportunidadesUseCase(populated_db)
         dados_mercado = {
-            "BOVAT180": {
+            "BOVA11|BOVAT180": {
                 "preco_ativo": 18.0,
                 "strike_rtd": 18.0,
                 "of_compra_ativo": 17.9, "of_venda_ativo": 18.1,
@@ -107,7 +107,7 @@ class TestMonitorOportunidadesUseCase:
         venc = (date.today() + timedelta(days=20)).isoformat()
         monitor_uc = MonitorOportunidadesUseCase(populated_db)
         dados_mercado = {
-            "BOVA11_{}".format(venc): {
+            "BOVA11|BOVAT180": {
                 "preco_ativo": 18.0, "premio_put": 2.0, "premio_call": 2.5,
                 "vov_put_boca": 2000.0, "voc_call_boca": 2000.0,
             },

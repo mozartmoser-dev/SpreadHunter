@@ -265,7 +265,7 @@ class TestMockMarketDataProvider:
         instrumentos = repo.get_all()
         provider = MockMarketDataProvider(preco_base=18.0)
         inst = instrumentos[0]
-        key = inst.cod_put
+        key = f"{inst.ativo}|{inst.cod_put}"
         provider.set_override(key, {"preco_ativo": 25.0, "premio_put": 3.0, "premio_call": 1.0})
         dados = provider.gerar_dados_para_instrumentos(instrumentos)
         assert dados[key]["preco_ativo"] == 25.0

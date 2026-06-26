@@ -354,6 +354,61 @@ Se um gráfico der `ModuleNotFoundError` no .exe mas funcionar no código fonte,
 
 ---
 
+## Sessão 26/06/2026 — Chave Composta (Layer 4) + Correção Cruzamento Ativos
+
+### Problema
+Códigos de opção **não são únicos entre ativos** na B3. PETR3 e PETR4 podem ter
+opções com o mesmo código (ex: PETRH36) em séries diferentes. O sistema usava
+`cod_put` como chave única → `inst_map` sobrescrevia um pelo outro → cruzava
+ativos nas estruturas (ex: montava collar de PETR4 com opção de PETR3).
+
+### Causa raiz
+O código da opção B3 = 4 letras (empresa) + 1 letra (série: A-L CALL, M-Z PUT)
++ strike. **Não há letra de classe** (ON vs PN) no código. A única forma de
+saber o ativo-objeto é pelo cadastro (DB / API).
+
+### Correção — Chave Composta `(ativo, cod_opcao)`
+
+Toda chave interna do pipeline agora leva o par `(ativo, cod_put)`:
+
+| Estrutura | Antes | Depois |
+|-----------|-------|--------|
+| `inst_map` (`get_all_mapped()`) | `{cod_put: Instrumento}` | `{(ativo, cod_put): Instrumento}` |
+| `_chaves_registradas` | `set{cod_put}` | `set{"PETR4\|PETRU36"}` |
+| `_chaves_com_book` | `set{cod_put}` | `set{"PETR4\|PETRU36"}` |
+| `_chaves_detalhes_completos` | `set{cod_put}` | `set{"PETR4\|PETRU36"}` |
+| `_dados_cache` | `dict{cod_put: dados}` | `dict{"PETR4\|PETRU36": dados}` |
+| `_cab_anterior` | `dict{cod_put: cab}` | `dict{"PETR4\|PETRU36": cab}` |
+| `dados_mercado` (output) | `dict{cod_put: dados}` | `dict{"PETR4\|PETRU36": dados}` |
+
+Onde `cod_put` = código da PUT (série M-Z). Use `f"{inst.ativo}|{inst.cod_put}"`.
+
+### Arquivos alterados
+- `src/infrastructure/persistence/repositories/repositories.py:105-115`
+- `src/infrastructure/providers/mercado_data_provider.py` (todo)
+- `src/infrastructure/providers/mock_market_data.py`
+- `src/application/use_cases/monitor_colares.py:86-88`
+- `src/application/use_cases/monitor_colares_calendario.py:127-135, 279-287`
+- `src/application/use_cases/monitor_oportunidades.py` (loop + vetorizado numpy)
+- `tests/test_fase3.py`, `tests/test_fase4.py`
+
+### Lições Aprendidas
+- **NUNCA** usar o 5º caractere do código da opção como "classe do ativo".
+  A-L = CALL, M-Z = PUT. Não há indicador de ON/PN no código.
+- A API do opcoes.net.br retorna `opt[4]` = moneyness (I=ITM, O=OTM), irrelevante.
+- `opt[1]` = sempre 0, descartável.
+- A única fonte confiável do vínculo opção→ativo é o banco (`instrumentos_base`).
+- A chave composta é obrigatória como defesa em profundidade: se o mesmo código
+  entrar para dois ativos diferentes, o sistema nunca os confunde.
+
+### Pendência
+- Validar se a persistência de prioridades (`_prioridade_set`) precisa de
+  migração do formato antigo (só `cod_put`) para composto (`ativo|cod_opcao`).
+  Atualmente carrega com fallback (tenta ambos).
+- 355/355 testes passando.
+
+---
+
 ## Pendência — Validação do calendário de DU no Black-Scholes
 
 Testar se o Profit Pro usa **DC->DU exato (com feriados)** ou **aproximado (252/365)**

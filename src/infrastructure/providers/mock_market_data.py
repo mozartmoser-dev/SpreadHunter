@@ -13,7 +13,7 @@ class MockMarketDataProvider:
     def gerar_dados_para_instrumentos(self, instrumentos: list) -> dict[str, dict]:
         dados_mercado = {}
         for inst in instrumentos:
-            key = inst.cod_put
+            key = f"{inst.ativo}|{inst.cod_put}"
             if key in self._overrides:
                 dados_mercado[key] = self._overrides[key]
                 continue

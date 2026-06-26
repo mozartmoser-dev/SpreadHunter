@@ -1,5 +1,6 @@
 import logging
 import math
+import time
 from collections import defaultdict
 from datetime import date
 from typing import Optional
@@ -121,12 +122,17 @@ class MonitorColaresCalendarioUseCase:
         n_sem_preco = 0
         n_sem_qul = 0
         n_passaram = 0
+        _t_pre = time.perf_counter()
 
         for key in source:
             stats["total"] += 1
             n_total += 1
             dm = dados_mercado.get(key) if dados_mercado else None
-            inst = inst_map.get(key)
+            if dados_mercado:
+                ativo_k, cod_put_k = key.split("|", 1)
+                inst = inst_map.get((ativo_k, cod_put_k))
+            else:
+                inst = inst_map.get(key)
             if not inst:
                 n_sem_inst += 1
                 continue
@@ -212,24 +218,34 @@ class MonitorColaresCalendarioUseCase:
 
         if pipeline_tracker is not None:
             pipeline_tracker.nome_estrategia = "COLLAR_CALENDARIO"
+            tempo_pre = time.perf_counter() - _t_pre
             pipeline_tracker.add_stage("1. Ativo válido", n_total, n_total - n_sem_inst,
-                "Instrumento não encontrado no banco (instância None)")
+                "Instrumento não encontrado no banco (instância None)",
+                tempo_s=tempo_pre)
             pipeline_tracker.add_stage("2. Ativo (checklist)", n_total - n_sem_inst, n_total - n_sem_inst - n_fora_ativo,
-                "Ativo não está na check-list ou whitelist configurada em Parâmetros > COLLAR_CALENDARIO")
+                "Ativo não está na check-list ou whitelist configurada em Parâmetros > COLLAR_CALENDARIO",
+                tempo_s=0.0)
             pipeline_tracker.add_stage("3. Vencimento", n_total - n_sem_inst - n_fora_ativo, n_total - n_sem_inst - n_fora_ativo - n_sem_venc,
-                "Sem vencimento futuro — opção já venceu ou data inválida")
+                "Sem vencimento futuro — opção já venceu ou data inválida",
+                tempo_s=0.0)
             pipeline_tracker.add_stage("4. Códigos", n_total - n_sem_inst - n_fora_ativo - n_sem_venc, n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod,
-                "Código do PUT ou CALL não cadastrado no banco (instrumentos_base)")
+                "Código do PUT ou CALL não cadastrado no banco (instrumentos_base)",
+                tempo_s=0.0)
             pipeline_tracker.add_stage("5. Dias (DTE)", n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod, n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias,
-                "dias_ate_vencimento inválido ou <= 0 (RTD não retornou DTE)")
+                "dias_ate_vencimento inválido ou <= 0 (RTD não retornou DTE)",
+                tempo_s=0.0)
             pipeline_tracker.add_stage("6. DTE (mín/máx)", n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias, n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias - n_fora_dte,
-                f"Fora da faixa DTE call={params['dte_call_min']}–{params['dte_call_max']}d ou total >{params['dte_total_max']}d (Parâmetros > COLLAR_CALENDARIO)")
+                f"Fora da faixa DTE call={params['dte_call_min']}–{params['dte_call_max']}d ou total >{params['dte_total_max']}d (Parâmetros > COLLAR_CALENDARIO)",
+                tempo_s=0.0)
             pipeline_tracker.add_stage("7. Strike (RTD)", n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias - n_fora_dte, n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias - n_fora_dte - n_sem_strike,
-                "Strike não disponível no RTD (PEX zerado ou cache não populado)")
+                "Strike não disponível no RTD (PEX zerado ou cache não populado)",
+                tempo_s=0.0)
             pipeline_tracker.add_stage("8. Preço (RTD)", n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias - n_fora_dte - n_sem_strike, n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias - n_fora_dte - n_sem_strike - n_sem_preco,
-                "OCP (call) ou OVD (put) zerado no RTD — sem oferta de compra/venda")
+                "OCP (call) ou OVD (put) zerado no RTD — sem oferta de compra/venda",
+                tempo_s=0.0)
             pipeline_tracker.add_stage("9. Liquidez (QUL)", n_total - n_sem_inst - n_fora_ativo - n_sem_venc - n_sem_cod - n_sem_dias - n_fora_dte - n_sem_strike - n_sem_preco, n_passaram,
-                f"QUL abaixo do mínimo configurado (put≥{params.get('qul_min_put',100)} call≥{params.get('qul_min_call',100)}) em Parâmetros > COLLAR_CALENDARIO")
+                f"QUL abaixo do mínimo configurado (put≥{params.get('qul_min_put',100)} call≥{params.get('qul_min_call',100)}) em Parâmetros > COLLAR_CALENDARIO",
+                tempo_s=0.0)
             logger.info("PipelineTracker (%s): %d -> %d", pipeline_tracker.nome_estrategia, n_total, n_passaram)
             self._ultimo_pipeline = pipeline_tracker
 
@@ -251,6 +267,8 @@ class MonitorColaresCalendarioUseCase:
         c_pares = c_calc_ok = c_viaveis = c_filtro_dist = c_filtro_dte = 0
         c_ativos_com_dados = 0
 
+        _t_pares = time.perf_counter()
+
         for ativo in calls_por_ativo:
             if ativo not in puts_por_ativo:
                 continue
@@ -262,8 +280,8 @@ class MonitorColaresCalendarioUseCase:
             preco_compra_ativo = 0.0
             if dados_mercado:
                 for key, dm_item in dados_mercado.items():
-                    inst2 = inst_map.get(key)
-                    if inst2 and inst2.ativo == ativo:
+                    ativo_k, cod_put_k = key.split("|", 1)
+                    if ativo_k == ativo:
                         preco_ativo = dm_item.get("preco_ativo") or 0.0
                         preco_compra_ativo = dm_item.get("of_venda_ativo") or 0.0
                         break
@@ -365,14 +383,19 @@ class MonitorColaresCalendarioUseCase:
                                 break  # top-3 puts por call
 
         if pipeline_tracker is not None:
+            tempo_pares = time.perf_counter() - _t_pares
             pipeline_tracker.add_stage("10. Ativos com dados", c_ativos_com_dados, c_ativos_com_dados,
-                "Ativos com preço e OVD disponíveis")
+                "Ativos com preço e OVD disponíveis",
+                tempo_s=tempo_pares)
             pipeline_tracker.add_stage("11. Pares (strike+DTE)", c_pares + c_filtro_dist + c_filtro_dte, c_pares,
-                f"{c_filtro_dist} fora da distância de strike, {c_filtro_dte} fora do DTE extra")
+                f"{c_filtro_dist} fora da distância de strike, {c_filtro_dte} fora do DTE extra",
+                tempo_s=0.0)
             pipeline_tracker.add_stage("12. Cálculo viabilidade", c_pares, c_calc_ok,
-                f"{c_pares - c_calc_ok} pares inviáveis (prêmio-risco, B3, dividendos, etc.)")
+                f"{c_pares - c_calc_ok} pares inviáveis (prêmio-risco, B3, dividendos, etc.)",
+                tempo_s=0.0)
             pipeline_tracker.add_stage("13. Resultado final", c_calc_ok, c_viaveis,
-                f"{c_viaveis} viáveis no monitor")
+                f"{c_viaveis} viáveis no monitor",
+                tempo_s=0.0)
             self._ultimo_pipeline = pipeline_tracker
 
         if not resultados:
