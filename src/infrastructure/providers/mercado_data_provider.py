@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class MercadoDataProvider:
     SEM_BOOK_SKIP_CYCLES = 6
     SEM_ATIVO_SKIP_CYCLES = 10
+    _GIL_YIELD_INTERVAL = 100
 
     _CAMPOS_PUT = [FieldName.STRIKE, FieldName.ASK, FieldName.BID,
                    FieldName.BOOK_HEADER, FieldName.QTD_LAST, FieldName.VOL_ASK]
@@ -317,6 +318,18 @@ class MercadoDataProvider:
         self._chaves_registradas.add(key)
         return True
 
+    def _flush_buffer(self, buffer: list, max_chunk: int = 200):
+        if not buffer:
+            return
+        if not getattr(self.source, 'disponivel', True):
+            buffer.clear()
+            return
+        for i in range(0, len(buffer), max_chunk):
+            chunk = buffer[i:i + max_chunk]
+            self.source.registrar_lista(chunk)
+            time.sleep(0.005)
+        buffer.clear()
+
     def _registrar_batch_inteligente(self, instrumentos: list[InstrumentoOpcional], batch_size: int = 2000):
         if self._registrado:
             return
@@ -336,8 +349,7 @@ class MercadoDataProvider:
             else:
                 count_pulas += 1
 
-        if registros_acum:
-            self.source.registrar_lista(registros_acum)
+        self._flush_buffer(registros_acum)
 
         self._registro_idx = end_idx
 
@@ -366,8 +378,7 @@ class MercadoDataProvider:
             if self._registrar_instrumento(inst, registros_acum):
                 count += 1
 
-        if registros_acum:
-            self.source.registrar_lista(registros_acum)
+        self._flush_buffer(registros_acum)
 
         self._registro_remaining_idx = end
         if count > 0:
@@ -456,7 +467,9 @@ class MercadoDataProvider:
                 if suporta_push and mudancas:
                     codigos_mudados = {ch.split("|")[0] for ch in mudancas}
 
-                for key in list(self._chaves_com_book):
+                for i_scan, key in enumerate(list(self._chaves_com_book)):
+                    if i_scan % self._GIL_YIELD_INTERVAL == 0:
+                        time.sleep(0)
                     if "|" not in key:
                         continue
                     ativo, cod_put = key.split("|", 1)
@@ -658,7 +671,9 @@ class MercadoDataProvider:
                     del self._sem_book_skip[key]
 
             buffer_onda2: list[tuple[str, FieldName]] = []
-            for key in list(sem_detalhes):
+            for i_manu, key in enumerate(list(sem_detalhes)):
+                if i_manu % self._GIL_YIELD_INTERVAL == 0:
+                    time.sleep(0)
                 if "|" not in key:
                     continue
                 if key in self._sem_book_skip:
@@ -687,7 +702,7 @@ class MercadoDataProvider:
                         self._registrar_detalhes_completos(inst, buffer_onda2)
                         count_reg += 1
             if buffer_onda2:
-                self.source.registrar_lista(buffer_onda2)
+                self._flush_buffer(buffer_onda2)
 
             if self._prioridade_set:
                 self._registrar_novos_entrantes()
