@@ -47,7 +47,7 @@ class ParametroOperacional:
         "tema_visual": {"valor": 0.0, "estrategia": "GERAL", "descricao": "Tema Visual (0=Marinho, 1=Grafite, 2=Charcoal)"},
         "rtd_refresh_timeout_ms": {"valor": 5000.0, "estrategia": "GERAL", "descricao": "Timeout do RTD RefreshData em ms (0=sem timeout)"},
         "fonte_market_data": {"valor": 0.0, "estrategia": "GERAL", "descricao": "Fonte de market data (0=Profit RTD, 1=Open Fast Socket)"},
-        "openfast_send_delay_ms": {"valor": 5.0, "estrategia": "GERAL", "descricao": "Delay entre comandos SQT (ms). 5 = 5ms. 0 = sem delay"},
+        "openfast_send_delay_ms": {"valor": 2.0, "estrategia": "GERAL", "descricao": "Delay entre comandos SQT (ms). 0 = delay minimo (1ms)"},
         "notif_telegram_enable": {"valor": 0.0, "estrategia": "TELEGRAM", "descricao": "Habilitar Telegram"},
         "telegram_bot_token": {"valor": "0", "estrategia": "TELEGRAM", "descricao": "Token Telegram"},
         "telegram_chat_id": {"valor": "0", "estrategia": "TELEGRAM", "descricao": "Chat ID Telegram"},

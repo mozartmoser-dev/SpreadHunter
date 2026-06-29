@@ -165,9 +165,9 @@ PARAMETROS_INFO = {
         "precedencia": "Banco de Dados -> 0 (Profit RTD, padrao)",
     },
     "openfast_send_delay_ms": {
-        "descricao": "Delay em milissegundos entre comandos SQT enviados ao servidor Open Fast. 5ms evita sobrecarga na rede local. 0 = sem delay (maxima velocidade, pode causar perda de pacotes).",
+        "descricao": "Delay em milissegundos entre comandos SQT enviados ao servidor Open Fast. 2ms evita sobrecarga no FastTrade. 0 = delay minimo (1ms, max performance).",
         "usado_em": "OpenFastSocketAdapter — controle de taxa de envio de assinaturas.",
-        "precedencia": "Banco de Dados -> 5 (padrao)",
+        "precedencia": "Banco de Dados -> 2 (padrao)",
     },
     "premio_risco_box": {
         "descricao": "Retorno minimo exigido para aceptar uma operacao de BOX Comprado 3 Pontas, medido em vezes o CDI. Exemplo: 1.3 significa que a operacao precisa render pelo menos 1.3x o CDI para ser viavel.",
@@ -722,7 +722,7 @@ class ParametrosWidget(QWidget):
                 if isinstance(widget, QCheckBox):
                     valor = 1.0 if widget.isChecked() else 0.0
                 elif isinstance(widget, QComboBox):
-                    valor = float(widget.currentIndex())
+                    valor = int(widget.currentIndex())
                 elif isinstance(widget, QLineEdit):
                     valor = widget.text().strip()
                 else:

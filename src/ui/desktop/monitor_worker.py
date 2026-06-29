@@ -75,8 +75,8 @@ class MonitorWorker(QThread):
 
     def run(self):
         com_initialized = False
-        fonte = self._ler_param_str("fonte_market_data", "0")
-        usa_com = (fonte != "1")
+        fonte = self._ler_param_int("fonte_market_data", 0)
+        usa_com = (fonte != 1)
         if usa_com:
             try:
                 import pythoncom
@@ -87,14 +87,20 @@ class MonitorWorker(QThread):
                 logger.warning("MonitorWorker: pythoncom não disponível. Thread rodará sem COM.")
                 self.status_message.emit("Aviso: pythoncom ausente. RTD indisponível.")
 
+        fonte_nome = "Open Fast Socket" if fonte == 1 else "Profit RTD"
+        logger.info("MonitorWorker: iniciando fonte de dados: %s", fonte_nome)
+
         rtd = self._rtd_main
         if not rtd or not getattr(rtd, 'disponivel', False):
-            rtd = criar_data_source("openfast" if fonte == "1" else "profit")
+            rtd = criar_data_source("openfast" if fonte == 1 else "profit")
+            if fonte == 1:
+                delay_ms = self._ler_param_int("openfast_send_delay_ms", 1)
+                rtd._send_delay_s = max(0.0, delay_ms / 1000.0)
         self._mercado_provider = MercadoDataProvider(self.db_path, rtd)
         self.rtd_status.emit(getattr(rtd, 'disponivel', False))
 
         self._running = True
-        logger.info("MonitorWorker: thread iniciada (COM inicializado).")
+        logger.info("MonitorWorker: fonte de dados %s — disponivel=%s", fonte_nome, getattr(rtd, 'disponivel', False))
 
         if self._mpp_habilitado:
             self._carregar_mpp_estrutural()
@@ -209,7 +215,7 @@ class MonitorWorker(QThread):
         param = repo.get_by_chave(chave)
         if param is not None:
             try:
-                return int(param.valor)
+                return int(float(param.valor))
             except (ValueError, TypeError):
                 pass
         return default

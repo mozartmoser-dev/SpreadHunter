@@ -206,19 +206,24 @@ class EngineDashboard(QDialog):
         self.progress_load.setMaximum(stats.total_instrumentos)
         self.progress_load.setValue(stats.progresso_idx)
         
-        pct_analise = (stats.progresso_idx / stats.total_instrumentos * 100) if stats.total_instrumentos > 0 else 0
+        pct_progresso = (stats.progresso_idx / stats.total_instrumentos * 100) if stats.total_instrumentos > 0 else 0
         pct_monitored = (stats.monitored_onda1 / stats.total_instrumentos * 100) if stats.total_instrumentos > 0 else 0
         
-        status_text = "Em andamento..."
-        if stats.registrado or stats.progresso_idx >= stats.total_instrumentos:
+        if stats.progresso_idx >= stats.total_instrumentos:
             status_text = "Carga Concluída"
-            self.progress_load.setValue(stats.total_instrumentos) # Força 100%
-            self.progress_load.setStyleSheet(self.progress_load.styleSheet().replace("stop:0 #00f2ff, stop:1 #00ff88", "stop:0 #00ff88, stop:1 #00ff88"))
+            self.progress_load.setStyleSheet(self.progress_load.styleSheet().replace(
+                "stop:0 #00f2ff, stop:1 #00ff88",
+                "stop:0 #00ff88, stop:1 #00ff88",
+            ))
+        elif stats.registrado:
+            status_text = "Background Scan"
+        else:
+            status_text = "Onda 1 (Prioritários)"
         
         detail = (
             f"Database: {stats.total_instrumentos} | "
             f"Sensors: {stats.monitored_onda1} ({pct_monitored:.1f}% kept)\n"
-            f"Scan Progress: {pct_analise:.1f}% | Status: {status_text}"
+            f"Registrados: {stats.progresso_idx} ({pct_progresso:.1f}%) | Status: {status_text}"
         )
         self.lbl_stats_detail.setText(detail)
         

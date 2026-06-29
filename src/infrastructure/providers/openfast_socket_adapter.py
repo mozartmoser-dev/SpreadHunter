@@ -19,7 +19,7 @@ class OpenFastSocketAdapter:
     suporta_cab_skip: bool = False
 
     def __init__(self, host: str = "127.0.0.1", port: int = 557,
-                 send_delay_s: float = 0.005):
+                 send_delay_s: float = 0.0):
         self._host = host
         self._port = port
         self._send_delay_s = send_delay_s
@@ -45,8 +45,10 @@ class OpenFastSocketAdapter:
             self._socket.settimeout(5.0)
             self._socket.connect((self._host, self._port))
             self._socket.sendall(b"OPENFAST\n")
-            resp = self._socket.recv(1024).decode("utf-8", errors="ignore").strip()
-            if not resp.startswith("version"):
+            resp = self._socket.recv(4096).decode("utf-8", errors="ignore").strip()
+            linhas = resp.split("\n")
+            linha_version = next((l for l in linhas if l.strip().startswith("version")), None)
+            if not linha_version:
                 raise ConnectionError(f"Handshake inesperado: {resp!r}")
             self._socket.settimeout(1.0)
             self._conectado = True
@@ -55,7 +57,8 @@ class OpenFastSocketAdapter:
                 target=self._thread_leitora, daemon=True
             )
             self._reader_thread.start()
-            logger.info("Open Fast conectado em %s:%d", self._host, self._port)
+            logger.info("Open Fast conectado em %s:%d — handshake: %s",
+                        self._host, self._port, resp[:120].replace("\r\n", "; "))
         except Exception as e:
             self._conectado = False
             logger.warning("Open Fast: falha na conexão: %s", e)
@@ -82,6 +85,27 @@ class OpenFastSocketAdapter:
                 self._subscriptions.append(entry)
         return 0
 
+    def registrar_lista(self, registros: list[tuple[str, FieldName]]) -> int:
+        if not registros:
+            return 0
+        linhas: list[str] = []
+        entradas: list[tuple[str, str]] = []
+        for codigo, campo in registros:
+            campo_str = OPENFAST_FIELD_STR.get(campo)
+            if not campo_str:
+                continue
+            upper = codigo.upper()
+            linhas.append(f"on{_SEP}SQT{_SEP}{upper}{_SEP}{campo_str}")
+            entradas.append((upper, campo_str))
+        if not linhas:
+            return 0
+        self._enviar_raw("\n".join(linhas))
+        with self._mutex:
+            for entry in entradas:
+                if entry not in self._subscriptions:
+                    self._subscriptions.append(entry)
+        return len(entradas)
+
     def registrar_status(self, codigo: str) -> int:
         return self.registrar_topico(codigo, FieldName.STATUS)
 
@@ -93,7 +117,7 @@ class OpenFastSocketAdapter:
         except Exception as e:
             logger.warning("Open Fast: erro ao enviar: %s", e)
             self._conectado = False
-        time.sleep(self._send_delay_s)
+        time.sleep(max(self._send_delay_s, 0.001))
 
     def ler_campo_cache(self, codigo: str, campo: FieldName) -> float | None:
         campo_str = OPENFAST_FIELD_STR.get(campo)
@@ -108,6 +132,26 @@ class OpenFastSocketAdapter:
             return v if v > 0 else 0.0
         except (ValueError, TypeError):
             return None
+
+    def ler_campos(self, codigo: str, *campos: FieldName) -> dict[FieldName, float | None]:
+        resultado: dict[FieldName, float | None] = {}
+        upper = codigo.upper()
+        with self._mutex:
+            for campo in campos:
+                campo_str = OPENFAST_FIELD_STR.get(campo)
+                if not campo_str:
+                    resultado[campo] = None
+                    continue
+                raw = self._cache.get((upper, campo_str))
+                if raw is None:
+                    resultado[campo] = None
+                    continue
+                try:
+                    v = float(str(raw).replace(",", "."))
+                    resultado[campo] = v if v > 0 else 0.0
+                except (ValueError, TypeError):
+                    resultado[campo] = None
+        return resultado
 
     def ler_status_cache(self, codigo: str) -> str:
         with self._mutex:

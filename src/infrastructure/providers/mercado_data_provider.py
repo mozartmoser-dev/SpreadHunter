@@ -40,6 +40,8 @@ class MercadoDataProvider:
         self._lock = QMutex()
         self._registro_remaining_idx: int = 0
         self._background_offset: int = 0
+        self._sem_book_skip: dict[str, int] = {}
+        self._MAX_SEM_BOOK_SKIP = 10
         self._prioridade_set: set[str] = self._carregar_prioridades()
         self._prioridade_salva: set[str] = set()
         self._caminho_prioridade = self._resolver_caminho_prioridade()
@@ -48,6 +50,9 @@ class MercadoDataProvider:
         self._strike_cache: dict[str, float] = {}  # cache opcional (nao usado atualmente)
         self._onda2_dte_min: int = 7
         self._onda2_dte_max: int = 180
+        self._inst_map_cache: dict | None = None
+        self._inst_map_cache_time: float = 0.0
+        self._INST_MAP_CACHE_TTL: float = 30.0
         self.recarregar_parametros()
 
     def _resolver_caminho_prioridade(self) -> str:
@@ -99,9 +104,11 @@ class MercadoDataProvider:
             self._chaves_com_book.clear()
             self._chaves_detalhes_completos.clear()
             self._sem_ativo_skip.clear()
+            self._sem_book_skip.clear()
             self._precos_ativo_cache.clear()
             self._cab_anterior.clear()
             self._dados_cache.clear()
+            self._invalidar_cache_inst_map()
             self.recarregar_parametros()
             logger.info("MercadoDataProvider: recarregamento de instrumentos agendado.")
         finally:
@@ -150,46 +157,65 @@ class MercadoDataProvider:
         
         logger.info("MercadoDataProvider: Parametros de performance atualizados.")
 
+    def _get_inst_map(self) -> dict:
+        ahora = time.time()
+        if self._inst_map_cache is None or (ahora - self._inst_map_cache_time) > self._INST_MAP_CACHE_TTL:
+            self._inst_map_cache = self.inst_repo.get_all_mapped()
+            self._inst_map_cache_time = ahora
+        return self._inst_map_cache
+
+    def _invalidar_cache_inst_map(self):
+        self._inst_map_cache = None
+        self._inst_map_cache_time = 0.0
+
     def _registrar_ativos_prioritarios(self, instrumentos: list[InstrumentoOpcional]):
         """Registra apenas os ativos (underlyings) para obter preços de referência rápido."""
         rtd = self.source
         t0 = time.perf_counter()
-        count = 0
+        registros: list[tuple[str, FieldName]] = []
         for inst in instrumentos:
             if inst.ativo not in self._ativos_registrados:
-                rtd.registrar_topico(inst.ativo, FieldName.LAST_PRICE)
-                rtd.registrar_topico(inst.ativo, FieldName.ASK)
-                rtd.registrar_topico(inst.ativo, FieldName.BID)
-                rtd.registrar_status(inst.ativo)
+                registros += [
+                    (inst.ativo, FieldName.LAST_PRICE),
+                    (inst.ativo, FieldName.ASK),
+                    (inst.ativo, FieldName.BID),
+                    (inst.ativo, FieldName.STATUS),
+                ]
                 self._ativos_registrados.add(inst.ativo)
-                count += 1
-        if count > 0:
-            logger.info("RTD: %d ativos registrados prioritariamente em %.2fs.", count, time.perf_counter() - t0)
+        if registros:
+            rtd.registrar_lista(registros)
+            logger.info("RTD: %d ativos registrados prioritariamente em %.2fs (%d registros).",
+                         len(registros) // 4, time.perf_counter() - t0, len(registros))
 
-    def _registrar_detalhes_completos(self, inst: InstrumentoOpcional):
+    def _registrar_detalhes_completos(self, inst: InstrumentoOpcional, registros_acum: list | None = None):
         """Registra todos os campos de um instrumento quando detectamos liquidez."""
         key = f"{inst.ativo}|{inst.cod_put}"
         if key in self._chaves_detalhes_completos:
             return
         
         rtd = self.source
-        # Campos de PUT
-        for campo in self._CAMPOS_PUT:
-            if campo != FieldName.BOOK_HEADER: # Já registrado na onda 1
-                rtd.registrar_topico(inst.cod_put, campo)
-        # Campos de CALL
-        for campo in self._CAMPOS_CALL:
-            if campo != FieldName.BOOK_HEADER:
-                rtd.registrar_topico(inst.cod_call, campo)
-        
-        rtd.registrar_status(inst.cod_put)
-        rtd.registrar_status(inst.cod_call)
+        registros = [
+            (inst.cod_put, campo) for campo in self._CAMPOS_PUT
+            if campo != FieldName.BOOK_HEADER
+        ] + [
+            (inst.cod_call, campo) for campo in self._CAMPOS_CALL
+            if campo != FieldName.BOOK_HEADER
+        ] + [
+            (inst.cod_put, FieldName.STATUS),
+            (inst.cod_call, FieldName.STATUS),
+        ]
+        if registros_acum is not None:
+            registros_acum.extend(registros)
+        else:
+            rtd.registrar_lista(registros)
         
         self._chaves_detalhes_completos.add(key)
         logger.debug("RTD: Detalhes completos registrados para %s (Liquidez detectada)", key)
 
-        # Força leitura do preço do ativo para evitar delay de 1 ciclo
-        preco = rtd.forcar_leitura(inst.ativo, FieldName.ASK)
+        if getattr(rtd, 'suporta_push', False):
+            preco = rtd.ler_campo_cache(inst.ativo, FieldName.ASK)
+        else:
+            preco = rtd.forcar_leitura(inst.ativo, FieldName.ASK)
         if preco and preco > 0:
             self._precos_ativo_cache[inst.ativo] = preco
             logger.debug("RTD: preco_ativo %s=%.2f forçado com sucesso", inst.ativo, preco)
@@ -218,7 +244,7 @@ class MercadoDataProvider:
         ratio = (strike_val / preco) - 1
         return ratio < self._range_min or ratio > self._range_max
 
-    def _registrar_instrumento(self, inst: InstrumentoOpcional):
+    def _registrar_instrumento(self, inst: InstrumentoOpcional, registros_acum: list | None = None):
         rtd = self.source
         key = f"{inst.ativo}|{inst.cod_put}"
         if key in self._chaves_registradas:
@@ -228,21 +254,36 @@ class MercadoDataProvider:
             self._chaves_registradas.add(key)
             return False
 
-        rtd.registrar_topico(inst.cod_put, FieldName.STRIKE)
-        rtd.registrar_topico(inst.cod_call, FieldName.STRIKE)
+        registros = [
+            (inst.cod_put, FieldName.STRIKE),
+            (inst.cod_call, FieldName.STRIKE),
+        ]
 
-        # min(strike_db, strike_rtd): corrige strike quando API < RTD (ex-dividendo)
-        # API (OptionsChain) tem ajustes corretos; RTD pode estar desatualizado.
-        strike_db = inst.strike
-        for cod_opcao in (inst.cod_put, inst.cod_call):
-            strike_rtd = rtd.ler_campo_cache(cod_opcao, FieldName.STRIKE)
-            if strike_rtd and strike_rtd > 0 and strike_db and strike_db > 0:
-                strike_final = min(strike_db, strike_rtd)
-                if strike_final < strike_rtd:
-                    logger.info(
-                        "Strike corrigido %s: DB=%.2f RTD=%.2f -> %.2f",
-                        cod_opcao, strike_db, strike_rtd, strike_final,
-                    )
+        # Correção de strike apenas para fontes COM (RTD), onde o dado RTD
+        # pode ter ajustes pós-mercado (ex-dividendo). Para push-based
+        # (OpenFAST), o strike do banco (OptionsChain API) é a fonte canônica.
+        if not getattr(rtd, 'suporta_push', False):
+            strike_db = inst.strike
+            for cod_opcao in (inst.cod_put, inst.cod_call):
+                strike_rtd = rtd.ler_campo_cache(cod_opcao, FieldName.STRIKE)
+                if strike_rtd and strike_rtd > 0 and strike_db and strike_db > 0:
+                    strike_final = min(strike_db, strike_rtd)
+                    if strike_final < strike_rtd:
+                        logger.info(
+                            "Strike corrigido %s: DB=%.2f RTD=%.2f -> %.2f",
+                            cod_opcao, strike_db, strike_rtd, strike_final,
+                        )
+                        rtd_raw = getattr(rtd, '_rtd', None)
+                        if rtd_raw is not None:
+                            tid = rtd_raw._topic_id(cod_opcao, "PEX")
+                            with rtd_raw._lock:
+                                rtd_raw._valores[tid] = strike_final
+                        else:
+                            rtd.invalidar_cache(cod_opcao, FieldName.STRIKE)
+                            rtd.registrar_topico(cod_opcao, FieldName.STRIKE)
+                        self._strike_cache[cod_opcao] = strike_final
+                elif strike_db and strike_db > 0:
+                    strike_final = strike_db
                     rtd_raw = getattr(rtd, '_rtd', None)
                     if rtd_raw is not None:
                         tid = rtd_raw._topic_id(cod_opcao, "PEX")
@@ -251,31 +292,28 @@ class MercadoDataProvider:
                     else:
                         rtd.invalidar_cache(cod_opcao, FieldName.STRIKE)
                         rtd.registrar_topico(cod_opcao, FieldName.STRIKE)
-                    self._strike_cache[cod_opcao] = strike_final
-            elif strike_db and strike_db > 0:
-                strike_final = strike_db
-                rtd_raw = getattr(rtd, '_rtd', None)
-                if rtd_raw is not None:
-                    tid = rtd_raw._topic_id(cod_opcao, "PEX")
-                    with rtd_raw._lock:
-                        rtd_raw._valores[tid] = strike_final
-                else:
-                    rtd.invalidar_cache(cod_opcao, FieldName.STRIKE)
-                    rtd.registrar_topico(cod_opcao, FieldName.STRIKE)
 
         if not self._deve_pular_por_strike(inst):
-            rtd.registrar_topico(inst.cod_put, FieldName.BOOK_HEADER)
-            rtd.registrar_topico(inst.cod_call, FieldName.BOOK_HEADER)
-            rtd.registrar_topico(inst.cod_put, FieldName.ASK)
-            rtd.registrar_topico(inst.cod_call, FieldName.BID)
+            registros += [
+                (inst.cod_put, FieldName.BOOK_HEADER),
+                (inst.cod_call, FieldName.BOOK_HEADER),
+                (inst.cod_put, FieldName.ASK),
+                (inst.cod_call, FieldName.BID),
+            ]
 
         if inst.ativo not in self._ativos_registrados:
-            rtd.registrar_topico(inst.ativo, FieldName.LAST_PRICE)
-            rtd.registrar_topico(inst.ativo, FieldName.ASK)
-            rtd.registrar_topico(inst.ativo, FieldName.BID)
-            rtd.registrar_status(inst.ativo)
+            registros += [
+                (inst.ativo, FieldName.LAST_PRICE),
+                (inst.ativo, FieldName.ASK),
+                (inst.ativo, FieldName.BID),
+                (inst.ativo, FieldName.STATUS),
+            ]
             self._ativos_registrados.add(inst.ativo)
 
+        if registros_acum is not None:
+            registros_acum.extend(registros)
+        else:
+            rtd.registrar_lista(registros)
         self._chaves_registradas.add(key)
         return True
 
@@ -289,13 +327,17 @@ class MercadoDataProvider:
         
         count_processados = 0
         count_pulas = 0
+        registros_acum: list[tuple[str, FieldName]] = []
 
         for i in range(start_idx, end_idx):
             inst = instrumentos[i]
-            if self._registrar_instrumento(inst):
+            if self._registrar_instrumento(inst, registros_acum):
                 count_processados += 1
             else:
                 count_pulas += 1
+
+        if registros_acum:
+            self.source.registrar_lista(registros_acum)
 
         self._registro_idx = end_idx
 
@@ -313,15 +355,19 @@ class MercadoDataProvider:
         if self._registro_remaining_idx >= total:
             self._registro_remaining_idx = self._background_offset
 
-        batch = 500
+        batch = 2000
         start = self._registro_remaining_idx
         end = min(start + batch, total)
         count = 0
+        registros_acum: list[tuple[str, FieldName]] = []
 
         for i in range(start, end):
             inst = instrumentos[i]
-            if self._registrar_instrumento(inst):
+            if self._registrar_instrumento(inst, registros_acum):
                 count += 1
+
+        if registros_acum:
+            self.source.registrar_lista(registros_acum)
 
         self._registro_remaining_idx = end
         if count > 0:
@@ -402,7 +448,7 @@ class MercadoDataProvider:
                              len(self._chaves_com_book), len(self._chaves_detalhes_completos))
 
                 t_inst_map = time.perf_counter()
-                inst_map = self.inst_repo.get_all_mapped()
+                inst_map = self._get_inst_map()
                 t_inst_map = time.perf_counter() - t_inst_map
 
                 # Pré-computa set de códigos que mudaram (push-based)
@@ -450,40 +496,40 @@ class MercadoDataProvider:
                                 and entry["status_call"].lower() == "aberto"
                                 and entry["status_ativo"].lower() == "aberto"
                             )
-                            # Atualiza campos do ativo em tempo real (não congela da primeira leitura)
-                            p_ativo = self.source.ler_campo_cache(inst.ativo, FieldName.ASK)
+                            # Batch reads: 1 lock por símbolo em vez de 1 por campo
+                            c_ativo = self.source.ler_campos(inst.ativo, FieldName.ASK, FieldName.BID)
+                            c_put = self.source.ler_campos(inst.cod_put, FieldName.ASK, FieldName.VOL_ASK, FieldName.QTD_LAST)
+                            c_call = self.source.ler_campos(inst.cod_call, FieldName.BID, FieldName.VOL_BID, FieldName.QTD_LAST)
+                            p_ativo = c_ativo.get(FieldName.ASK)
                             if p_ativo is not None and p_ativo > 0:
                                 entry["preco_ativo"] = p_ativo
+                                entry["of_venda_ativo"] = p_ativo
                                 self._precos_ativo_cache[inst.ativo] = p_ativo
                             else:
                                 p_ativo = self._precos_ativo_cache.get(inst.ativo)
                                 if p_ativo:
                                     entry["preco_ativo"] = p_ativo
-                            of_venda = self.source.ler_campo_cache(inst.ativo, FieldName.ASK)
-                            if of_venda is not None:
-                                entry["of_venda_ativo"] = of_venda
-                            of_compra = self.source.ler_campo_cache(inst.ativo, FieldName.BID)
+                            of_compra = c_ativo.get(FieldName.BID)
                             if of_compra is not None:
                                 entry["of_compra_ativo"] = of_compra
-                            # Atualiza preços das opções em tempo real (CAB skip não congela)
-                            of_c_call = self.source.ler_campo_cache(inst.cod_call, FieldName.BID)
-                            if of_c_call is not None:
-                                entry["of_compra_call"] = of_c_call
-                                entry["premio_call"] = of_c_call
-                            of_v_put = self.source.ler_campo_cache(inst.cod_put, FieldName.ASK)
+                            of_v_put = c_put.get(FieldName.ASK)
                             if of_v_put is not None:
                                 entry["of_venda_put"] = of_v_put
                                 entry["premio_put"] = of_v_put
-                            vov = self.source.ler_campo_cache(inst.cod_put, FieldName.VOL_ASK)
+                            vov = c_put.get(FieldName.VOL_ASK)
                             if vov is not None:
                                 entry["vov_put"] = vov
-                            voc = self.source.ler_campo_cache(inst.cod_call, FieldName.VOL_BID)
-                            if voc is not None:
-                                entry["voc_call"] = voc
-                            qul_p = self.source.ler_campo_cache(inst.cod_put, FieldName.QTD_LAST)
+                            qul_p = c_put.get(FieldName.QTD_LAST)
                             if qul_p is not None:
                                 entry["qul_put"] = qul_p
-                            qul_c = self.source.ler_campo_cache(inst.cod_call, FieldName.QTD_LAST)
+                            of_c_call = c_call.get(FieldName.BID)
+                            if of_c_call is not None:
+                                entry["of_compra_call"] = of_c_call
+                                entry["premio_call"] = of_c_call
+                            voc = c_call.get(FieldName.VOL_BID)
+                            if voc is not None:
+                                entry["voc_call"] = voc
+                            qul_c = c_call.get(FieldName.QTD_LAST)
                             if qul_c is not None:
                                 entry["qul_call"] = qul_c
                             t_status += time.perf_counter() - t0_status
@@ -567,7 +613,7 @@ class MercadoDataProvider:
                     self._ciclos_sem_dados = 0
                 else:
                     self._ciclos_sem_dados += 1
-                t_total = time.perf_counter() - t0 - t_registro
+                t_total = time.perf_counter() - t0
                 if count_sem_preco > 0 or count_sem_dados_rtd > 0:
                     logger.debug(
                         "Varredura: sem_preco=%d sem_dados_rtd=%d "
@@ -600,13 +646,22 @@ class MercadoDataProvider:
         Executado externamente (MonitorWorker), fora da varredura principal."""
         self._lock.lock()
         try:
-            inst_map = self.inst_repo.get_all_mapped()
+            inst_map = self._get_inst_map()
             sem_detalhes = self._chaves_registradas - self._chaves_detalhes_completos
             count_reg = 0
             MAX_REG_ONDA2 = 500
 
+            # Atualiza contadores de skip e filtra apenas os que devem ser verificados
+            for key in list(self._sem_book_skip):
+                self._sem_book_skip[key] -= 1
+                if self._sem_book_skip[key] <= 0:
+                    del self._sem_book_skip[key]
+
+            buffer_onda2: list[tuple[str, FieldName]] = []
             for key in list(sem_detalhes):
                 if "|" not in key:
+                    continue
+                if key in self._sem_book_skip:
                     continue
                 ativo, cod_put = key.split("|", 1)
                 inst = inst_map.get((ativo, cod_put))
@@ -614,17 +669,25 @@ class MercadoDataProvider:
                     continue
                 # Usa OVD (ask da put) como sinal primário de liquidez real.
                 # CAB isolado não é confiável para opções B3 (retorna > 0 mesmo sem book ativo).
-                ovd_put = self.source.ler_campo_cache(inst.cod_put, FieldName.ASK)
-                cab_put = self.source.ler_campo_cache(inst.cod_put, FieldName.BOOK_HEADER)
-                cab_call = self.source.ler_campo_cache(inst.cod_call, FieldName.BOOK_HEADER)
+                # Batch reads: 1 lock por símbolo
+                c_put = self.source.ler_campos(inst.cod_put, FieldName.ASK, FieldName.BOOK_HEADER)
+                c_call = self.source.ler_campos(inst.cod_call, FieldName.BOOK_HEADER)
+                ovd_put = c_put.get(FieldName.ASK)
+                cab_put = c_put.get(FieldName.BOOK_HEADER)
+                cab_call = c_call.get(FieldName.BOOK_HEADER)
                 tem_negocio = (ovd_put is not None and ovd_put > 0)
                 tem_book = (cab_put is not None and cab_put > 0) or (cab_call is not None and cab_call > 0)
+                if not (tem_negocio or tem_book):
+                    self._sem_book_skip[key] = self._MAX_SEM_BOOK_SKIP
+                    continue
                 if tem_negocio or tem_book:
                     self._chaves_com_book.add(key)
                     dte = inst.dias_ate_vencimento or 0
                     if self._onda2_dte_min <= dte <= self._onda2_dte_max and count_reg < MAX_REG_ONDA2:
-                        self._registrar_detalhes_completos(inst)
+                        self._registrar_detalhes_completos(inst, buffer_onda2)
                         count_reg += 1
+            if buffer_onda2:
+                self.source.registrar_lista(buffer_onda2)
 
             if self._prioridade_set:
                 self._registrar_novos_entrantes()
@@ -649,7 +712,7 @@ class MercadoDataProvider:
                 "onda1": len(self._chaves_registradas),
                 "onda2": len(self._chaves_detalhes_completos),
                 "registrado": self._registrado,
-                "progresso_idx": self._registro_idx,
+                "progresso_idx": len(self._chaves_registradas),
                 "dados_stale": dados_stale,
                 "ultimo_refresh_ha_segundos": segundos_desde_refresh,
                 "ciclos_sem_dados": self._ciclos_sem_dados,
@@ -660,24 +723,32 @@ class MercadoDataProvider:
     def _ler_instrumento_cache(self, inst: InstrumentoOpcional, preco_ativo: float | None) -> DadosRTDInstrumento | None:
         rtd = self.source
 
-        of_venda_put = rtd.ler_campo_cache(inst.cod_put, FieldName.ASK)
-        of_compra_put = rtd.ler_campo_cache(inst.cod_put, FieldName.BID)
-        of_venda_call = rtd.ler_campo_cache(inst.cod_call, FieldName.ASK)
-        of_compra_call = rtd.ler_campo_cache(inst.cod_call, FieldName.BID)
+        # Batch reads: 1 lock por símbolo em vez de 1 por campo
+        c_put = rtd.ler_campos(inst.cod_put,
+            FieldName.ASK, FieldName.BID, FieldName.STRIKE,
+            FieldName.BOOK_HEADER, FieldName.QTD_LAST, FieldName.VOL_ASK)
+        c_call = rtd.ler_campos(inst.cod_call,
+            FieldName.ASK, FieldName.BID, FieldName.STRIKE,
+            FieldName.BOOK_HEADER, FieldName.QTD_LAST, FieldName.VOL_BID)
+        c_ativo = rtd.ler_campos(inst.ativo, FieldName.ASK, FieldName.BID)
+
+        of_venda_put = c_put.get(FieldName.ASK)
+        of_compra_put = c_put.get(FieldName.BID)
+        of_venda_call = c_call.get(FieldName.ASK)
+        of_compra_call = c_call.get(FieldName.BID)
 
         if not of_venda_put and not of_compra_put and not of_venda_call and not of_compra_call:
             return None
 
-        # Prioridade Única: RTD (Garantido pelo Profit)
-        strike_rtd = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
+        strike_rtd = c_put.get(FieldName.STRIKE)
         if not strike_rtd or strike_rtd <= 0:
-            strike_rtd = rtd.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
-        
-        if not strike_rtd or strike_rtd <= 0:
-            return None # Sem strike real, não calculamos para evitar erro
+            strike_rtd = c_call.get(FieldName.STRIKE)
 
-        of_venda_ativo = rtd.ler_campo_cache(inst.ativo, FieldName.ASK)
-        of_compra_ativo = rtd.ler_campo_cache(inst.ativo, FieldName.BID)
+        if not strike_rtd or strike_rtd <= 0:
+            return None
+
+        of_venda_ativo = c_ativo.get(FieldName.ASK)
+        of_compra_ativo = c_ativo.get(FieldName.BID)
 
         status_put = rtd.ler_status_cache(inst.cod_put)
         status_call = rtd.ler_status_cache(inst.cod_call)
@@ -699,10 +770,10 @@ class MercadoDataProvider:
             status_put=status_put,
             status_call=status_call,
             status_ativo=status_ativo,
-            cab_put=rtd.ler_campo_cache(inst.cod_put, FieldName.BOOK_HEADER),
-            qul_put=rtd.ler_campo_cache(inst.cod_put, FieldName.QTD_LAST),
-            vov_put=rtd.ler_campo_cache(inst.cod_put, FieldName.VOL_ASK),
-            cab_call=rtd.ler_campo_cache(inst.cod_call, FieldName.BOOK_HEADER),
-            qul_call=rtd.ler_campo_cache(inst.cod_call, FieldName.QTD_LAST),
-            voc_call=rtd.ler_campo_cache(inst.cod_call, FieldName.VOL_BID),
+            cab_put=c_put.get(FieldName.BOOK_HEADER),
+            qul_put=c_put.get(FieldName.QTD_LAST),
+            vov_put=c_put.get(FieldName.VOL_ASK),
+            cab_call=c_call.get(FieldName.BOOK_HEADER),
+            qul_call=c_call.get(FieldName.QTD_LAST),
+            voc_call=c_call.get(FieldName.VOL_BID),
         )

@@ -121,7 +121,7 @@ def _seed_parametros_colar(conn):
         ("taxa_ir_pct", "0.15", "GERAL", "Aliquota de IR sobre lucro em operacoes (15% swing trade)"),
         ("rtd_refresh_timeout_ms", "5000", "GERAL", "Timeout do RTD RefreshData em ms (0 = sem timeout)"),
         ("fonte_market_data", "0", "GERAL", "Fonte de market data (0=Profit RTD, 1=Open Fast Socket)"),
-        ("openfast_send_delay_ms", "5", "GERAL", "Delay entre comandos SQT (ms). 5 = 5ms. 0 = sem delay"),
+        ("openfast_send_delay_ms", "2", "GERAL", "Delay entre comandos SQT (ms). 0 = delay minimo (1ms)"),
         ("elegibilidade_strike_max_pct", "0.70", "BOX_SINTETICO", "Strike máximo % do spot para elegibilidade de pescaria"),
         ("dte_call_min", "25", "COLLAR_CALENDARIO", "DTE mínimo para call no collar calendário"),
         ("dte_call_max", "60", "COLLAR_CALENDARIO", "DTE máximo para call no collar calendário"),
