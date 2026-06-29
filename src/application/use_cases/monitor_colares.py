@@ -285,9 +285,14 @@ class MonitorColaresUseCase:
 
         of_venda_ativo = rtd.ler_campo_cache(inst.ativo, FieldName.ASK)
 
-        strike_rtd = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
-        if not strike_rtd or strike_rtd <= 0:
-            strike_rtd = rtd.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
+        # Fontes push (OpenFAST): strike canônico é do banco (opcoes.net.br).
+        # "PEX" do servidor pode não ser o strike real para opções.
+        if getattr(rtd, 'suporta_push', False):
+            strike_rtd = inst.strike
+        else:
+            strike_rtd = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
+            if not strike_rtd or strike_rtd <= 0:
+                strike_rtd = rtd.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
         if not strike_rtd or strike_rtd <= 0:
             return None
 

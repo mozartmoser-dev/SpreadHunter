@@ -582,9 +582,12 @@ class MercadoDataProvider:
 
                     # Onda 1: dados basicos para collars (strike + OCP/OVD)
                     t0_onda1 = time.perf_counter()
-                    strike_put = self.source.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
-                    if not strike_put or strike_put <= 0:
-                        strike_put = self.source.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
+                    if getattr(self.source, 'suporta_push', False):
+                        strike_put = inst.strike
+                    else:
+                        strike_put = self.source.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
+                        if not strike_put or strike_put <= 0:
+                            strike_put = self.source.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
                     if not strike_put or strike_put <= 0:
                         continue
                     ocp = self.source.ler_campo_cache(inst.cod_call, FieldName.BID)
