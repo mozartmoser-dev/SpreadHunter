@@ -184,7 +184,7 @@ class MercadoDataProvider:
                 ]
                 self._ativos_registrados.add(inst.ativo)
         if registros:
-            rtd.registrar_lista(registros)
+            self._flush_buffer(registros)
             logger.info("RTD: %d ativos registrados prioritariamente em %.2fs (%d registros).",
                          len(registros) // 4, time.perf_counter() - t0, len(registros))
 
@@ -318,7 +318,7 @@ class MercadoDataProvider:
         self._chaves_registradas.add(key)
         return True
 
-    def _flush_buffer(self, buffer: list, max_chunk: int = 200):
+    def _flush_buffer(self, buffer: list, max_chunk: int = 50):
         if not buffer:
             return
         if not getattr(self.source, 'disponivel', True):
@@ -327,7 +327,7 @@ class MercadoDataProvider:
         for i in range(0, len(buffer), max_chunk):
             chunk = buffer[i:i + max_chunk]
             self.source.registrar_lista(chunk)
-            time.sleep(0.005)
+            time.sleep(0.010)
         buffer.clear()
 
     def _registrar_batch_inteligente(self, instrumentos: list[InstrumentoOpcional], batch_size: int = 2000):

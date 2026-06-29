@@ -117,7 +117,7 @@ class OpenFastSocketAdapter:
         except Exception as e:
             logger.warning("Open Fast: erro ao enviar: %s", e)
             self._conectado = False
-        time.sleep(max(self._send_delay_s, 0.001))
+        time.sleep(max(self._send_delay_s, 0.005))
 
     def ler_campo_cache(self, codigo: str, campo: FieldName) -> float | None:
         campo_str = OPENFAST_FIELD_STR.get(campo)
