@@ -11,6 +11,8 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import os
 
+
+
 logger = logging.getLogger(__name__)
 
 

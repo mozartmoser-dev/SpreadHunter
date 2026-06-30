@@ -15,7 +15,7 @@ from src.infrastructure.providers.mercado_data_provider import MercadoDataProvid
 from src.domain.services.market_data_source import criar_data_source, MarketDataSource
 from src.application.dtos.dtos import EngineStatsDTO
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 
 
 class MonitorWorker(QThread):

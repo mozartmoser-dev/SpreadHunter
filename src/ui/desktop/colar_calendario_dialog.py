@@ -232,18 +232,18 @@ class ColarCalSortProxy(QSortFilterProxyModel):
         self._filtro_ativo = texto.strip().upper()
         self._filtro_lista = None
         self._top_n_accept_set = None
-        self.invalidateFilter()
+        self.invalidate()
 
     def set_filtro_lista(self, ativos: set):
         self._filtro_lista = ativos
         self._filtro_ativo = ""
         self._top_n_accept_set = None
-        self.invalidateFilter()
+        self.invalidate()
 
     def set_top_n(self, n: int):
         self._top_n = n
         self._top_n_accept_set = None
-        self.invalidateFilter()
+        self.invalidate()
 
     def sort(self, column, order):
         super().sort(column, order)
@@ -311,6 +311,7 @@ class ColarCalendarioDialog(QDialog):
         self._scanning = False
         self._auto_mode = False
         self._som_ativado = False
+        self._colunas_ajustadas = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -1002,6 +1003,7 @@ class ColarCalendarioDialog(QDialog):
             f"pct_cdi:        {pct_cdi:.2f}x = {ret*100:.2f}% / {cdi_periodo*100:.4f}%",
             f"Net Credito:    R$ {r.net_credito:.4f}",
             f"Valor Put VC:   R$ {r.valor_put_venc_call:.4f}",
+            f"Delta Total:    {r.delta_total:.4f}",
             f"Tipo:           {r.tipo.value}",
             f"Viavel:         {r.viavel}",
         ]
@@ -1816,6 +1818,10 @@ class ColarCalendarioDialog(QDialog):
         finally:
             header.setSectionsMovable(was_movable)
             header.blockSignals(was_blocked)
+
+        if not self._colunas_ajustadas and items:
+            self.table_view.resizeColumnsToContents()
+            self._colunas_ajustadas = True
 
         ativos_atuais = set(
             self.lista_ativos.item(i).text()

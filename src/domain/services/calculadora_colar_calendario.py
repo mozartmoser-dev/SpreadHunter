@@ -39,6 +39,7 @@ class ResultadoColarCalendario:
     capital_empregado: float
     pct_retorno: float
     pct_cdi: float
+    delta_total: float
     theta_call: float
     theta_put: float
     theta_liquido: float
@@ -111,6 +112,15 @@ class CalculadoraColarCalendario:
             return 0.0
         d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
         return norm.pdf(d1) / (S * sigma * np.sqrt(T))
+
+    @staticmethod
+    def bs_delta(S: float, K: float, T: float, r: float, sigma: float, option_type: str) -> float:
+        if sigma <= 0 or T <= 0:
+            return 0.0
+        d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        if option_type == 'call':
+            return norm.cdf(d1)
+        return norm.cdf(d1) - 1
 
     @staticmethod
     def implied_volatility(S: float, K: float, T: float, r: float, market_price: float, option_type: str) -> float | None:
@@ -278,6 +288,16 @@ class CalculadoraColarCalendario:
         net_credito = premio_call - premio_put
         tipo = self.classificar_tipo(preco_ativo, strike_call, strike_put)
 
+        delta_call = self.bs_delta(S_bs_call, strike_call, T_call, r_cont, iv_call, 'call')
+        delta_put = self.bs_delta(S_bs_put, strike_put, T_put, r_cont, iv_put, 'put')
+        delta_total = 1.0 - delta_call + delta_put  # stock + short call + long put
+        if abs(delta_total) <= 0.05:
+            tipo = TipoColarCalendario.NEUTRO
+        elif delta_total > 0:
+            tipo = TipoColarCalendario.ALTA
+        else:
+            tipo = TipoColarCalendario.BAIXA
+
         theta_call = self.bs_theta(S_bs_call, strike_call, T_call, r_cont, iv_call, 'call')
         theta_put = self.bs_theta(S_bs_put, strike_put, T_put, r_cont, iv_put, 'put')
         theta_liquido = abs(theta_call) - abs(theta_put)
@@ -357,6 +377,7 @@ class CalculadoraColarCalendario:
             premio_call=premio_call,
             premio_put=premio_put,
             net_credito=round(net_credito, 4),
+            delta_total=round(delta_total, 4),
             custo_b3=round(custo_b3, 4),
             custo_ir=round(custo_ir, 4),
             iv_call=round(iv_call * 100, 2),

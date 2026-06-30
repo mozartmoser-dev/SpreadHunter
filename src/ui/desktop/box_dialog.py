@@ -160,7 +160,7 @@ class BoxSortProxy(QSortFilterProxyModel):
 
     def set_filtro_cdi_min(self, valor: float):
         self._cdi_min = valor
-        self.invalidateFilter()
+        self.invalidate()
 
     def filterAcceptsRow(self, row, parent):
         src = self.sourceModel()

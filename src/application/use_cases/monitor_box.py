@@ -1,6 +1,9 @@
+import logging
 import time
 from collections import defaultdict
 from datetime import date
+
+logger = logging.getLogger(__name__)
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOpcao
 from src.domain.services.calculadora_box import CalculadoraBox, ResultadoBox

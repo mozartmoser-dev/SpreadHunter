@@ -199,28 +199,28 @@ class ColarSortProxy(QSortFilterProxyModel):
         self._filtro_ativo = texto.strip().upper()
         self._filtro_lista = None
         self._top_n_accept_set = None
-        self.invalidateFilter()
+        self.invalidate()
 
     def set_filtro_lista(self, ativos: set):
         self._filtro_lista = ativos
         self._filtro_ativo = ""
         self._top_n_accept_set = None
-        self.invalidateFilter()
+        self.invalidate()
 
     def set_filtro_pop_upside(self, minimo: float):
         self._pop_upside_min = minimo
         self._top_n_accept_set = None
-        self.invalidateFilter()
+        self.invalidate()
 
     def set_filtro_pop_downside(self, minimo: float):
         self._pop_downside_min = minimo
         self._top_n_accept_set = None
-        self.invalidateFilter()
+        self.invalidate()
 
     def set_top_n(self, n: int):
         self._top_n = n
         self._top_n_accept_set = None
-        self.invalidateFilter()
+        self.invalidate()
 
     def sort(self, column, order):
         super().sort(column, order)
@@ -309,6 +309,7 @@ class ColarDialog(QDialog):
         self._scanning = False
         self._auto_mode = False
         self._som_ativado = False
+        self._colunas_ajustadas = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -574,15 +575,6 @@ class ColarDialog(QDialog):
         header.setSectionResizeMode(QHeaderView.Interactive)
         self.table_view.verticalHeader().setDefaultSectionSize(26)
         self.table_view.verticalHeader().hide()
-        header.resizeSection(0, 80)
-        header.resizeSection(1, 100)
-        header.resizeSection(2, 110)
-        header.resizeSection(3, 80)
-        header.resizeSection(4, 80)
-        header.resizeSection(7, 90)
-        header.resizeSection(8, 90)
-        header.resizeSection(9, 70)
-        header.resizeSection(10, 60)
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
         body_layout.addWidget(self.table_view, stretch=1)
 
@@ -1861,6 +1853,10 @@ class ColarDialog(QDialog):
         finally:
             header.setSectionsMovable(was_movable)
             header.blockSignals(was_blocked)
+
+        if not self._colunas_ajustadas and items:
+            self.table_view.resizeColumnsToContents()
+            self._colunas_ajustadas = True
 
         ativos_atuais = set(
             self.lista_ativos.item(i).text()

@@ -409,6 +409,21 @@ Onde `cod_put` = código da PUT (série M-Z). Use `f"{inst.ativo}|{inst.cod_put}
 
 ---
 
+## Lição Aprendida — Strike via Sufixo do Código B3
+
+**NUNCA extraia o strike do sufixo do código B3** (ex: `G445` → 44.50). O código
+da opção na B3 nunca representa o strike verdadeiro após ajustes (ex-dividendo,
+desdobramento, grupamento). A única fonte confiável de strike é:
+
+1. **RTD do Profit** (tempo real, via COM ou OpenFAST)
+2. **API do opcoes.net.br** (`opt[3]` do `OptionsChain`) — já retorna o strike
+   ajustado corretamente
+3. **Fallback opcional**: `InstrumentoOpcional.strike` em memória (via
+   `min(strike_API, strike_RTD)`)
+
+A função `extrair_strike()` de `excel_importer.py` serve apenas para planilhas
+XLSX legadas (importação manual removida). **Não usar para dados de API.**
+
 ## Pendência — Validação do calendário de DU no Black-Scholes
 
 Testar se o Profit Pro usa **DC->DU exato (com feriados)** ou **aproximado (252/365)**

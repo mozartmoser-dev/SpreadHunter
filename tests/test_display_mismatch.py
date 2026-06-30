@@ -138,6 +138,7 @@ def test_colar_calendario_derived_values(qapp):
         premio_call=0.50,
         premio_put=1.00,
         net_credito=0.50,
+        delta_total=0.0,
         iv_call=25.0,
         iv_put=28.0,
         valor_put_venc_call=0.80,
