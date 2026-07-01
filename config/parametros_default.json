@@ -15,7 +15,7 @@
     },
     {
       "chave": "calendario_strike_diff_max",
-      "valor": "1.0",
+      "valor": "2.0",
       "estrategia": "COLLAR_CALENDARIO",
       "descricao": "Max strikes de diferenca entre call e put"
     },
@@ -363,7 +363,7 @@
     },
     {
       "chave": "mpp_habilitado",
-      "valor": "1.0",
+      "valor": "0.0",
       "estrategia": "MPP",
       "descricao": "Habilitar Motor de Priorizacao de Pescaria"
     },

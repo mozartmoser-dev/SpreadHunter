@@ -30,6 +30,7 @@ class OpenFastSocketAdapter:
         self._ultimo_syn: float = 0.0
         self._mutex = threading.Lock()
         self._subscriptions: list[tuple[str, str]] = []
+        self._subs_set: set[tuple[str, str]] = set()
         self._reader_thread: threading.Thread | None = None
         self._conectar()
 
@@ -42,6 +43,9 @@ class OpenFastSocketAdapter:
     def _conectar(self):
         try:
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 262144)
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 262144)
             self._socket.settimeout(5.0)
             self._socket.connect((self._host, self._port))
             self._socket.sendall(b"OPENFAST\n")
@@ -81,7 +85,8 @@ class OpenFastSocketAdapter:
         self._enviar_raw(f"on{_SEP}SQT{_SEP}{codigo}{_SEP}{campo_str}")
         with self._mutex:
             entry = (codigo.upper(), campo_str)
-            if entry not in self._subscriptions:
+            if entry not in self._subs_set:
+                self._subs_set.add(entry)
                 self._subscriptions.append(entry)
         return 0
 
@@ -102,7 +107,8 @@ class OpenFastSocketAdapter:
         self._enviar_raw("\n".join(linhas))
         with self._mutex:
             for entry in entradas:
-                if entry not in self._subscriptions:
+                if entry not in self._subs_set:
+                    self._subs_set.add(entry)
                     self._subscriptions.append(entry)
         return len(entradas)
 
@@ -111,13 +117,14 @@ class OpenFastSocketAdapter:
 
     def _enviar_raw(self, comando: str):
         try:
-            with self._mutex:
-                if self._socket:
-                    self._socket.sendall((comando + "\n").encode("utf-8"))
+            sock = self._socket
+            if sock is None:
+                return
+            sock.sendall((comando + "\n").encode("utf-8"))
         except Exception as e:
             logger.warning("Open Fast: erro ao enviar: %s", e)
             self._conectado = False
-        time.sleep(max(self._send_delay_s, 0.005))
+        time.sleep(max(self._send_delay_s, 0.001))
 
     def ler_campo_cache(self, codigo: str, campo: FieldName) -> float | None:
         campo_str = OPENFAST_FIELD_STR.get(campo)
@@ -176,20 +183,93 @@ class OpenFastSocketAdapter:
             self._dirty_keys.clear()
         return mudancas
 
+    # --- Profiling counters (reset a cada log) ---
+    _prof_recv_calls = 0
+    _prof_recv_bytes = 0
+    _prof_recv_time = 0.0
+    _prof_parse_time = 0.0
+    _prof_mutex_time = 0.0
+    _prof_linhas = 0
+    _prof_concat_time = 0.0
+    _prof_split_time = 0.0
+    _prof_last_log = 0.0
+    _PROF_LOG_INTERVAL = 30.0  # logs a cada 30s
+
+    def _log_profile(self):
+        agora = time.time()
+        if agora - self._prof_last_log < self._PROF_LOG_INTERVAL:
+            return
+        self._prof_last_log = agora
+        t_recv = self._prof_recv_time
+        t_parse = self._prof_parse_time
+        t_mutex = self._prof_mutex_time
+        t_concat = self._prof_concat_time
+        t_split = self._prof_split_time
+        n_linhas = self._prof_linhas
+        n_recv = self._prof_recv_calls
+        n_bytes = self._prof_recv_bytes
+        total = t_recv + t_parse + t_mutex + t_concat + t_split
+        logger.info(
+            "OF Prof: recv=%d/%dKB(%.1fs) parse=%.1fs mutex=%.1fs concat=%.1fs split=%.1fs "
+            "linhas=%d total=%.1fs",
+            n_recv, n_bytes // 1024, t_recv, t_parse, t_mutex, t_concat, t_split,
+            n_linhas, total,
+        )
+        self._prof_recv_calls = 0
+        self._prof_recv_bytes = 0
+        self._prof_recv_time = 0.0
+        self._prof_parse_time = 0.0
+        self._prof_mutex_time = 0.0
+        self._prof_linhas = 0
+        self._prof_concat_time = 0.0
+        self._prof_split_time = 0.0
+
     def _thread_leitora(self):
         buffer = ""
+        atualizacoes: list[tuple[tuple[str, str], object]] = []
         meu_socket = self._socket
+        self._prof_last_log = time.time()
         while self._conectado:
             try:
-                dados = meu_socket.recv(4096).decode("utf-8", errors="ignore")
+                t0 = time.perf_counter()
+                dados = meu_socket.recv(65536)
+                self._prof_recv_calls += 1
+                self._prof_recv_time += time.perf_counter() - t0
                 if not dados:
                     self._conectado = False
                     break
-                buffer += dados
+                texto = dados.decode("utf-8", errors="ignore")
+                self._prof_recv_bytes += len(dados)
+
+                t0 = time.perf_counter()
+                buffer += texto
+                self._prof_concat_time += time.perf_counter() - t0
+
                 while "\n" in buffer:
+                    t0 = time.perf_counter()
                     linha, buffer = buffer.split("\n", 1)
-                    self._processar_linha(linha.strip())
+                    self._prof_split_time += time.perf_counter() - t0
+                    linha = linha.strip()
+                    if not linha:
+                        continue
+                    self._prof_linhas += 1
+                    if linha.startswith("SYN"):
+                        self._ultimo_syn = time.time()
+                        continue
+                    parsed = self._parse_linha(linha)
+                    if parsed is not None:
+                        atualizacoes.append(parsed)
+
+                if atualizacoes:
+                    t0 = time.perf_counter()
+                    with self._mutex:
+                        for chave, valor in atualizacoes:
+                            self._cache[chave] = valor
+                            self._dirty_keys.add(chave)
+                    self._prof_mutex_time += time.perf_counter() - t0
+                    atualizacoes.clear()
             except socket.timeout:
+                self._log_profile()
                 continue
             except Exception as e:
                 logger.warning("Open Fast: leitura interrompida: %s", e)
@@ -198,30 +278,26 @@ class OpenFastSocketAdapter:
                         self._conectado = False
                 break
 
-    def _processar_linha(self, linha: str):
-        if not linha:
-            return
+    def _parse_linha(self, linha: str) -> tuple[tuple[str, str], object] | None:
         try:
             sep = _SEP if _SEP in linha else "#"
             partes = linha.split(sep)
-            if partes[0] == "SYN":
-                self._ultimo_syn = time.time()
-                return
             if len(partes) < 4 or partes[0] != "SQT":
                 logger.debug("Open Fast: linha ignorada: %s", linha[:80])
-                return
+                return None
             _, cod, campo, valor_str = partes[0], partes[1], partes[2], partes[3]
+            t0 = time.perf_counter()
             valor_str = valor_str.replace(",", ".")
             try:
                 valor = float(valor_str)
             except ValueError:
                 valor = valor_str
             chave = (cod.upper(), campo)
-            with self._mutex:
-                self._cache[chave] = valor
-                self._dirty_keys.add(chave)
+            self._prof_parse_time += time.perf_counter() - t0
+            return (chave, valor)
         except Exception as e:
             logger.debug("Open Fast: erro parse: %s — %s", e, linha[:100])
+            return None
 
     def invalidar_cache(self, codigo: str, campo: FieldName):
         campo_str = OPENFAST_FIELD_STR.get(campo)

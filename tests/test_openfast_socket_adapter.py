@@ -205,23 +205,25 @@ class TestOpenFastSocketAdapterRegistrar:
 
 
 class TestOpenFastSocketAdapterSeparador:
-    def test_processa_linha_com_hash(self, server):
+    def test_parse_linha_com_hash(self, server):
         """Adapter tambem aceita # como separador."""
         adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
-        adapter._processar_linha("SQT#PETR4#LAST#30.00")
-        v = adapter.ler_campo_cache("PETR4", FieldName.LAST_PRICE)
-        assert v == 30.00
+        result = adapter._parse_linha("SQT#PETR4#LAST#30.00")
+        assert result is not None
+        chave, valor = result
+        assert chave == ("PETR4", "LAST")
+        assert valor == 30.00
         adapter.desconectar()
 
     def test_ignora_linha_invalida(self, server):
         adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
-        adapter._processar_linha("LIXO")
-        adapter._processar_linha("")  # nao deve crashar
+        assert adapter._parse_linha("LIXO") is None
+        assert adapter._parse_linha("") is None  # nao deve crashar
         adapter.desconectar()
 
     def test_ignora_sqt_com_poucas_partes(self, server):
         adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
-        adapter._processar_linha("SQT#PETR4")  # < 4 partes
+        assert adapter._parse_linha("SQT#PETR4") is None  # < 4 partes
         adapter.desconectar()
 
 

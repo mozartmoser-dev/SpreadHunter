@@ -4,6 +4,7 @@ from collections import defaultdict, deque
 from datetime import date, datetime
 from dataclasses import dataclass, field
 
+from src.domain.entities.instrumento_opcional import TipoOpcao
 from src.domain.services.calendario_b3 import dc_to_du
 from src.domain.services.market_data_source import FieldName
 from src.infrastructure.persistence.database import get_connection
@@ -318,6 +319,7 @@ class MPPUseCase:
         if not ativos:
             return [], []
 
+        soh_europeia = bool(self._get_param("box_soh_europeia", 1))
         inst_map = self._obter_instrumentos_mapa(ativos)
         hoje = date.today()
         grupos: dict[tuple[str, date], list[dict]] = defaultdict(list)
@@ -360,6 +362,7 @@ class MPPUseCase:
                 "qtd_ask_call": qtd_ask_call,
                 "qtd_bid_put": qtd_bid_put,
                 "qtd_ask_put": qtd_ask_put,
+                "tipo_opcao": inst["tipo_opcao"],
             })
 
         if not grupos:
@@ -384,6 +387,9 @@ class MPPUseCase:
                 for j in range(i + 1, len(members)):
                     k1 = members[i]
                     k2 = members[j]
+
+                    if soh_europeia and k1.get("tipo_opcao") != "E":
+                        continue
 
                     score = self._calcular_score_box(
                         k1, k2, ativo, vencimento, spot, cdi, dias_uteis
@@ -417,12 +423,13 @@ class MPPUseCase:
                 venc = r["vencimento"]
                 if isinstance(venc, str):
                     venc = date.fromisoformat(venc)
-                mapa[cod_put] = {
-                    "cod_put": cod_put,
-                    "cod_call": r["cod_call"],
-                    "ativo": r["ativo"],
-                    "vencimento": venc,
-                }
+            mapa[cod_put] = {
+                "cod_put": cod_put,
+                "cod_call": r["cod_call"],
+                "ativo": r["ativo"],
+                "vencimento": venc,
+                "tipo_opcao": r["tipo_opcao"],
+            }
             return mapa
         finally:
             conn.close()
@@ -513,7 +520,7 @@ class MPPUseCase:
         peso_paridade = self._get_param("mpp_peso_paridade", 0.25)
         peso_spread = self._get_param("mpp_peso_spread", 0.20)
         peso_profundidade = self._get_param("mpp_peso_profundidade", 0.10)
-        peso_imbalance = self._get_param("mpp_peso_imbalance", 0.05)
+        peso_imbalance = self._get_param("mpp_peso_imbalance", 0.0)
         peso_anomalia = self._get_param("mpp_peso_spread_anomalia", 0.05)
         soma_pesos = peso_paridade + peso_spread + peso_profundidade + peso_imbalance + peso_anomalia
         if soma_pesos <= 0:

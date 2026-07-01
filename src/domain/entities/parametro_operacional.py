@@ -114,7 +114,7 @@ class ParametroOperacional:
         "mpp_peso_paridade": {"valor": 0.25, "estrategia": "MPP", "descricao": "Peso erro de paridade"},
         "mpp_peso_spread": {"valor": 0.20, "estrategia": "MPP", "descricao": "Peso spread"},
         "mpp_peso_profundidade": {"valor": 0.10, "estrategia": "MPP", "descricao": "Peso profundidade"},
-        "mpp_peso_imbalance": {"valor": 0.05, "estrategia": "MPP", "descricao": "Peso book imbalance"},
+        "mpp_peso_imbalance": {"valor": 0.0, "estrategia": "MPP", "descricao": "Peso book imbalance (descontinuado)"},
         "mpp_peso_spread_anomalia": {"valor": 0.05, "estrategia": "MPP", "descricao": "Peso spread anomalia"},
         "mpp_iv_min_negocios": {"valor": 10.0, "estrategia": "MPP", "descricao": "Núm. mínimo negócios para IV válida"},
         "mpp_iv_min_oi": {"valor": 500.0, "estrategia": "MPP", "descricao": "OI mínimo para IV válida"},

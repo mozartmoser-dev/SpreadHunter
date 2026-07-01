@@ -213,10 +213,7 @@ class MercadoDataProvider:
         self._chaves_detalhes_completos.add(key)
         logger.debug("RTD: Detalhes completos registrados para %s (Liquidez detectada)", key)
 
-        if getattr(rtd, 'suporta_push', False):
-            preco = rtd.ler_campo_cache(inst.ativo, FieldName.ASK)
-        else:
-            preco = rtd.forcar_leitura(inst.ativo, FieldName.ASK)
+        preco = rtd.ler_campo_cache(inst.ativo, FieldName.ASK)
         if preco and preco > 0:
             self._precos_ativo_cache[inst.ativo] = preco
             logger.debug("RTD: preco_ativo %s=%.2f forçado com sucesso", inst.ativo, preco)
@@ -318,21 +315,25 @@ class MercadoDataProvider:
         self._chaves_registradas.add(key)
         return True
 
-    def _flush_buffer(self, buffer: list, max_chunk: int = 80):
+    def _flush_buffer(self, buffer: list, max_chunk: int = 1000):
         if not buffer:
             return
         if not getattr(self.source, 'disponivel', True):
             buffer.clear()
             return
-        for i in range(0, len(buffer), max_chunk):
+        t0 = time.perf_counter()
+        n = len(buffer)
+        for i in range(0, n, max_chunk):
             chunk = buffer[i:i + max_chunk]
             self.source.registrar_lista(chunk)
-            time.sleep(0.005)
         buffer.clear()
+        dt = time.perf_counter() - t0
+        if dt > 0.1:
+            logger.debug("_flush_buffer: %d registros em %.2fs", n, dt)
 
-    def _registrar_batch_inteligente(self, instrumentos: list[InstrumentoOpcional], batch_size: int = 2000):
+    def _registrar_batch_inteligente(self, instrumentos: list[InstrumentoOpcional], batch_size: int = 2000) -> list[tuple[str, FieldName]]:
         if self._registrado:
-            return
+            return []
 
         t0 = time.perf_counter()
         start_idx = self._registro_idx
@@ -349,8 +350,6 @@ class MercadoDataProvider:
             else:
                 count_pulas += 1
 
-        self._flush_buffer(registros_acum)
-
         self._registro_idx = end_idx
 
         if self._registro_idx >= len(instrumentos):
@@ -361,7 +360,9 @@ class MercadoDataProvider:
             logger.info("RTD: Lote Onda 1 %d/%d (Registros: %d) em %.2fs.",
                          self._registro_idx, len(instrumentos), count_processados, time.perf_counter() - t0)
 
-    def _registrar_novos_entrantes(self):
+        return registros_acum
+
+    def _registrar_novos_entrantes(self) -> list[tuple[str, FieldName]]:
         instrumentos = self.inst_repo.get_all()
         total = len(instrumentos)
         if self._registro_remaining_idx >= total:
@@ -378,14 +379,14 @@ class MercadoDataProvider:
             if self._registrar_instrumento(inst, registros_acum):
                 count += 1
 
-        self._flush_buffer(registros_acum)
-
         self._registro_remaining_idx = end
         if count > 0:
             logger.info("Background scan: %d novos instrumentos registrados", count)
         if self._registro_remaining_idx >= total:
             self._registro_remaining_idx = self._background_offset
             logger.info("Background scan: ciclo completo. Total monitorados: %d", len(self._chaves_registradas))
+
+        return registros_acum
 
     def capturar_dados_mercado(self) -> dict[str, dict]:
         if not self.source.disponivel:
@@ -660,6 +661,8 @@ class MercadoDataProvider:
     def fazer_manutencao(self):
         """Detecta novos books, registra Onda 2, background scan e salva prioridades.
         Executado externamente (MonitorWorker), fora da varredura principal."""
+        buffer_onda2: list[tuple[str, FieldName]] = []
+
         self._lock.lock()
         try:
             inst_map = self._get_inst_map()
@@ -673,7 +676,6 @@ class MercadoDataProvider:
                 if self._sem_book_skip[key] <= 0:
                     del self._sem_book_skip[key]
 
-            buffer_onda2: list[tuple[str, FieldName]] = []
             for i_manu, key in enumerate(list(sem_detalhes)):
                 if i_manu % self._GIL_YIELD_INTERVAL == 0:
                     time.sleep(0)
@@ -704,19 +706,29 @@ class MercadoDataProvider:
                     if self._onda2_dte_min <= dte <= self._onda2_dte_max and count_reg < MAX_REG_ONDA2:
                         self._registrar_detalhes_completos(inst, buffer_onda2)
                         count_reg += 1
-            if buffer_onda2:
-                self._flush_buffer(buffer_onda2)
-
-            if self._prioridade_set:
-                self._registrar_novos_entrantes()
-
-            if self._chaves_com_book and self._chaves_com_book != self._prioridade_salva:
-                self._salvar_prioridades()
-
-            # NÃO limpa _precos_ativo_cache aqui — isso força re-leitura de todos os ativos
-            # a cada ~5s, causando "no_preco" em massa. Staleness é gerenciada pelo RefreshData(0).
+                        if count_reg >= MAX_REG_ONDA2:
+                            break
         finally:
             self._lock.unlock()
+
+        # Flush fora do lock — chamadas COM ConnectData lentas (5k+ chamadas, 2-10ms cada)
+        if buffer_onda2:
+            self._flush_buffer(buffer_onda2)
+
+        # Prioridades e background scan precisam do lock
+        buffer_bg: list[tuple[str, FieldName]] = []
+        self._lock.lock()
+        try:
+            if self._prioridade_set:
+                buffer_bg = self._registrar_novos_entrantes()
+            if self._chaves_com_book and self._chaves_com_book != self._prioridade_salva:
+                self._salvar_prioridades()
+        finally:
+            self._lock.unlock()
+
+        # Flush do background scan fora do lock (COM ConnectData lento)
+        if buffer_bg:
+            self._flush_buffer(buffer_bg)
 
     def get_engine_stats(self) -> dict:
         """Retorna contagens internas para o Dashboard de Performance."""

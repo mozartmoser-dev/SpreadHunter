@@ -1,4 +1,5 @@
 import logging
+import time
 
 from src.domain.services.market_data_source import FieldName, PROFIT_FIELD_STR
 from src.infrastructure.providers.rtd_profit import RTDProfit
@@ -29,9 +30,11 @@ class RTDProfitAdapter:
 
     def registrar_lista(self, registros: list[tuple[str, FieldName]]) -> int:
         count = 0
-        for codigo, campo in registros:
+        for i, (codigo, campo) in enumerate(registros):
             if self._rtd.registrar_topico(codigo, self._resolver(campo)) >= 0:
                 count += 1
+            if i % 10 == 9:
+                time.sleep(0.001)
         return count
 
     def registrar_status(self, codigo: str) -> int:

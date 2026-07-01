@@ -286,17 +286,23 @@ class CalculadoraColarCalendario:
         preco_compra = preco_compra_ativo if (preco_compra_ativo and preco_compra_ativo > 0) else preco_ativo
 
         net_credito = premio_call - premio_put
-        tipo = self.classificar_tipo(preco_ativo, strike_call, strike_put)
 
         delta_call = self.bs_delta(S_bs_call, strike_call, T_call, r_cont, iv_call, 'call')
         delta_put = self.bs_delta(S_bs_put, strike_put, T_put, r_cont, iv_put, 'put')
-        delta_total = 1.0 - delta_call + delta_put  # stock + short call + long put
-        if abs(delta_total) <= 0.05:
+        delta_total = 1.0 - delta_call + delta_put
+        delta_put_abs = abs(delta_put)
+        # Classifica pelo desvio de cada perna em relação ao ATM (0.50)
+        # Se ambas estão dentro do limiar → Neutro. Caso contrário,
+        # a perna mais próxima do ATM dita o viés.
+        limiar = 0.05
+        call_off = abs(delta_call - 0.50)
+        put_off = abs(delta_put_abs - 0.50)
+        if call_off <= limiar and put_off <= limiar:
             tipo = TipoColarCalendario.NEUTRO
-        elif delta_total > 0:
-            tipo = TipoColarCalendario.ALTA
-        else:
+        elif call_off < put_off:
             tipo = TipoColarCalendario.BAIXA
+        else:
+            tipo = TipoColarCalendario.ALTA
 
         theta_call = self.bs_theta(S_bs_call, strike_call, T_call, r_cont, iv_call, 'call')
         theta_put = self.bs_theta(S_bs_put, strike_put, T_put, r_cont, iv_put, 'put')

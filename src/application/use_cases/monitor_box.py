@@ -86,6 +86,7 @@ class MonitorBoxUseCase:
             "ativo": inst.ativo,
             "vencimento": inst.vencimento,
             "dias": inst.dias_ate_vencimento,
+            "tipo_opcao": inst.tipo_opcao,
         }
 
     def _passa_filtros(self, dados: dict) -> bool:
@@ -106,7 +107,7 @@ class MonitorBoxUseCase:
         hoje = date.today()
         grupos: dict[tuple[str, date], list[dict]] = defaultdict(list)
 
-        filtro = {"total": 0, "venc": 0, "tipo": 0, "white": 0, "rtd": 0, "filtros": 0, "grupos": 0}
+        filtro = {"total": 0, "venc": 0, "white": 0, "rtd": 0, "filtros": 0, "grupos": 0}
         n_passou = 0
         _t0 = time.perf_counter()
 
@@ -114,9 +115,6 @@ class MonitorBoxUseCase:
             filtro["total"] += 1
             if not inst.vencimento or inst.vencimento <= hoje:
                 filtro["venc"] += 1
-                continue
-            if soh_europeia and inst.tipo_opcao != TipoOpcao.EUROPEIA:
-                filtro["tipo"] += 1
                 continue
             if whitelist is not None and inst.ativo.upper() not in whitelist:
                 filtro["white"] += 1
@@ -138,28 +136,25 @@ class MonitorBoxUseCase:
             pipeline_tracker.nome_estrategia = "BOX_4P"
             n0 = filtro["total"]
             n1 = n0 - filtro["venc"]
-            n2 = n1 - filtro["tipo"]
-            n3 = n2 - filtro["white"]
-            n4 = n3 - filtro["rtd"]
-            n5 = n4 - filtro["filtros"]
+            n2 = n1 - filtro["white"]
+            n3 = n2 - filtro["rtd"]
+            n4 = n3 - filtro["filtros"]
             tempo_filtro = time.perf_counter() - _t0
             pipeline_tracker.add_stage("1. Vencimento", n0, n1,
                 "Opção sem vencimento futuro ou já vencida",
                 tempo_s=tempo_filtro)
-            pipeline_tracker.add_stage("2. Tipo (Europeia)", n1, n2,
-                "Só aceita opções Europeias (Parâmetros > BOX_4P > box_soh_europeia)",
-                tempo_s=0.0)
-            pipeline_tracker.add_stage("3. Ativo (whitelist)", n2, n3,
+            pipeline_tracker.add_stage("2. Ativo (whitelist)", n1, n2,
                 "Ativo não está na whitelist (Parâmetros > BOX_4P > white_list_box4p)",
                 tempo_s=0.0)
-            pipeline_tracker.add_stage("4. Dados RTD", n3, n4,
+            pipeline_tracker.add_stage("3. Dados RTD", n2, n3,
                 "RTD não retornou strike (PEX) para PUT ou CALL",
                 tempo_s=0.0)
-            pipeline_tracker.add_stage("5. Filtros (DTE/leilão)", n4, n5,
+            pipeline_tracker.add_stage("4. Filtros (DTE)", n3, n4,
                 f"DTE < {self._get_param('perf_dias_minimos', 10)}d ou dias <= 0",
                 tempo_s=0.0)
-            pipeline_tracker.add_stage("6. Pareamento", n5, n_passou,
-                "Agrupados por ativo+vencimento para formar pares de strike",
+            pipeline_tracker.add_stage("5. Pareamento", n4, n_passou,
+                "Agrupados por ativo+vencimento para formar pares de strike. "
+                "Se box_soh_europeia=True, a CALL vendida (K1) deve ser Europeia",
                 tempo_s=0.0)
             logger.info("PipelineTracker BOX_4P: %d -> %d", n0, n_passou)
             self._ultimo_pipeline = pipeline_tracker
@@ -176,6 +171,9 @@ class MonitorBoxUseCase:
                 for j in range(i + 1, len(members)):
                     k1_data = members[i]
                     k2_data = members[j]
+
+                    if soh_europeia and k1_data["tipo_opcao"] != TipoOpcao.EUROPEIA:
+                        continue
 
                     resultado = calc.calcular(
                         strike_k1=k1_data["strike"],
