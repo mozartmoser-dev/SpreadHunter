@@ -21,6 +21,7 @@ a = Analysis(
     hiddenimports=[
         "PySide6.QtCore", "PySide6.QtGui", "PySide6.QtWidgets",
         "PySide6.QtXml", "PySide6.QtSvg",
+        "PySide6.QtMultimedia", "PySide6.QtMultimediaWidgets",
         "matplotlib", "matplotlib.backends.backend_qtagg",
         "matplotlib.backends.backend_qt5agg", "matplotlib.figure",
         "matplotlib.patches",

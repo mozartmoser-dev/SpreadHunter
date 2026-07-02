@@ -291,18 +291,15 @@ class CalculadoraColarCalendario:
         delta_put = self.bs_delta(S_bs_put, strike_put, T_put, r_cont, iv_put, 'put')
         delta_total = 1.0 - delta_call + delta_put
         delta_put_abs = abs(delta_put)
-        # Classifica pelo desvio de cada perna em relação ao ATM (0.50)
-        # Se ambas estão dentro do limiar → Neutro. Caso contrário,
-        # a perna mais próxima do ATM dita o viés.
+        # Classifica pelo delta total da estrutura (stock + short call + long put)
+        # |delta_total| ≤ 0.05 → Neutro; > 0 → Alta; < 0 → Baixa
         limiar = 0.05
-        call_off = abs(delta_call - 0.50)
-        put_off = abs(delta_put_abs - 0.50)
-        if call_off <= limiar and put_off <= limiar:
+        if abs(delta_total) <= limiar:
             tipo = TipoColarCalendario.NEUTRO
-        elif call_off < put_off:
-            tipo = TipoColarCalendario.BAIXA
-        else:
+        elif delta_total > 0:
             tipo = TipoColarCalendario.ALTA
+        else:
+            tipo = TipoColarCalendario.BAIXA
 
         theta_call = self.bs_theta(S_bs_call, strike_call, T_call, r_cont, iv_call, 'call')
         theta_put = self.bs_theta(S_bs_put, strike_put, T_put, r_cont, iv_put, 'put')
@@ -440,12 +437,40 @@ class CalculadoraColarCalendario:
         cap = S0 + Pp - Pc
         net = Pc - Pp
 
+        # Calcula o desvio padrao (sigma) do periodo a partir do IV medio
+        iv_medio = ((r.iv_call / 100) + (r.iv_put / 100)) / 2
+        T_call_ano = dc_to_du(None, None, r.dte_call) / 252.0
+        sigma_pct = iv_medio * np.sqrt(T_call_ano) if iv_medio > 1e-10 else 0.0
+
+        # 9 cenarios: 3 sigma downs, -5%, 0, +5%, 3 sigma ups
+        if sigma_pct > 0.001:
+            pares_cenarios = [
+                (-3.0, f"\u22123\u03c3 (\u2212{3*sigma_pct*100:.1f}%)",  S0 * (1 - 3*sigma_pct)),
+                (-2.0, f"\u22122\u03c3 (\u2212{2*sigma_pct*100:.1f}%)",  S0 * (1 - 2*sigma_pct)),
+                (-1.0, f"\u22121\u03c3 (\u2212{1*sigma_pct*100:.1f}%)",  S0 * (1 - 1*sigma_pct)),
+                (-0.5, f"\u22125% (\u2212{5/abs(sigma_pct)/100:.1f}\u03c3)", S0 * 0.95),
+                (0.0,  f"0\u03c3 \u2014 Est\u00e1vel",                    S0),
+                (0.5,  f"+5% (+{5/abs(sigma_pct)/100:.1f}\u03c3)",       S0 * 1.05),
+                (1.0,  f"+1\u03c3 (+{1*sigma_pct*100:.1f}%)",            S0 * (1 + 1*sigma_pct)),
+                (2.0,  f"+2\u03c3 (+{2*sigma_pct*100:.1f}%)",            S0 * (1 + 2*sigma_pct)),
+                (3.0,  f"+3\u03c3 (+{3*sigma_pct*100:.1f}%)",            S0 * (1 + 3*sigma_pct)),
+            ]
+        else:
+            pares_cenarios = [
+                (-3.0, "Queda forte (S=\u221230%)",  S0 * 0.7),
+                (-2.0, "Queda m\u00e9dia (S=\u221220%)", S0 * 0.8),
+                (-1.0, "Queda leve (S=\u221210%)",   S0 * 0.9),
+                (-0.5, "\u22125%",                    S0 * 0.95),
+                (0.0,  "Est\u00e1vel (S=0%)",         S0),
+                (0.5,  "+5%",                         S0 * 1.05),
+                (1.0,  "Alta leve (S=+10%)",          S0 * 1.1),
+                (2.0,  "Alta m\u00e9dia (S=+20%)",    S0 * 1.2),
+                (3.0,  "Alta forte (S=+30%)",         S0 * 1.3),
+            ]
+
+        pdf_peak = norm.pdf(0.0, 0.0, 1.0)
         cenarios = []
-        for S_T, label in [(S0 * 0.7, "Queda forte (S=−30%)"),
-                           (S0 * 0.95, "Queda leve (S=−5%)"),
-                           (S0, "Estável (S=0%)"),
-                           (S0 * 1.05, "Alta leve (S=+5%)"),
-                           (S0 * 1.4, "Alta forte (S=+40%)")]:
+        for n_sigma, label, S_T in pares_cenarios:
             if S_T > Kc:
                 s_pnl = Kc - S0
                 c_pnl = Pc
@@ -462,7 +487,17 @@ class CalculadoraColarCalendario:
             total = s_pnl + c_pnl + p_pnl
             put_intrin = max(Kp - S_T, 0)
             put_extrin = put_bs - put_intrin
-            cenarios.append((label, S_T, s_pnl, c_pnl, put_bs, put_intrin, put_extrin, p_pnl, total))
+
+            # % Retorno e x CDI
+            pct_ret = (total / cap) * 100 if cap > 0 else 0.0
+            du_total = dc_to_du(None, None, r.dte_call)
+            cdi_periodo = (1 + taxa_cdi) ** (du_total / 252) - 1
+            x_cdi = (total / cap) / cdi_periodo if cdi_periodo > 0 else 0.0
+
+            # Largura da barra da gaussiana (PDF normalizado)
+            pdf = norm.pdf(n_sigma, 0.0, 1.0)
+            bar_pct = max(4, int(28 * pdf / pdf_peak))
+            cenarios.append((n_sigma, label, S_T, s_pnl, c_pnl, put_bs, put_intrin, put_extrin, p_pnl, total, pct_ret, x_cdi, bar_pct))
 
         call_Itm = S0 > Kc
         call_intrin = max(S0 - Kc, 0) if call_Itm else 0
@@ -472,6 +507,10 @@ class CalculadoraColarCalendario:
         else:
             call_premio_txt = "(prêmio inteiramente extrínseco)"
 
+        if sigma_pct > 0.001:
+            nota_sigma = f" (1σ = {sigma_pct*100:.1f}%, IV médio {iv_medio*100:.0f}%, {r.dte_call} DTE)"
+        else:
+            nota_sigma = ""
         lines = [
             "<h3>📖 Explicação — Collar Calendário Coberto</h3>",
             f"<p><b>{r.ativo}</b> &mdash; {r.tipo.value}</p>",
@@ -490,65 +529,94 @@ class CalculadoraColarCalendario:
             f"<li>Débito/Crédito líquido: <b>R$ {net:.2f}</b></li>",
             "</ul>",
             "<hr>",
-            f"<p><b>Cenários no vencimento da CALL ({r.dte_call}d):</b></p>",
+            f"<p><b>Cenários no vencimento da CALL ({r.dte_call}d):</b>{nota_sigma}</p>",
             "<table border='1' cellpadding='4' cellspacing='0' style='border-collapse:collapse; font-size:9pt;'>",
             "<tr style='background:#2d2d44;'>"
-            "<th>Cenário</th><th>S_T</th><th>Ação</th><th>CALL</th>"
+            "<th style='width:30px;'></th><th>Cenário</th><th>S_T</th><th>Ação</th><th>CALL</th>"
             "<th>PUT (BS)</th><th>Intrín</th><th>Extrín</th>"
-            "<th>PnL Total</th></tr>",
+            "<th>PnL Total</th><th>% Retorno</th><th>× CDI</th></tr>",
         ]
-        for cenario, S_T, s_pnl, c_pnl, put_bs, pint, pext, p_pnl, total in cenarios:
+        for n_sigma, label, S_T, s_pnl, c_pnl, put_bs, pint, pext, p_pnl, total, pct_ret, x_cdi, bar_pct in cenarios:
             cor = "#2ecc71" if total > 0 else "#e74c3c"
+            svg_bar = (
+                f'<svg width="28" height="18" viewBox="0 0 28 18">'
+                f'<rect x="{(28-bar_pct)/2:.1f}" y="3" width="{bar_pct}" height="12" '
+                f'fill="rgba(255,255,255,0.10)" rx="2"/></svg>'
+            )
             lines.append(
                 f"<tr>"
-                f"<td>{cenario}</td><td>R$ {S_T:.2f}</td><td>R$ {s_pnl:.2f}</td>"
+                f"<td style='text-align:center;'>{svg_bar}</td>"
+                f"<td>{label}</td><td>R$ {S_T:.2f}</td><td>R$ {s_pnl:.2f}</td>"
                 f"<td>R$ {c_pnl:.2f}</td><td>R$ {put_bs:.2f}</td>"
                 f"<td>R$ {pint:.2f}</td><td>R$ {pext:.2f}</td>"
-                f"<td style='color:{cor};font-weight:bold;'>R$ {total:.2f}</td></tr>"
+                f"<td style='color:{cor};font-weight:bold;'>R$ {total:.2f}</td>"
+                f"<td>{pct_ret:.2f}%</td><td>{x_cdi:.2f}x</td></tr>"
             )
         lines.append("</table>")
+
+        # Resumo estatístico dos cenários
+        pnls = [c[9] for c in cenarios]
+        rets = [c[10] for c in cenarios]
+        cdi_vals = [c[11] for c in cenarios]
+        pior_pnl = min(pnls)
+        melhor_pnl = max(pnls)
+        lucros = sum(1 for v in pnls if v > 0)
+        idx_pior = pnls.index(pior_pnl)
+        idx_melhor = pnls.index(melhor_pnl)
+        lines.append(
+            f"<p><b>Resumo dos cenários:</b><br>"
+            f"Pior PnL: {cenarios[idx_pior][1]} → <b>R$ {pior_pnl:.2f}</b> ({cenarios[idx_pior][10]:.2f}%, {cenarios[idx_pior][11]:.2f}x CDI)<br>"
+            f"Melhor PnL: {cenarios[idx_melhor][1]} → <b>R$ {melhor_pnl:.2f}</b> ({cenarios[idx_melhor][10]:.2f}%, {cenarios[idx_melhor][11]:.2f}x CDI)<br>"
+            f"Faixa de ×CDI: {min(cdi_vals):.2f}x a {max(cdi_vals):.2f}x<br>"
+            f"Cenários com lucro: <b>{lucros}/{len(cenarios)}</b> ({lucros/len(cenarios)*100:.0f}%)"
+            f"</p>"
+        )
         lines.append("<hr>")
 
         c_baixa = cenarios[0]
-        tot_baixa = c_baixa[8]
+        c_baixa_label = c_baixa[1]
+        tot_baixa = c_baixa[9]
         sinal_b = "lucro" if tot_baixa >= 0 else "prejuízo"
         lines.append(
-            f"<p><b>Se o ativo cai para R$ {c_baixa[1]:.2f}:</b><br>"
-            f"A CALL expira OTM → fica com +R$ {c_baixa[3]:.2f}.<br>"
-            f"A PUT vale R$ {c_baixa[4]:.2f} pelo modelo BS "
-            f"(intrínseco=R$ {c_baixa[5]:.2f}, extrínseco=R$ {c_baixa[6]:.2f}).<br>"
-            f"<b>Resultado: R$ {tot_baixa:.2f} ({sinal_b})</b> neste cenário.</p>"
+            f"<p><b>Se o ativo cai para R$ {c_baixa[2]:.2f} ({c_baixa_label}):</b><br>"
+            f"A CALL expira OTM → fica com +R$ {c_baixa[4]:.2f}.<br>"
+            f"A PUT vale R$ {c_baixa[5]:.2f} pelo modelo BS "
+            f"(intrínseco=R$ {c_baixa[6]:.2f}, extrínseco=R$ {c_baixa[7]:.2f}).<br>"
+            f"<b>Resultado: R$ {tot_baixa:.2f} ({sinal_b})</b> "
+            f"({c_baixa[10]:.2f}% / {c_baixa[11]:.2f}x CDI) neste cenário.</p>"
         )
 
-        c_proj = cenarios[2]
+        c_proj = cenarios[4]
         call_itm_proj = S0 > Kc  # call esta ITM no spot atual?
         if call_itm_proj:
-            call_texto = f"A CALL está ITM → ação vendida a R$ {Kc:.2f}, perda de R$ {c_proj[2]:.2f} na ação"
+            call_texto = f"A CALL está ITM → ação vendida a R$ {Kc:.2f}, perda de R$ {c_proj[3]:.2f} na ação"
         else:
-            call_texto = f"A CALL expira OTM → fica com +R$ {c_proj[3]:.2f}"
+            call_texto = f"A CALL expira OTM → fica com +R$ {c_proj[4]:.2f}"
         lines.append(
-            f"<p><b>Se o ativo mantém R$ {c_proj[1]:.2f} (cenário projetado):</b><br>"
+            f"<p><b>Se o ativo mantém R$ {c_proj[2]:.2f} (cenário projetado):</b><br>"
             f"{call_texto}.<br>"
-            f"A PUT ainda tem {r.dte_extra}d de vida, valendo R$ {c_proj[4]:.2f} "
-            f"(intrínseco=R$ {c_proj[5]:.2f} + extrínseco=R$ {c_proj[6]:.2f}).<br>"
-            f"<b>PnL = R$ {c_proj[8]:.2f}</b> ({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI)</p>"
+            f"A PUT ainda tem {r.dte_extra}d de vida, valendo R$ {c_proj[5]:.2f} "
+            f"(intrínseco=R$ {c_proj[6]:.2f} + extrínseco=R$ {c_proj[7]:.2f}).<br>"
+            f"<b>PnL = R$ {c_proj[9]:.2f}</b> ({c_proj[10]:.2f}% / {c_proj[11]:.2f}x CDI)</p>"
         )
 
-        for idx, rotulo in [(4, "sobe para"), (3, "sobe levemente para")]:
+        for idx, rotulo in [(8, "sobe para"), (5, "sobe levemente para")]:
             c_alta = cenarios[idx]
-            tot_alta = c_alta[8]
+            c_alta_label = c_alta[1]
+            tot_alta = c_alta[9]
             sinal_a = "lucro" if tot_alta >= 0 else "prejuízo"
-            put_bs_a = c_alta[4]
+            put_bs_a = c_alta[5]
             if put_bs_a < 0.01:
                 put_texto = f"A PUT fica OTM → praticamente sem valor (BS=R$ {put_bs_a:.2f})"
             else:
                 put_texto = f"A PUT fica OTM, mas ainda vale R$ {put_bs_a:.2f} (BS, {r.dte_extra}d restantes)"
             lines.append(
-                f"<p><b>Se o ativo {rotulo} R$ {c_alta[1]:.2f}:</b><br>"
+                f"<p><b>Se o ativo {rotulo} R$ {c_alta[2]:.2f} ({c_alta_label}):</b><br>"
                 f"A CALL está ITM → ação é vendida a R$ {Kc:.2f}, "
-                f"{'lucro' if c_alta[2] >= 0 else 'perda'} de R$ {c_alta[2]:.2f} na ação.<br>"
+                f"{'lucro' if c_alta[3] >= 0 else 'perda'} de R$ {c_alta[3]:.2f} na ação.<br>"
                 f"{put_texto}<br>"
-                f"<b>Resultado: R$ {tot_alta:.2f} ({sinal_a}).</b></p>"
+                f"<b>Resultado: R$ {tot_alta:.2f} ({sinal_a}).</b> "
+                f"({c_alta[10]:.2f}% / {c_alta[11]:.2f}x CDI)</p>"
             )
 
         # Breakevens
@@ -573,6 +641,25 @@ class CalculadoraColarCalendario:
             else:
                 lines.append("</p>")
         if r.be_baixa is not None or r.be_alta is not None or r.be_baixa_intrinseco is not None or r.be_alta_intrinseco is not None:
+            lines.append("<hr>")
+
+        if sigma_pct > 0.001:
+            p1s = [c for c in cenarios if abs(c[0]) <= 1.0]
+            p2s = [c for c in cenarios if abs(c[0]) <= 2.0]
+            p3s = [c for c in cenarios if abs(c[0]) <= 3.0]
+            pnl_1s = [c[9] for c in p1s]
+            pnl_2s = [c[9] for c in p2s]
+            pnl_3s = [c[9] for c in p3s]
+            lines.append(
+                f"<p><b>Distribuição normal (σ = {sigma_pct*100:.1f}%):</b><br>"
+                f"±1σ (~68% dos casos): PnL de R$ {min(pnl_1s):.2f} a R$ {max(pnl_1s):.2f}, "
+                f"{len([c for c in p1s if c[9] > 0])}/{len(p1s)} positivos<br>"
+                f"±2σ (~95% dos casos): PnL de R$ {min(pnl_2s):.2f} a R$ {max(pnl_2s):.2f}, "
+                f"{len([c for c in p2s if c[9] > 0])}/{len(p2s)} positivos<br>"
+                f"±3σ (~99,7% dos casos): PnL de R$ {min(pnl_3s):.2f} a R$ {max(pnl_3s):.2f}, "
+                f"{len([c for c in p3s if c[9] > 0])}/{len(p3s)} positivos"
+                f"</p>"
+            )
             lines.append("<hr>")
 
         pnl_b3 = r.pnl_projetado - r.custo_b3

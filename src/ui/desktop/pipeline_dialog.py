@@ -200,19 +200,23 @@ class PipelineDialog(QDialog):
         pct_rej = s.rejeitados / max(s.entrada, 1) * 100
         lines = [
             f"<b style='color:#4fc3f7;font-size:10pt;'>{s.nome}</b>",
-            f"<hr style='color:#334;'>",
-            f"Entrada: <b>{_fmt(s.entrada)}</b> candidatos",
-            f"Aprovados: <b>{_fmt(s.saida)}</b>",
+            f"<hr style='border-color:#334;'>",
+            f"Entrada: <b style='color:#e0e0e0;'>{_fmt(s.entrada)}</b> candidatos",
+            f"Aprovados: <b style='color:#40c040;'>{_fmt(s.saida)}</b>",
             f"<span style='color:#ef5350;'>Rejeitados: {_fmt(s.rejeitados)} ({pct_rej:.0f}%)</span>",
             f"Tempo: <span style='color:#4fc3f7;'>{_fmt_tempo(s.tempo_s)}</span>",
         ]
         if s.motivo:
-            lines.append(f"<hr style='color:#334;'>"
+            lines.append(f"<hr style='border-color:#334;'>"
                          f"<span style='color:#aaa;'>Critério:</span><br>"
                          f"<span style='color:#e0e0e0;'>{s.motivo}</span>")
+        html = ("<div style='background-color:#0d0d1a; color:#e0e0e0; padding:8px 12px; "
+                "border:1px solid #2d2d44; border-radius:6px; font-family:Consolas; font-size:9pt;'>"
+                + "<br>".join(lines)
+                + "</div>")
         QToolTip.showText(QPoint(self.mapToGlobal(self.pos()).x() + 40,
                                  self.mapToGlobal(self.pos()).y() + 100),
-                          "<br>".join(lines))
+                          html)
 
     def _copiar_texto(self, tracker):
         linhas = [

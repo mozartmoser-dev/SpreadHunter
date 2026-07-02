@@ -364,6 +364,79 @@ class OportunidadeRepository:
         finally:
             conn.close()
 
+    def get_historico_com_estrutura(self, limite: int = 5000) -> list[dict]:
+        conn = get_connection(self.db_path)
+        try:
+            cursor = conn.execute(
+                """SELECT o.id, o.created_at, i.ativo, o.strike, o.operacao, o.dias,
+                          o.preco_ativo, o.cdi_periodo,
+                          o.custo_box, o.pct_ganho_box, o.pct_cdi_box,
+                          o.custo_sbth, o.pct_ganho_sbth, o.pct_cdi_sbth,
+                          o.classificacao, o.snapshot_mercado,
+                          e.id AS estrutura_id, e.tipo AS estrutura_tipo,
+                          e.coefic_alvo, e.coefic_mercado, e.taxa_ganho,
+                          p.id AS perna_id, p.codigo AS perna_codigo,
+                          p.lado AS perna_lado, p.quantidade AS perna_qtd,
+                          p.profundidade AS perna_profundidade, p.ordem AS perna_ordem
+                   FROM oportunidades o
+                   JOIN instrumentos_base i ON o.instrumento_id = i.id
+                   LEFT JOIN estruturas_operacionais e ON e.oportunidade_id = o.id
+                   LEFT JOIN pernas_operacao p ON p.estrutura_id = e.id
+                   ORDER BY o.created_at DESC, e.id, p.ordem
+                   LIMIT ?""", (limite,)
+            )
+            rows = cursor.fetchall()
+            oportunidades: dict[int, dict] = {}
+            for r in rows:
+                oid = r["id"]
+                if oid not in oportunidades:
+                    oportunidades[oid] = {
+                        "id": oid,
+                        "created_at": r["created_at"],
+                        "ativo": r["ativo"],
+                        "strike": r["strike"],
+                        "operacao": r["operacao"],
+                        "dias": r["dias"],
+                        "preco_ativo": r["preco_ativo"],
+                        "cdi_periodo": r["cdi_periodo"],
+                        "custo_box": r["custo_box"],
+                        "pct_ganho_box": r["pct_ganho_box"],
+                        "pct_cdi_box": r["pct_cdi_box"],
+                        "custo_sbth": r["custo_sbth"],
+                        "pct_ganho_sbth": r["pct_ganho_sbth"],
+                        "pct_cdi_sbth": r["pct_cdi_sbth"],
+                        "classificacao": r["classificacao"],
+                        "snapshot_mercado": r["snapshot_mercado"],
+                        "estruturas": [],
+                    }
+                eid = r["estrutura_id"]
+                if eid is not None:
+                    opp = oportunidades[oid]
+                    estrutura_existente = next((e for e in opp["estruturas"] if e["id"] == eid), None)
+                    if estrutura_existente is None:
+                        estrutura_existente = {
+                            "id": eid,
+                            "tipo": r["estrutura_tipo"],
+                            "coefic_alvo": r["coefic_alvo"],
+                            "coefic_mercado": r["coefic_mercado"],
+                            "taxa_ganho": r["taxa_ganho"],
+                            "pernas": [],
+                        }
+                        opp["estruturas"].append(estrutura_existente)
+                    pid = r["perna_id"]
+                    if pid is not None:
+                        estrutura_existente["pernas"].append({
+                            "id": pid,
+                            "codigo": r["perna_codigo"],
+                            "lado": r["perna_lado"],
+                            "quantidade": r["perna_qtd"],
+                            "profundidade": r["perna_profundidade"],
+                            "ordem": r["perna_ordem"],
+                        })
+            return list(oportunidades.values())
+        finally:
+            conn.close()
+
     def delete_by_id(self, o_id: int) -> bool:
         conn = get_connection(self.db_path)
         try:

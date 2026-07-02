@@ -15,7 +15,7 @@
     },
     {
       "chave": "calendario_strike_diff_max",
-      "valor": "2.0",
+      "valor": "5.0",
       "estrategia": "COLLAR_CALENDARIO",
       "descricao": "Max strikes de diferenca entre call e put"
     },
@@ -741,7 +741,7 @@
     },
     {
       "chave": "fonte_market_data",
-      "valor": "1.0",
+      "valor": "openfast",
       "estrategia": "GERAL",
       "descricao": "Fonte de market data (0=Profit RTD, 1=Open Fast Socket)"
     },

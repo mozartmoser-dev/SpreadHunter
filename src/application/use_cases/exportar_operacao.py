@@ -139,10 +139,13 @@ class ExportarOperacaoUseCase:
         self,
         oportunidade_monitor: dict,
     ) -> ExportarResultado:
-        classificacao_str = oportunidade_monitor.get("classificacao", "")
         operacao = oportunidade_monitor.get("operacao", "BOX")
-
         classificacao = self._operacao_to_classificacao(operacao)
+
+        cod_put = oportunidade_monitor.get("cod_put", "")
+        cod_call = oportunidade_monitor.get("cod_call", "")
+
+        tipo_estrutura = TipoEstrutura.SBTH if operacao == "SBTH" else TipoEstrutura.BOX_3_PERNAS
 
         snapshot = {
             "tipo_opcao": oportunidade_monitor.get("tipo_opcao", ""),
@@ -157,6 +160,10 @@ class ExportarOperacaoUseCase:
             "money_put": oportunidade_monitor.get("money_put", 0.0),
             "money_call": oportunidade_monitor.get("money_call", 0.0),
             "em_leilao": oportunidade_monitor.get("em_leilao", False),
+            "pct_cdi_sbth_liquido": oportunidade_monitor.get("pct_cdi_sbth_liquido", 0.0),
+            "pct_cdi_box_liquido": oportunidade_monitor.get("pct_cdi_box_liquido", 0.0),
+            "cod_put": cod_put,
+            "cod_call": cod_call,
         }
 
         oportunidade_db = Oportunidade(
@@ -177,15 +184,40 @@ class ExportarOperacaoUseCase:
         )
         oportunidade_db = self.opp_repo.save(oportunidade_db)
 
+        estrutura = self.est_repo.save(EstruturaOperacional(
+            oportunidade_id=oportunidade_db.id,
+            tipo=tipo_estrutura,
+            coefic_alvo=oportunidade_monitor.get("coefic_alvo", 0.0),
+            coefic_mercado=oportunidade_monitor.get("coefic_mercado", 0.0),
+            taxa_ganho=oportunidade_monitor.get("taxa_ganho", 0.0),
+        ))
+
+        pernas_data = [
+            (cod_put, Lado.COMPRA, 1),
+            (cod_call, Lado.VENDA, 2),
+        ]
+        for codigo, lado, ordem in pernas_data:
+            if codigo:
+                self.perna_repo.save(PernaOperacao(
+                    estrutura_id=estrutura.id,
+                    codigo=codigo,
+                    lado=lado,
+                    quantidade=100,
+                    profundidade=0,
+                    ordem=ordem,
+                ))
+
+        pernas_resultado = [
+            {"codigo": cod_put, "lado": "C", "quantidade": 100, "profundidade": 0},
+            {"codigo": cod_call, "lado": "V", "quantidade": 100, "profundidade": 0},
+        ]
+
         resultado = ExportarResultado(
-            estrutura_id=oportunidade_db.id,
+            estrutura_id=estrutura.id,
             tipo_exportacao=TipoExportacao.LOG_OPERACAO.value,
             ativo=oportunidade_monitor["ativo"],
             strike=oportunidade_monitor["strike"],
-            pernas=[
-                {"codigo": oportunidade_monitor.get("cod_put", ""), "lado": "C", "quantidade": 100, "profundidade": 0},
-                {"codigo": oportunidade_monitor.get("cod_call", ""), "lado": "V", "quantidade": 100, "profundidade": 0},
-            ],
+            pernas=pernas_resultado,
             classificacao=classificacao.value,
             operacao=operacao,
             pct_ganho=oportunidade_monitor.get("pct_ganho_box", 0.0) if operacao in ("BOX", "BOXSBTH") else oportunidade_monitor.get("pct_ganho_sbth", 0.0),

@@ -379,6 +379,8 @@ class ExportDialog(QDialog):
             "pct_ganho_sbth": self.oportunidade.pct_ganho_sbth,
             "pct_cdi_box": self.oportunidade.pct_cdi_box,
             "pct_cdi_sbth": self.oportunidade.pct_cdi_sbth,
+            "pct_cdi_sbth_liquido": self.oportunidade.pct_cdi_sbth_liquido,
+            "pct_cdi_box_liquido": self.oportunidade.pct_cdi_box_liquido,
             "rent_box_vs_cdi": self.oportunidade.pct_cdi_box,
             "rent_sbth_vs_cdi": self.oportunidade.pct_cdi_sbth,
             "preco_compra_ativo": self.oportunidade.preco_compra_ativo,

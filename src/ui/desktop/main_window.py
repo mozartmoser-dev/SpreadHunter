@@ -9,8 +9,10 @@ from PySide6.QtWidgets import (
     QHeaderView, QTableView, QAbstractItemView, QFrame, QMenu,
     QCheckBox, QComboBox, QStackedWidget, QGraphicsOpacityEffect,
 )
-from PySide6.QtCore import Qt, QTimer, QSize, QProcess, QPropertyAnimation, QEasingCurve, QThread, Signal
-from PySide6.QtGui import QFont, QColor, QBrush, QIcon, QPixmap, QPainter, QAction, QShortcut, QKeySequence
+from PySide6.QtCore import Qt, QTimer, QSize, QProcess, QPropertyAnimation, QEasingCurve, QThread, Signal, QUrl
+from PySide6.QtMultimedia import QMediaPlayer
+from PySide6.QtMultimediaWidgets import QVideoWidget
+from PySide6.QtGui import QFont, QColor, QBrush, QIcon, QPixmap, QPainter, QAction, QShortcut, QKeySequence, QMovie
 
 
 from src.infrastructure.persistence.database import get_db_path
@@ -130,17 +132,39 @@ class MainWindow(QMainWindow):
         font = QFont("Consolas", 9)
         self.table_view.setFont(font)
 
-        temas_dir = Path(__file__).parent.parent.parent.parent / "temas"
-        self._splash_inicial = QLabel()
-        pix_abertura = QPixmap(str(temas_dir / "shtemaabertura.jpeg"))
-        if not pix_abertura.isNull():
-            self._splash_inicial.setPixmap(pix_abertura.scaled(1200, 600, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            self._splash_inicial.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._splash_inicial.setStyleSheet("background-color: #0d0d0d;")
+        temas_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).parent.parent.parent.parent)) / "temas"
+        self._splash_movie = None
+        self._media_player = None
+        mp4_path = temas_dir / "Spreadhunterabertura.mp4"
+        gif_path = temas_dir / "Spreadhunterabertura.gif"
+        jpg_path = temas_dir / "shtemaabertura.jpeg"
+        if mp4_path.exists():
+            self._splash_abertura = QVideoWidget()
+            self._splash_abertura.setStyleSheet("background-color: #0d0d0d;")
+            self._media_player = QMediaPlayer()
+            self._media_player.setSource(QUrl.fromLocalFile(str(mp4_path)))
+            self._media_player.setVideoOutput(self._splash_abertura)
+            self._media_player.setLoops(QMediaPlayer.Loops.Infinite)
+            self._media_player.play()
+        elif gif_path.exists():
+            self._splash_abertura = QLabel()
+            self._splash_movie = QMovie(str(gif_path))
+            self._splash_movie.setScaledSize(QSize(1200, 600))
+            self._splash_abertura.setMovie(self._splash_movie)
+            self._splash_abertura.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._splash_abertura.setStyleSheet("background-color: #0d0d0d;")
+            self._splash_movie.start()
         else:
-            self._splash_inicial.setText("SPREADHUNTER")
-            self._splash_inicial.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._splash_inicial.setStyleSheet("color: #4fc3f7; font-size: 36pt; font-weight: bold; background-color: #0d0d0d;")
+            self._splash_abertura = QLabel()
+            pix_abertura = QPixmap(str(jpg_path))
+            if not pix_abertura.isNull():
+                self._splash_abertura.setPixmap(pix_abertura.scaled(1200, 600, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                self._splash_abertura.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self._splash_abertura.setStyleSheet("background-color: #0d0d0d;")
+            else:
+                self._splash_abertura.setText("SPREADHUNTER")
+                self._splash_abertura.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self._splash_abertura.setStyleSheet("color: #4fc3f7; font-size: 36pt; font-weight: bold; background-color: #0d0d0d;")
 
         self._splash_transicao = QLabel()
         pix_trans = QPixmap(str(temas_dir / "shtemainicializando.jpeg"))
@@ -188,7 +212,7 @@ class MainWindow(QMainWindow):
         self._disclaimer.mousePressEvent = lambda _: self._fechar_disclaimer()
 
         self._stack = QStackedWidget()
-        self._stack.addWidget(self._splash_inicial)
+        self._stack.addWidget(self._splash_abertura)
         self._stack.addWidget(self._splash_transicao)
         self._stack.addWidget(self.table_view)
         self._stack.addWidget(self._disclaimer)
@@ -698,6 +722,10 @@ class MainWindow(QMainWindow):
 
     def _toggle_monitor(self, checked):
         if checked:
+            if self._media_player:
+                self._media_player.pause()
+            elif self._splash_movie:
+                self._splash_movie.stop()
             self._stack.setCurrentIndex(1)
             QTimer.singleShot(1500, self._fade_anim.start)
             self.btn_varrer.setText("⏸  Desligar")
@@ -714,6 +742,10 @@ class MainWindow(QMainWindow):
             self._update_cdi_display()
         else:
             self._stack.setCurrentIndex(0)
+            if self._media_player:
+                self._media_player.play()
+            elif self._splash_movie:
+                self._splash_movie.start()
             self._transicao_opacity.setOpacity(1.0)
             self.btn_varrer.setText("▶  Ligar")
             self.btn_varrer.setProperty("class", "success")
