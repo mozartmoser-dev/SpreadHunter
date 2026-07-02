@@ -9,7 +9,6 @@ from src.domain.entities.instrumento_opcional import InstrumentoOpcional
 from src.domain.services.calculadora_box_sbth import CalculadoraBoxSbth, DadosMercado
 from src.domain.services.pipeline_tracker import PipelineTracker
 from src.domain.services.calculadora_vetorizada import CalculadoraVetorizada
-from src.infrastructure.importers.excel_importer import extrair_strike
 from src.infrastructure.persistence.repositories.repositories import (
     InstrumentoRepository,
     ParametroRepository,

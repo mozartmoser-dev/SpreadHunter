@@ -72,6 +72,7 @@ def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
     _migrar_dividendos(conn)
     _migrar_strike_column(conn)
     _seed_parametros_colar(conn)
+    _migrar_fonte_market_data(conn)
     _migrar_feriados_b3(conn)
     conn.commit()
     return conn
@@ -120,7 +121,7 @@ def _seed_parametros_colar(conn):
         ("ranking_peso_colar_risco", "1.0", "COLAR", "Peso do risco de leilão (inverso) no Score do Colar Protetivo"),
         ("taxa_ir_pct", "0.15", "GERAL", "Aliquota de IR sobre lucro em operacoes (15% swing trade)"),
         ("rtd_refresh_timeout_ms", "5000", "GERAL", "Timeout do RTD RefreshData em ms (0 = sem timeout)"),
-        ("fonte_market_data", "1", "GERAL", "Fonte de market data (0=Profit RTD, 1=Open Fast Socket)"),
+        ("fonte_market_data", "openfast", "GERAL", "Fonte de market data (profit=Profit RTD via COM, openfast=Open Fast Socket TCP)"),
         ("openfast_send_delay_ms", "2", "GERAL", "Delay entre comandos SQT (ms). 0 = delay minimo (1ms)"),
         ("elegibilidade_strike_max_pct", "0.70", "BOX_SINTETICO", "Strike máximo % do spot para elegibilidade de pescaria"),
         ("dte_call_min", "25", "COLLAR_CALENDARIO", "DTE mínimo para call no collar calendário"),
@@ -201,6 +202,23 @@ def _migrar_strike_column(conn):
     try:
         conn.execute("ALTER TABLE instrumentos_base ADD COLUMN strike REAL")
     except sqlite3.OperationalError:
+        pass
+
+
+def _migrar_fonte_market_data(conn):
+    """Converte fonte_market_data de 0/1 para profit/openfast."""
+    try:
+        row = conn.execute(
+            "SELECT valor FROM parametros_operacionais WHERE chave = 'fonte_market_data'"
+        ).fetchone()
+        if row and row[0] in ("0", "1"):
+            novo = "profit" if row[0] == "0" else "openfast"
+            conn.execute(
+                "UPDATE parametros_operacionais SET valor = ? WHERE chave = 'fonte_market_data'",
+                (novo,),
+            )
+            _logger.info("fonte_market_data migrado: %s → %s", row[0], novo)
+    except Exception:
         pass
 
 

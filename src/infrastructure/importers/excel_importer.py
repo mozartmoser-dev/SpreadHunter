@@ -46,7 +46,7 @@ def extrair_strike(codigo: str, preco_ref: float | None = None) -> float | None:
         if n_len >= 5:
             return val / 1000.0
         return val
-    except:
+    except Exception:
         return None
 
 

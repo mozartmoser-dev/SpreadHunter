@@ -1,11 +1,11 @@
 import logging
+import os
 import time
 from datetime import date
 from PySide6.QtCore import QMutex
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
 from src.domain.services.market_data_source import FieldName, MarketDataSource
-from src.infrastructure.importers.excel_importer import extrair_strike, sanitizar_strike
 from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
 from src.infrastructure.providers.rtd_config import DadosRTDInstrumento
 
@@ -58,14 +58,13 @@ class MercadoDataProvider:
 
     def _resolver_caminho_prioridade(self) -> str:
         if self.db_path:
-            import os
             base = os.path.splitext(str(self.db_path))[0]
             return os.path.abspath(base + "_prioridade.json")
         return os.path.abspath("rtd_prioridade.json")
 
     def _carregar_prioridades(self) -> set[str]:
         try:
-            import json, os
+            import json
             path = self._resolver_caminho_prioridade() if self.db_path else "rtd_prioridade.json"
             logger.info("Procurando prioridades em: %s", path)
             if os.path.exists(path):
@@ -585,6 +584,11 @@ class MercadoDataProvider:
                     t0_onda1 = time.perf_counter()
                     if getattr(self.source, 'suporta_push', False):
                         strike_put = inst.strike
+                        if strike_put is None:
+                            logger.warning(
+                                "Strike não encontrado no banco para %s/%s — descartando",
+                                inst.cod_put, inst.cod_call,
+                            )
                     else:
                         strike_put = self.source.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
                         if not strike_put or strike_put <= 0:

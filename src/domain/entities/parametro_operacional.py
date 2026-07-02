@@ -46,7 +46,7 @@ class ParametroOperacional:
         "onda2_dte_max": {"valor": 180.0, "estrategia": "PERFORMANCE", "descricao": "DTE maximo para registrar Onda 2"},
         "tema_visual": {"valor": 0.0, "estrategia": "GERAL", "descricao": "Tema Visual (0=Marinho, 1=Grafite, 2=Charcoal)"},
         "rtd_refresh_timeout_ms": {"valor": 5000.0, "estrategia": "GERAL", "descricao": "Timeout do RTD RefreshData em ms (0=sem timeout)"},
-        "fonte_market_data": {"valor": 0.0, "estrategia": "GERAL", "descricao": "Fonte de market data (0=Profit RTD, 1=Open Fast Socket)"},
+        "fonte_market_data": {"valor": "profit", "estrategia": "GERAL", "descricao": "Fonte de market data (profit=Profit RTD via COM, openfast=Open Fast Socket TCP)"},
         "openfast_send_delay_ms": {"valor": 2.0, "estrategia": "GERAL", "descricao": "Delay entre comandos SQT (ms). 0 = delay minimo (1ms)"},
         "notif_telegram_enable": {"valor": 0.0, "estrategia": "TELEGRAM", "descricao": "Habilitar Telegram"},
         "telegram_bot_token": {"valor": "0", "estrategia": "TELEGRAM", "descricao": "Token Telegram"},

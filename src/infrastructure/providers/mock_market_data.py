@@ -1,5 +1,4 @@
 from src.application.dtos.dtos import OportunidadeMonitor
-from src.infrastructure.importers.excel_importer import extrair_strike
 
 
 class MockMarketDataProvider:
@@ -17,7 +16,7 @@ class MockMarketDataProvider:
             if key in self._overrides:
                 dados_mercado[key] = self._overrides[key]
                 continue
-            strike = extrair_strike(inst.cod_put) or self.preco_base
+            strike = getattr(inst, 'strike', None) or self.preco_base
             preco = self.preco_base
             if strike > preco:
                 premio_put = 0.5 + (strike - preco) * 0.3

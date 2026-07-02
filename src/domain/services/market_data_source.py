@@ -63,9 +63,12 @@ class MarketDataSource(Protocol):
     def invalidar_cache(self, codigo: str, campo: FieldName): ...
 
 
-def criar_data_source(fonte: str) -> MarketDataSource:
+def criar_data_source(fonte: str, **kwargs) -> MarketDataSource:
     if fonte == "openfast":
         from src.infrastructure.providers.openfast_socket_adapter import OpenFastSocketAdapter
-        return OpenFastSocketAdapter()
+        adapter = OpenFastSocketAdapter()
+        if "send_delay_ms" in kwargs:
+            adapter.set_send_delay(kwargs["send_delay_ms"])
+        return adapter
     from src.infrastructure.providers.rtd_profit_adapter import RTDProfitAdapter
     return RTDProfitAdapter()

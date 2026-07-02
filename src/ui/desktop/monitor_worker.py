@@ -15,7 +15,7 @@ from src.infrastructure.providers.mercado_data_provider import MercadoDataProvid
 from src.domain.services.market_data_source import criar_data_source, MarketDataSource
 from src.application.dtos.dtos import EngineStatsDTO
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class MonitorWorker(QThread):
@@ -75,8 +75,8 @@ class MonitorWorker(QThread):
 
     def run(self):
         com_initialized = False
-        fonte = self._ler_param_int("fonte_market_data", 0)
-        usa_com = (fonte != 1)
+        fonte = self._ler_param_str("fonte_market_data", "profit")
+        usa_com = (fonte != "openfast")
         if usa_com:
             try:
                 import pythoncom
@@ -87,15 +87,16 @@ class MonitorWorker(QThread):
                 logger.warning("MonitorWorker: pythoncom não disponível. Thread rodará sem COM.")
                 self.status_message.emit("Aviso: pythoncom ausente. RTD indisponível.")
 
-        fonte_nome = "Open Fast Socket" if fonte == 1 else "Profit RTD"
+        fonte_nome = "Open Fast Socket" if fonte == "openfast" else "Profit RTD"
         logger.info("MonitorWorker: iniciando fonte de dados: %s", fonte_nome)
 
         rtd = self._rtd_main
         if not rtd or not getattr(rtd, 'disponivel', False):
-            rtd = criar_data_source("openfast" if fonte == 1 else "profit")
-            if fonte == 1:
+            if fonte == "openfast":
                 delay_ms = self._ler_param_int("openfast_send_delay_ms", 1)
-                rtd._send_delay_s = max(0.0, delay_ms / 1000.0)
+                rtd = criar_data_source("openfast", send_delay_ms=delay_ms)
+            else:
+                rtd = criar_data_source("profit")
         self._mercado_provider = MercadoDataProvider(self.db_path, rtd)
         self.rtd_status.emit(getattr(rtd, 'disponivel', False))
 

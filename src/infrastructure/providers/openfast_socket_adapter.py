@@ -32,7 +32,20 @@ class OpenFastSocketAdapter:
         self._subscriptions: list[tuple[str, str]] = []
         self._subs_set: set[tuple[str, str]] = set()
         self._reader_thread: threading.Thread | None = None
+        self._prof_recv_calls = 0
+        self._prof_recv_bytes = 0
+        self._prof_recv_time = 0.0
+        self._prof_parse_time = 0.0
+        self._prof_mutex_time = 0.0
+        self._prof_linhas = 0
+        self._prof_concat_time = 0.0
+        self._prof_split_time = 0.0
+        self._prof_last_log = 0.0
+        self._PROF_LOG_INTERVAL = 30.0
         self._conectar()
+
+    def set_send_delay(self, delay_ms: int):
+        self._send_delay_s = max(0.0, delay_ms / 1000.0)
 
     @property
     def disponivel(self) -> bool:
@@ -182,18 +195,6 @@ class OpenFastSocketAdapter:
             }
             self._dirty_keys.clear()
         return mudancas
-
-    # --- Profiling counters (reset a cada log) ---
-    _prof_recv_calls = 0
-    _prof_recv_bytes = 0
-    _prof_recv_time = 0.0
-    _prof_parse_time = 0.0
-    _prof_mutex_time = 0.0
-    _prof_linhas = 0
-    _prof_concat_time = 0.0
-    _prof_split_time = 0.0
-    _prof_last_log = 0.0
-    _PROF_LOG_INTERVAL = 30.0  # logs a cada 30s
 
     def _log_profile(self):
         agora = time.time()

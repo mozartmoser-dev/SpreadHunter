@@ -162,7 +162,7 @@ PARAMETROS_INFO = {
     "fonte_market_data": {
         "descricao": "Define a fonte de dados de mercado em tempo real. 'Profit RTD' usa o servidor RTD do Profit Pro via COM/DCOM. 'Open Fast Socket' usa conexao TCP direta (localhost:557) sem COM.",
         "usado_em": "MercadoDataProvider — todas as estrategias que consomem precos em tempo real.",
-        "precedencia": "Banco de Dados -> 0 (Profit RTD, padrao)",
+        "precedencia": "Banco de Dados -> 'openfast' (Open Fast Socket, padrao)",
     },
     "openfast_send_delay_ms": {
         "descricao": "Delay em milissegundos entre comandos SQT enviados ao servidor Open Fast. 2ms evita sobrecarga no FastTrade. 0 = delay minimo (1ms, max performance).",
@@ -707,7 +707,11 @@ class ParametrosWidget(QWidget):
             if isinstance(widget, QCheckBox):
                 widget.setChecked(bool(val))
             elif isinstance(widget, QComboBox):
-                widget.setCurrentIndex(int(val))
+                if chave == "fonte_market_data":
+                    idx = 1 if str(val) == "openfast" else 0
+                else:
+                    idx = int(val)
+                widget.setCurrentIndex(idx)
             elif isinstance(widget, QLineEdit):
                 widget.setText(str(val))
             elif isinstance(widget, QDoubleSpinBox):
@@ -722,7 +726,10 @@ class ParametrosWidget(QWidget):
                 if isinstance(widget, QCheckBox):
                     valor = 1.0 if widget.isChecked() else 0.0
                 elif isinstance(widget, QComboBox):
-                    valor = int(widget.currentIndex())
+                    if chave == "fonte_market_data":
+                        valor = "openfast" if widget.currentIndex() == 1 else "profit"
+                    else:
+                        valor = int(widget.currentIndex())
                 elif isinstance(widget, QLineEdit):
                     valor = widget.text().strip()
                 else:
