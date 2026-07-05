@@ -750,6 +750,36 @@
       "valor": "0.0",
       "estrategia": "GERAL",
       "descricao": "Delay entre comandos SQT (ms). 5 = 5ms. 0 = sem delay"
+    },
+    {
+      "chave": "taxa_aluguel_habilitado",
+      "valor": "1.0",
+      "estrategia": "GERAL",
+      "descricao": "Habilitar coleta de taxas de aluguel (InvestSite)"
+    },
+    {
+      "chave": "investsite_timeout_ms",
+      "valor": "10000.0",
+      "estrategia": "GERAL",
+      "descricao": "Timeout das requisicoes HTTP ao InvestSite (ms). 10000 = 10s"
+    },
+    {
+      "chave": "investsite_delay_ms",
+      "valor": "500.0",
+      "estrategia": "GERAL",
+      "descricao": "Delay entre requisicoes ao InvestSite (ms). 500 = 0.5s entre cada ativo"
+    },
+    {
+      "chave": "som_arquivo",
+      "valor": "C:\\Windows\\Media\\Windows Balloon.wav",
+      "estrategia": "SOM",
+      "descricao": "Arquivo de som .wav para notificacoes (vazio = beep padrao do sistema)"
+    },
+    {
+      "chave": "som_volume",
+      "valor": "52.0",
+      "estrategia": "SOM",
+      "descricao": "Volume do som de notificacao (0 a 100%)"
     }
   ]
 }

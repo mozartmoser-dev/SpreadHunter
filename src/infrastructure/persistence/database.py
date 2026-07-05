@@ -74,6 +74,7 @@ def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
     _seed_parametros_colar(conn)
     _migrar_fonte_market_data(conn)
     _migrar_feriados_b3(conn)
+    _migrar_calendario_resultados(conn)
     conn.commit()
     return conn
 
@@ -189,6 +190,11 @@ def _seed_parametros_colar(conn):
         ("onda2_dte_min", "7", "PERFORMANCE", "DTE minimo para registrar Onda 2"),
         ("onda2_dte_max", "180", "PERFORMANCE", "DTE maximo para registrar Onda 2"),
         ("box_scan_interval", "5", "BOX_4P", "Ciclos entre varreduras de Box 4P"),
+        ("taxa_aluguel_habilitado", "1", "GERAL", "Habilitar coleta de taxas de aluguel (InvestSite)"),
+        ("investsite_timeout_ms", "10000", "GERAL", "Timeout das requisicoes HTTP ao InvestSite (ms)"),
+        ("investsite_delay_ms", "500", "GERAL", "Delay entre requisicoes ao InvestSite (ms)"),
+        ("som_arquivo", "", "SOM", "Arquivo de som .wav para notificacoes (vazio = beep padrao)"),
+        ("som_volume", "100", "SOM", "Volume do som de notificacao (0-100)"),
     ]
     for p in params + mpp_params + perf_params:
         conn.execute(
@@ -317,6 +323,27 @@ def _migrar_dividendos(conn):
             conn.execute("COMMIT")
     except sqlite3.OperationalError:
         conn.execute("ROLLBACK")
+
+
+def _migrar_calendario_resultados(conn):
+    """Cria tabela calendario_resultados se nao existir."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS calendario_resultados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ativo TEXT NOT NULL,
+            cnpj TEXT,
+            nome_empresa TEXT,
+            data_publicacao DATE NOT NULL,
+            trimestre_referencia TEXT,
+            tipo_documento TEXT DEFAULT 'ITR',
+            tipo_evento TEXT DEFAULT 'previsto',
+            fonte TEXT DEFAULT 'webwallet',
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(ativo, data_publicacao, trimestre_referencia, tipo_evento)
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_calendario_resultados_ativo ON calendario_resultados(ativo)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_calendario_resultados_data ON calendario_resultados(data_publicacao)")
 
 
 SCHEMA = """
@@ -516,4 +543,34 @@ CREATE TABLE IF NOT EXISTS mpp_spread_history (
 
 CREATE INDEX IF NOT EXISTS idx_mpp_spread_history_codigo ON mpp_spread_history(codigo);
 CREATE INDEX IF NOT EXISTS idx_mpp_spread_history_data ON mpp_spread_history(created_at);
+
+CREATE TABLE IF NOT EXISTS taxas_aluguel (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ativo TEXT NOT NULL,
+    data DATE NOT NULL,
+    taxa_atual REAL NOT NULL,
+    taxa_7d REAL NOT NULL,
+    taxa_28d REAL NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(ativo, data)
+);
+
+CREATE INDEX IF NOT EXISTS idx_taxas_aluguel_ativo_data ON taxas_aluguel(ativo, data);
+
+CREATE TABLE IF NOT EXISTS calendario_resultados (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ativo TEXT NOT NULL,
+    cnpj TEXT,
+    nome_empresa TEXT,
+    data_publicacao DATE NOT NULL,
+    trimestre_referencia TEXT,
+    tipo_documento TEXT DEFAULT 'ITR',
+    tipo_evento TEXT DEFAULT 'previsto',
+    fonte TEXT DEFAULT 'webwallet',
+    atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(ativo, data_publicacao, trimestre_referencia, tipo_evento)
+);
+
+CREATE INDEX IF NOT EXISTS idx_calendario_resultados_ativo ON calendario_resultados(ativo);
+CREATE INDEX IF NOT EXISTS idx_calendario_resultados_data ON calendario_resultados(data_publicacao);
 """

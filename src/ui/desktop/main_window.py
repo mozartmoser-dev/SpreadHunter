@@ -1,5 +1,4 @@
 import sys
-import winsound
 from datetime import datetime
 from pathlib import Path
 
@@ -225,82 +224,182 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(separator)
 
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(12)
+        btn_layout.setSpacing(5)
 
-        self.btn_calc = QPushButton("🧮  B&S")
-        self.btn_calc.setProperty("class", "primary")
+        _btn_base = (
+            "QPushButton {{"
+            "  background: transparent;"
+            "  border-style: solid; border-radius: 4px;"
+            "  padding: 4px 8px; min-height: 26px;"
+            "  font-size: 9pt; font-weight: 600;"
+            " }}"
+        )
+        _btn_hover = "QPushButton:hover {{ color: {}; }}".format(Palette.TEXT_PRIMARY)
+
+        self.btn_calc = QPushButton("\u2696  B&S")
+        self.btn_calc.setAutoDefault(False)
         self.btn_calc.clicked.connect(self._abrir_calculadora)
+        self.btn_calc.setToolTip("Calculadora Black-Scholes: precificacao de opcoes, gregas e volatilidade implicita")
+        self.btn_calc.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #4a90d9; border-color: rgba(74,144,217,0.5); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #2d4a7a; border-color: #4a90d9; }}"
+        )
         btn_layout.addWidget(self.btn_calc)
 
-        self.btn_importflash = QPushButton("⚡  Importar")
+        self.btn_importflash = QPushButton("\u26a1  Importar")
+        self.btn_importflash.setAutoDefault(False)
         self.btn_importflash.clicked.connect(self._abrir_importflash)
-        self.btn_importflash.setStyleSheet(f"""
-            QPushButton {{
-                background-color: #1a3a5c; color: {Palette.TEXT_PRIMARY};
-                border: 1px solid #2c6fbb; border-radius: 4px;
-                padding: 6px 12px; font-size: 9pt; font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: #204a77; }}
-        """)
+        self.btn_importflash.setToolTip("Importar instrumentos do opcoes.net.br via API OptionsChain")
+        self.btn_importflash.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #3a8fd4; border-color: rgba(58,143,212,0.5); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #1a3a5c; border-color: #3a8fd4; }}"
+        )
         btn_layout.addWidget(self.btn_importflash)
 
-        self.btn_historico = QPushButton("📊  Histórico")
+        self.btn_historico = QPushButton("\U0001f4c8  Hist.")
+        self.btn_historico.setAutoDefault(False)
         self.btn_historico.clicked.connect(self._abrir_historico)
+        self.btn_historico.setToolTip("Grafico de candles OHLC + volatilidade historica e implicita")
+        self.btn_historico.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #9b59b6; border-color: rgba(155,89,182,0.5); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #2d1f3d; border-color: #9b59b6; }}"
+        )
         btn_layout.addWidget(self.btn_historico)
 
-        self.btn_dividendos = QPushButton("📅  Proventos")
+        self.btn_dividendos = QPushButton("\U0001f4b0  Prov.")
+        self.btn_dividendos.setAutoDefault(False)
         self.btn_dividendos.clicked.connect(self._abrir_dividendos)
+        self.btn_dividendos.setToolTip("Agenda de proventos (dividendos, JCP) via StatusInvest")
+        self.btn_dividendos.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #27ae60; border-color: rgba(39,174,96,0.45); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #1a3d2a; border-color: #27ae60; }}"
+        )
         btn_layout.addWidget(self.btn_dividendos)
 
-        self.btn_feriados = QPushButton("🗓  Feriados")
+        self.btn_resultados = QPushButton("\U0001f4ca  Res.")
+        self.btn_resultados.setAutoDefault(False)
+        self.btn_resultados.clicked.connect(self._abrir_resultados)
+        self.btn_resultados.setToolTip("Agenda de resultados (balanços) via Webwallet + CVM")
+        self.btn_resultados.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #e67e22; border-color: rgba(230,126,34,0.45); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #2d2a1a; border-color: #e67e22; }}"
+        )
+        btn_layout.addWidget(self.btn_resultados)
+
+        self.btn_feriados = QPushButton("\U0001f5d3  Fer.")
+        self.btn_feriados.setAutoDefault(False)
         self.btn_feriados.clicked.connect(self._abrir_feriados)
+        self.btn_feriados.setToolTip("Calendario de feriados B3 — dias nao-uteis para calculo de DU")
+        self.btn_feriados.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #5a5a7a; border-color: rgba(90,90,122,0.5); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #2d2d3d; border-color: #7a7a9a; }}"
+        )
         btn_layout.addWidget(self.btn_feriados)
 
-        self.btn_colar = QPushButton("🛡  Collar")
+        self.btn_taxa_aluguel = QPushButton("\U0001f3e6  Tx Alug.")
+        self.btn_taxa_aluguel.setAutoDefault(False)
+        self.btn_taxa_aluguel.clicked.connect(self._abrir_coletar_taxa_aluguel)
+        self.btn_taxa_aluguel.setToolTip("Coletar e visualizar taxas de aluguel (BTC) via InvestSite")
+        self.btn_taxa_aluguel.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #f1c40f; border-color: rgba(241,196,15,0.40); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #3d3d0e; border-color: #f1c40f; }}"
+        )
+        btn_layout.addWidget(self.btn_taxa_aluguel)
+
+        self.btn_atualizar_tudo = QPushButton("\U0001f504  Atualizar")
+        self.btn_atualizar_tudo.setAutoDefault(False)
+        self.btn_atualizar_tudo.clicked.connect(self._atualizar_tudo)
+        self.btn_atualizar_tudo.setToolTip(
+            "Executar as 4 atualizacoes em sequencia:\n"
+            "1. Importar instrumentos (opcoes.net.br)\n"
+            "2. Coletar proventos (StatusInvest)\n"
+            "3. Coletar taxas de aluguel (InvestSite)\n"
+            "4. Agenda de resultados (Webwallet)"
+        )
+        self.btn_atualizar_tudo.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #27ae60; border-color: rgba(39,174,96,0.45); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #2d4a3a; border-color: #27ae60; }}"
+        )
+        btn_layout.addWidget(self.btn_atualizar_tudo)
+
+        self.btn_colar = QPushButton("\U0001f6e1  Collar")
+        self.btn_colar.setAutoDefault(False)
         self.btn_colar.clicked.connect(self._abrir_colar)
+        self.btn_colar.setToolTip("Collar Protetivo: PUT OTM + CALL OTM — protecao com participacao")
+        self.btn_colar.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #3498db; border-color: rgba(52,152,219,0.5); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #1a3a5c; border-color: #3498db; }}"
+        )
         btn_layout.addWidget(self.btn_colar)
 
-        self.btn_colar_cal = QPushButton("📅  Collar")
+        self.btn_colar_cal = QPushButton("\U0001f4c5  Cal.")
+        self.btn_colar_cal.setAutoDefault(False)
         self.btn_colar_cal.clicked.connect(self._abrir_colar_calendario)
-        self.btn_colar_cal.setStyleSheet(f"""
-            QPushButton {{
-                background-color: #2d1f0e; color: {Palette.TEXT_PRIMARY};
-                border: 1px solid #f39c12; border-radius: 4px;
-                padding: 6px 12px; font-size: 9pt; font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: #3d2f1e; }}
-        """)
+        self.btn_colar_cal.setToolTip("Collar Calendario: PUT longa + PUT curta (ou CALL) — theta positivo")
+        self.btn_colar_cal.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #f39c12; border-color: rgba(243,156,18,0.45); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #2d1f0e; border-color: #f39c12; }}"
+        )
         btn_layout.addWidget(self.btn_colar_cal)
 
-        self.btn_box = QPushButton("📦  Box 4P")
+        self.btn_box = QPushButton("\U0001f4e6  Box 4P")
+        self.btn_box.setAutoDefault(False)
         self.btn_box.clicked.connect(self._abrir_box)
-        self.btn_box.setStyleSheet(f"""
-            QPushButton {{
-                background-color: #3d0e0e; color: {Palette.TEXT_PRIMARY};
-                border: 1px solid #e74c3c; border-radius: 4px;
-                padding: 6px 12px; font-size: 9pt; font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: #5d1e1e; }}
-        """)
+        self.btn_box.setToolTip("Box Spread 4 Pontas: arbitragem sintetica livre de risco direcional")
+        self.btn_box.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #e74c3c; border-color: rgba(231,76,60,0.5); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #3d0e0e; border-color: #e74c3c; }}"
+        )
         btn_layout.addWidget(self.btn_box)
 
-        self.btn_mpp = QPushButton("🎯  MPP")
+        self.btn_mpp = QPushButton("\U0001f3af  MPP")
+        self.btn_mpp.setAutoDefault(False)
         self.btn_mpp.clicked.connect(self._abrir_mpp)
-        self.btn_mpp.setStyleSheet(f"""
-            QPushButton {{
-                background-color: #0e2d1e; color: {Palette.TEXT_PRIMARY};
-                border: 1px solid #22c55e; border-radius: 4px;
-                padding: 6px 12px; font-size: 9pt; font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: #1a3d2e; }}
-        """)
+        self.btn_mpp.setToolTip("MPP: Matriz de Priorizacao — score multicriterio das oportunidades")
+        self.btn_mpp.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #22c55e; border-color: rgba(34,197,94,0.45); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #0e2d1e; border-color: #22c55e; }}"
+        )
         btn_layout.addWidget(self.btn_mpp)
 
-        self.btn_varrer = QPushButton("▶  Ligar")
+        self.btn_varrer = QPushButton("\u25b6  Ligar")
+        self.btn_varrer.setAutoDefault(False)
         self.btn_varrer.setCheckable(True)
         self.btn_varrer.setChecked(False)
-        self.btn_varrer.setProperty("class", "success")
         self.btn_varrer.clicked.connect(self._toggle_monitor)
+        self.btn_varrer.setToolTip("Iniciar/Parar monitoramento RTD em tempo real")
+        self.btn_varrer.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #27ae60; border-color: rgba(39,174,96,0.45); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #1a3d2a; border-color: #27ae60; }}"
+            + "QPushButton:checked {{ background-color: #3d0e0e; color: {}; border-color: #e74c3c; }}".format(Palette.TEXT_PRIMARY)
+            + "QPushButton:checked:hover {{ background-color: #5d1e1e; border-color: #f06050; }}"
+        )
         btn_layout.addWidget(self.btn_varrer)
 
         btn_layout.addSpacing(16)
@@ -728,7 +827,7 @@ class MainWindow(QMainWindow):
                 self._splash_movie.stop()
             self._stack.setCurrentIndex(1)
             QTimer.singleShot(1500, self._fade_anim.start)
-            self.btn_varrer.setText("⏸  Desligar")
+            self.btn_varrer.setText("\u25a0  Desligar")
             self.btn_varrer.setProperty("class", "monitor-active")
             self.btn_varrer.style().unpolish(self.btn_varrer)
             self.btn_varrer.style().polish(self.btn_varrer)
@@ -747,7 +846,7 @@ class MainWindow(QMainWindow):
             elif self._splash_movie:
                 self._splash_movie.start()
             self._transicao_opacity.setOpacity(1.0)
-            self.btn_varrer.setText("▶  Ligar")
+            self.btn_varrer.setText("\u25b6  Ligar")
             self.btn_varrer.setProperty("class", "success")
             self.btn_varrer.style().unpolish(self.btn_varrer)
             self.btn_varrer.style().polish(self.btn_varrer)
@@ -785,12 +884,8 @@ class MainWindow(QMainWindow):
         self._update_scan_status()
 
         if self._som_ativado and self._total_viaveis > 0:
-            self._tocar_beep()
-
-    def _tocar_beep(self):
-        from PySide6.QtCore import QTimer
-        QTimer.singleShot(0, lambda: winsound.Beep(1000, 200))
-        QTimer.singleShot(200, lambda: winsound.Beep(1200, 150))
+            from src.infrastructure.services.som_service import tocar
+            tocar(self.db_path)
 
     def _toggle_som_global(self, ativo: bool):
         self._som_ativado = ativo
@@ -887,7 +982,7 @@ class MainWindow(QMainWindow):
 
     def _on_importflash_finished(self, exit_code: int):
         self.btn_importflash.setEnabled(True)
-        self.btn_importflash.setText("⚡  Importar")
+        self.btn_importflash.setText("\u26a1  Importar")
         if exit_code == 0:
             self._worker.recarregar_instrumentos()
             self._status_left.setText("ImportFlash: concluido com sucesso!")
@@ -906,6 +1001,11 @@ class MainWindow(QMainWindow):
     def _abrir_dividendos(self):
         from src.ui.desktop.dividendos_dialog import DividendosDialog
         dialog = DividendosDialog(self.db_path, self)
+        dialog.exec_()
+
+    def _abrir_resultados(self):
+        from src.ui.desktop.calendario_resultados_dialog import CalendarioResultadosDialog
+        dialog = CalendarioResultadosDialog(self.db_path, self)
         dialog.exec_()
 
     def _abrir_feriados(self):
@@ -1078,3 +1178,290 @@ class MainWindow(QMainWindow):
     def stop_auto_scan(self):
         self.btn_varrer.setChecked(False)
         self._toggle_monitor(False)
+
+    def _abrir_coletar_taxa_aluguel(self):
+        from src.infrastructure.persistence.repositories.repositories import ParametroRepository, TaxaAluguelRepository
+        param_repo = ParametroRepository(self.db_path)
+        habilitado = param_repo.get_by_chave("taxa_aluguel_habilitado")
+        if not habilitado or float(habilitado.valor) == 0.0:
+            QMessageBox.warning(
+                self,
+                "Taxa de Aluguel",
+                "A coleta de taxas de aluguel está desabilitada nos Parâmetros (taxa_aluguel_habilitado = 0)."
+            )
+            return
+
+        taxa_repo = TaxaAluguelRepository(self.db_path)
+        dados = taxa_repo.get_latest_all()
+        if dados:
+            self._abrir_visualizar_taxas()
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Taxa de Aluguel",
+            "Nenhuma taxa de aluguel cadastrada no banco.\n\nDeseja coletar agora do site InvestSite?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        self.btn_taxa_aluguel.setEnabled(False)
+        self.btn_taxa_aluguel.setText("⏳ Coletando...")
+        self._status_left.setText("InvestSite: Iniciando coleta das taxas de aluguel...")
+        self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.YELLOW))
+
+        class _ColetaTaxaThread(QThread):
+            finished = Signal(dict)
+            progress = Signal(int, int, str)
+
+            def __init__(self, db_path):
+                super().__init__()
+                self.db_path = db_path
+
+            def run(self):
+                from src.application.use_cases.coletar_taxas_aluguel import ColetarTaxasAluguelUseCase
+                def cb(corrente, total, ativo):
+                    self.progress.emit(corrente, total, ativo)
+                
+                try:
+                    use_case = ColetarTaxasAluguelUseCase(self.db_path)
+                    resumo = use_case.executar(callback_progresso=cb)
+                except Exception as e:
+                    resumo = {"status": "erro", "sucessos": 0, "falhas": 0, "erros": [str(e)]}
+                self.finished.emit(resumo)
+
+        self._coleta_thread = _ColetaTaxaThread(self.db_path)
+        self._coleta_thread.progress.connect(
+            lambda corr, tot, ativo: self._status_left.setText(
+                f"InvestSite: Coletando {ativo} ({corr}/{tot})..."
+            )
+        )
+        self._coleta_thread.finished.connect(self._on_coleta_taxa_finished)
+        self._coleta_thread.start()
+
+    def _on_coleta_taxa_finished(self, resumo: dict):
+        self.btn_taxa_aluguel.setEnabled(True)
+        self.btn_taxa_aluguel.setText("\U0001f3e6  Tx Alug.")
+        
+        status = resumo.get("status", "sucesso")
+        if status == "sucesso":
+            self._status_left.setText("InvestSite: Coleta de taxas concluída!")
+            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
+
+            QMessageBox.information(self, "Taxa de Aluguel", msg)
+            self._abrir_visualizar_taxas()
+        else:
+            self._status_left.setText("InvestSite: Erro ao coletar taxas.")
+            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.RED))
+            erros = resumo.get("erros", ["Erro desconhecido"])
+            QMessageBox.critical(self, "Taxa de Aluguel", f"A coleta falhou:\n{erros[0]}")
+
+    def _abrir_visualizar_taxas(self):
+        from src.infrastructure.persistence.repositories.repositories import TaxaAluguelRepository
+        from src.ui.desktop.taxa_aluguel_dialog import TaxaAluguelDialog
+
+        repo = TaxaAluguelRepository(self.db_path)
+        dados = repo.get_latest_all()
+        if not dados:
+            QMessageBox.information(self, "Taxa de Aluguel", "Nenhuma taxa de aluguel cadastrada.\n\nClique em Tx Aluguel para coletar do InvestSite.")
+            return
+
+        dlg = TaxaAluguelDialog(self.db_path, self)
+        dlg.exec_()
+
+    def _atualizar_tudo(self):
+        self.btn_atualizar_tudo.setEnabled(False)
+        self.btn_atualizar_tudo.setText("⏳ Atualizando...")
+        self.btn_importflash.setEnabled(False)
+        self.btn_dividendos.setEnabled(False)
+        self.btn_taxa_aluguel.setEnabled(False)
+        self.btn_resultados.setEnabled(False)
+
+        class _AtualizarTudoThread(QThread):
+            finished = Signal(dict)
+            progress_etapa = Signal(int, str)
+            progress_item = Signal(int, int, str)
+
+            def __init__(self, db_path):
+                super().__init__()
+                self.db_path = db_path
+
+            def run(self):
+                resultado = {"status": "ok", "etapas": {}}
+
+                # --- Etapa 1: ⚡ Importar ---
+                self.progress_etapa.emit(1, "[1/4] Importando instrumentos...")
+                try:
+                    import io, contextlib
+                    from scripts.validar_opcoes.importflash import main
+
+                    captura = io.StringIO()
+                    with contextlib.redirect_stdout(captura), contextlib.redirect_stderr(captura):
+                        rc = main()
+                    resultado["etapas"]["importflash"] = {"ok": rc == 0}
+                except Exception as e:
+                    resultado["etapas"]["importflash"] = {"ok": False, "erro": str(e)}
+
+                # --- Etapa 2: 📅 Proventos ---
+                self.progress_etapa.emit(2, "[2/4] Coletando proventos...")
+                try:
+                    from src.infrastructure.providers.dividendos_statusinvest import DividendosStatusInvestProvider
+                    from src.infrastructure.persistence.repositories.repositories import (
+                        DividendoRepository,
+                        InstrumentoRepository,
+                    )
+
+                    provider = DividendosStatusInvestProvider()
+                    div_repo = DividendoRepository(self.db_path)
+                    inst_repo = InstrumentoRepository(self.db_path)
+                    instrumentos = inst_repo.get_all()
+                    ativos = sorted(list(set(inst.ativo for inst in instrumentos)))
+
+                    total_proventos = 0
+                    total_ativos = len(ativos)
+                    for i, ativo in enumerate(ativos):
+                        self.progress_item.emit(i + 1, total_ativos, ativo)
+                        dividendos = provider.buscar_proventos(ativo)
+                        if dividendos:
+                            div_repo.save_batch(dividendos)
+                            total_proventos += len(dividendos)
+
+                    resultado["etapas"]["proventos"] = {
+                        "ok": True,
+                        "proventos": total_proventos,
+                        "ativos": total_ativos,
+                    }
+                except Exception as e:
+                    resultado["etapas"]["proventos"] = {"ok": False, "erro": str(e)}
+
+                # --- Etapa 3: 📊 Taxas de Aluguel ---
+                self.progress_etapa.emit(3, "[3/4] Coletando taxas de aluguel...")
+                try:
+                    from src.application.use_cases.coletar_taxas_aluguel import ColetarTaxasAluguelUseCase
+                    from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+
+                    param_repo = ParametroRepository(self.db_path)
+                    hab = param_repo.get_by_chave("taxa_aluguel_habilitado")
+                    if not hab or float(hab.valor) == 0.0:
+                        resultado["etapas"]["taxas"] = {"ok": True, "pulado": "desabilitado"}
+                    else:
+                        use_case = ColetarTaxasAluguelUseCase(self.db_path)
+
+                        def cb(corrente, total, ativo):
+                            self.progress_item.emit(corrente, total, ativo)
+
+                        resumo = use_case.executar(callback_progresso=cb)
+                        resultado["etapas"]["taxas"] = {
+                            "ok": resumo["status"] == "sucesso",
+                            "sucessos": resumo["sucessos"],
+                            "falhas": resumo["falhas"],
+                        }
+                except Exception as e:
+                    resultado["etapas"]["taxas"] = {"ok": False, "erro": str(e)}
+
+                # --- Etapa 4: 📅 Agenda de Resultados ---
+                self.progress_etapa.emit(4, "[4/4] Coletando agenda de resultados...")
+                try:
+                    from src.infrastructure.providers.calendario_resultados_webwallet import CalendarioResultadosWebwalletProvider
+                    from src.infrastructure.persistence.repositories.repositories import CalendarioResultadosRepository
+
+                    crepo = CalendarioResultadosRepository(self.db_path)
+                    web = CalendarioResultadosWebwalletProvider()
+
+                    self.progress_item.emit(1, 4, "Webwallet (previstos)...")
+                    previstos = web.buscar_todos()
+                    crepo.delete_by_fonte("webwallet")
+                    crepo.save_batch(previstos)
+
+                    resultado["etapas"]["resultados"] = {
+                        "ok": True,
+                        "previstos": len(previstos),
+                    }
+                except Exception as e:
+                    resultado["etapas"]["resultados"] = {"ok": False, "erro": str(e)}
+
+                self.finished.emit(resultado)
+
+        self._atualizar_tudo_started = False
+        self._atualizar_tudo_progress_etapa = 0
+
+        thread = _AtualizarTudoThread(self.db_path)
+        thread.progress_etapa.connect(
+            lambda etapa, msg: self._status_left.setText(msg)
+            and self._status_left.setStyleSheet(
+                "color: {}; font-weight: bold;".format(
+                    {1: Palette.ACCENT_BLUE_BRIGHT, 2: Palette.GREEN, 3: Palette.YELLOW, 4: Palette.ORANGE}.get(
+                        etapa, Palette.ORANGE
+                    )
+                )
+            )
+        )
+        thread.progress_item.connect(
+            lambda corr, tot, ativo: self._status_left.setText(
+                f"[{ {1: '1', 2: '2', 3: '3', 4: '4'}.get(self._atualizar_tudo_progress_etapa, '?')}/4] "
+                f"Coletando {ativo} ({corr}/{tot})..."
+            )
+        )
+        thread.finished.connect(self._on_atualizar_tudo_finished)
+        self._atualizar_tudo_thread = thread
+        thread.start()
+
+    def _on_atualizar_tudo_finished(self, resultado: dict):
+        self.btn_atualizar_tudo.setEnabled(True)
+        self.btn_atualizar_tudo.setText("\U0001f504  Atualizar")
+        self.btn_importflash.setEnabled(True)
+        self.btn_dividendos.setEnabled(True)
+        self.btn_taxa_aluguel.setEnabled(True)
+        self.btn_resultados.setEnabled(True)
+
+        etapas = resultado.get("etapas", {})
+        imp = etapas.get("importflash", {})
+        prov = etapas.get("proventos", {})
+        tax = etapas.get("taxas", {})
+        res = etapas.get("resultados", {})
+
+        imp_ok = imp.get("ok", False)
+        prov_ok = prov.get("ok", False)
+        tax_ok = tax.get("ok", False)
+
+        linhas = []
+        linhas.append(f"⚡ Importar: {'OK' if imp_ok else 'FALHA'}")
+        if not imp_ok:
+            linhas.append(f"   → {imp.get('erro', 'erro desconhecido')}")
+
+        linhas.append(f"📅 Proventos: {'OK' if prov_ok else 'FALHA'}")
+        if prov_ok:
+            linhas.append(f"   → {prov.get('proventos', 0)} proventos em {prov.get('ativos', 0)} ativos")
+        else:
+            linhas.append(f"   → {prov.get('erro', 'erro desconhecido')}")
+
+        linhas.append(f"📊 Taxas Aluguel: {'OK' if tax_ok else 'FALHA'}")
+        if tax_ok:
+            if "pulado" in tax:
+                linhas.append(f"   → desabilitado nos parâmetros")
+            else:
+                linhas.append(f"   → {tax.get('sucessos', 0)} sucessos, {tax.get('falhas', 0)} falhas")
+        else:
+            linhas.append(f"   → {tax.get('erro', 'erro desconhecido')}")
+
+        res_ok = res.get("ok", False)
+        linhas.append(f"📅 Resultados: {'OK' if res_ok else 'FALHA'}")
+        if res_ok:
+            linhas.append(f"   → {res.get('previstos', 0)} previstos")
+        else:
+            linhas.append(f"   → {res.get('erro', 'erro desconhecido')}")
+
+        msg = "\n".join(linhas)
+
+        if imp_ok:
+            self._worker.recarregar_instrumentos()
+
+        self._status_left.setText("Atualização completa concluída!")
+        self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
+
+        QMessageBox.information(self, "Atualização Completa", msg)
+
+        if prov_ok or tax_ok:
+            self._abrir_visualizar_taxas()

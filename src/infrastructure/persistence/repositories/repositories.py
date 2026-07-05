@@ -9,6 +9,7 @@ from src.domain.entities.oportunidade import Oportunidade, ClassificacaoOp
 from src.domain.entities.estrutura_operacional import EstruturaOperacional, TipoEstrutura
 from src.domain.entities.perna_operacao import PernaOperacao, Lado
 from src.domain.entities.parametro_operacional import ParametroOperacional
+from src.domain.entities.taxa_aluguel import TaxaAluguel
 from src.infrastructure.persistence.database import get_connection
 
 
@@ -774,5 +775,193 @@ class FeriadoB3Repository:
             cursor = conn.execute("DELETE FROM feriados_b3")
             conn.commit()
             return cursor.rowcount
+        finally:
+            conn.close()
+
+
+class TaxaAluguelRepository:
+    def __init__(self, db_path=None):
+        self.db_path = db_path
+
+    def save(self, taxa: TaxaAluguel) -> TaxaAluguel:
+        conn = get_connection(self.db_path)
+        try:
+            cursor = conn.execute(
+                """INSERT INTO taxas_aluguel (ativo, data, taxa_atual, taxa_7d, taxa_28d)
+                   VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(ativo, data) DO UPDATE SET
+                       taxa_atual=excluded.taxa_atual,
+                       taxa_7d=excluded.taxa_7d,
+                       taxa_28d=excluded.taxa_28d,
+                       created_at=CURRENT_TIMESTAMP""",
+                (taxa.ativo, taxa.data.isoformat(), taxa.taxa_atual, taxa.taxa_7d, taxa.taxa_28d)
+            )
+            conn.commit()
+            taxa.id = cursor.lastrowid
+            return taxa
+        finally:
+            conn.close()
+
+    def get_latest_by_ativo(self, ativo: str) -> TaxaAluguel | None:
+        conn = get_connection(self.db_path)
+        try:
+            row = conn.execute(
+                "SELECT * FROM taxas_aluguel WHERE ativo = ? ORDER BY data DESC LIMIT 1",
+                (ativo,)
+            ).fetchone()
+            if not row:
+                return None
+            return self._row_to_entity(row)
+        finally:
+            conn.close()
+
+    def get_latest_all(self) -> dict[str, TaxaAluguel]:
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                """SELECT t1.* FROM taxas_aluguel t1
+                   INNER JOIN (
+                       SELECT ativo, MAX(data) as max_data FROM taxas_aluguel GROUP BY ativo
+                   ) t2 ON t1.ativo = t2.ativo AND t1.data = t2.max_data"""
+            ).fetchall()
+            return {row["ativo"]: self._row_to_entity(row) for row in rows}
+        finally:
+            conn.close()
+
+    def _row_to_entity(self, row) -> TaxaAluguel:
+        return TaxaAluguel(
+            id=row["id"],
+            ativo=row["ativo"],
+            data=_parse_date(row["data"]),
+            taxa_atual=row["taxa_atual"],
+            taxa_7d=row["taxa_7d"],
+            taxa_28d=row["taxa_28d"],
+            created_at=row["created_at"]
+        )
+
+
+COLUNAS_CALENDARIO_RESULTADOS = "ativo, cnpj, nome_empresa, data_publicacao, trimestre_referencia, tipo_documento, tipo_evento, fonte"
+
+class CalendarioResultadosRepository:
+    def __init__(self, db_path=None):
+        self.db_path = db_path
+
+    def save_batch(self, items: list[dict]) -> int:
+        if not items:
+            return 0
+        conn = get_connection(self.db_path)
+        try:
+            conn.executemany(
+                f"""INSERT INTO calendario_resultados ({COLUNAS_CALENDARIO_RESULTADOS})
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(ativo, data_publicacao, trimestre_referencia, tipo_evento) DO UPDATE SET
+                       cnpj=excluded.cnpj,
+                       nome_empresa=excluded.nome_empresa,
+                       tipo_documento=excluded.tipo_documento,
+                       fonte=excluded.fonte,
+                       atualizado_em=CURRENT_TIMESTAMP""",
+                [(d["ativo"], d.get("cnpj"), d.get("nome_empresa"),
+                  d["data_publicacao"], d.get("trimestre_referencia"),
+                  d.get("tipo_documento", "ITR"), d.get("tipo_evento", "previsto"),
+                  d.get("fonte", "webwallet"))
+                 for d in items]
+            )
+            conn.commit()
+            return len(items)
+        finally:
+            conn.close()
+
+    def get_all(self) -> list[dict]:
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM calendario_resultados ORDER BY data_publicacao, ativo"
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_proximos(self, dias: int = 60) -> list[dict]:
+        from datetime import date, timedelta
+        hoje = date.today().isoformat()
+        fim = (date.today() + timedelta(days=dias)).isoformat()
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM calendario_resultados WHERE data_publicacao >= ? AND data_publicacao <= ? ORDER BY data_publicacao, ativo",
+                (hoje, fim)
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_by_ativo(self, ativo: str) -> list[dict]:
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM calendario_resultados WHERE ativo = ? ORDER BY data_publicacao DESC",
+                (ativo,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_publicados(self, ativo: str = "") -> list[dict]:
+        conn = get_connection(self.db_path)
+        try:
+            if ativo:
+                rows = conn.execute(
+                    "SELECT * FROM calendario_resultados WHERE tipo_evento = 'publicado' AND ativo = ? ORDER BY data_publicacao DESC",
+                    (ativo,)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM calendario_resultados WHERE tipo_evento = 'publicado' ORDER BY data_publicacao DESC"
+                ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_previstos(self, dias: int = 60) -> list[dict]:
+        from datetime import date, timedelta
+        hoje = date.today().isoformat()
+        fim = (date.today() + timedelta(days=dias)).isoformat()
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM calendario_resultados WHERE tipo_evento = 'previsto' AND data_publicacao >= ? AND data_publicacao <= ? ORDER BY data_publicacao, ativo",
+                (hoje, fim)
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def delete_all(self) -> int:
+        conn = get_connection(self.db_path)
+        try:
+            cursor = conn.execute("DELETE FROM calendario_resultados")
+            conn.commit()
+            return cursor.rowcount
+        finally:
+            conn.close()
+
+    def delete_by_fonte(self, fonte: str) -> int:
+        conn = get_connection(self.db_path)
+        try:
+            cursor = conn.execute(
+                "DELETE FROM calendario_resultados WHERE fonte = ?", (fonte,)
+            )
+            conn.commit()
+            return cursor.rowcount
+        finally:
+            conn.close()
+
+    def get_cnpj_ticker_map(self) -> dict[str, str]:
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT DISTINCT cnpj, ativo FROM calendario_resultados WHERE cnpj IS NOT NULL AND cnpj != ''"
+            ).fetchall()
+            return {r["cnpj"]: r["ativo"] for r in rows}
         finally:
             conn.close()

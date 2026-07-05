@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QGroupBox,
     QDoubleSpinBox, QPushButton, QLabel, QScrollArea, QFrame,
     QCheckBox, QComboBox, QLineEdit, QMessageBox, QHBoxLayout,
+    QSlider, QFileDialog,
 )
 from PySide6.QtCore import Qt
 
@@ -29,6 +30,7 @@ ESTRATEGIA_LABELS = {
     "BOX_SINTETICO": "BOX Sintetico / Pescaria Basket",
     "PERFORMANCE": "Ajuste de Performance",
     "TELEGRAM": "Notificações Telegram",
+    "SOM": "Som de Notificação (🔔)",
     "COLAR": "Colar Protetivo",
     "COLLAR_CALENDARIO": "Collar Calendário",
     "BOX_4P": "Box Spread 4 Pontas",
@@ -41,6 +43,7 @@ ESTRATEGIA_COLORS = {
     "BOX_SINTETICO": Palette.PURPLE,
     "PERFORMANCE": Palette.YELLOW,
     "TELEGRAM": Palette.GREEN,
+    "SOM": "#e67e22",
     "COLAR": "#1abc9c",
     "COLLAR_CALENDARIO": "#f39c12",
     "BOX_4P": "#e74c3c",
@@ -54,6 +57,9 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("fonte_market_data", "Fonte de Market Data"),
         ("openfast_send_delay_ms", "Delay SQT (ms)"),
         ("rtd_refresh_timeout_ms", "Timeout RTD RefreshData (ms, 0=sem timeout)"),
+        ("taxa_aluguel_habilitado", "Habilitar Coleta Taxa Aluguel"),
+        ("investsite_timeout_ms", "Timeout InvestSite (ms)"),
+        ("investsite_delay_ms", "Delay entre Requisições InvestSite (ms)"),
     ],
     "BOX": [
         ("premio_risco_box", "Premio risco BOX (x CDI)"),
@@ -93,6 +99,11 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("notif_telegram_enable", "Habilitar Telegram"),
         ("telegram_bot_token", "Token do Bot Telegram"),
         ("telegram_chat_id", "ID do Chat Telegram"),
+        ("telegram_cleanup_timeout", "Timeout limpeza historico (s)"),
+    ],
+    "SOM": [
+        ("som_arquivo", "Arquivo de Som (.wav)"),
+        ("som_volume", "Volume (0-100%)"),
     ],
     "COLAR": [
         ("premio_risco_colar", "Premio risco Colar (x CDI)"),
@@ -168,6 +179,21 @@ PARAMETROS_INFO = {
         "descricao": "Delay em milissegundos entre comandos SQT enviados ao servidor Open Fast. 2ms evita sobrecarga no FastTrade. 0 = delay minimo (1ms, max performance).",
         "usado_em": "OpenFastSocketAdapter — controle de taxa de envio de assinaturas.",
         "precedencia": "Banco de Dados -> 2 (padrao)",
+    },
+    "taxa_aluguel_habilitado": {
+        "descricao": "Habilita a coleta diária automática/manual das taxas de aluguel (BTC) de ações diretamente do site InvestSite.",
+        "usado_em": "ColetarTaxasAluguelUseCase e botão da barra de ferramentas principal.",
+        "precedencia": "Banco de Dados -> Ativado (padrão)",
+    },
+    "investsite_timeout_ms": {
+        "descricao": "Timeout em milissegundos para cada requisição HTTP ao InvestSite. Se a página demorar mais que este valor, o ativo é considerado falha.",
+        "usado_em": "InvestSiteClient.fetch_taxa_aluguel — timeout do requests.get().",
+        "precedencia": "Banco de Dados -> 10000 (padrão, 10 segundos)",
+    },
+    "investsite_delay_ms": {
+        "descricao": "Delay em milissegundos entre requisições consecutivas ao InvestSite durante a coleta. Evita sobrecarga no servidor e bloqueio de IP. A coleta de ~194 ativos com 500ms leva ~97 segundos.",
+        "usado_em": "ColetarTaxasAluguelUseCase.executar — time.sleep() entre ativos.",
+        "precedencia": "Banco de Dados -> 500 (padrão, 0.5 segundos)",
     },
     "premio_risco_box": {
         "descricao": "Retorno minimo exigido para aceptar uma operacao de BOX Comprado 3 Pontas, medido em vezes o CDI. Exemplo: 1.3 significa que a operacao precisa render pelo menos 1.3x o CDI para ser viavel.",
@@ -313,6 +339,19 @@ PARAMETROS_INFO = {
         "descricao": "ID do chat ou grupo do Telegram para onde as mensagens serao enviadas.",
         "usado_em": "Servico de notificacao Telegram.",
         "precedencia": "Banco de Dados",
+    },
+    "som_arquivo": {
+        "descricao": "Caminho para um arquivo .wav que será tocado quando houver oportunidades viáveis (🔔). "
+                     "Deixe vazio para usar o beep padrão do sistema (winsound). "
+                     "Sons do Windows em C:\\Windows\\Media\\ podem ser usados (ex: 'Windows Notify.wav').",
+        "usado_em": "som_service.tocar() — todos os diálogos com sino (Collar, Collar Cal., Box 4P, MPP, main window).",
+        "precedencia": "Banco de Dados -> Vazio (beep padrão)",
+    },
+    "som_volume": {
+        "descricao": "Volume do som de notificação, de 0 (mudo) a 100 (máximo). "
+                     "Afeta apenas quando um arquivo .wav está configurado. O beep padrão ignora este volume.",
+        "usado_em": "som_service.tocar() — QSoundEffect.setVolume().",
+        "precedencia": "Banco de Dados -> 100 (padrão)",
     },
     "premio_risco_colar": {
         "descricao": "Retorno minimo exigido para aceptar um Colar Protetivo, em vezes o CDI. O Colar compra PUT e vende CALL para proteger uma posicao em acoes.",
@@ -546,7 +585,7 @@ class ParametrosWidget(QWidget):
             form.setContentsMargins(12, 20, 12, 12)
 
             for chave, display in params:
-                if "perf_carga_inteligente" in chave or "notif_telegram_enable" in chave or "box_soh_europeia" in chave or "mpp_habilitado" in chave:
+                if "perf_carga_inteligente" in chave or "notif_telegram_enable" in chave or "box_soh_europeia" in chave or "mpp_habilitado" in chave or "taxa_aluguel_habilitado" in chave:
                     widget = QCheckBox("Habilitado")
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
                 elif "tema_visual" in chave:
@@ -558,6 +597,90 @@ class ParametrosWidget(QWidget):
                 elif "telegram_bot_token" in chave or "telegram_chat_id" in chave or "_list_" in chave:
                     widget = QLineEdit()
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
+                elif "som_arquivo" in chave:
+                    container = QWidget()
+                    h = QHBoxLayout(container)
+                    h.setContentsMargins(0, 0, 0, 0)
+                    h.setSpacing(6)
+
+                    widget = QComboBox()
+                    widget.setStyleSheet("""
+                        QComboBox {
+                            color: #e0e0e0; background-color: #1a1a2e;
+                            border: 1px solid #2d2d44; border-radius: 4px;
+                            padding: 4px 8px; min-width: 280px;
+                        }
+                        QComboBox::drop-down { border: 0; width: 20px; }
+                        QComboBox QAbstractItemView {
+                            background-color: #1a1a2e; color: #e0e0e0;
+                            selection-background-color: #2d4a7a;
+                            selection-color: #e0e0e0;
+                            border: 1px solid #2d2d44;
+                        }
+                    """)
+                    widget.setToolTip("Som de notificacao — escolha um arquivo .wav ou Beep do sistema")
+
+                    from pathlib import Path
+                    media = Path(r"C:\Windows\Media")
+                    if media.exists():
+                        widget.addItem("-- Beep do sistema (padrao) --", "")
+                        for wav in sorted(media.glob("*.wav")):
+                            widget.addItem(wav.stem, str(wav))
+                    else:
+                        widget.addItem("-- Beep do sistema (padrao) --", "")
+                    widget.addItem("-- Personalizado... --", "__custom__")
+                    widget.setCurrentIndex(0)
+                    self._som_arquivo_widget = widget
+                    h.addWidget(widget, stretch=1)
+
+                    widget.currentIndexChanged.connect(
+                        lambda idx: self._on_som_combo_changed(widget)
+                    )
+
+                    btn_test = QPushButton("Testar")
+                    btn_test.setFixedSize(50, 24)
+                    btn_test.setToolTip("Testar som atual")
+                    btn_test.setStyleSheet(
+                        "QPushButton {{ background: {}; color: {}; border: 1px solid {}; border-radius: 4px; font-size: 8.5pt; font-weight: bold; padding: 0; }}"
+                        "QPushButton:hover {{ background: {}; }}".format(
+                            Palette.BG_HOVER, Palette.GREEN, Palette.BORDER, Palette.GREEN_DIM
+                        )
+                    )
+                    btn_test.clicked.connect(lambda checked: self._testar_som())
+                    h.addWidget(btn_test)
+
+                    self._widgets[chave] = widget
+                    widget = container
+                elif "som_volume" in chave:
+                    container = QWidget()
+                    h = QHBoxLayout(container)
+                    h.setContentsMargins(0, 0, 0, 0)
+                    h.setSpacing(10)
+
+                    widget = QSlider(Qt.Horizontal)
+                    widget.setRange(0, 100)
+                    widget.setStyleSheet("""
+                        QSlider::groove:horizontal {
+                            background: #2d2d44; height: 6px; border-radius: 3px;
+                        }
+                        QSlider::handle:horizontal {
+                            background: #e67e22; width: 14px; height: 14px;
+                            border-radius: 7px; margin: -4px 0;
+                        }
+                        QSlider::sub-page:horizontal {
+                            background: #e67e22; border-radius: 3px;
+                        }
+                    """)
+                    h.addWidget(widget, stretch=1)
+
+                    lbl_vol = QLabel("100%")
+                    lbl_vol.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold; min-width: 36px;".format(Palette.TEXT_PRIMARY))
+                    lbl_vol.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    widget.valueChanged.connect(lambda v, l=lbl_vol: l.setText(f"{v}%"))
+                    h.addWidget(lbl_vol)
+
+                    self._widgets[chave] = widget
+                    widget = container
                 else:
                     widget = NoWheelSpinBox()
                     if chave == "perf_range_min":
@@ -647,7 +770,8 @@ class ParametrosWidget(QWidget):
                 label_layout.addStretch()
 
                 form.addRow(label_row, widget)
-                self._widgets[chave] = widget
+                if chave not in ("som_arquivo", "som_volume"):
+                    self._widgets[chave] = widget
 
             group.setLayout(form)
             layout.addWidget(group)
@@ -707,13 +831,24 @@ class ParametrosWidget(QWidget):
             if isinstance(widget, QCheckBox):
                 widget.setChecked(bool(val))
             elif isinstance(widget, QComboBox):
-                if chave == "fonte_market_data":
+                if chave == "som_arquivo":
+                    val_str = str(val).strip()
+                    for i in range(widget.count()):
+                        if widget.itemData(i) == val_str:
+                            widget.setCurrentIndex(i)
+                            break
+                    else:
+                        widget.setCurrentIndex(0)
+                elif chave == "fonte_market_data":
                     idx = 1 if str(val) == "openfast" else 0
+                    widget.setCurrentIndex(idx)
                 else:
                     idx = int(val)
-                widget.setCurrentIndex(idx)
+                    widget.setCurrentIndex(idx)
             elif isinstance(widget, QLineEdit):
                 widget.setText(str(val))
+            elif isinstance(widget, QSlider):
+                widget.setValue(int(float(val)))
             elif isinstance(widget, QDoubleSpinBox):
                 if chave in self._pct_chaves:
                     widget.setValue(val * 100)
@@ -726,12 +861,16 @@ class ParametrosWidget(QWidget):
                 if isinstance(widget, QCheckBox):
                     valor = 1.0 if widget.isChecked() else 0.0
                 elif isinstance(widget, QComboBox):
-                    if chave == "fonte_market_data":
+                    if chave == "som_arquivo":
+                        valor = widget.currentData() or ""
+                    elif chave == "fonte_market_data":
                         valor = "openfast" if widget.currentIndex() == 1 else "profit"
                     else:
                         valor = int(widget.currentIndex())
                 elif isinstance(widget, QLineEdit):
                     valor = widget.text().strip()
+                elif isinstance(widget, QSlider):
+                    valor = float(widget.value())
                 else:
                     valor = widget.value()
                     if chave in self._pct_chaves:
@@ -788,3 +927,25 @@ class ParametrosWidget(QWidget):
                 json.dump(data, f, indent=2, ensure_ascii=False)
         except Exception:
             pass
+
+    def _on_som_combo_changed(self, combo: QComboBox):
+        data = combo.currentData()
+        if data == "__custom__":
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Selecionar arquivo de som (.wav)",
+                r"C:\Windows\Media",
+                "Arquivos WAV (*.wav);;Todos (*.*)"
+            )
+            if path:
+                combo.blockSignals(True)
+                combo.insertItem(combo.count() - 1, Path(path).stem, path)
+                combo.blockSignals(False)
+                combo.setCurrentIndex(combo.count() - 2)
+            else:
+                combo.blockSignals(True)
+                combo.setCurrentIndex(0)
+                combo.blockSignals(False)
+
+    def _testar_som(self):
+        from src.infrastructure.services.som_service import testar
+        testar(self.db_path)

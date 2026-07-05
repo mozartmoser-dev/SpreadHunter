@@ -1,5 +1,4 @@
 import logging
-import winsound
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
@@ -12,6 +11,7 @@ from PySide6.QtGui import QFont, QColor, QBrush
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
+from src.ui.desktop.copy_utils import copiar_texto_formatado, copiar_figura_clipboard, salvar_figura_arquivo
 from src.ui.desktop.theme import Palette
 
 CUSTOS_DISCLOSURE = (
@@ -1045,6 +1045,11 @@ class ColarCalendarioDialog(QDialog):
         layout.addWidget(texto, stretch=1)
 
         btn_row = QHBoxLayout()
+        btn_copiar = QPushButton("📋 Copiar")
+        btn_copiar.setAutoDefault(False)
+        btn_copiar.setToolTip("Copiar texto formatado (HTML) + texto limpo")
+        btn_copiar.clicked.connect(lambda: copiar_texto_formatado(texto))
+        btn_row.addWidget(btn_copiar)
         btn_row.addStretch()
         btn_fechar = QPushButton("Fechar")
         btn_fechar.setAutoDefault(False)
@@ -1135,7 +1140,7 @@ class ColarCalendarioDialog(QDialog):
             ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
             ax.axvline(S0, color=WHITE, linewidth=0.7, linestyle='--', alpha=0.8, label=f'Spot {S0:.2f}')
             ax.axvline(Kp, color=RED, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Put {Kp:.2f}')
-            ax.axvline(Kc, color=ACCENT, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Call {Kc:.2f}')
+            ax.axvline(Kc, color=GREEN, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Call {Kc:.2f}')
 
             for n in [-2, -1, 1, 2]:
                 px = S0 + n * sigma_spot
@@ -1243,10 +1248,23 @@ class ColarCalendarioDialog(QDialog):
             footer.setTextFormat(Qt.RichText)
             payoff_layout.addWidget(footer)
 
+            btn_row = QHBoxLayout()
+            btn_copiar_img = QPushButton("📋 Copiar Imagem")
+            btn_copiar_img.setAutoDefault(False)
+            btn_copiar_img.setToolTip("Copiar gráfico como imagem PNG para o clipboard")
+            btn_copiar_img.clicked.connect(lambda: copiar_figura_clipboard(fig))
+            btn_row.addWidget(btn_copiar_img)
+            btn_salvar = QPushButton("💾 Salvar PNG")
+            btn_salvar.setAutoDefault(False)
+            btn_salvar.setToolTip("Salvar gráfico como arquivo PNG")
+            btn_salvar.clicked.connect(lambda: salvar_figura_arquivo(fig, self))
+            btn_row.addWidget(btn_salvar)
+            btn_row.addStretch()
             btn_close = QPushButton("Fechar")
             btn_close.setAutoDefault(False)
             btn_close.clicked.connect(payoff_dialog.close)
-            payoff_layout.addWidget(btn_close, alignment=Qt.AlignmentFlag.AlignRight)
+            btn_row.addWidget(btn_close)
+            payoff_layout.addLayout(btn_row)
             payoff_dialog.exec_()
         except Exception as e:
             logger.exception("Erro no payoff: %s", e)
@@ -1319,7 +1337,7 @@ class ColarCalendarioDialog(QDialog):
                 linhas.append((preco_atual, WHITE, WHITE, f'Ativo R${preco_atual:.2f}'))
             for strike, cor_linha, cor_box, rotulo in [
                 (strike_put, RED, '#4caf50', 'C-PUT'),
-                (strike_call, ACCENT, '#ff3355', 'V-CALL'),
+                (strike_call, GREEN, '#ff3355', 'V-CALL'),
             ]:
                 if strike is not None and strike > 0:
                     linhas.append((strike, cor_linha, cor_box, f'{rotulo} R${strike:.2f}'))
@@ -1417,6 +1435,16 @@ class ColarCalendarioDialog(QDialog):
         canvas = FigureCanvas(fig)
         layout.addWidget(canvas, stretch=1)
         btn_row = QHBoxLayout()
+        btn_copiar_img = QPushButton("📋 Copiar Imagem")
+        btn_copiar_img.setAutoDefault(False)
+        btn_copiar_img.setToolTip("Copiar gráfico como imagem PNG para o clipboard")
+        btn_copiar_img.clicked.connect(lambda: copiar_figura_clipboard(fig))
+        btn_row.addWidget(btn_copiar_img)
+        btn_salvar = QPushButton("💾 Salvar PNG")
+        btn_salvar.setAutoDefault(False)
+        btn_salvar.setToolTip("Salvar gráfico como arquivo PNG")
+        btn_salvar.clicked.connect(lambda: salvar_figura_arquivo(fig, self))
+        btn_row.addWidget(btn_salvar)
         btn_row.addStretch()
         btn_fechar = QPushButton("Fechar")
         btn_fechar.setAutoDefault(False)
@@ -1614,7 +1642,7 @@ class ColarCalendarioDialog(QDialog):
                          bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a',
                                    edgecolor=PURPLE, alpha=0.85))
             else:
-                ax2.axvline(pct_call, color=ACCENT, linewidth=2, linestyle='-', alpha=0.9,
+                ax2.axvline(pct_call, color=GREEN, linewidth=2, linestyle='-', alpha=0.9,
                             label=f'K Call {r.strike_call:.2f} ({pct_call:+.1f}%)')
                 ax2.axvline(pct_put, color=RED, linewidth=2, linestyle='-', alpha=0.9,
                             label=f'K Put {r.strike_put:.2f} ({pct_put:+.1f}%)')
@@ -1703,6 +1731,16 @@ class ColarCalendarioDialog(QDialog):
             layout.addWidget(canvas, stretch=1)
 
             btn_row = QHBoxLayout()
+            btn_copiar_img = QPushButton("📋 Copiar Imagem")
+            btn_copiar_img.setAutoDefault(False)
+            btn_copiar_img.setToolTip("Copiar gráfico como imagem PNG para o clipboard")
+            btn_copiar_img.clicked.connect(lambda: copiar_figura_clipboard(fig))
+            btn_row.addWidget(btn_copiar_img)
+            btn_salvar = QPushButton("💾 Salvar PNG")
+            btn_salvar.setAutoDefault(False)
+            btn_salvar.setToolTip("Salvar gráfico como arquivo PNG")
+            btn_salvar.clicked.connect(lambda: salvar_figura_arquivo(fig, self))
+            btn_row.addWidget(btn_salvar)
             btn_row.addStretch()
             btn_fechar = QPushButton("Fechar")
             btn_fechar.setAutoDefault(False)
@@ -1856,8 +1894,8 @@ class ColarCalendarioDialog(QDialog):
 
         n_viaveis = sum(1 for r in resultados if r.viavel)
         if self._som_ativado and n_viaveis > 0:
-            winsound.Beep(1000, 200)
-            winsound.Beep(1200, 150)
+            from src.infrastructure.services.som_service import tocar
+            tocar(self._db_path)
 
     def _abrir_regras(self):
         from src.ui.desktop.regras_dialog import RegrasDialog

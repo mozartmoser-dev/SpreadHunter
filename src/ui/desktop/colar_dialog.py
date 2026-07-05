@@ -3,13 +3,13 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QLabel, QHeaderView, QLineEdit, QFormLayout, QFrame,
     QListWidget, QListWidgetItem, QWidget, QTextEdit, QSpinBox,
 )
-import winsound
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, QStringListModel, Signal
 from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
+from src.ui.desktop.copy_utils import copiar_texto_formatado, copiar_figura_clipboard, salvar_figura_arquivo
 from src.ui.desktop.theme import Palette
 
 CUSTOS_DISCLOSURE = (
@@ -1108,6 +1108,11 @@ class ColarDialog(QDialog):
         """)
         layout.addWidget(texto, stretch=1)
         btn_row = QHBoxLayout()
+        btn_copiar = QPushButton("📋 Copiar")
+        btn_copiar.setAutoDefault(False)
+        btn_copiar.setToolTip("Copiar texto formatado (HTML) + texto limpo")
+        btn_copiar.clicked.connect(lambda: copiar_texto_formatado(texto))
+        btn_row.addWidget(btn_copiar)
         btn_row.addStretch()
         btn_fechar = QPushButton("Fechar")
         btn_fechar.setAutoDefault(False)
@@ -1227,7 +1232,7 @@ class ColarDialog(QDialog):
         ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
         ax.axvline(S, color=WHITE, linewidth=0.7, linestyle='--', alpha=0.8, label=f'Spot {S:.2f}')
         ax.axvline(Kp, color=RED, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Put {Kp:.2f}')
-        ax.axvline(Kc, color=ACCENT, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Call {Kc:.2f}')
+        ax.axvline(Kc, color=GREEN, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Call {Kc:.2f}')
         ax.axhline(pior_ret, color=RED, linewidth=0.6, linestyle='--', alpha=0.4, label=f'Pior R$ {pior_ret:.2f}')
 
         ax.fill_between(x, 0, total_pnl, where=(total_pnl >= 0), color=FILL_BLUE, alpha=0.12)
@@ -1295,10 +1300,231 @@ class ColarDialog(QDialog):
         footer.setTextFormat(Qt.RichText)
         payoff_layout.addWidget(footer)
 
+        btn_row = QHBoxLayout()
+        btn_copiar_img = QPushButton("📋 Copiar Imagem")
+        btn_copiar_img.setAutoDefault(False)
+        btn_copiar_img.setToolTip("Copiar gráfico como imagem PNG para o clipboard")
+        btn_copiar_img.clicked.connect(lambda: copiar_figura_clipboard(fig))
+        btn_row.addWidget(btn_copiar_img)
+        btn_salvar = QPushButton("💾 Salvar PNG")
+        btn_salvar.setAutoDefault(False)
+        btn_salvar.setToolTip("Salvar gráfico como arquivo PNG")
+        btn_salvar.clicked.connect(lambda: salvar_figura_arquivo(fig, self))
+        btn_row.addWidget(btn_salvar)
+        btn_row.addStretch()
         btn_close = QPushButton("Fechar")
         btn_close.setAutoDefault(False)
         btn_close.clicked.connect(payoff_dialog.close)
-        payoff_layout.addWidget(btn_close, alignment=Qt.AlignmentFlag.AlignRight)
+        btn_row.addWidget(btn_close)
+        payoff_layout.addLayout(btn_row)
+        payoff_dialog.exec_()
+
+    def _plot_payoff_v2(self, r):
+        import numpy as np
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+        from matplotlib.figure import Figure
+
+        preco_compra = r.custo_liquido - r.premio_put + r.premio_call
+        S = r.preco_ativo
+        Kp = r.strike_put
+        Kc = r.strike_call
+        Pp = r.premio_put
+        Pc = r.premio_call
+        custo = r.custo_liquido
+
+        x_min = min(Kp, S) * 0.85
+        x_max = max(Kc, S) * 1.15
+        x = np.linspace(x_min, x_max, 500)
+
+        stock_pnl = x - preco_compra
+        put_pnl = np.maximum(Kp - x, 0) - Pp
+        call_pnl = Pc - np.maximum(x - Kc, 0)
+        total_pnl = stock_pnl + put_pnl + call_pnl
+
+        pior_ret = Kp - custo
+        melhor_ret = Kc - custo
+        cdi_periodo = r.pct_ganho / r.pct_cdi if r.pct_cdi > 0 else 0
+        pct_melhor = (melhor_ret / custo) * 100
+        pct_melhor_cdi = pct_melhor / (cdi_periodo * 100) if cdi_periodo > 0 else 0
+        pct_pior = (pior_ret / custo) * 100
+
+        BG = '#0d0d0d'
+        TEXT = '#a0a0b0'
+        WHITE = '#f0f0f0'
+        RED_PROF = '#ff3355'
+        GREEN_PROF = '#4caf50'
+        ACCENT = '#ffc107'
+        SPOT_CLR = '#42a5f5'
+
+        fig = Figure(figsize=(9, 5), facecolor=BG)
+        ax = fig.add_subplot(111, facecolor=BG)
+
+        profit_mask = total_pnl >= 0
+        loss_mask = total_pnl < 0
+
+        if profit_mask.any():
+            ax.fill_between(x, 0, total_pnl, where=profit_mask, color=GREEN_PROF, alpha=0.08)
+            ax.fill_between(x, 0, total_pnl, where=profit_mask, color=GREEN_PROF, alpha=0.05)
+        if loss_mask.any():
+            ax.fill_between(x, 0, total_pnl, where=loss_mask, color=RED_PROF, alpha=0.08)
+            ax.fill_between(x, 0, total_pnl, where=loss_mask, color=RED_PROF, alpha=0.05)
+
+        segments = []
+        for i in range(len(x) - 1):
+            mid = (total_pnl[i] + total_pnl[i + 1]) / 2
+            color = GREEN_PROF if mid >= 0 else RED_PROF
+            segments.append((x[i:i + 2], total_pnl[i:i + 2], color))
+
+        for seg_x, seg_y, color in segments:
+            ax.plot(seg_x, seg_y, color=color, linewidth=2.5, solid_capstyle='round')
+
+        y_range = total_pnl.max() - total_pnl.min()
+        y_pad = max(y_range * 0.08, max(abs(total_pnl.max()), abs(total_pnl.min())) * 0.3, 0.3)
+
+        hover_vline = ax.axvline(0, color=ACCENT, linewidth=0.6, linestyle=':', alpha=0.4, visible=False, zorder=5)
+        hover_hline = ax.axhline(0, color=ACCENT, linewidth=0.6, linestyle=':', alpha=0.4, visible=False, zorder=5)
+        hover_text = ax.text(
+            0.02, 0.98, '', fontsize=8, color='#e0e0e0', visible=False, zorder=10,
+            transform=ax.transAxes, ha='left', va='top',
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=ACCENT, alpha=0.85),
+        )
+
+        def _on_hover(event):
+            ax.set_xlim(x_min, x_max)
+            ax.set_ylim(total_pnl.min() - y_pad, total_pnl.max() + y_pad)
+            if event.inaxes != ax or event.xdata is None:
+                hover_text.set_visible(False)
+                hover_vline.set_visible(False)
+                hover_hline.set_visible(False)
+                fig.canvas.draw_idle()
+                return
+            idx = np.argmin(np.abs(x - event.xdata))
+            xv, yv = x[idx], total_pnl[idx]
+            clr = GREEN_PROF if yv >= 0 else RED_PROF
+            hover_text.set_text(f'Preço: R$ {xv:.2f}  |  PnL: R$ {yv:+.2f}')
+            hover_text.set_color(clr)
+            hover_vline.set_xdata([xv, xv])
+            hover_vline.set_visible(True)
+            hover_hline.set_ydata([yv, yv])
+            hover_hline.set_visible(True)
+            fig.canvas.draw_idle()
+
+        ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.25)
+
+        ax.axvline(S, color=SPOT_CLR, linewidth=0.8, linestyle='--', alpha=0.7, zorder=4)
+        ax.axvline(Kp, color=RED_PROF, linewidth=0.8, linestyle='--', alpha=0.7, zorder=4)
+        ax.axvline(Kc, color=GREEN_PROF, linewidth=0.8, linestyle='--', alpha=0.7, zorder=4)
+
+        y_zero = 0
+        y_min_plot = total_pnl.min() - y_pad
+        y_max_plot = total_pnl.max() + y_pad
+
+        ax.text(S, y_min_plot, f'  Spot {S:.2f}', color=SPOT_CLR, fontsize=7, va='bottom', ha='left',
+                alpha=0.8, style='italic')
+        ax.text(Kp, y_min_plot, f'  Put {Kp:.2f}', color=RED_PROF, fontsize=7, va='bottom', ha='left',
+                alpha=0.8, style='italic')
+        ax.text(Kc, y_min_plot, f'  Call {Kc:.2f}', color=GREEN_PROF, fontsize=7, va='bottom', ha='left',
+                alpha=0.8, style='italic')
+
+        be_baixa = Kp - Pp + Pc
+        be_alta = Kc - Pc + Pp
+        if x_min <= be_baixa <= x_max:
+            ax.scatter([be_baixa], [0], color=WHITE, s=18, zorder=6, edgecolors='none')
+            ax.text(be_baixa, y_zero, f' BE↓', color=WHITE, fontsize=6.5, ha='right', va='bottom', alpha=0.7)
+        if x_min <= be_alta <= x_max:
+            ax.scatter([be_alta], [0], color=WHITE, s=18, zorder=6, edgecolors='none')
+            ax.text(be_alta, y_zero, f'  BE↑', color=WHITE, fontsize=6.5, ha='left', va='bottom', alpha=0.7)
+
+        cor_melhor = GREEN_PROF
+        cor_pior = RED_PROF
+
+        melhor_y = melhor_ret
+        pior_y = pior_ret
+        x_melhor = Kc
+        x_pior = Kp
+
+        ax.scatter([x_melhor], [melhor_y], color=GREEN_PROF, s=30, zorder=7, edgecolors=WHITE, linewidth=0.5)
+        ax.scatter([x_pior], [pior_y], color=RED_PROF, s=30, zorder=7, edgecolors=WHITE, linewidth=0.5)
+
+        ax.annotate(
+            f'Melhor: +{pct_melhor:.1f}%',
+            xy=(x_melhor, melhor_y), fontsize=7.5, color=GREEN_PROF,
+            ha='center', va='bottom',
+            xytext=(x_melhor, melhor_y + abs(melhor_y) * 0.25),
+            arrowprops=dict(arrowstyle='->', color=GREEN_PROF, lw=0.8),
+            fontweight='bold',
+        )
+
+        ax.annotate(
+            f'Pior: {pct_pior:.1f}%',
+            xy=(x_pior, pior_y), fontsize=7.5, color=RED_PROF,
+            ha='center', va='top',
+            xytext=(x_pior, pior_y - abs(pior_y) * 0.25),
+            arrowprops=dict(arrowstyle='->', color=RED_PROF, lw=0.8),
+            fontweight='bold',
+        )
+
+        ax.set_xlabel('Preço do Ativo no Vencimento (R$)', color=TEXT, fontsize=8.5, labelpad=6)
+        ax.set_ylabel('Lucro / Prejuízo (R$)', color=TEXT, fontsize=8.5, labelpad=6)
+        ax.set_title(f'Payoff v2 — {r.ativo}', color='#e8e8e8', fontsize=11, fontweight='bold', pad=8)
+
+        ax.set_xlim(x_min, x_max)
+        ax.set_ylim(total_pnl.min() - y_pad, total_pnl.max() + y_pad)
+
+        ax.tick_params(colors=TEXT, labelsize=7.5)
+        ax.grid(True, linestyle=':', color='#2a2a3a', linewidth=0.3, alpha=0.4)
+        for spine in ax.spines.values():
+            spine.set_color('#2a2a3a')
+            spine.set_linewidth(0.3)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+        fig.tight_layout(pad=1.5)
+
+        payoff_dialog = QDialog(self, Qt.Window)
+        payoff_dialog.setWindowTitle(f"Payoff v2 — {r.ativo}")
+        payoff_dialog.setMinimumSize(850, 520)
+        payoff_layout = QVBoxLayout(payoff_dialog)
+        payoff_layout.setContentsMargins(8, 8, 8, 8)
+        canvas = FigureCanvas(fig)
+        fig.canvas.mpl_connect('motion_notify_event', _on_hover)
+        payoff_layout.addWidget(canvas)
+
+        footer = QLabel(
+            f"<b>Comprar Ativo:</b> {r.ativo} à vista — R$ {preco_compra:.2f} (ask)<br>"
+            f"<b>Vender Call:</b> {r.cod_call} K={Kc:.2f} — +R$ {Pc:.2f} (prêmio recebido)<br>"
+            f"<b>Comprar Put:</b> {r.cod_put} K={Kp:.2f} — −R$ {Pp:.2f} (prêmio pago)<br>"
+            f"<b>Custo:</b> R$ {custo:.2f}  |  "
+            f"<b>Pior:</b> {pct_pior:.2f}% / {r.pct_cdi:.2f}x CDI"
+        )
+        footer.setStyleSheet(f"""
+            QLabel {{
+                color: {Palette.TEXT_SECONDARY};
+                font-size: 8pt;
+                font-family: Consolas;
+                padding: 4px 0;
+            }}
+        """)
+        footer.setTextFormat(Qt.RichText)
+        payoff_layout.addWidget(footer)
+
+        btn_row = QHBoxLayout()
+        btn_copiar_img = QPushButton("📋 Copiar Imagem")
+        btn_copiar_img.setAutoDefault(False)
+        btn_copiar_img.setToolTip("Copiar gráfico como imagem PNG para o clipboard")
+        btn_copiar_img.clicked.connect(lambda: copiar_figura_clipboard(fig))
+        btn_row.addWidget(btn_copiar_img)
+        btn_salvar = QPushButton("💾 Salvar PNG")
+        btn_salvar.setAutoDefault(False)
+        btn_salvar.setToolTip("Salvar gráfico como arquivo PNG")
+        btn_salvar.clicked.connect(lambda: salvar_figura_arquivo(fig, self))
+        btn_row.addWidget(btn_salvar)
+        btn_row.addStretch()
+        btn_close = QPushButton("Fechar")
+        btn_close.setAutoDefault(False)
+        btn_close.clicked.connect(payoff_dialog.close)
+        btn_row.addWidget(btn_close)
+        payoff_layout.addLayout(btn_row)
         payoff_dialog.exec_()
 
     def _plot_historico(self, ativo: str, preco_atual: float = None, strike_put: float = None, strike_call: float = None, n_sessoes: int = 21):
@@ -1372,7 +1598,7 @@ class ColarDialog(QDialog):
                 linhas.append((preco_atual, WHITE, WHITE, f'Ativo R${preco_atual:.2f}'))
             for strike, cor_linha, cor_box, rotulo in [
                 (strike_put, RED, '#4caf50', 'C-PUT'),
-                (strike_call, ACCENT, '#ff3355', 'V-CALL'),
+                (strike_call, GREEN, '#ff3355', 'V-CALL'),
             ]:
                 if strike is not None and strike > 0:
                     linhas.append((strike, cor_linha, cor_box, f'{rotulo} R${strike:.2f}'))
@@ -1516,6 +1742,16 @@ class ColarDialog(QDialog):
         canvas = FigureCanvas(fig)
         layout.addWidget(canvas, stretch=1)
         btn_row = QHBoxLayout()
+        btn_copiar_img = QPushButton("📋 Copiar Imagem")
+        btn_copiar_img.setAutoDefault(False)
+        btn_copiar_img.setToolTip("Copiar gráfico como imagem PNG para o clipboard")
+        btn_copiar_img.clicked.connect(lambda: copiar_figura_clipboard(fig))
+        btn_row.addWidget(btn_copiar_img)
+        btn_salvar = QPushButton("💾 Salvar PNG")
+        btn_salvar.setAutoDefault(False)
+        btn_salvar.setToolTip("Salvar gráfico como arquivo PNG")
+        btn_salvar.clicked.connect(lambda: salvar_figura_arquivo(fig, self))
+        btn_row.addWidget(btn_salvar)
         btn_row.addStretch()
         btn_fechar = QPushButton("Fechar")
         btn_fechar.setAutoDefault(False)
@@ -1675,7 +1911,7 @@ class ColarDialog(QDialog):
                      ha='center', va='center', color=PURPLE, fontsize=7.5, fontweight='bold',
                      bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=PURPLE, alpha=0.85))
         else:
-            ax2.axvline(pct_call, color=ACCENT, linewidth=2, linestyle='-', alpha=0.9, label=f'K Call {r.strike_call:.2f} ({pct_call:+.1f}%)')
+            ax2.axvline(pct_call, color=GREEN, linewidth=2, linestyle='-', alpha=0.9, label=f'K Call {r.strike_call:.2f} ({pct_call:+.1f}%)')
             ax2.axvline(pct_put, color=RED, linewidth=2, linestyle='-', alpha=0.9, label=f'K Put {r.strike_put:.2f} ({pct_put:+.1f}%)')
 
         ax2.axhline(0, color=TEXT, linewidth=0.4, alpha=0.15)
@@ -1748,6 +1984,16 @@ class ColarDialog(QDialog):
         canvas = FigureCanvas(fig)
         layout.addWidget(canvas, stretch=1)
         btn_row = QHBoxLayout()
+        btn_copiar_img = QPushButton("📋 Copiar Imagem")
+        btn_copiar_img.setAutoDefault(False)
+        btn_copiar_img.setToolTip("Copiar gráfico como imagem PNG para o clipboard")
+        btn_copiar_img.clicked.connect(lambda: copiar_figura_clipboard(fig))
+        btn_row.addWidget(btn_copiar_img)
+        btn_salvar = QPushButton("💾 Salvar PNG")
+        btn_salvar.setAutoDefault(False)
+        btn_salvar.setToolTip("Salvar gráfico como arquivo PNG")
+        btn_salvar.clicked.connect(lambda: salvar_figura_arquivo(fig, self))
+        btn_row.addWidget(btn_salvar)
         btn_row.addStretch()
         btn_fechar = QPushButton("Fechar")
         btn_fechar.setAutoDefault(False)
@@ -1892,8 +2138,8 @@ class ColarDialog(QDialog):
 
         n_viaveis = sum(1 for r in resultados if r.viavel)
         if self._som_ativado and n_viaveis > 0:
-            winsound.Beep(1000, 200)
-            winsound.Beep(1200, 150)
+            from src.infrastructure.services.som_service import tocar
+            tocar(self._db_path)
 
     def _abrir_regras(self):
         from src.ui.desktop.regras_dialog import RegrasDialog

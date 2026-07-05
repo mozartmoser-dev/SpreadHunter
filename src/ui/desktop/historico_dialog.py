@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QAbstractTableModel
 from PySide6.QtGui import QFont, QColor, QBrush
 
+from src.ui.desktop.copy_utils import copiar_texto_formatado, copiar_figura_clipboard, salvar_figura_arquivo
 from src.ui.desktop.theme import Palette
 
 
@@ -84,7 +85,7 @@ def plot_historico(parent, ativo: str, preco_atual: float = None,
             linhas.append((preco_atual, WHITE, WHITE, f'Ativo R${preco_atual:.2f}'))
         for strike, cor_linha, cor_box, rotulo in [
             (strike_put, RED, '#4caf50', 'C-PUT'),
-            (strike_call, ACCENT, '#ff3355', 'V-CALL'),
+            (strike_call, GREEN, '#ff3355', 'V-CALL'),
         ]:
             if strike is not None and strike > 0:
                 linhas.append((strike, cor_linha, cor_box, f'{rotulo} R${strike:.2f}'))
@@ -219,6 +220,16 @@ def plot_historico(parent, ativo: str, preco_atual: float = None,
     canvas = FigureCanvas(fig)
     layout.addWidget(canvas, stretch=1)
     btn_row = QHBoxLayout()
+    btn_copiar_img = QPushButton("📋 Copiar Imagem")
+    btn_copiar_img.setAutoDefault(False)
+    btn_copiar_img.setToolTip("Copiar gráfico como imagem PNG para o clipboard")
+    btn_copiar_img.clicked.connect(lambda: copiar_figura_clipboard(fig))
+    btn_row.addWidget(btn_copiar_img)
+    btn_salvar = QPushButton("💾 Salvar PNG")
+    btn_salvar.setAutoDefault(False)
+    btn_salvar.setToolTip("Salvar gráfico como arquivo PNG")
+    btn_salvar.clicked.connect(lambda: salvar_figura_arquivo(fig, parent))
+    btn_row.addWidget(btn_salvar)
     btn_row.addStretch()
     btn_fechar = QPushButton("Fechar")
     btn_fechar.setAutoDefault(False)
@@ -614,9 +625,17 @@ class HistoricoDialog(QDialog):
         tec_layout.addStretch()
         tabs.addTab(tab_tec, "Parâmetros Técnicos")
 
+        btn_row = QHBoxLayout()
+        btn_copiar = QPushButton("📋 Copiar")
+        btn_copiar.setAutoDefault(False)
+        btn_copiar.setToolTip("Copiar texto formatado (HTML) + texto limpo")
+        btn_copiar.clicked.connect(lambda: copiar_texto_formatado(txt))
+        btn_row.addWidget(btn_copiar)
+        btn_row.addStretch()
         btn_fechar = QPushButton("Fechar")
         btn_fechar.clicked.connect(dlg.accept)
-        dlg_layout.addWidget(btn_fechar)
+        btn_row.addWidget(btn_fechar)
+        dlg_layout.addLayout(btn_row)
 
         dlg.exec_()
 

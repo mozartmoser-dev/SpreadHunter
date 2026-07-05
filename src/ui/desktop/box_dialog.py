@@ -1,5 +1,3 @@
-import winsound
-
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QFrame, QWidget,
@@ -419,8 +417,8 @@ class BoxDialog(QDialog):
         self.lbl_viaveis.setText("{} viáveis".format(viaveis))
 
         if self._som_ativado and viaveis > 0:
-            winsound.Beep(1000, 200)
-            winsound.Beep(1200, 150)
+            from src.infrastructure.services.som_service import tocar
+            tocar(self._db_path)
 
         self._verificar_ex_dividendo(resultados)
 

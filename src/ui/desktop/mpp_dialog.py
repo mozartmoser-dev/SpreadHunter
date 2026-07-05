@@ -1,5 +1,3 @@
-import winsound
-
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QTableView, QHeaderView, QAbstractItemView, QTextEdit, QSplitter,
@@ -196,7 +194,8 @@ class MppDialog(QDialog):
     def atualizar(self, boxes: list, mres: list):
         self._model.atualizar(boxes, mres)
         if self._som_ativado and boxes:
-            winsound.Beep(1000, 200)
+            from src.infrastructure.services.som_service import tocar
+            tocar(self.db_path)
 
     def _abrir_regras(self):
         from src.ui.desktop.regras_dialog import RegrasDialog
