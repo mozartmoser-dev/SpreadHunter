@@ -195,6 +195,15 @@ def _seed_parametros_colar(conn):
         ("investsite_delay_ms", "500", "GERAL", "Delay entre requisicoes ao InvestSite (ms)"),
         ("som_arquivo", "", "SOM", "Arquivo de som .wav para notificacoes (vazio = beep padrao)"),
         ("som_volume", "100", "SOM", "Volume do som de notificacao (0-100)"),
+        ("som_arquivo_vendidas", "", "SOM", "Arquivo de som .wav para notificacoes VENDIDAS (vazio = beep padrao)"),
+        ("som_volume_vendidas", "100", "SOM", "Volume do som de notificacao VENDIDAS (0-100)"),
+        ("som_arquivo_coberta", "", "SOM", "Arquivo de som .wav para notificacoes VENDA COBERTA (vazio = beep padrao)"),
+        ("som_volume_coberta", "100", "SOM", "Volume do som de notificacao VENDA COBERTA (0-100)"),
+        ("fonte_tamanho", "9", "GERAL", "Tamanho da fonte do sistema (8-16)"),
+        ("venda_coberta_premio_risco", "1.08", "VENDA_COBERTA", "Premio risco minimo sobre CDI para Venda Coberta"),
+        ("venda_coberta_lote_liquidez", "100", "VENDA_COBERTA", "Lote minimo de liquidez da CALL para Venda Coberta"),
+        ("venda_coberta_dias_minimos", "10", "VENDA_COBERTA", "Dias minimos ate o vencimento para Venda Coberta"),
+        ("venda_coberta_dist_max_pct", "0.20", "VENDA_COBERTA", "Distancia maxima do strike abaixo do spot (%)"),
     ]
     for p in params + mpp_params + perf_params:
         conn.execute(

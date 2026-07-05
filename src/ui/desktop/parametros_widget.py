@@ -34,6 +34,7 @@ ESTRATEGIA_LABELS = {
     "COLAR": "Colar Protetivo",
     "COLLAR_CALENDARIO": "Collar Calendário",
     "BOX_4P": "Box Spread 4 Pontas",
+    "VENDA_COBERTA": "Venda Coberta",
 }
 
 ESTRATEGIA_COLORS = {
@@ -47,6 +48,7 @@ ESTRATEGIA_COLORS = {
     "COLAR": "#1abc9c",
     "COLLAR_CALENDARIO": "#f39c12",
     "BOX_4P": "#e74c3c",
+    "VENDA_COBERTA": "#2ecc71",
     "IMPORTACAO": "#8e44ad",
 }
 
@@ -55,6 +57,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("taxa_cdi", "Taxa CDI/Selic"),
         ("tema_visual", "Aspecto do Sistema"),
         ("fonte_market_data", "Fonte de Market Data"),
+        ("fonte_tamanho", "Tamanho da Fonte (8-16)"),
         ("openfast_send_delay_ms", "Delay SQT (ms)"),
         ("rtd_refresh_timeout_ms", "Timeout RTD RefreshData (ms, 0=sem timeout)"),
         ("taxa_aluguel_habilitado", "Habilitar Coleta Taxa Aluguel"),
@@ -104,6 +107,16 @@ PARAMETROS_POR_ESTRATEGIA = {
     "SOM": [
         ("som_arquivo", "Arquivo de Som (.wav)"),
         ("som_volume", "Volume (0-100%)"),
+        ("som_arquivo_vendidas", "Som VENDIDAS (.wav)"),
+        ("som_volume_vendidas", "Volume VENDIDAS (0-100%)"),
+        ("som_arquivo_coberta", "Som VENDA COBERTA (.wav)"),
+        ("som_volume_coberta", "Volume VENDA COBERTA (0-100%)"),
+    ],
+    "VENDA_COBERTA": [
+        ("venda_coberta_premio_risco", "Premio Risco (x CDI)"),
+        ("venda_coberta_lote_liquidez", "Lote Liquidez CALL"),
+        ("venda_coberta_dias_minimos", "Dias Minimos Vencimento"),
+        ("venda_coberta_dist_max_pct", "Distancia Max Strike Abaixo Spot"),
     ],
     "COLAR": [
         ("premio_risco_colar", "Premio risco Colar (x CDI)"),
@@ -189,6 +202,12 @@ PARAMETROS_INFO = {
         "descricao": "Timeout em milissegundos para cada requisição HTTP ao InvestSite. Se a página demorar mais que este valor, o ativo é considerado falha.",
         "usado_em": "InvestSiteClient.fetch_taxa_aluguel — timeout do requests.get().",
         "precedencia": "Banco de Dados -> 10000 (padrão, 10 segundos)",
+    },
+    "fonte_tamanho": {
+        "descricao": "Tamanho da fonte do sistema (8-16). Aplica-se a todas as tabelas de monitoramento. "
+                     "O valor padrao e 9. Requer reinicio da varredura para aplicar nas novas conexoes.",
+        "usado_em": "main_window.py — font das tabelas compradas e vendidas.",
+        "precedencia": "Banco de Dados -> 9 (padrão)",
     },
     "investsite_delay_ms": {
         "descricao": "Delay em milissegundos entre requisições consecutivas ao InvestSite durante a coleta. Evita sobrecarga no servidor e bloqueio de IP. A coleta de ~194 ativos com 500ms leva ~97 segundos.",
@@ -351,6 +370,29 @@ PARAMETROS_INFO = {
         "descricao": "Volume do som de notificação, de 0 (mudo) a 100 (máximo). "
                      "Afeta apenas quando um arquivo .wav está configurado. O beep padrão ignora este volume.",
         "usado_em": "som_service.tocar() — QSoundEffect.setVolume().",
+        "precedencia": "Banco de Dados -> 100 (padrão)",
+    },
+    "som_arquivo_vendidas": {
+        "descricao": "Caminho para um arquivo .wav para notificacoes de VENDIDAS. "
+                     "Deixe vazio para usar o beep padrão do sistema (winsound). "
+                     "Sons do Windows em C:\\Windows\\Media\\ podem ser usados.",
+        "usado_em": "som_service.tocar_vendidas() — main window (tabela vendidas).",
+        "precedencia": "Banco de Dados -> Vazio (beep padrão)",
+    },
+    "som_volume_vendidas": {
+        "descricao": "Volume do som de notificacao de VENDIDAS, de 0 (mudo) a 100 (máximo).",
+        "usado_em": "som_service.tocar_vendidas().",
+        "precedencia": "Banco de Dados -> 100 (padrão)",
+    },
+    "som_arquivo_coberta": {
+        "descricao": "Caminho para um arquivo .wav para notificacoes de VENDA COBERTA. "
+                     "Deixe vazio para usar o beep padrão do sistema (winsound).",
+        "usado_em": "som_service.tocar_coberta() — main window (tabela venda coberta).",
+        "precedencia": "Banco de Dados -> Vazio (beep padrão)",
+    },
+    "som_volume_coberta": {
+        "descricao": "Volume do som de notificacao de VENDA COBERTA, de 0 (mudo) a 100 (máximo).",
+        "usado_em": "som_service.tocar_coberta().",
         "precedencia": "Banco de Dados -> 100 (padrão)",
     },
     "premio_risco_colar": {
@@ -597,7 +639,9 @@ class ParametrosWidget(QWidget):
                 elif "telegram_bot_token" in chave or "telegram_chat_id" in chave or "_list_" in chave:
                     widget = QLineEdit()
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
-                elif "som_arquivo" in chave:
+                elif chave in ("som_arquivo", "som_arquivo_vendidas", "som_arquivo_coberta"):
+                    e_vendidas = chave == "som_arquivo_vendidas"
+                    e_coberta = chave == "som_arquivo_coberta"
                     container = QWidget()
                     h = QHBoxLayout(container)
                     h.setContentsMargins(0, 0, 0, 0)
@@ -630,11 +674,16 @@ class ParametrosWidget(QWidget):
                         widget.addItem("-- Beep do sistema (padrao) --", "")
                     widget.addItem("-- Personalizado... --", "__custom__")
                     widget.setCurrentIndex(0)
-                    self._som_arquivo_widget = widget
+                    if e_coberta:
+                        self._som_arquivo_coberta_widget = widget
+                    elif e_vendidas:
+                        self._som_arquivo_vendidas_widget = widget
+                    else:
+                        self._som_arquivo_widget = widget
                     h.addWidget(widget, stretch=1)
 
                     widget.currentIndexChanged.connect(
-                        lambda idx: self._on_som_combo_changed(widget)
+                        lambda idx, w=widget: self._on_som_combo_changed(w)
                     )
 
                     btn_test = QPushButton("Testar")
@@ -646,12 +695,18 @@ class ParametrosWidget(QWidget):
                             Palette.BG_HOVER, Palette.GREEN, Palette.BORDER, Palette.GREEN_DIM
                         )
                     )
-                    btn_test.clicked.connect(lambda checked: self._testar_som())
+                    if e_coberta:
+                        btn_test._som_alvo = "coberta"
+                    elif e_vendidas:
+                        btn_test._som_alvo = "vendidas"
+                    else:
+                        btn_test._som_alvo = "compradas"
+                    btn_test.clicked.connect(self._testar_som_generico)
                     h.addWidget(btn_test)
 
                     self._widgets[chave] = widget
                     widget = container
-                elif "som_volume" in chave:
+                elif chave in ("som_volume", "som_volume_vendidas", "som_volume_coberta"):
                     container = QWidget()
                     h = QHBoxLayout(container)
                     h.setContentsMargins(0, 0, 0, 0)
@@ -770,7 +825,7 @@ class ParametrosWidget(QWidget):
                 label_layout.addStretch()
 
                 form.addRow(label_row, widget)
-                if chave not in ("som_arquivo", "som_volume"):
+                if chave not in ("som_arquivo", "som_volume", "som_arquivo_vendidas", "som_volume_vendidas", "som_arquivo_coberta", "som_volume_coberta"):
                     self._widgets[chave] = widget
 
             group.setLayout(form)
@@ -831,7 +886,7 @@ class ParametrosWidget(QWidget):
             if isinstance(widget, QCheckBox):
                 widget.setChecked(bool(val))
             elif isinstance(widget, QComboBox):
-                if chave == "som_arquivo":
+                if chave in ("som_arquivo", "som_arquivo_vendidas", "som_arquivo_coberta"):
                     val_str = str(val).strip()
                     for i in range(widget.count()):
                         if widget.itemData(i) == val_str:
@@ -861,7 +916,7 @@ class ParametrosWidget(QWidget):
                 if isinstance(widget, QCheckBox):
                     valor = 1.0 if widget.isChecked() else 0.0
                 elif isinstance(widget, QComboBox):
-                    if chave == "som_arquivo":
+                    if chave in ("som_arquivo", "som_arquivo_vendidas", "som_arquivo_coberta"):
                         valor = widget.currentData() or ""
                     elif chave == "fonte_market_data":
                         valor = "openfast" if widget.currentIndex() == 1 else "profit"
@@ -946,6 +1001,29 @@ class ParametrosWidget(QWidget):
                 combo.setCurrentIndex(0)
                 combo.blockSignals(False)
 
-    def _testar_som(self):
-        from src.infrastructure.services.som_service import testar
-        testar(self.db_path)
+    def _testar_som_generico(self):
+        sender = self.sender()
+        alvo = getattr(sender, "_som_alvo", "compradas") if sender else "compradas"
+        chave_volume = {"compradas": "som_volume", "vendidas": "som_volume_vendidas", "coberta": "som_volume_coberta"}.get(alvo, "som_volume")
+        attr_combo = {"compradas": "_som_arquivo_widget", "vendidas": "_som_arquivo_vendidas_widget", "coberta": "_som_arquivo_coberta_widget"}.get(alvo, "_som_arquivo_widget")
+        combo = getattr(self, attr_combo, None)
+        slider = self._widgets.get(chave_volume)
+        arquivo = combo.currentData() or "" if combo else ""
+        volume = (slider.value() / 100.0) if slider else 1.0
+        if arquivo and Path(arquivo).exists():
+            from src.infrastructure.services.som_service import _tocar_wav, _gerar_wav_volume
+            try:
+                tmp = _gerar_wav_volume(arquivo, volume)
+                _tocar_wav(tmp)
+                return
+            except Exception:
+                pass
+        import winsound
+        if alvo == "coberta":
+            winsound.Beep(800, 200)
+            winsound.Beep(1000, 150)
+        elif alvo == "vendidas":
+            winsound.Beep(600, 300)
+        else:
+            winsound.Beep(1000, 200)
+            winsound.Beep(1200, 150)

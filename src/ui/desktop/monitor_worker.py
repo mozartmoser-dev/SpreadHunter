@@ -6,9 +6,12 @@ import psutil
 from PySide6.QtCore import QThread, Signal, QMutex, QWaitCondition
 
 from src.application.use_cases.monitor_oportunidades import MonitorOportunidadesUseCase
+from src.application.use_cases.monitor_vendidas import MonitorVendidasUseCase
 from src.application.use_cases.monitor_colares import MonitorColaresUseCase
 from src.application.use_cases.monitor_colares_calendario import MonitorColaresCalendarioUseCase
 from src.application.use_cases.monitor_box import MonitorBoxUseCase
+from src.application.use_cases.monitor_vendidas import MonitorVendidasUseCase
+from src.application.use_cases.monitor_venda_coberta import MonitorVendaCobertaUseCase
 from src.application.use_cases.mpp_use_case import MPPUseCase
 from src.domain.services.pipeline_tracker import PipelineTracker
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
@@ -20,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 class MonitorWorker(QThread):
     oportunidades_atualizadas = Signal(list)
+    oportunidades_vendidas_atualizadas = Signal(list)
+    oportunidades_coberta_atualizadas = Signal(list)
     status_message = Signal(str)
     rtd_status = Signal(bool)
     engine_stats_updated = Signal(object)
@@ -36,6 +41,8 @@ class MonitorWorker(QThread):
         self._rtd_main = rtd
         self._mercado_provider = None
         self._monitor_uc = MonitorOportunidadesUseCase(db_path)
+        self._monitor_vendidas_uc = MonitorVendidasUseCase(db_path)
+        self._monitor_coberta_uc = MonitorVendaCobertaUseCase(db_path)
         self._monitor_colares_uc = MonitorColaresUseCase(db_path)
         self._monitor_colares_cal_uc = MonitorColaresCalendarioUseCase(db_path)
         self._monitor_mpp_uc = MPPUseCase(db_path)
@@ -234,6 +241,8 @@ class MonitorWorker(QThread):
 
     def recarregar_parametros(self):
         self._monitor_uc.recarregar_parametros()
+        self._monitor_vendidas_uc.recarregar_parametros()
+        self._monitor_coberta_uc.recarregar_parametros()
         self._monitor_colares_uc.recarregar_parametros()
         self._monitor_colares_cal_uc.recarregar_parametros()
         self._monitor_box_uc.recarregar_parametros()
@@ -329,6 +338,18 @@ class MonitorWorker(QThread):
                                   and r.classificacao == 'TP.Op')]
 
         self.oportunidades_atualizadas.emit(resultados)
+
+        # Box/SBTH Vendido
+        vendidas = self._monitor_vendidas_uc.varrer(dados_mercado)
+        if not self._mostrar_tp_op:
+            vendidas = [r for r in vendidas if r.viavel]
+        self.oportunidades_vendidas_atualizadas.emit(vendidas)
+
+        # Venda Coberta
+        coberta = self._monitor_coberta_uc.varrer(dados_mercado)
+        if not self._mostrar_tp_op:
+            coberta = [r for r in coberta if r.viavel]
+        self.oportunidades_coberta_atualizadas.emit(coberta)
 
     def _processar_colares(self, rtd):
         self._colar_mutex.lock()

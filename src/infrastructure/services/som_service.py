@@ -11,13 +11,31 @@ _CACHE_VOLUME = None
 _CACHE_DB_PATH = None
 _CACHE_FILE = None
 
+_CACHE_PATH_V = None
+_CACHE_VOLUME_V = None
+_CACHE_DB_PATH_V = None
+_CACHE_FILE_V = None
 
-def _carregar_params(db_path):
+_CACHE_PATH_C = None
+_CACHE_VOLUME_C = None
+_CACHE_DB_PATH_C = None
+_CACHE_FILE_C = None
+
+
+def _carregar_params(db_path, prefix="som", forcar_cache=False):
     from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 
     repo = ParametroRepository(db_path)
-    arquivo_p = repo.get_by_chave("som_arquivo")
-    volume_p = repo.get_by_chave("som_volume")
+    if forcar_cache:
+        repo.invalidate_cache()
+    if prefix == "som_vendidas":
+        suffix = "_vendidas"
+    elif prefix == "som_coberta":
+        suffix = "_coberta"
+    else:
+        suffix = ""
+    arquivo_p = repo.get_by_chave(f"som_arquivo{suffix}")
+    volume_p = repo.get_by_chave(f"som_volume{suffix}")
 
     arquivo = arquivo_p.valor if arquivo_p else ""
     volume = float(volume_p.valor) / 100.0 if volume_p else 1.0
@@ -67,10 +85,6 @@ def _tocar_wav(wav_path: str):
     player.setAudioOutput(audio)
     player.setSource(QUrl.fromLocalFile(wav_path))
 
-    def _on_state(state):
-        if state == QMediaPlayer.StoppedState:
-            loop.quit()
-
     player.mediaStatusChanged.connect(
         lambda s: loop.quit() if s == QMediaPlayer.EndOfMedia else None
     )
@@ -82,15 +96,18 @@ def _tocar_wav(wav_path: str):
     loop.exec_()
 
 
-def tocar(db_path=None):
+def _tocar_premio(db_path, prefix, cache_tuple):
     global _CACHE_PATH, _CACHE_VOLUME, _CACHE_DB_PATH, _CACHE_FILE
+    global _CACHE_PATH_V, _CACHE_VOLUME_V, _CACHE_DB_PATH_V, _CACHE_FILE_V
+    global _CACHE_PATH_C, _CACHE_VOLUME_C, _CACHE_DB_PATH_C, _CACHE_FILE_C
 
-    arquivo, volume = _carregar_params(db_path) if db_path else ("", 1.0)
+    cache_path, cache_volume, cache_db, cache_file = cache_tuple
+    arquivo, volume = _carregar_params(db_path, prefix, forcar_cache=True) if db_path else ("", 1.0)
 
     if arquivo and Path(arquivo).exists():
-        if _CACHE_PATH == arquivo and _CACHE_VOLUME == volume and _CACHE_DB_PATH == db_path and _CACHE_FILE:
+        if cache_path == arquivo and cache_volume == volume and cache_db == db_path and cache_file:
             try:
-                _tocar_wav(_CACHE_FILE)
+                _tocar_wav(cache_file)
             except Exception:
                 pass
             return
@@ -98,24 +115,44 @@ def tocar(db_path=None):
         try:
             tmp = _gerar_wav_volume(arquivo, volume)
             _tocar_wav(tmp)
-            _CACHE_PATH = arquivo
-            _CACHE_VOLUME = volume
-            _CACHE_DB_PATH = db_path
-            _CACHE_FILE = tmp
+            if prefix == "som_coberta":
+                _CACHE_PATH_C, _CACHE_VOLUME_C, _CACHE_DB_PATH_C, _CACHE_FILE_C = arquivo, volume, db_path, tmp
+            elif prefix == "som_vendidas":
+                _CACHE_PATH_V, _CACHE_VOLUME_V, _CACHE_DB_PATH_V, _CACHE_FILE_V = arquivo, volume, db_path, tmp
+            else:
+                _CACHE_PATH, _CACHE_VOLUME, _CACHE_DB_PATH, _CACHE_FILE = arquivo, volume, db_path, tmp
             return
         except Exception as e:
             logger.warning("Falha ao tocar %s: %s. Usando beep.", arquivo, e)
 
     import winsound
 
-    winsound.Beep(1000, 200)
-    winsound.Beep(1200, 150)
+    if prefix == "som_coberta":
+        winsound.Beep(800, 200)
+        winsound.Beep(1000, 150)
+    elif prefix == "som_vendidas":
+        winsound.Beep(600, 300)
+    else:
+        winsound.Beep(1000, 200)
+        winsound.Beep(1200, 150)
+
+
+def tocar(db_path=None):
+    _tocar_premio(db_path, "som", (_CACHE_PATH, _CACHE_VOLUME, _CACHE_DB_PATH, _CACHE_FILE))
+
+
+def tocar_vendidas(db_path=None):
+    _tocar_premio(db_path, "som_vendidas", (_CACHE_PATH_V, _CACHE_VOLUME_V, _CACHE_DB_PATH_V, _CACHE_FILE_V))
+
+
+def tocar_coberta(db_path=None):
+    _tocar_premio(db_path, "som_coberta", (_CACHE_PATH_C, _CACHE_VOLUME_C, _CACHE_DB_PATH_C, _CACHE_FILE_C))
 
 
 def testar(db_path):
     global _CACHE_PATH, _CACHE_VOLUME, _CACHE_FILE
 
-    arquivo, volume = _carregar_params(db_path)
+    arquivo, volume = _carregar_params(db_path, "som", forcar_cache=True)
 
     if arquivo and Path(arquivo).exists():
         try:
@@ -127,6 +164,48 @@ def testar(db_path):
             return
         except Exception as e:
             logger.warning("Falha ao testar %s: %s", arquivo, e)
+
+    import winsound
+
+    winsound.Beep(800, 300)
+
+
+def testar_vendidas(db_path):
+    global _CACHE_PATH_V, _CACHE_VOLUME_V, _CACHE_FILE_V
+
+    arquivo, volume = _carregar_params(db_path, "som_vendidas", forcar_cache=True)
+
+    if arquivo and Path(arquivo).exists():
+        try:
+            tmp = _gerar_wav_volume(arquivo, volume)
+            _tocar_wav(tmp)
+            _CACHE_PATH_V = arquivo
+            _CACHE_VOLUME_V = volume
+            _CACHE_FILE_V = tmp
+            return
+        except Exception as e:
+            logger.warning("Falha ao testar vendidas %s: %s", arquivo, e)
+
+    import winsound
+
+    winsound.Beep(800, 300)
+
+
+def testar_coberta(db_path):
+    global _CACHE_PATH_C, _CACHE_VOLUME_C, _CACHE_FILE_C
+
+    arquivo, volume = _carregar_params(db_path, "som_coberta", forcar_cache=True)
+
+    if arquivo and Path(arquivo).exists():
+        try:
+            tmp = _gerar_wav_volume(arquivo, volume)
+            _tocar_wav(tmp)
+            _CACHE_PATH_C = arquivo
+            _CACHE_VOLUME_C = volume
+            _CACHE_FILE_C = tmp
+            return
+        except Exception as e:
+            logger.warning("Falha ao testar coberta %s: %s", arquivo, e)
 
     import winsound
 

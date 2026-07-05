@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QPushButton, QToolBar, QLabel, QDialog, QMessageBox,
     QHeaderView, QTableView, QAbstractItemView, QFrame, QMenu,
     QCheckBox, QComboBox, QStackedWidget, QGraphicsOpacityEffect,
+    QSplitter,
 )
 from PySide6.QtCore import Qt, QTimer, QSize, QProcess, QPropertyAnimation, QEasingCurve, QThread, Signal, QUrl
 from PySide6.QtMultimedia import QMediaPlayer
@@ -20,6 +21,8 @@ from src.infrastructure.persistence.database import get_db_path
 from src.application.use_cases.exportar_operacao import ExportarOperacaoUseCase
 from src.ui.desktop.theme import DARK_THEME_QSS, Palette, get_theme_qss
 from src.ui.desktop.monitor_table_model import MonitorTableModel
+from src.ui.desktop.vendidas_table_model import VendidasTableModel
+from src.ui.desktop.venda_coberta_table_model import VendaCobertaTableModel
 from src.ui.desktop.monitor_worker import MonitorWorker
 from src.ui.desktop.export_dialog import ExportDialog
 from src.ui.desktop.parametros_widget import ParametrosWidget
@@ -52,7 +55,13 @@ class MainWindow(QMainWindow):
         self._total_opps = 0
         self._total_viaveis = 0
         self._resultados_brutos = []
+        self._resultados_vendidas = []
+        self._resultados_coberta = []
         self._filtro_vencimento: str | None = None
+        self._filtro_vencimento_vendidas: str | None = None
+        self._filtro_vencimento_coberta: str | None = None
+        self._foco_vendidas = False
+        self._foco_coberta = False
         self._ultimos_colares = []
         self._ultimos_colares_cal = []
         self._ultimos_boxes = []
@@ -64,6 +73,8 @@ class MainWindow(QMainWindow):
         self._rtd_connected = False
         self._worker = MonitorWorker(self.db_path, None)
         self._worker.oportunidades_atualizadas.connect(self._on_oportunidades_atualizadas)
+        self._worker.oportunidades_vendidas_atualizadas.connect(self._on_oportunidades_vendidas_atualizadas)
+        self._worker.oportunidades_coberta_atualizadas.connect(self._on_oportunidades_coberta_atualizadas)
         self._worker.status_message.connect(self._on_status_message)
         self._worker.rtd_status.connect(self._on_rtd_status)
         self._worker.engine_stats_updated.connect(self._on_engine_stats_updated)
@@ -81,6 +92,8 @@ class MainWindow(QMainWindow):
         self._box_dialog = None
         self._mpp_dialog = None
         self._som_ativado = False
+        self._som_vendidas_ativado = False
+        self._som_coberta_ativado = False
 
         self._aplicar_tema_configurado()
 
@@ -124,6 +137,10 @@ class MainWindow(QMainWindow):
         self.table_view.setShowGrid(True)
         self._apply_hidden_columns()
         restaurar_ordem_colunas(self.table_view.horizontalHeader(), "main_table_order")
+        self.table_view.horizontalHeader().setStyleSheet(
+            "QHeaderView::section { background-color: #1e1e1e; color: #4caf50; "
+            "font-weight: bold; font-size: 9pt; padding: 4px 8px; border: 1px solid #333; }"
+        )
 
         from src.ui.desktop.badge_delegate import BadgeDelegate
         delegate = BadgeDelegate(self.table_view)
@@ -133,6 +150,76 @@ class MainWindow(QMainWindow):
 
         font = QFont("Consolas", 9)
         self.table_view.setFont(font)
+
+        # --- Vendidas table ---
+        self.vendidas_model = VendidasTableModel()
+        self.vendidas_table_view = QTableView()
+        self.vendidas_table_view.setModel(self.vendidas_model)
+        self.vendidas_table_view.setAlternatingRowColors(True)
+        self.vendidas_table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.vendidas_table_view.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.vendidas_table_view.setSortingEnabled(False)
+        self.vendidas_table_view.setFont(font)
+        self.vendidas_table_view.verticalHeader().setDefaultSectionSize(28)
+        self.vendidas_table_view.verticalHeader().hide()
+        self.vendidas_table_view.setShowGrid(True)
+        h2 = self.vendidas_table_view.horizontalHeader()
+        h2.setStretchLastSection(True)
+        h2.setSectionResizeMode(QHeaderView.ResizeToContents)
+        h2.setSectionsMovable(True)
+        h2.setDragEnabled(True)
+        h2.setStyleSheet(
+            "QHeaderView::section { background-color: #1e1e1e; color: #e57373; "
+            "font-weight: bold; font-size: 9pt; padding: 4px 8px; border: 1px solid #333; }"
+        )
+        h2.setContextMenuPolicy(Qt.CustomContextMenu)
+        h2.customContextMenuRequested.connect(self._show_column_menu_vendidas)
+        for i in range(self.vendidas_model.columnCount()):
+            self.vendidas_table_view.setColumnHidden(i, VendidasTableModel.COLUMNS[i][1] in VendidasTableModel.HIDDEN_BY_DEFAULT)
+        header_v = self.vendidas_table_view.verticalHeader()
+        header_v.setDefaultSectionSize(28)
+        header_v.hide()
+        self.vendidas_table_view.mousePressEvent = lambda e: (setattr(self, '_foco_vendidas', True), QTableView.mousePressEvent(self.vendidas_table_view, e))[1]
+        self.table_view.mousePressEvent = lambda e: (setattr(self, '_foco_vendidas', False), QTableView.mousePressEvent(self.table_view, e))[1]
+
+        # --- Coberta table ---
+        self.coberta_model = VendaCobertaTableModel()
+        self.coberta_table_view = QTableView()
+        self.coberta_table_view.setModel(self.coberta_model)
+        self.coberta_table_view.setAlternatingRowColors(True)
+        self.coberta_table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.coberta_table_view.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.coberta_table_view.setSortingEnabled(False)
+        self.coberta_table_view.setFont(font)
+        self.coberta_table_view.verticalHeader().setDefaultSectionSize(28)
+        self.coberta_table_view.verticalHeader().hide()
+        self.coberta_table_view.setShowGrid(True)
+        h3 = self.coberta_table_view.horizontalHeader()
+        h3.setStretchLastSection(True)
+        h3.setSectionResizeMode(QHeaderView.ResizeToContents)
+        h3.setSectionsMovable(True)
+        h3.setDragEnabled(True)
+        h3.setStyleSheet(
+            "QHeaderView::section { background-color: #1e1e1e; color: #42a5f5; "
+            "font-weight: bold; font-size: 9pt; padding: 4px 8px; border: 1px solid #333; }"
+        )
+        h3.setContextMenuPolicy(Qt.CustomContextMenu)
+        h3.customContextMenuRequested.connect(self._show_column_menu_coberta)
+        for i in range(self.coberta_model.columnCount()):
+            self.coberta_table_view.setColumnHidden(i, VendaCobertaTableModel.COLUMNS[i][1] in VendaCobertaTableModel.HIDDEN_BY_DEFAULT)
+        header_co = self.coberta_table_view.verticalHeader()
+        header_co.setDefaultSectionSize(28)
+        header_co.hide()
+        self.coberta_table_view.mousePressEvent = lambda e: (setattr(self, '_foco_coberta', True), QTableView.mousePressEvent(self.coberta_table_view, e))[1]
+
+        self._aplicar_fonte_tamanho()
+
+        # --- QSplitter ---
+        self._splitter = QSplitter(Qt.Vertical)
+        self._splitter.addWidget(self.table_view)
+        self._splitter.addWidget(self.vendidas_table_view)
+        self._splitter.addWidget(self.coberta_table_view)
+        self._splitter.setSizes([500, 168, 168])
 
         temas_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).parent.parent.parent.parent)) / "temas"
         self._splash_movie = None
@@ -216,7 +303,7 @@ class MainWindow(QMainWindow):
         self._stack = QStackedWidget()
         self._stack.addWidget(self._splash_abertura)
         self._stack.addWidget(self._splash_transicao)
-        self._stack.addWidget(self.table_view)
+        self._stack.addWidget(self._splitter)
         self._stack.addWidget(self._disclaimer)
         self._stack.setCurrentIndex(0)
         main_layout.addWidget(self._stack, stretch=1)
@@ -457,6 +544,10 @@ class MainWindow(QMainWindow):
         self._status_colar_cal.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold; padding: 0 6px;".format(Palette.YELLOW))
         self._status_box = QLabel("")
         self._status_box.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold; padding: 0 6px;".format(Palette.RED))
+        self._status_vendidas = QLabel("")
+        self._status_vendidas.setStyleSheet("color: #8888ff; font-size: 9pt; font-weight: bold; padding: 0 6px;")
+        self._status_coberta = QLabel("")
+        self._status_coberta.setStyleSheet("color: #2ecc71; font-size: 9pt; font-weight: bold; padding: 0 6px;")
 
         self.btn_bell = QPushButton("🔔")
         self.btn_bell.setFixedSize(26, 24)
@@ -478,6 +569,48 @@ class MainWindow(QMainWindow):
         """)
         self.btn_bell.toggled.connect(self._toggle_som_global)
         btn_layout.addWidget(self.btn_bell)
+
+        self.btn_bell_v = QPushButton("🔕")
+        self.btn_bell_v.setFixedSize(26, 24)
+        self.btn_bell_v.setToolTip("Som VENDIDAS: desligado (clique para ligar)")
+        self.btn_bell_v.setCursor(Qt.PointingHandCursor)
+        self.btn_bell_v.setCheckable(True)
+        self.btn_bell_v.setStyleSheet("""
+            QPushButton {
+                background-color: #3d1a1a; color: #ef4444;
+                border: 1px solid #ef4444; border-radius: 4px;
+                font-size: 11pt; padding: 0;
+            }
+            QPushButton:hover { background-color: #5d2a2a; }
+            QPushButton:checked {
+                background-color: #1a3d1a; color: #22c55e;
+                border: 1px solid #e57373;
+            }
+            QPushButton:checked:hover { background-color: #2a5d2a; }
+        """)
+        self.btn_bell_v.toggled.connect(self._toggle_som_vendidas)
+        btn_layout.addWidget(self.btn_bell_v)
+
+        self.btn_bell_c = QPushButton("\U0001f514")
+        self.btn_bell_c.setFixedSize(26, 24)
+        self.btn_bell_c.setToolTip("Som VENDA COBERTA: desligado (clique para ligar)")
+        self.btn_bell_c.setCursor(Qt.PointingHandCursor)
+        self.btn_bell_c.setCheckable(True)
+        self.btn_bell_c.setStyleSheet("""
+            QPushButton {
+                background-color: #0d1a2e; color: #42a5f5;
+                border: 1px solid #42a5f5; border-radius: 4px;
+                font-size: 11pt; padding: 0;
+            }
+            QPushButton:hover { background-color: #1a2e4a; }
+            QPushButton:checked {
+                background-color: #0d1a2e; color: #42a5f5;
+                border: 1px solid #42a5f5;
+            }
+            QPushButton:checked:hover { background-color: #1a2e4a; }
+        """)
+        self.btn_bell_c.toggled.connect(self._toggle_som_coberta)
+        btn_layout.addWidget(self.btn_bell_c)
 
         btn_layout.addSpacing(16)
         btn_layout.addStretch()
@@ -580,6 +713,26 @@ class MainWindow(QMainWindow):
             self.table_view.setColumnHidden(col_idx, not chosen.isChecked())
             self._save_column_visibility()
 
+    def _show_column_menu_vendidas(self, pos):
+        menu = QMenu(self)
+        header = self.vendidas_table_view.horizontalHeader()
+        for i, (col_name, col_key) in enumerate(VendidasTableModel.COLUMNS):
+            action = menu.addAction(col_name)
+            action.setCheckable(True)
+            action.setChecked(not self.vendidas_table_view.isColumnHidden(i))
+            action.toggled.connect(lambda checked, idx=i: self.vendidas_table_view.setColumnHidden(idx, not checked))
+        menu.exec_(header.mapToGlobal(pos))
+
+    def _show_column_menu_coberta(self, pos):
+        menu = QMenu(self)
+        header = self.coberta_table_view.horizontalHeader()
+        for i, (col_name, col_key) in enumerate(VendaCobertaTableModel.COLUMNS):
+            action = menu.addAction(col_name)
+            action.setCheckable(True)
+            action.setChecked(not self.coberta_table_view.isColumnHidden(i))
+            action.toggled.connect(lambda checked, idx=i: self.coberta_table_view.setColumnHidden(idx, not checked))
+        menu.exec_(header.mapToGlobal(pos))
+
     def _setup_status_bar(self):
         self._status_left = QLabel("Pronto")
         self._status_left.setProperty("class", "")
@@ -589,8 +742,10 @@ class MainWindow(QMainWindow):
         self._status_colar.setVisible(True)
         self._status_colar_cal.setVisible(True)
         self._status_box.setVisible(True)
+        self._status_vendidas.setVisible(True)
+        self._status_coberta.setVisible(True)
 
-        for w in (self.lbl_count, self._status_colar, self._status_colar_cal, self._status_box):
+        for w in (self.lbl_count, self._status_colar, self._status_colar_cal, self._status_box, self._status_vendidas, self._status_coberta):
             self.statusBar().addPermanentWidget(w)
 
         self._status_right = QPushButton("")
@@ -825,6 +980,7 @@ class MainWindow(QMainWindow):
         dialog.exec_()
         self._aplicar_tema_configurado()
         self._worker.recarregar_parametros()
+        self._aplicar_fonte_tamanho()
         self._update_cdi_display()
 
     def _on_fade_finished(self):
@@ -885,6 +1041,54 @@ class MainWindow(QMainWindow):
         self._resultados_brutos = resultados
         self._filtrar_e_atualizar_tabela()
 
+    def _on_oportunidades_vendidas_atualizadas(self, resultados: list):
+        self._resultados_vendidas = resultados
+        self._filtrar_e_atualizar_vendidas()
+        self._atualizar_dashboard()
+
+    def _on_oportunidades_coberta_atualizadas(self, resultados: list):
+        self._resultados_coberta = resultados
+        self._filtrar_e_atualizar_coberta()
+        self._atualizar_dashboard()
+
+    def _filtrar_e_atualizar_vendidas(self):
+        if self._filtro_vencimento_vendidas:
+            filtrados = [r for r in self._resultados_vendidas if self._key_vencimento_vendida(r) == self._filtro_vencimento_vendidas]
+        else:
+            filtrados = self._resultados_vendidas
+        self.vendidas_model.atualizar(filtrados)
+        n = len(filtrados)
+        viaveis = sum(1 for r in filtrados if r.viavel)
+        self._status_vendidas.setText(f"\U0001f4c9 {n} ({viaveis} viav)" if n else "")
+        if self._som_vendidas_ativado and viaveis > 0:
+            from src.infrastructure.services.som_service import tocar_vendidas
+            tocar_vendidas(self.db_path)
+
+    def _key_vencimento_coberta(self, r) -> str:
+        raw = r.vencimento.strftime("%d/%m/%y") if hasattr(r.vencimento, "strftime") else str(r.vencimento)
+        cod = r.cod_put or r.cod_call
+        prefix = "S-" if MainWindow._is_weekly(cod) else ""
+        return f"{prefix}{raw}"
+
+    def _filtrar_e_atualizar_coberta(self):
+        if self._filtro_vencimento_coberta:
+            filtrados = [r for r in self._resultados_coberta if self._key_vencimento_coberta(r) == self._filtro_vencimento_coberta]
+        else:
+            filtrados = self._resultados_coberta
+        self.coberta_model.atualizar(filtrados)
+        n = len(filtrados)
+        viaveis = sum(1 for r in filtrados if r.viavel)
+        self._status_coberta.setText(f"\U0001f4c9 {n} ({viaveis} viav)" if n else "")
+        if self._som_coberta_ativado and viaveis > 0:
+            from src.infrastructure.services.som_service import tocar_coberta
+            tocar_coberta(self.db_path)
+
+    def _key_vencimento_vendida(self, r) -> str:
+        raw = r.vencimento.strftime("%d/%m/%y") if hasattr(r.vencimento, "strftime") else str(r.vencimento)
+        cod = r.cod_put or r.cod_call
+        prefix = "S-" if MainWindow._is_weekly(cod) else ""
+        return f"{prefix}{raw}"
+
     def _filtrar_e_atualizar_tabela(self):
         if self._filtro_vencimento:
             filtrados = [r for r in self._resultados_brutos if self._key_vencimento(r) == self._filtro_vencimento]
@@ -923,13 +1127,28 @@ class MainWindow(QMainWindow):
         return f"{prefix}{raw}"
 
     def _filtrar_por_vencimento(self, key: str | None):
-        self._filtro_vencimento = key
-        self._filtrar_e_atualizar_tabela()
+        if self._foco_coberta:
+            self._filtro_vencimento_coberta = key
+            self._filtrar_e_atualizar_coberta()
+        elif self._foco_vendidas:
+            self._filtro_vencimento_vendidas = key
+            self._filtrar_e_atualizar_vendidas()
+        else:
+            self._filtro_vencimento = key
+            self._filtrar_e_atualizar_tabela()
 
     def _atualizar_dashboard(self):
-        contagem: Counter = Counter()
+        count_c: Counter = Counter()
         for r in self._resultados_brutos:
-            contagem[self._key_vencimento(r)] += 1
+            count_c[self._key_vencimento(r)] += 1
+        count_v: Counter = Counter()
+        for r in self._resultados_vendidas:
+            count_v[self._key_vencimento_vendida(r)] += 1
+        count_co: Counter = Counter()
+        for r in self._resultados_coberta:
+            count_co[self._key_vencimento_coberta(r)] += 1
+
+        todas = set(count_c) | set(count_v) | set(count_co)
 
         while self._dashboard_layout.count() > 2:
             item = self._dashboard_layout.takeAt(1)
@@ -937,10 +1156,12 @@ class MainWindow(QMainWindow):
             if w:
                 w.deleteLater()
 
-        total = sum(contagem.values())
+        total_c = sum(count_c.values())
+        total_v = sum(count_v.values())
+        total_co = sum(count_co.values())
+        total_t = total_c + total_v + total_co
 
-        def _badge(texto, cor_bg, cor_fg, cor_borda, key=None):
-            ativo = key == self._filtro_vencimento
+        def _badge(texto, cor_bg, cor_fg, cor_borda, ativo=False):
             b = QPushButton(texto)
             b.setFlat(True)
             b.setCursor(Qt.PointingHandCursor)
@@ -953,19 +1174,52 @@ class MainWindow(QMainWindow):
                 }}
                 QPushButton:hover {{ border: 1px solid {cor_fg}; }}
             """)
-            b.clicked.connect(partial(self._filtrar_por_vencimento, key))
             return b
 
-        b = _badge(f" TOTAL  {total} ", "#1a1a3e", "#8888ff", "#2a2a5e", None)
+        b = _badge(f" TOTAL  {total_t} ", "#1a1a3e", "#8888ff", "#2a2a5e")
+        b.clicked.connect(lambda: self._filtrar_por_vencimento(None))
         self._dashboard_layout.insertWidget(self._dashboard_layout.count() - 1, b)
 
-        for data, qtd in sorted(contagem.items()):
-            b = _badge(f" {data}  {qtd} ", "#1e3a1e", "#4caf50", "#2e5a2e", data)
+        for data in sorted(todas):
+            qc = count_c.get(data, 0)
+            qv = count_v.get(data, 0)
+            qco = count_co.get(data, 0)
+            qt = qc + qv + qco
+            ativo = (data == self._filtro_vencimento) or (data == self._filtro_vencimento_vendidas) or (data == self._filtro_vencimento_coberta)
+            b = _badge(f" {data}  {qt} ({qc}C {qv}V) ", "#1e3a1e", "#4caf50", "#2e5a2e", ativo)
+            b.clicked.connect(lambda checked, k=data: self._filtrar_por_vencimento(k))
             self._dashboard_layout.insertWidget(self._dashboard_layout.count() - 1, b)
 
     def _toggle_som_global(self, ativo: bool):
         self._som_ativado = ativo
         self.btn_bell.setToolTip("Som: ligado" if ativo else "Som: desligado")
+
+    def _toggle_som_vendidas(self, ativo: bool):
+        self._som_vendidas_ativado = ativo
+        self.btn_bell_v.setToolTip("Som VENDIDAS: ligado" if ativo else "Som VENDIDAS: desligado")
+
+    def _toggle_som_coberta(self, ativo: bool):
+        self._som_coberta_ativado = ativo
+        self.btn_bell_c.setToolTip("Som VENDA COBERTA: ligado" if ativo else "Som VENDA COBERTA: desligado")
+
+    def _aplicar_fonte_tamanho(self):
+        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+        repo = ParametroRepository(self.db_path)
+        p = repo.get_by_chave("fonte_tamanho")
+        tamanho = int(p.valor) if p else 9
+        tamanho = max(8, min(16, tamanho))
+        font = QFont("Consolas", tamanho)
+        self.table_view.setFont(font)
+        self.vendidas_table_view.setFont(font)
+        self.coberta_table_view.setFont(font)
+        # Aplica no header stylesheet também
+        for h, cor in [(self.table_view.horizontalHeader(), "#4caf50"),
+                        (self.vendidas_table_view.horizontalHeader(), "#e57373"),
+                        (self.coberta_table_view.horizontalHeader(), "#42a5f5")]:
+            h.setStyleSheet(
+                "QHeaderView::section {{ background-color: #1e1e1e; color: {}; "
+                "font-weight: bold; font-size: {}pt; padding: 4px 8px; border: 1px solid #333; }}".format(cor, tamanho)
+            )
 
     def _on_status_message(self, msg: str):
         self._status_left.setText(msg)

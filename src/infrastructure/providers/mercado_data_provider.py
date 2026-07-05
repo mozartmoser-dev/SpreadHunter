@@ -511,8 +511,8 @@ class MercadoDataProvider:
                             )
                             # Batch reads: 1 lock por símbolo em vez de 1 por campo
                             c_ativo = self.source.ler_campos(inst.ativo, FieldName.ASK, FieldName.BID)
-                            c_put = self.source.ler_campos(inst.cod_put, FieldName.ASK, FieldName.VOL_ASK, FieldName.QTD_LAST)
-                            c_call = self.source.ler_campos(inst.cod_call, FieldName.BID, FieldName.VOL_BID, FieldName.QTD_LAST)
+                            c_put = self.source.ler_campos(inst.cod_put, FieldName.ASK, FieldName.BID, FieldName.VOL_ASK, FieldName.QTD_LAST)
+                            c_call = self.source.ler_campos(inst.cod_call, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.QTD_LAST)
                             p_ativo = c_ativo.get(FieldName.ASK)
                             if p_ativo is not None and p_ativo > 0:
                                 entry["preco_ativo"] = p_ativo
@@ -529,6 +529,9 @@ class MercadoDataProvider:
                             if of_v_put is not None:
                                 entry["of_venda_put"] = of_v_put
                                 entry["premio_put"] = of_v_put
+                            of_c_put = c_put.get(FieldName.BID)
+                            if of_c_put is not None:
+                                entry["of_compra_put"] = of_c_put
                             vov = c_put.get(FieldName.VOL_ASK)
                             if vov is not None:
                                 entry["vov_put"] = vov
@@ -539,6 +542,9 @@ class MercadoDataProvider:
                             if of_c_call is not None:
                                 entry["of_compra_call"] = of_c_call
                                 entry["premio_call"] = of_c_call
+                            of_v_call = c_call.get(FieldName.ASK)
+                            if of_v_call is not None:
+                                entry["of_venda_call"] = of_v_call
                             voc = c_call.get(FieldName.VOL_BID)
                             if voc is not None:
                                 entry["voc_call"] = voc
