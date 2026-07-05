@@ -12,6 +12,7 @@ from src.domain.services.calculadora_vetorizada import CalculadoraVetorizada
 from src.infrastructure.persistence.repositories.repositories import (
     InstrumentoRepository,
     ParametroRepository,
+    TaxaAluguelRepository,
 )
 from src.infrastructure.notifications.telegram_service import TelegramService
 
@@ -72,6 +73,8 @@ class MonitorOportunidadesUseCase:
     def varrer(self, dados_mercado: dict[str, dict], pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeMonitor]:
         calc_oo, calc_vec = self._get_calculadoras()
         inst_map = self.inst_repo.get_all_mapped()
+        taxa_repo = TaxaAluguelRepository(self.db_path)
+        taxa_map = taxa_repo.get_latest_all()
         resultados = []
         hoje = date.today()
 
@@ -179,7 +182,7 @@ class MonitorOportunidadesUseCase:
 
             n_calc += 1
             
-            opp = self._calcular_oportunidade(inst, mercado, calc_oo)
+            opp = self._calcular_oportunidade(inst, mercado, calc_oo, taxa_map)
             if opp:
                 resultados.append(opp)
 
@@ -324,7 +327,7 @@ class MonitorOportunidadesUseCase:
 
         return msg
 
-    def _calcular_oportunidade(self, inst, mercado, calc):
+    def _calcular_oportunidade(self, inst, mercado, calc, taxa_map=None):
         if mercado is None:
             return None
         p_ref = mercado["preco_ativo"]
@@ -402,4 +405,5 @@ class MonitorOportunidadesUseCase:
             qul_call=dados.qul_call,
             money_put=max(dados.strike - dados.preco_ativo, 0.0),
             money_call=max(dados.preco_ativo - dados.strike, 0.0),
+            taxa_aluguel=taxa_map.get(inst.ativo).taxa_atual if taxa_map and taxa_map.get(inst.ativo) else 0.0,
         )

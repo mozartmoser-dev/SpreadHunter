@@ -34,6 +34,7 @@ class MonitorTableModel(QAbstractTableModel):
         ("Tipo Op.", "tipo_opcao"),
         ("Cod Put", "cod_put"),
         ("Cod Call", "cod_call"),
+        ("BTC", "taxa_aluguel"),
     ]
 
     HIDDEN_BY_DEFAULT = {
@@ -62,7 +63,7 @@ class MonitorTableModel(QAbstractTableModel):
         "strike", "custo_sbth_display", "custo_box_display", "ganho_display",
         "label_dias", "leilao_display", "liq_indicator",
         "liq_put_display", "liq_call_display", "of_compra_put", "of_venda_call",
-        "qul_put", "qul_call", "money_display", "tipo_opcao",
+        "qul_put", "qul_call", "money_display", "tipo_opcao", "taxa_aluguel",
     }
 
     def __init__(self, parent=None):
@@ -106,6 +107,7 @@ class MonitorTableModel(QAbstractTableModel):
                 "tipo_opcao": "Estilo da opção: AMER (americana) ou EUR (europeia).",
                 "cod_put": "Código do ativo da PUT na B3.",
                 "cod_call": "Código do ativo da CALL na B3.",
+                "taxa_aluguel": "Taxa de aluguel (BTC) da ação objeto — InvestSite.",
             }
             col_key = self.COLUMNS[section][1]
             base = tips.get(col_key, self.COLUMNS[section][0])
@@ -188,6 +190,8 @@ class MonitorTableModel(QAbstractTableModel):
             return "{:.0f}".format(opp.qul_call) if opp.qul_call > 0 else "-"
         if col_key == "money_display":
             return opp.money_display
+        if col_key == "taxa_aluguel":
+            return "{:.2f}%".format(opp.taxa_aluguel)
         if col_key == "tipo_opcao":
             labels = {"A": "AMER", "E": "EUR", "P": "PUT"}
             return labels.get(opp.tipo_opcao, opp.tipo_opcao)

@@ -49,6 +49,7 @@ class OportunidadeMonitor:
     qul_call: float = 0.0
     money_put: float = 0.0
     money_call: float = 0.0
+    taxa_aluguel: float = 0.0
 
     @property
     def custo_sbth_display(self) -> str:

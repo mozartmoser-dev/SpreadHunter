@@ -9,7 +9,7 @@ from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOp
 from src.domain.services.calculadora_box import CalculadoraBox, ResultadoBox
 from src.domain.services.market_data_source import FieldName
 from src.domain.services.pipeline_tracker import PipelineTracker
-from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository, ParametroRepository
+from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository, ParametroRepository, TaxaAluguelRepository
 
 
 class MonitorBoxUseCase:
@@ -103,6 +103,8 @@ class MonitorBoxUseCase:
         qtd_min = self._get_qtd_min_perna()
         soh_europeia = self._soh_europeia()
         whitelist = self._get_whitelist()
+        taxa_repo = TaxaAluguelRepository(self.db_path)
+        taxa_map = taxa_repo.get_latest_all()
 
         hoje = date.today()
         grupos: dict[tuple[str, date], list[dict]] = defaultdict(list)
@@ -198,6 +200,8 @@ class MonitorBoxUseCase:
                     )
 
                     if resultado:
+                        taxa_ent = taxa_map.get(ativo)
+                        resultado.taxa_aluguel = taxa_ent.taxa_atual if taxa_ent else 0.0
                         resultados.append(resultado)
                         if resultado.viavel and self._mpp_use_case:
                             self._mpp_use_case.registrar_box_encontrado(

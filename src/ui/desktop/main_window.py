@@ -1,4 +1,5 @@
 import sys
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
@@ -217,6 +218,19 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self._disclaimer)
         self._stack.setCurrentIndex(0)
         main_layout.addWidget(self._stack, stretch=1)
+
+        self._dashboard_box = QFrame()
+        self._dashboard_box.setFrameShape(QFrame.StyledPanel)
+        self._dashboard_box.setStyleSheet("background-color: #141428; border: 1px solid #2a2a44; border-radius: 6px; padding: 4px;")
+        self._dashboard_layout = QHBoxLayout(self._dashboard_box)
+        self._dashboard_layout.setContentsMargins(8, 4, 8, 4)
+        self._dashboard_layout.setSpacing(8)
+        lbl_dash = QLabel("📊 Séries:")
+        lbl_dash.setStyleSheet("color: #8888cc; font-size: 8pt; font-weight: bold; background: transparent; border: none;")
+        self._dashboard_layout.addWidget(lbl_dash)
+        self._dashboard_layout.addStretch()
+        main_layout.addWidget(self._dashboard_box)
+        self._stack.currentChanged.connect(lambda idx: self._dashboard_box.setVisible(idx == 2))
 
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
@@ -886,6 +900,42 @@ class MainWindow(QMainWindow):
         if self._som_ativado and self._total_viaveis > 0:
             from src.infrastructure.services.som_service import tocar
             tocar(self.db_path)
+
+        self._atualizar_dashboard()
+
+    def _atualizar_dashboard(self):
+        contagem: Counter = Counter()
+        for r in self._resultados_brutos:
+            key = r.vencimento.strftime("%d/%m/%y") if hasattr(r.vencimento, "strftime") else str(r.vencimento)
+            contagem[key] += 1
+
+        while self._dashboard_layout.count() > 2:
+            item = self._dashboard_layout.takeAt(1)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        total = sum(contagem.values())
+        badge_total = QLabel(f" TOTAL  {total} ")
+        badge_total.setStyleSheet(f"""
+            QLabel {{
+                background-color: #1a1a3e; color: #8888ff;
+                border: 1px solid #2a2a5e; border-radius: 4px;
+                padding: 2px 6px; font-size: 8pt; font-weight: bold;
+            }}
+        """)
+        self._dashboard_layout.insertWidget(self._dashboard_layout.count() - 1, badge_total)
+
+        for data, qtd in sorted(contagem.items()):
+            badge = QLabel(f" {data}  {qtd} ")
+            badge.setStyleSheet(f"""
+                QLabel {{
+                    background-color: #1e3a1e; color: #4caf50;
+                    border: 1px solid #2e5a2e; border-radius: 4px;
+                    padding: 2px 6px; font-size: 8pt; font-weight: bold;
+                }}
+            """)
+            self._dashboard_layout.insertWidget(self._dashboard_layout.count() - 1, badge)
 
     def _toggle_som_global(self, ativo: bool):
         self._som_ativado = ativo

@@ -1101,13 +1101,16 @@ class ColarCalendarioDialog(QDialog):
             sigma_spot = S0 * iv_c * np.sqrt(T_call)
 
             BG = '#0d0d0d'; TEXT = '#c0c0c0'; RED = '#ff3355'
-            ACCENT = '#ffc107'; FILL_BLUE = '#1a5276'; SIGMA_C = '#6c5ce7'
-            WHITE = '#ffffff'; GREEN = '#4caf50'
+            ACCENT = '#ffc107'; SIGMA_C = '#6c5ce7'
+            WHITE = '#ffffff'; GREEN = '#4caf50'; SPOT_CLR = '#42a5f5'
 
             fig = Figure(figsize=(9, 5), facecolor=BG)
             ax = fig.add_subplot(111, facecolor=BG)
 
-            ax.plot(x, pnl, color=ACCENT, linewidth=2.0, label='Payoff')
+            for i in range(len(x) - 1):
+                mid = (pnl[i] + pnl[i + 1]) / 2
+                cor = GREEN if mid >= 0 else RED
+                ax.plot(x[i:i + 2], pnl[i:i + 2], color=cor, linewidth=2.5, solid_capstyle='round')
 
             hover_vline = ax.axvline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
             hover_hline = ax.axhline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
@@ -1138,9 +1141,25 @@ class ColarCalendarioDialog(QDialog):
                 hover_hline.set_visible(True)
                 fig.canvas.draw_idle()
             ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
-            ax.axvline(S0, color=WHITE, linewidth=0.7, linestyle='--', alpha=0.8, label=f'Spot {S0:.2f}')
-            ax.axvline(Kp, color=RED, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Put {Kp:.2f}')
-            ax.axvline(Kc, color=GREEN, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Call {Kc:.2f}')
+
+            y_lo, y_hi = ax.get_ylim()
+            y_span = y_hi - y_lo
+
+            def _linha_com_rotulo(xv, cor, texto):
+                gap_center = y_lo + y_span * 0.25
+                gap_half = y_span * 0.04
+                y1 = gap_center - gap_half
+                y2 = gap_center + gap_half
+                if y_lo < y1:
+                    ax.plot([xv, xv], [y_lo, y1], color=cor, linewidth=0.7, linestyle='--', alpha=0.8, zorder=4)
+                if y2 < y_hi:
+                    ax.plot([xv, xv], [y2, y_hi], color=cor, linewidth=0.7, linestyle='--', alpha=0.8, zorder=4)
+                ax.text(xv, gap_center, texto, ha='center', va='center', color='#fff', fontsize=6.5,
+                        bbox=dict(boxstyle='round,pad=0.12', facecolor=cor, edgecolor='none', alpha=0.85))
+
+            _linha_com_rotulo(S0, SPOT_CLR, f'Spot {S0:.2f}')
+            _linha_com_rotulo(Kp, RED, f'Put {Kp:.2f}')
+            _linha_com_rotulo(Kc, GREEN, f'Call {Kc:.2f}')
 
             for n in [-2, -1, 1, 2]:
                 px = S0 + n * sigma_spot
@@ -1187,7 +1206,7 @@ class ColarCalendarioDialog(QDialog):
                             color=be_color_int, fontsize=7, ha='center',
                             arrowprops=dict(arrowstyle='->', color=be_color_int, lw=0.8))
 
-            ax.fill_between(x, 0, pnl, where=(pnl >= 0), color=FILL_BLUE, alpha=0.12)
+            ax.fill_between(x, 0, pnl, where=(pnl >= 0), color=GREEN, alpha=0.12)
             ax.fill_between(x, 0, pnl, where=(pnl < 0), color=RED, alpha=0.1)
 
             ax.set_xlabel('Preço do Ativo no Vencimento da Call (R$)', color=TEXT, fontsize=9)
@@ -1305,6 +1324,7 @@ class ColarCalendarioDialog(QDialog):
 
         BG = '#0d0d0d'; TEXT = '#c0c0c0'; WHITE = '#ffffff'
         GREEN = '#4caf50'; RED = '#ff3355'; BLUE = '#2196f3'; ACCENT = '#ffc107'
+        SPOT_CLR = '#42a5f5'
 
         n_sub = 2 if has_vol else 1
         fig = Figure(figsize=(11, 6.5), facecolor=BG)
@@ -1334,7 +1354,7 @@ class ColarCalendarioDialog(QDialog):
             span = x1n - x0n
             linhas = []
             if preco_atual is not None and preco_atual > 0:
-                linhas.append((preco_atual, WHITE, WHITE, f'Ativo R${preco_atual:.2f}'))
+                linhas.append((preco_atual, SPOT_CLR, SPOT_CLR, f'Ativo R${preco_atual:.2f}'))
             for strike, cor_linha, cor_box, rotulo in [
                 (strike_put, RED, '#4caf50', 'C-PUT'),
                 (strike_call, GREEN, '#ff3355', 'V-CALL'),

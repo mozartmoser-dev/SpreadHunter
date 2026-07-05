@@ -1194,12 +1194,15 @@ class ColarDialog(QDialog):
         pct_pior = (pior_ret / custo) * 100
 
         BG = '#0d0d0d'; TEXT = '#c0c0c0'; WHITE = '#ffffff'; RED = '#ff3355'
-        ACCENT = '#ffc107'; FILL_BLUE = '#1a5276'; BLUE = '#2196f3'; GREEN = '#4caf50'
+        ACCENT = '#ffc107'; BLUE = '#2196f3'; GREEN = '#4caf50'; SPOT_CLR = '#42a5f5'
 
         fig = Figure(figsize=(9, 5), facecolor=BG)
         ax = fig.add_subplot(111, facecolor=BG)
 
-        ax.plot(x, total_pnl, color=ACCENT, linewidth=2.0, label='Payoff')
+        for i in range(len(x) - 1):
+            mid = (total_pnl[i] + total_pnl[i + 1]) / 2
+            cor = GREEN if mid >= 0 else RED
+            ax.plot(x[i:i + 2], total_pnl[i:i + 2], color=cor, linewidth=2.5, solid_capstyle='round')
 
         y_range = total_pnl.max() - total_pnl.min()
         y_pad = max(y_range * 0.08, max(abs(total_pnl.max()), abs(total_pnl.min())) * 0.3, 0.3)
@@ -1229,13 +1232,30 @@ class ColarDialog(QDialog):
             hover_hline.set_visible(True)
             fig.canvas.draw_idle()
 
+        y_lo = total_pnl.min() - y_pad
+        y_hi = total_pnl.max() + y_pad
+        y_span = y_hi - y_lo
+
+        def _linha_com_rotulo(xv, cor, texto):
+            gap_center = y_lo + y_span * 0.25
+            gap_half = y_span * 0.04
+            y1 = gap_center - gap_half
+            y2 = gap_center + gap_half
+            if y_lo < y1:
+                ax.plot([xv, xv], [y_lo, y1], color=cor, linewidth=0.7, linestyle='--', alpha=0.8, zorder=4)
+            if y2 < y_hi:
+                ax.plot([xv, xv], [y2, y_hi], color=cor, linewidth=0.7, linestyle='--', alpha=0.8, zorder=4)
+            ax.text(xv, gap_center, texto, ha='center', va='center', color='#fff', fontsize=6.5,
+                    rotation=90,
+                    bbox=dict(boxstyle='round,pad=0.12', facecolor=cor, edgecolor='none', alpha=0.85))
+
+        _linha_com_rotulo(S, SPOT_CLR, f'Spot {S:.2f}')
+        _linha_com_rotulo(Kp, RED, f'Put {Kp:.2f}')
+        _linha_com_rotulo(Kc, GREEN, f'Call {Kc:.2f}')
         ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
-        ax.axvline(S, color=WHITE, linewidth=0.7, linestyle='--', alpha=0.8, label=f'Spot {S:.2f}')
-        ax.axvline(Kp, color=RED, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Put {Kp:.2f}')
-        ax.axvline(Kc, color=GREEN, linewidth=0.7, linestyle='--', alpha=0.8, label=f'K Call {Kc:.2f}')
         ax.axhline(pior_ret, color=RED, linewidth=0.6, linestyle='--', alpha=0.4, label=f'Pior R$ {pior_ret:.2f}')
 
-        ax.fill_between(x, 0, total_pnl, where=(total_pnl >= 0), color=FILL_BLUE, alpha=0.12)
+        ax.fill_between(x, 0, total_pnl, where=(total_pnl >= 0), color=GREEN, alpha=0.12)
         ax.fill_between(x, 0, total_pnl, where=(total_pnl < 0), color=RED, alpha=0.1)
 
         cor_melhor = BLUE if r.viavel else RED
@@ -1410,21 +1430,30 @@ class ColarDialog(QDialog):
             fig.canvas.draw_idle()
 
         ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.25)
+        ax.axhline(pior_ret, color=RED_PROF, linewidth=0.6, linestyle='--', alpha=0.4, label=f'Pior R$ {pior_ret:.2f}')
 
-        ax.axvline(S, color=SPOT_CLR, linewidth=0.8, linestyle='--', alpha=0.7, zorder=4)
-        ax.axvline(Kp, color=RED_PROF, linewidth=0.8, linestyle='--', alpha=0.7, zorder=4)
-        ax.axvline(Kc, color=GREEN_PROF, linewidth=0.8, linestyle='--', alpha=0.7, zorder=4)
+        y_lo = total_pnl.min() - y_pad
+        y_hi = total_pnl.max() + y_pad
+        y_span = y_hi - y_lo
+
+        def _linha_com_rotulo(xv, cor, texto):
+            gap_center = y_lo + y_span * 0.25
+            gap_half = y_span * 0.04
+            y1 = gap_center - gap_half
+            y2 = gap_center + gap_half
+            if y_lo < y1:
+                ax.plot([xv, xv], [y_lo, y1], color=cor, linewidth=0.8, linestyle='--', alpha=0.7, zorder=4)
+            if y2 < y_hi:
+                ax.plot([xv, xv], [y2, y_hi], color=cor, linewidth=0.8, linestyle='--', alpha=0.7, zorder=4)
+            ax.text(xv, gap_center, texto, ha='center', va='center', color='#fff', fontsize=6.5,
+                    rotation=90,
+                    bbox=dict(boxstyle='round,pad=0.12', facecolor=cor, edgecolor='none', alpha=0.85))
+
+        _linha_com_rotulo(S, SPOT_CLR, f'Spot {S:.2f}')
+        _linha_com_rotulo(Kp, RED_PROF, f'Put {Kp:.2f}')
+        _linha_com_rotulo(Kc, GREEN_PROF, f'Call {Kc:.2f}')
 
         y_zero = 0
-        y_min_plot = total_pnl.min() - y_pad
-        y_max_plot = total_pnl.max() + y_pad
-
-        ax.text(S, y_min_plot, f'  Spot {S:.2f}', color=SPOT_CLR, fontsize=7, va='bottom', ha='left',
-                alpha=0.8, style='italic')
-        ax.text(Kp, y_min_plot, f'  Put {Kp:.2f}', color=RED_PROF, fontsize=7, va='bottom', ha='left',
-                alpha=0.8, style='italic')
-        ax.text(Kc, y_min_plot, f'  Call {Kc:.2f}', color=GREEN_PROF, fontsize=7, va='bottom', ha='left',
-                alpha=0.8, style='italic')
 
         be_baixa = Kp - Pp + Pc
         be_alta = Kc - Pc + Pp
@@ -1435,38 +1464,38 @@ class ColarDialog(QDialog):
             ax.scatter([be_alta], [0], color=WHITE, s=18, zorder=6, edgecolors='none')
             ax.text(be_alta, y_zero, f'  BE↑', color=WHITE, fontsize=6.5, ha='left', va='bottom', alpha=0.7)
 
-        cor_melhor = GREEN_PROF
-        cor_pior = RED_PROF
+        cor_melhor = GREEN_PROF if r.viavel else RED_PROF
+        cor_pior = GREEN_PROF if r.viavel else RED_PROF
 
         melhor_y = melhor_ret
         pior_y = pior_ret
         x_melhor = Kc
         x_pior = Kp
 
-        ax.scatter([x_melhor], [melhor_y], color=GREEN_PROF, s=30, zorder=7, edgecolors=WHITE, linewidth=0.5)
-        ax.scatter([x_pior], [pior_y], color=RED_PROF, s=30, zorder=7, edgecolors=WHITE, linewidth=0.5)
+        ax.scatter([x_melhor], [melhor_y], color=cor_melhor, s=30, zorder=7, edgecolors=WHITE, linewidth=0.5)
+        ax.scatter([x_pior], [pior_y], color=cor_pior, s=30, zorder=7, edgecolors=WHITE, linewidth=0.5)
 
+        x_centro_lucro = (x_max + Kc) / 2
         ax.annotate(
-            f'Melhor: +{pct_melhor:.1f}%',
-            xy=(x_melhor, melhor_y), fontsize=7.5, color=GREEN_PROF,
+            f'Melhor: {pct_melhor:.2f}% / {pct_melhor_cdi:.2f}x CDI',
+            xy=(x_melhor, melhor_y), fontsize=7.5, color=cor_melhor,
             ha='center', va='bottom',
-            xytext=(x_melhor, melhor_y + abs(melhor_y) * 0.25),
-            arrowprops=dict(arrowstyle='->', color=GREEN_PROF, lw=0.8),
-            fontweight='bold',
+            xytext=(x_centro_lucro, melhor_y + abs(melhor_y) * 0.25),
+            arrowprops=dict(arrowstyle='->', color=cor_melhor, lw=0.7),
         )
 
+        x_centro_perda = (x_min + Kp) / 2
         ax.annotate(
-            f'Pior: {pct_pior:.1f}%',
-            xy=(x_pior, pior_y), fontsize=7.5, color=RED_PROF,
+            f'Pior: {pct_pior:.2f}% / {r.pct_cdi:.2f}x CDI',
+            xy=(x_pior, pior_y), fontsize=7.5, color=cor_pior,
             ha='center', va='top',
-            xytext=(x_pior, pior_y - abs(pior_y) * 0.25),
-            arrowprops=dict(arrowstyle='->', color=RED_PROF, lw=0.8),
-            fontweight='bold',
+            xytext=(x_centro_perda, pior_y - abs(pior_y) * 0.25),
+            arrowprops=dict(arrowstyle='->', color=cor_pior, lw=0.7),
         )
 
         ax.set_xlabel('Preço do Ativo no Vencimento (R$)', color=TEXT, fontsize=8.5, labelpad=6)
         ax.set_ylabel('Lucro / Prejuízo (R$)', color=TEXT, fontsize=8.5, labelpad=6)
-        ax.set_title(f'Payoff v2 — {r.ativo}', color='#e8e8e8', fontsize=11, fontweight='bold', pad=8)
+        ax.set_title(f'Payoff — {r.ativo}', color='#e8e8e8', fontsize=11, fontweight='bold', pad=8)
 
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(total_pnl.min() - y_pad, total_pnl.max() + y_pad)
@@ -1478,11 +1507,12 @@ class ColarDialog(QDialog):
             spine.set_linewidth(0.3)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+        ax.legend(loc='best', fontsize=6.5, labelcolor=TEXT, facecolor='#1a1a1a', edgecolor='#2a2a3a', labelspacing=0.3, handlelength=1.5)
 
         fig.tight_layout(pad=1.5)
 
         payoff_dialog = QDialog(self, Qt.Window)
-        payoff_dialog.setWindowTitle(f"Payoff v2 — {r.ativo}")
+        payoff_dialog.setWindowTitle(f"Payoff — {r.ativo}")
         payoff_dialog.setMinimumSize(850, 520)
         payoff_layout = QVBoxLayout(payoff_dialog)
         payoff_layout.setContentsMargins(8, 8, 8, 8)
@@ -1564,7 +1594,7 @@ class ColarDialog(QDialog):
 
         BG = '#0d0d0d'; TEXT = '#c0c0c0'; WHITE = '#ffffff'
         GREEN = '#4caf50'; RED = '#ff3355'; BLUE = '#2196f3'
-        ACCENT = '#ffc107'
+        ACCENT = '#ffc107'; SPOT_CLR = '#42a5f5'
 
         n_sub = 2 if has_vol else 1
         fig = Figure(figsize=(11, 6.5), facecolor=BG)
@@ -1595,7 +1625,7 @@ class ColarDialog(QDialog):
             span = x1n - x0n
             linhas = []
             if preco_atual is not None and preco_atual > 0:
-                linhas.append((preco_atual, WHITE, WHITE, f'Ativo R${preco_atual:.2f}'))
+                linhas.append((preco_atual, SPOT_CLR, SPOT_CLR, f'Ativo R${preco_atual:.2f}'))
             for strike, cor_linha, cor_box, rotulo in [
                 (strike_put, RED, '#4caf50', 'C-PUT'),
                 (strike_call, GREEN, '#ff3355', 'V-CALL'),

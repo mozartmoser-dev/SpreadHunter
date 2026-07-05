@@ -53,7 +53,7 @@ def plot_historico(parent, ativo: str, preco_atual: float = None,
 
     BG = '#0d0d0d'; TEXT = '#c0c0c0'; WHITE = '#ffffff'
     GREEN = '#4caf50'; RED = '#ff3355'; BLUE = '#2196f3'
-    ACCENT = '#ffc107'
+    ACCENT = '#ffc107'; SPOT_CLR = '#42a5f5'
 
     n_sub = 2 if has_vol else 1
     fig = Figure(figsize=(11, 6.5), facecolor=BG)
@@ -82,7 +82,7 @@ def plot_historico(parent, ativo: str, preco_atual: float = None,
         span = x1n - x0n
         linhas = []
         if preco_atual is not None and preco_atual > 0:
-            linhas.append((preco_atual, WHITE, WHITE, f'Ativo R${preco_atual:.2f}'))
+            linhas.append((preco_atual, SPOT_CLR, SPOT_CLR, f'Ativo R${preco_atual:.2f}'))
         for strike, cor_linha, cor_box, rotulo in [
             (strike_put, RED, '#4caf50', 'C-PUT'),
             (strike_call, GREEN, '#ff3355', 'V-CALL'),

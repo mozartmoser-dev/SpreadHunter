@@ -3,8 +3,10 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QLabel, QHeaderView, QFrame, QWidget,
     QDoubleSpinBox,
 )
-from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal
-from PySide6.QtGui import QFont, QColor, QBrush
+from collections import Counter
+
+from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal, QUrl
+from PySide6.QtGui import QFont, QColor, QBrush, QDesktopServices
 
 from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
 from src.ui.desktop.theme import Palette
@@ -26,6 +28,7 @@ BOX_4P_COLUMNS = [
     ("Lucro Líq", "lucro_final"),
     ("Lucro%", "lucro_pct"),
     ("x CDI", "pct_cdi"),
+    ("BTC", "taxa_aluguel"),
     ("Call K1", "cod_call_k1"),
     ("Put K1", "cod_put_k1"),
     ("Call K2", "cod_call_k2"),
@@ -84,6 +87,7 @@ class BoxTableModel(QAbstractTableModel):
                     "qtd_bid_put_k2": "Quantidade de contratos no bid da PUT K2.",
                     "dias": "Dias corridos até o vencimento.",
                     "vencimento": "Data de expiração das opções.",
+                    "taxa_aluguel": "Taxa de aluguel (BTC) da ação objeto — InvestSite.",
                 }
                 return tips.get(BOX_4P_COLUMNS[section][1])
         return None
@@ -107,6 +111,8 @@ class BoxTableModel(QAbstractTableModel):
                 return "{:.2f}%".format(val * 100)
             if col_key == "pct_cdi":
                 return "{:.2f}x".format(val)
+            if col_key == "taxa_aluguel":
+                return "{:.2f}%".format(val)
             if col_key == "vencimento":
                 if hasattr(val, "strftime"):
                     return val.strftime("%d/%m/%Y")
@@ -130,10 +136,11 @@ class BoxTableModel(QAbstractTableModel):
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
             center_cols = {"strike_k1", "strike_k2", "distancia", "clr", "lucro",
-                          "lucro_b3", "lucro_final",
-                          "lucro_pct", "pct_cdi", "dias", "qtd_bid_call_k1", "qtd_ask_put_k1",
-                          "qtd_ask_call_k2", "qtd_bid_put_k2",
-                          "bid_call_k1", "ask_put_k1", "ask_call_k2", "bid_put_k2"}
+                           "lucro_b3", "lucro_final",
+                           "lucro_pct", "pct_cdi", "dias", "qtd_bid_call_k1", "qtd_ask_put_k1",
+                           "qtd_ask_call_k2", "qtd_bid_put_k2",
+                           "bid_call_k1", "ask_put_k1", "ask_call_k2", "bid_put_k2",
+                           "taxa_aluguel"}
             if col_key in center_cols:
                 return Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
             return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
@@ -323,12 +330,25 @@ class BoxDialog(QDialog):
         self.table_view.verticalHeader().setDefaultSectionSize(22)
         self.table_view.verticalHeader().hide()
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
+        self.table_view.clicked.connect(self._on_btc_clicked)
 
         for i in range(self.model.columnCount()):
             header_h.setSectionResizeMode(i, QHeaderView.ResizeToContents)
 
         body.addWidget(self.table_view, stretch=1)
         layout.addLayout(body)
+
+        self._footer = QFrame()
+        self._footer.setFrameShape(QFrame.StyledPanel)
+        self._footer.setStyleSheet("background-color: #141428; border: 1px solid #2a2a44; border-radius: 6px; padding: 4px;")
+        self._footer_layout = QHBoxLayout(self._footer)
+        self._footer_layout.setContentsMargins(8, 4, 8, 4)
+        self._footer_layout.setSpacing(8)
+        lbl_dash = QLabel("📊 Séries:")
+        lbl_dash.setStyleSheet("color: #8888cc; font-size: 8pt; font-weight: bold; background: transparent; border: none;")
+        self._footer_layout.addWidget(lbl_dash)
+        self._footer_layout.addStretch()
+        layout.addWidget(self._footer)
 
     def _abrir_regras(self):
         from src.ui.desktop.regras_dialog import RegrasDialog
@@ -408,6 +428,7 @@ class BoxDialog(QDialog):
                 "qtd_bid_put_k2": r.qtd_bid_put_k2,
                 "dias": r.dias,
                 "vencimento": r.vencimento,
+                "taxa_aluguel": r.taxa_aluguel,
                 "viavel": r.viavel,
             })
         self.model.atualizar(rows)
@@ -415,6 +436,7 @@ class BoxDialog(QDialog):
         viaveis = sum(1 for r in resultados if r.viavel)
         self.lbl_status.setText("{} boxes ({} viáveis)".format(n, viaveis))
         self.lbl_viaveis.setText("{} viáveis".format(viaveis))
+        self._atualizar_dashboard(resultados)
 
         if self._som_ativado and viaveis > 0:
             from src.infrastructure.services.som_service import tocar
@@ -446,6 +468,47 @@ class BoxDialog(QDialog):
     def _toggle_som(self, ativo: bool):
         self._som_ativado = ativo
         self.btn_bell.setToolTip("Som: ligado" if ativo else "Som: desligado")
+
+    def _atualizar_dashboard(self, resultados):
+        contagem: Counter = Counter()
+        for r in resultados:
+            if r.viavel:
+                key = r.vencimento.strftime("%d/%m/%y") if hasattr(r.vencimento, "strftime") else str(r.vencimento)
+                contagem[key] += 1
+
+        while self._footer_layout.count() > 2:
+            item = self._footer_layout.takeAt(1)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        for data, qtd in sorted(contagem.items()):
+            badge = QLabel(f" {data}  {qtd} ")
+            badge.setStyleSheet(f"""
+                QLabel {{
+                    background-color: #1e3a1e; color: #4caf50;
+                    border: 1px solid #2e5a2e; border-radius: 4px;
+                    padding: 2px 6px; font-size: 8pt; font-weight: bold;
+                }}
+            """)
+            self._footer_layout.insertWidget(self._footer_layout.count() - 1, badge)
+
+    def _on_btc_clicked(self, index):
+        if index.column() != self._coluna_btc():
+            return
+        proxy_idx = self.proxy.mapToSource(index)
+        row = proxy_idx.row()
+        if row < 0 or row >= len(getattr(self, "_resultados", [])):
+            return
+        ativo = self._resultados[row].ativo
+        url = QUrl(f"https://www.investsite.com.br/graficos_aluguel_registro.php?cod_negociacao={ativo}")
+        QDesktopServices.openUrl(url)
+
+    def _coluna_btc(self):
+        for i, (_, key) in enumerate(BOX_4P_COLUMNS):
+            if key == "taxa_aluguel":
+                return i
+        return -1
 
     def _on_row_double_clicked(self, index):
         proxy_idx = self.proxy.mapToSource(index)

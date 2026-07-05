@@ -35,6 +35,7 @@ class ResultadoBox:
     em_leilao: bool
     viavel: bool
     dias: int
+    taxa_aluguel: float = 0.0
 
 
 class CalculadoraBox:
