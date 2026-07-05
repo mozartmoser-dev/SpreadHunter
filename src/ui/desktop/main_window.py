@@ -1,6 +1,7 @@
 import sys
 from collections import Counter
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -51,6 +52,7 @@ class MainWindow(QMainWindow):
         self._total_opps = 0
         self._total_viaveis = 0
         self._resultados_brutos = []
+        self._filtro_vencimento: str | None = None
         self._ultimos_colares = []
         self._ultimos_colares_cal = []
         self._ultimos_boxes = []
@@ -884,9 +886,13 @@ class MainWindow(QMainWindow):
         self._filtrar_e_atualizar_tabela()
 
     def _filtrar_e_atualizar_tabela(self):
-        self.table_model.atualizar(self._resultados_brutos)
-        self._total_opps = len(self._resultados_brutos)
-        self._total_viaveis = sum(1 for r in self._resultados_brutos if r.viavel)
+        if self._filtro_vencimento:
+            filtrados = [r for r in self._resultados_brutos if self._key_vencimento(r) == self._filtro_vencimento]
+        else:
+            filtrados = self._resultados_brutos
+        self.table_model.atualizar(filtrados)
+        self._total_opps = len(filtrados)
+        self._total_viaveis = sum(1 for r in filtrados if r.viavel)
         if self._total_opps > 0:
             cor = Palette.GREEN if self._total_viaveis > 0 else Palette.TEXT_MUTED
             self.lbl_count.setStyleSheet(f"color: {Palette.TEXT_SECONDARY}; font-size: 9pt; font-weight: bold; padding: 0 6px;")
@@ -903,11 +909,27 @@ class MainWindow(QMainWindow):
 
         self._atualizar_dashboard()
 
+    @staticmethod
+    def _is_weekly(cod: str) -> bool:
+        if len(cod) < 5:
+            return False
+        c = cod[4].upper()
+        return c in ("A", "B", "C", "D", "M", "N", "O", "P")
+
+    def _key_vencimento(self, r) -> str:
+        raw = r.vencimento.strftime("%d/%m/%y") if hasattr(r.vencimento, "strftime") else str(r.vencimento)
+        cod = r.cod_put or r.cod_call
+        prefix = "S-" if self._is_weekly(cod) else ""
+        return f"{prefix}{raw}"
+
+    def _filtrar_por_vencimento(self, key: str | None):
+        self._filtro_vencimento = key
+        self._filtrar_e_atualizar_tabela()
+
     def _atualizar_dashboard(self):
         contagem: Counter = Counter()
         for r in self._resultados_brutos:
-            key = r.vencimento.strftime("%d/%m/%y") if hasattr(r.vencimento, "strftime") else str(r.vencimento)
-            contagem[key] += 1
+            contagem[self._key_vencimento(r)] += 1
 
         while self._dashboard_layout.count() > 2:
             item = self._dashboard_layout.takeAt(1)
@@ -916,26 +938,30 @@ class MainWindow(QMainWindow):
                 w.deleteLater()
 
         total = sum(contagem.values())
-        badge_total = QLabel(f" TOTAL  {total} ")
-        badge_total.setStyleSheet(f"""
-            QLabel {{
-                background-color: #1a1a3e; color: #8888ff;
-                border: 1px solid #2a2a5e; border-radius: 4px;
-                padding: 2px 6px; font-size: 8pt; font-weight: bold;
-            }}
-        """)
-        self._dashboard_layout.insertWidget(self._dashboard_layout.count() - 1, badge_total)
+
+        def _badge(texto, cor_bg, cor_fg, cor_borda, key=None):
+            ativo = key == self._filtro_vencimento
+            b = QPushButton(texto)
+            b.setFlat(True)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {cor_bg}; color: {cor_fg};
+                    border: {'2px solid ' + cor_fg if ativo else '1px solid ' + cor_borda};
+                    border-radius: 4px; padding: 2px 6px;
+                    font-size: 8pt; font-weight: bold;
+                }}
+                QPushButton:hover {{ border: 1px solid {cor_fg}; }}
+            """)
+            b.clicked.connect(partial(self._filtrar_por_vencimento, key))
+            return b
+
+        b = _badge(f" TOTAL  {total} ", "#1a1a3e", "#8888ff", "#2a2a5e", None)
+        self._dashboard_layout.insertWidget(self._dashboard_layout.count() - 1, b)
 
         for data, qtd in sorted(contagem.items()):
-            badge = QLabel(f" {data}  {qtd} ")
-            badge.setStyleSheet(f"""
-                QLabel {{
-                    background-color: #1e3a1e; color: #4caf50;
-                    border: 1px solid #2e5a2e; border-radius: 4px;
-                    padding: 2px 6px; font-size: 8pt; font-weight: bold;
-                }}
-            """)
-            self._dashboard_layout.insertWidget(self._dashboard_layout.count() - 1, badge)
+            b = _badge(f" {data}  {qtd} ", "#1e3a1e", "#4caf50", "#2e5a2e", data)
+            self._dashboard_layout.insertWidget(self._dashboard_layout.count() - 1, b)
 
     def _toggle_som_global(self, ativo: bool):
         self._som_ativado = ativo
