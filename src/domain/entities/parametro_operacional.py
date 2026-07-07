@@ -62,6 +62,7 @@ class ParametroOperacional:
         "venda_coberta_lote_liquidez": {"valor": 100.0, "estrategia": "VENDA_COBERTA", "descricao": "Lote minimo de liquidez da CALL para Venda Coberta"},
         "venda_coberta_dias_minimos": {"valor": 10.0, "estrategia": "VENDA_COBERTA", "descricao": "Dias minimos ate o vencimento para Venda Coberta"},
         "venda_coberta_dist_max_pct": {"valor": 0.20, "estrategia": "VENDA_COBERTA", "descricao": "Distancia maxima do strike abaixo do spot"},
+        "sbth_vendida_dist_ativo": {"valor": 1.20, "estrategia": "SBTH_VENDIDA", "descricao": "Distancia minima strike/spot (x) - filtro de entrada SBTH Vendida"},
         "notif_telegram_enable": {"valor": 0.0, "estrategia": "TELEGRAM", "descricao": "Habilitar Telegram"},
         "telegram_bot_token": {"valor": "0", "estrategia": "TELEGRAM", "descricao": "Token Telegram"},
         "telegram_chat_id": {"valor": "0", "estrategia": "TELEGRAM", "descricao": "Chat ID Telegram"},
@@ -142,4 +143,8 @@ class ParametroOperacional:
         "mpp_bonus_taxa": {"valor": 0.25, "estrategia": "MPP", "descricao": "Taxa conversão sucesso em bônus"},
         "mre_lote_base": {"valor": 100.0, "estrategia": "MPP", "descricao": "Lote base para execução"},
         "mre_profundidade_max_pct": {"valor": 0.20, "estrategia": "MPP", "descricao": "Máximo % da profundidade a consumir"},
+        "calda_habilitado": {"valor": 0.0, "estrategia": "COLLAR_CALENDARIO_CAUDA", "descricao": "Habilitar variante Cauda Assíncrona (0=desligado)"},
+        "calda_premio_risco": {"valor": 2.5, "estrategia": "COLLAR_CALENDARIO_CAUDA", "descricao": "Múltiplo do CDI para target de retorno da Cauda"},
+        "calda_desvios_cauda": {"valor": 3.0, "estrategia": "COLLAR_CALENDARIO_CAUDA", "descricao": "Nº de desvios padrão para o breakeven superior"},
+        "calda_ratio_max": {"valor": 50.0, "estrategia": "COLLAR_CALENDARIO_CAUDA", "descricao": "Ratio máximo CALL:ativo permitido"},
     }

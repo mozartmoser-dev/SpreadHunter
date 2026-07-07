@@ -439,3 +439,107 @@ para o `T` no cálculo de IV e gregas.
 Se o Profit usar exato, vale migrar as calculadoras de spread (colar, calendário,
 box) para usar `dc_to_du_exato(hoje, inst.vencimento)` em vez de
 `dc_to_du(None, None, dias)`.
+
+---
+
+## Sessão 07/07/2026 — Estratégias Vendidas (TAXA / BOX Vendida / SBTH Vendida)
+
+### Definição (renomeada — "Venda Coberta" → **Taxa**)
+
+| Estratégia | Ativo | PUT | CALL | `recebimento` | Filtros |
+|------------|:-----:|:---:|:----:|---------------|---------|
+| **Taxa** | vende (bid) | — | compra (ask) | `bid_ativo − ask_call` | `receb > K` |
+| **BOX Vendida** | vende (bid) | vende (bid) | compra (ask) | `bid_ativo + bid_put − ask_call` | `receb > K` |
+| **SBTH Vendida** | vende (bid) | vende (bid) | — | `bid_ativo + bid_put` | `K > ativo × DIST` E `receb > K` |
+
+> **Coerência do book**: quem vende recebe `bid_*`, quem compra paga `ask_*`.
+> A SBTH Vendida **vende** o ativo (recebe bid) e **vende** a PUT (recebe bid).
+
+### Arquivos alterados
+
+- `src/application/use_cases/monitor_venda_coberta.py:88` — `recebimento = of_compra_ativo - of_venda_call`
+- `src/application/use_cases/monitor_vendidas.py:90` — `recebimento_box = of_compra_ativo + of_compra_put - of_venda_call`
+- `src/application/use_cases/monitor_vendidas.py:94-95` — `recebimento_sbth = of_compra_ativo + of_compra_put`; `dist_min_ativo` parametrizado
+
+### Parametrização
+
+- Novo parâmetro `sbth_vendida_dist_ativo` (estratégia `SBTH_VENDIDA`), seed em:
+  - `src/infrastructure/persistence/database.py:207`
+  - `src/domain/entities/parametro_operacional.py:65`
+  - `config/parametros_default.json` (linha 826)
+  - `src/ui/desktop/parametros_widget.py:123` (nova seção `SBTH_VENDIDA`)
+- Default 1,20 (idêntico ao hardcoded anterior).
+
+### Rename cosmético (não renomeia classes/arquivos/chaves)
+
+- `parametros_widget.py:37` — `VENDA_COBERTA → "Taxa"`
+- Tooltips: `venda_coberta_table_model.py:81,83`
+- `main_window.py:1683` título Export, `main_window.py:1787` BoletaDialog (passa `"TAXA"`)
+- `boleta_dialog.py:282` switch `elif self.strategy == "TAXA":`
+- Tooltips e labels de som: `parametros_widget.py:114,115,399,405`
+
+### Testes
+
+383/383 passando.
+
+---
+
+## Sessão 07/07/2026 (parte 4) — Refatoração ParametrosWidget (Sidebar + Stack)
+
+### Problema
+Lista única vertical de 13 estratégias forçava rolagem constante para
+localizar parâmetros fora de "GERAL". Inadequado para o uso diário.
+
+### Solução — 4 tranches
+
+**Tranche 1 (FEITO)**: QListWidget à esquerda (estilo IDE/discord) + QStackedWidget
+à direita. Cada estratégia vira uma página individual. Bullet color por estratégia
+(vem de `ESTRATEGIA_COLORS`). QSettings persiste `parametros/last_section`.
+
+**Tranche 2 (FEITO)**: ícones estáticos 🔔 (som próprio configurado) e 📲
+(Telegram ativo) por linha da lista. Map via `_chave_som_estrategia()`.
+
+**Tranche 3 (FEITO)**: ícone 🔴N reativo com viáveis do monitor worker.
+`bind_monitor_signals(worker)` pluga sinais:
+- `oportunidades_atualizadas` → BOX / SBTH / BOX_SINTETICO
+- `boxes_atualizados` → BOX_4P
+- `colares_atualizados` → COLAR
+- `colares_calendario_atualizados` → COLLAR_CALENDARIO
+- `oportunidades_coberta_atualizadas` → VENDA_COBERTA
+
+**Tranche 4 (PENDENTE)**: rodapé com atalhos globais (Som/Telegram/Performance).
+_Opcional, deps não muda._
+
+### Compatibilidade
+- Parâmetros e ordem dos parâmetros por estratégia: **inalterados**.
+- Apenas orientação/agrupamento muda (de uma lista empilhada para sidebar+stack).
+- 13 páginas, 94 widgets, comportamento de salvar/carregar idênticos.
+
+### Arquivos alterados
+- `src/ui/desktop/parametros_widget.py` — `_build_sidebar`, `_build_stack_pages`,
+  `_build_param_row`, `_on_sidebar_changed`, `_save_selection`, `_restore_selection`,
+  `bind_monitor_signals`, `_update_counter`, `_set_item_counter`,
+  `_compose_icons`, `_compose_tooltip`, `_chave_som_estrategia`.
+- `src/ui/desktop/main_window.py:1058` — `widget.bind_monitor_signals(self._worker)`
+
+### Cobertura
+- 383/383 testes passando.
+- Build: PyInstaller 6.21.0 ok.
+
+---
+
+## Sessão 07/07/2026 (parte 5) — Guia do Amigo (Diagnóstico via dev)
+
+### Contexto
+Versão compilada do amigo parou de funcionar (só collars funcionam; monitor
+BOX/SBTH não retorna nada). Causa típica: lib faltando no PyInstaller ou mudança
+de ambiente que o .exe não reporta.
+
+### Solução
+Pedir para rodar `python main.py` em vez do .exe → vê stacktrace completo.
+
+### Arquivos auxiliares no projeto
+- `requirements.txt` — pacotes pip com versões pinadas (Python 3.13.14).
+- `INSTRUCOES_AMIGO.txt` — passo a passo para rodar via dev,
+  troubleshoot de problemas comuns, geração do .exe.
+

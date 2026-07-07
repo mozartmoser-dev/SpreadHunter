@@ -1052,10 +1052,11 @@ class MainWindow(QMainWindow):
     def _abrir_parametros(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Parametros Operacionais")
-        dialog.setMinimumSize(560, 620)
+        dialog.setMinimumSize(820, 660)
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)
         widget = ParametrosWidget(self.db_path)
+        widget.bind_monitor_signals(self._worker)
         layout.addWidget(widget)
         btn_fechar = QPushButton("Fechar")
         btn_fechar.clicked.connect(dialog.accept)
@@ -1680,7 +1681,7 @@ class MainWindow(QMainWindow):
         from PySide6.QtCore import Qt
 
         dialog = QDialog(self, Qt.Window)
-        dialog.setWindowTitle("Exportar Operação - {} VENDA COBERTA".format(r.ativo))
+        dialog.setWindowTitle("Exportar Operação - {} (TAXA)".format(r.ativo))
         dialog.setMinimumWidth(520)
         dialog.setMinimumHeight(480)
 
@@ -1784,7 +1785,7 @@ class MainWindow(QMainWindow):
 
     def _abrir_boleta_coberta(self, r):
         from src.ui.desktop.boleta_dialog import BoletaDialog
-        dlg = BoletaDialog("VENDA COBERTA", r, self.db_path, self)
+        dlg = BoletaDialog("TAXA", r, self.db_path, self)
         dlg.exec_()
 
     def closeEvent(self, event):

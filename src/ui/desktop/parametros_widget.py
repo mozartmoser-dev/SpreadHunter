@@ -1,4 +1,5 @@
 import json
+from collections import OrderedDict
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -6,8 +7,9 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox, QPushButton, QLabel, QScrollArea, QFrame,
     QCheckBox, QComboBox, QLineEdit, QMessageBox, QHBoxLayout,
     QSlider, QFileDialog,
+    QListWidget, QListWidgetItem, QStackedWidget,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSettings
 
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 from src.domain.entities.parametro_operacional import ParametroOperacional
@@ -34,7 +36,9 @@ ESTRATEGIA_LABELS = {
     "COLAR": "Colar Protetivo",
     "COLLAR_CALENDARIO": "Collar Calendário",
     "BOX_4P": "Box Spread 4 Pontas",
-    "VENDA_COBERTA": "Venda Coberta",
+    "VENDA_COBERTA": "Taxa",
+    "COLLAR_CALENDARIO_CAUDA": "Collar Cal. Cauda Assíncrona",
+    "SBTH_VENDIDA": "SBTH Vendida",
 }
 
 ESTRATEGIA_COLORS = {
@@ -49,6 +53,7 @@ ESTRATEGIA_COLORS = {
     "COLLAR_CALENDARIO": "#f39c12",
     "BOX_4P": "#e74c3c",
     "VENDA_COBERTA": "#2ecc71",
+    "COLLAR_CALENDARIO_CAUDA": "#e67e22",
     "IMPORTACAO": "#8e44ad",
 }
 
@@ -109,14 +114,17 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("som_volume", "Volume (0-100%)"),
         ("som_arquivo_vendidas", "Som VENDIDAS (.wav)"),
         ("som_volume_vendidas", "Volume VENDIDAS (0-100%)"),
-        ("som_arquivo_coberta", "Som VENDA COBERTA (.wav)"),
-        ("som_volume_coberta", "Volume VENDA COBERTA (0-100%)"),
+        ("som_arquivo_coberta", "Som TAXA (.wav)"),
+        ("som_volume_coberta", "Volume TAXA (0-100%)"),
     ],
     "VENDA_COBERTA": [
         ("venda_coberta_premio_risco", "Premio Risco (x CDI)"),
         ("venda_coberta_lote_liquidez", "Lote Liquidez CALL"),
         ("venda_coberta_dias_minimos", "Dias Minimos Vencimento"),
         ("venda_coberta_dist_max_pct", "Distancia Max Strike Abaixo Spot"),
+    ],
+    "SBTH_VENDIDA": [
+        ("sbth_vendida_dist_ativo", "Distancia Minima Strike/Spot (x)"),
     ],
     "COLAR": [
         ("premio_risco_colar", "Premio risco Colar (x CDI)"),
@@ -156,6 +164,12 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("ranking_peso_liquidez", "Peso liquidez no Score Ranking"),
         ("white_list_colar_calendario", "Whitelist de ativos (separados por virgula)"),
         ("telegram_cleanup_timeout", "Timeout historico Telegram (s)"),
+    ],
+    "COLLAR_CALENDARIO_CAUDA": [
+        ("calda_habilitado", "Habilitar Cauda Assincrona (1=sim, 0=nao)"),
+        ("calda_premio_risco", "Premio risco (x CDI)"),
+        ("calda_desvios_cauda", "Desvios padrao para breakeven sup."),
+        ("calda_ratio_max", "Ratio maximo CALL:ativo"),
     ],
     "BOX_4P": [
         ("box_premio_risco", "Premio risco (x CDI)"),
@@ -385,13 +399,13 @@ PARAMETROS_INFO = {
         "precedencia": "Banco de Dados -> 100 (padrão)",
     },
     "som_arquivo_coberta": {
-        "descricao": "Caminho para um arquivo .wav para notificacoes de VENDA COBERTA. "
+        "descricao": "Caminho para um arquivo .wav para notificacoes de TAXA. "
                      "Deixe vazio para usar o beep padrão do sistema (winsound).",
-        "usado_em": "som_service.tocar_coberta() — main window (tabela venda coberta).",
+        "usado_em": "som_service.tocar_coberta() — main window (tabela TAXA/Venda Coberta).",
         "precedencia": "Banco de Dados -> Vazio (beep padrão)",
     },
     "som_volume_coberta": {
-        "descricao": "Volume do som de notificacao de VENDA COBERTA, de 0 (mudo) a 100 (máximo).",
+        "descricao": "Volume do som de notificacao de TAXA, de 0 (mudo) a 100 (máximo).",
         "usado_em": "som_service.tocar_coberta().",
         "precedencia": "Banco de Dados -> 100 (padrão)",
     },
@@ -603,21 +617,144 @@ class ParametrosWidget(QWidget):
         self._setup_ui()
         self._carregar()
 
+    # Ordem de exibição da sidebar (esquerda). Ordem dos parâmetros por
+    # estratégia continua igual à definida em PARAMETROS_POR_ESTRATEGIA.
+    _SIDEBAR_ORDER = [
+        "GERAL",
+        "COLAR",
+        "COLLAR_CALENDARIO",
+        "BOX",
+        "BOX_SINTETICO",
+        "BOX_4P",
+        "SBTH",
+        "VENDA_COBERTA",
+        "SBTH_VENDIDA",
+        "COLLAR_CALENDARIO_CAUDA",
+        "PERFORMANCE",
+        "TELEGRAM",
+        "SOM",
+    ]
+
     def _setup_ui(self):
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.setSpacing(8)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll_content = QWidget()
-        layout = QVBoxLayout(scroll_content)
-        layout.setSpacing(12)
-        layout.setContentsMargins(8, 8, 8, 8)
+        body = QHBoxLayout()
+        body.setContentsMargins(8, 8, 8, 0)
+        body.setSpacing(8)
 
-        for estrategia, params in PARAMETROS_POR_ESTRATEGIA.items():
-            label = ESTRATEGIA_LABELS.get(estrategia, estrategia)
-            color = ESTRATEGIA_COLORS.get(estrategia, Palette.TEXT_PRIMARY)
+        self.sidebar = self._build_sidebar()
+        body.addWidget(self.sidebar)
+
+        self.stack = QStackedWidget()
+        self._pages = {}    # estrategia -> QWidget pagina
+        self._build_stack_pages()
+        body.addWidget(self.stack, stretch=1)
+
+        outer_layout.addLayout(body)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("background-color: {}; max-height: 1px;".format(Palette.BORDER))
+        outer_layout.addWidget(sep)
+
+        self.btn_salvar = QPushButton("Salvar Parametros")
+        self.btn_salvar.setProperty("class", "primary")
+        self.btn_salvar.clicked.connect(self._salvar)
+        outer_layout.addWidget(self.btn_salvar)
+
+        btn_export = QPushButton("💾 Exportar Config")
+        btn_export.setFixedHeight(24)
+        btn_export.setStyleSheet("font-size: 8pt;")
+        btn_export.clicked.connect(self._exportar_json)
+        outer_layout.addWidget(btn_export)
+
+        self.lbl_status = QLabel("")
+        self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        outer_layout.addWidget(self.lbl_status)
+
+        self.sidebar.currentItemChanged.connect(self._on_sidebar_changed)
+        self._restore_selection()
+
+    def _build_sidebar(self) -> QListWidget:
+        lista = QListWidget()
+        lista.setFixedWidth(250)
+        lista.setUniformItemSizes(True)
+        lista.setSpacing(2)
+        lista.setStyleSheet("""
+            QListWidget {
+                background-color: #14141f;
+                border: 1px solid #2d2d44;
+                border-radius: 6px;
+                padding: 6px;
+                outline: 0;
+            }
+            QListWidget::item {
+                padding: 6px 8px;
+                border-radius: 4px;
+                color: #cfcfdc;
+            }
+            QListWidget::item:hover {
+                background-color: #1f1f33;
+            }
+            QListWidget::item:selected {
+                background-color: #2d4a7a;
+                color: #ffffff;
+            }
+        """)
+
+        _ESTRATEGIA_SYMBOL = {
+            "GERAL": "\u2699",                       # ⚙
+            "COLAR": "\U0001F6E1",                   # 🛡
+            "COLLAR_CALENDARIO": "\U0001F4C5",        # 📅
+            "BOX": "\U0001F4E6",                      # 📦
+            "BOX_SINTETICO": "\U0001F9FA",            # 🧺
+            "BOX_4P": "\U0001F9EE",                   # 🧮
+            "SBTH": "\U0001F4C8",                     # 📈
+            "VENDA_COBERTA": "\u25CF",                # ● (bullit color)
+            "SBTH_VENDIDA": "\u25CF",
+            "COLLAR_CALENDARIO_CAUDA": "\U0001FAB6",  # 🪶
+            "PERFORMANCE": "\u26A1",                  # ⚡
+            "TELEGRAM": "\U0001F4F2",                 # 📲
+            "SOM": "\U0001F514",                      # 🔔
+        }
+
+        for key in self._SIDEBAR_ORDER:
+            label = ESTRATEGIA_LABELS.get(key, key)
+            color = ESTRATEGIA_COLORS.get(key, Palette.TEXT_PRIMARY)
+            symbol = _ESTRATEGIA_SYMBOL.get(key, "\u25CF")
+            item = QListWidgetItem("{}  {}".format(symbol, label))
+            item.setData(Qt.UserRole, key)
+            item.setData(int(Qt.UserRole) + 1, color)
+            item.setData(int(Qt.UserRole) + 3, label)
+            lista.addItem(item)
+        return lista
+
+    def _chave_som_estrategia(self, key: str) -> str:
+        """Qual parâmetro de som reflete para esta estratégia."""
+        if key in ("VENDA_COBERTA", "SBTH_VENDIDA"):
+            return "som_arquivo_coberta"
+        return "som_arquivo"
+
+    def _build_stack_pages(self):
+        for key in self._SIDEBAR_ORDER:
+            params = PARAMETROS_POR_ESTRATEGIA.get(key, [])
+            label = ESTRATEGIA_LABELS.get(key, key)
+            color = ESTRATEGIA_COLORS.get(key, Palette.TEXT_PRIMARY)
+            page = QWidget()
+            page_layout = QVBoxLayout(page)
+            page_layout.setContentsMargins(0, 0, 0, 0)
+            page_layout.setSpacing(8)
+
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+            inner = QWidget()
+            form_holder = QVBoxLayout(inner)
+            form_holder.setContentsMargins(8, 8, 8, 8)
+            form_holder.setSpacing(12)
+
             group = QGroupBox(label)
             group.setStyleSheet(
                 "QGroupBox::title {{ color: {}; }}".format(color)
@@ -627,6 +764,18 @@ class ParametrosWidget(QWidget):
             form.setContentsMargins(12, 20, 12, 12)
 
             for chave, display in params:
+                self._build_param_row(form, chave, display)
+
+            group.setLayout(form)
+            form_holder.addWidget(group)
+            form_holder.addStretch()
+            scroll.setWidget(inner)
+            page_layout.addWidget(scroll)
+
+            self._pages[key] = page
+            self.stack.addWidget(page)
+
+    def _build_param_row(self, form, chave, display):
                 if "perf_carga_inteligente" in chave or "notif_telegram_enable" in chave or "box_soh_europeia" in chave or "mpp_habilitado" in chave or "taxa_aluguel_habilitado" in chave:
                     widget = QCheckBox("Habilitado")
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
@@ -828,32 +977,99 @@ class ParametrosWidget(QWidget):
                 if chave not in ("som_arquivo", "som_volume", "som_arquivo_vendidas", "som_volume_vendidas", "som_arquivo_coberta", "som_volume_coberta"):
                     self._widgets[chave] = widget
 
-            group.setLayout(form)
-            layout.addWidget(group)
+    def _on_sidebar_changed(self, current: QListWidgetItem, previous: QListWidgetItem):
+        if not current:
+            return
+        key = current.data(Qt.UserRole)
+        page = self._pages.get(key)
+        if page is not None:
+            self.stack.setCurrentWidget(page)
+            self._save_selection(key)
 
-        layout.addStretch()
-        scroll.setWidget(scroll_content)
-        outer_layout.addWidget(scroll)
+    def _save_selection(self, key: str):
+        QSettings().setValue("parametros/last_section", key)
 
-        sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("background-color: {}; max-height: 1px;".format(Palette.BORDER))
-        outer_layout.addWidget(sep)
+    def _restore_selection(self):
+        last = QSettings().value("parametros/last_section", "GERAL")
+        for i in range(self.sidebar.count()):
+            it = self.sidebar.item(i)
+            if it.data(Qt.UserRole) == last:
+                self.sidebar.setCurrentRow(i)
+                return
+        if self.sidebar.count() > 0:
+            self.sidebar.setCurrentRow(0)
 
-        self.btn_salvar = QPushButton("Salvar Parametros")
-        self.btn_salvar.setProperty("class", "primary")
-        self.btn_salvar.clicked.connect(self._salvar)
-        outer_layout.addWidget(self.btn_salvar)
+    # ---- Tranche 3: ícones reativos (viáveis por estratégia) ----
 
-        btn_export = QPushButton("💾 Exportar Config")
-        btn_export.setFixedHeight(24)
-        btn_export.setStyleSheet("font-size: 8pt;")
-        btn_export.clicked.connect(self._exportar_json)
-        outer_layout.addWidget(btn_export)
+    def bind_monitor_signals(self, worker):
+        """Conecta sinais do monitor para atualizar contador 🔴 da estratégia."""
+        if not worker:
+            return
+        self._worker = worker
+        if hasattr(worker, "oportunidades_atualizadas"):
+            worker.oportunidades_atualizadas.connect(
+                lambda lst: self._update_counter("BOX", self._count_viaveis_box_sbth(lst, "box"))
+            )
+            worker.oportunidades_atualizadas.connect(
+                lambda lst: self._update_counter("SBTH", self._count_viaveis_box_sbth(lst, "sbth"))
+            )
+            worker.oportunidades_atualizadas.connect(
+                lambda lst: self._update_counter("BOX_SINTETICO",
+                    self._count_viaveis_box_sbth(lst, "box_sintetico"))
+            )
+        if hasattr(worker, "boxes_atualizados"):
+            worker.boxes_atualizados.connect(
+                lambda lst: self._update_counter("BOX_4P",
+                    sum(1 for it in lst if getattr(it, "viavel", False)))
+            )
+        if hasattr(worker, "colares_atualizados"):
+            worker.colares_atualizados.connect(
+                lambda lst: self._update_counter("COLAR",
+                    sum(1 for it in lst if getattr(it, "viavel", False)))
+            )
+        if hasattr(worker, "colares_calendario_atualizados"):
+            worker.colares_calendario_atualizados.connect(
+                lambda lst: self._update_counter("COLLAR_CALENDARIO",
+                    sum(1 for it in lst if getattr(it, "viavel", False)))
+            )
+        if hasattr(worker, "oportunidades_coberta_atualizadas"):
+            worker.oportunidades_coberta_atualizadas.connect(
+                lambda lst: self._update_counter("VENDA_COBERTA",
+                    sum(1 for it in lst if getattr(it, "viavel", False)))
+            )
 
-        self.lbl_status = QLabel("")
-        self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        outer_layout.addWidget(self.lbl_status)
+    def _count_viaveis_box_sbth(self, lst, kind):
+        n = 0
+        for it in lst:
+            classifica = getattr(it, "operacao", None) or getattr(it, "classificacao", None) or ""
+            if kind == "box" and "BOX" in str(classifica).upper() and getattr(it, "viavel", False):
+                n += 1
+            elif kind == "sbth" and "SBTH" in str(classifica).upper() and getattr(it, "viavel", False):
+                n += 1
+            elif kind == "box_sintetico" and "BOXSBTH" in str(classifica).upper() and getattr(it, "viavel", False):
+                n += 1
+        return n
+
+    def _update_counter(self, key, n):
+        if n is None:
+            return
+        for i in range(self.sidebar.count()):
+            it = self.sidebar.item(i)
+            if it.data(Qt.UserRole) == key:
+                self._set_item_counter(it, n)
+                return
+
+    def _set_item_counter(self, item: QListWidgetItem, n: int):
+        prev = item.data(int(Qt.UserRole) + 2) or 0
+        if prev == n:
+            return
+        item.setData(int(Qt.UserRole) + 2, n)
+        text_base = item.data(int(Qt.UserRole) + 3) or item.text()
+        item.setData(int(Qt.UserRole) + 3, text_base)
+        if n > 0:
+            item.setText("{}  🔴 {}".format(text_base.rstrip(), n))
+        else:
+            item.setText("{}".format(text_base.rstrip()))
 
     def _mostrar_info(self, chave: str, display: str):
         info = PARAMETROS_INFO.get(chave, {})

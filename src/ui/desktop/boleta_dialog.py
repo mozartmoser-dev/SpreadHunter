@@ -266,6 +266,28 @@ class BoletaDialog(QDialog):
             unitario = getattr(r, 'preco_compra', 0) + getattr(r, 'premio_put', 0) - getattr(r, 'premio_call', 0)
             self.lbl_coeficiente.setText(f"R$ {fmt_br(unitario)}")
 
+        elif self.strategy in ("BOX VENDIDO", "SBTH VENDIDA"):
+            qtd_ativo = _int_param(self.repo, "vendidas_qtd_ativo", 100)
+            prof_ativo = _int_param(self.repo, "vendidas_prof_ativo", 1)
+            qtd_put = _int_param(self.repo, "vendidas_qtd_put", 100)
+            prof_put = _int_param(self.repo, "vendidas_prof_put", 1)
+            self._add_perna(getattr(r, "ativo", ""), "C", qtd_ativo, prof_ativo)
+            self._add_perna(getattr(r, "cod_put", ""), "C", qtd_put, prof_put)
+            if self.strategy == "BOX VENDIDO":
+                qtd_call = _int_param(self.repo, "vendidas_qtd_call", 100)
+                prof_call = _int_param(self.repo, "vendidas_prof_call", -1)
+                self._add_perna(getattr(r, "cod_call", ""), "V", qtd_call, prof_call)
+            self.lbl_coeficiente.setText(f"R$ {fmt_br(-getattr(r, 'recebimento', 0))}")
+
+        elif self.strategy == "TAXA":
+            qtd_ativo = _int_param(self.repo, "coberta_qtd_ativo", 100)
+            prof_ativo = _int_param(self.repo, "coberta_prof_ativo", 1)
+            qtd_call = _int_param(self.repo, "coberta_qtd_call", 100)
+            prof_call = _int_param(self.repo, "coberta_prof_call", -1)
+            self._add_perna(getattr(r, "ativo", ""), "C", qtd_ativo, prof_ativo)
+            self._add_perna(getattr(r, "cod_call", ""), "V", qtd_call, prof_call)
+            self.lbl_coeficiente.setText(f"R$ {fmt_br(-getattr(r, 'recebimento', 0))}")
+
         elif self.strategy == "BASKET ITM":
             qtd_itm = _int_param(self.repo, "basket_qtd_call_itm", 100)
             prof_itm = _int_param(self.repo, "basket_prof_call_itm", 1)

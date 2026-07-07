@@ -204,6 +204,11 @@ def _seed_parametros_colar(conn):
         ("venda_coberta_lote_liquidez", "100", "VENDA_COBERTA", "Lote minimo de liquidez da CALL para Venda Coberta"),
         ("venda_coberta_dias_minimos", "10", "VENDA_COBERTA", "Dias minimos ate o vencimento para Venda Coberta"),
         ("venda_coberta_dist_max_pct", "0.20", "VENDA_COBERTA", "Distancia maxima do strike abaixo do spot (%)"),
+        ("sbth_vendida_dist_ativo", "1.20", "SBTH_VENDIDA", "Distancia minima strike/spot (x) para SBTH Vendida — filtro de entrada"),
+        ("calda_habilitado", "1", "COLLAR_CALENDARIO_CAUDA", "Habilitar variante Cauda Assincrona (0=desligado)"),
+        ("calda_premio_risco", "2.5", "COLLAR_CALENDARIO_CAUDA", "Multiplo do CDI para target de retorno da Cauda"),
+        ("calda_desvios_cauda", "3.0", "COLLAR_CALENDARIO_CAUDA", "N de desvios padrao para o breakeven superior"),
+        ("calda_ratio_max", "50.0", "COLLAR_CALENDARIO_CAUDA", "Ratio maximo CALL:ativo permitido"),
     ]
     for p in params + mpp_params + perf_params:
         conn.execute(
