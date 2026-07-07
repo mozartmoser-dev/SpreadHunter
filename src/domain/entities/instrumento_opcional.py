@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
-from datetime import date
+from dataclasses import dataclass
+from datetime import date, datetime
 from enum import Enum
 
 
@@ -17,6 +17,7 @@ class InstrumentoOpcional:
     tipo_opcao: TipoOpcao
     strike: float | None = None  # Populado via API OptionsChain no import. Persistido como fallback.
     id: int | None = None
+    created_at: datetime | None = None
 
     @property
     def dias_ate_vencimento(self) -> int:

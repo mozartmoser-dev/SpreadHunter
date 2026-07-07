@@ -21,6 +21,23 @@ def _parse_date(val) -> date | None:
     return date.fromisoformat(str(val))
 
 
+def _parse_datetime(val) -> datetime | None:
+    if val is None:
+        return None
+    if isinstance(val, datetime):
+        return val
+    s = str(val)
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(s)
+    except ValueError:
+        return None
+
+
 def _row_strike(row: sqlite3.Row) -> float | None:
     """Safely extract strike column (may not exist in legacy DB)."""
     try:
@@ -94,6 +111,7 @@ class InstrumentoRepository:
                     vencimento=_parse_date(row["vencimento"]),
                     tipo_opcao=TipoOpcao(row["tipo_opcao"]),
                     strike=_row_strike(row),
+                    created_at=_parse_datetime(row["created_at"]) if "created_at" in row.keys() else None,
                 )
                 for row in rows
             ]
@@ -132,6 +150,7 @@ class InstrumentoRepository:
                     vencimento=_parse_date(row["vencimento"]),
                     tipo_opcao=TipoOpcao(row["tipo_opcao"]),
                     strike=_row_strike(row),
+                    created_at=_parse_datetime(row["created_at"]) if "created_at" in row.keys() else None,
                 )
                 for row in rows
             ]

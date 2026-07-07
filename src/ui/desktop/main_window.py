@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QToolBar, QLabel, QDialog, QMessageBox,
+    QPushButton, QToolBar, QToolButton, QLabel, QDialog, QMessageBox,
     QHeaderView, QTableView, QAbstractItemView, QFrame, QMenu,
     QCheckBox, QComboBox, QStackedWidget, QGraphicsOpacityEffect,
     QSplitter,
@@ -106,6 +106,165 @@ class MainWindow(QMainWindow):
         self._scan_timer.timeout.connect(self._update_scan_status)
         self._scan_timer.start(1000)
 
+    def _criar_dropup_paineis(self, _btn_base: str, _btn_hover: str) -> QToolButton:
+        """Constrói o botão 🗂 Painéis que abre um dropup QMenu com os 7 dialogs."""
+
+        class _BtnProxy:
+            """Proxy leve preserva API setEnabled/setText dos antigos botões.
+
+            Cada `self.btn_X` legado aponta para o QAction correspondente do
+            menu, permitindo que o restante do código (que ainda usa
+            `self.btn_taxa_aluguel.setEnabled(False)`) funcione sem refactor.
+            """
+            __slots__ = ("_action", "_default_text")
+
+            def __init__(self, action: QAction, default_text: str):
+                self._action = action
+                self._default_text = default_text
+
+            def setEnabled(self, enabled: bool):
+                self._action.setEnabled(bool(enabled))
+
+            def setText(self, text: str):
+                # Quando vazio, restaura o label default do menu item
+                self._action.setText(text or self._default_text)
+
+            def setVisible(self, visible: bool):
+                self._action.setVisible(bool(visible))
+
+            def isEnabled(self) -> bool:
+                return self._action.isEnabled()
+
+        # Cores dos itens (mesmas usadas nos botões antigos)
+        cor_grade = "#3a8fd4"
+        cor_hist = "#9b59b6"
+        cor_prov = "#27ae60"
+        cor_res = "#e67e22"
+        cor_fer = "#5a5a7a"
+        cor_tx = "#f1c40f"
+        cor_atu = "#27ae60"
+
+        # --- QMenu com 7 ações ---
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #1a1a2e;
+                color: #e0e0e0;
+                border: 1px solid #2d2d44;
+                border-radius: 6px;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 6px 18px 6px 12px;
+                border-radius: 4px;
+                font-size: 9pt;
+            }
+            QMenu::item:selected { background-color: #2d4a7a; color: #ffffff; }
+            QMenu::item:disabled { color: #5a5a6e; }
+        """)
+
+        def add_item(text: str, color_hex: str, slot) -> QAction:
+            act = QAction(text, menu)
+            act.triggered.connect(slot)
+            # coloração do label via setData (apenas visual)
+            from PySide6.QtGui import QColor as _QC
+            act.setData(_QC(color_hex))
+            # aplica cor via stylesheet por item (com QSS fragment em actionData)
+            menu.addAction(act)
+            return act
+
+        self.action_btn_importflash = add_item(
+            "\U0001f4ca  Grade de Opções", cor_grade, self._abrir_importflash,
+        )
+        self.action_btn_historico = add_item(
+            "\U0001f4c8  Histórico Operações", cor_hist, self._abrir_historico,
+        )
+        self.action_btn_dividendos = add_item(
+            "\U0001f4b0  Proventos", cor_prov, self._abrir_dividendos,
+        )
+        self.action_btn_resultados = add_item(
+            "\U0001f4ca  Agenda de Balanços", cor_res, self._abrir_resultados,
+        )
+        self.action_btn_feriados = add_item(
+            "\U0001f5d3  Feriados", cor_fer, self._abrir_feriados,
+        )
+        self.action_btn_taxa_aluguel = add_item(
+            "\U0001f3e6  Taxa Aluguel", cor_tx, self._abrir_coletar_taxa_aluguel,
+        )
+        self.action_btn_atualizar_tudo = add_item(
+            "\U0001f504  Atualizar Tudo", cor_atu, self._atualizar_tudo,
+        )
+
+        # Cores individuais por item via stylesheet dinâmico no paintEvent
+        # — fallback: usa action.toolTip para documentar
+        for act, cor in (
+            (self.action_btn_importflash, cor_grade),
+            (self.action_btn_historico, cor_hist),
+            (self.action_btn_dividendos, cor_prov),
+            (self.action_btn_resultados, cor_res),
+            (self.action_btn_feriados, cor_fer),
+            (self.action_btn_taxa_aluguel, cor_tx),
+            (self.action_btn_atualizar_tudo, cor_atu),
+        ):
+            act.setToolTip(f"<span style='color:{cor};'>{act.text()}</span>")
+
+        # --- QToolButton que hospeda o menu ---
+        btn = QToolButton(self)
+        btn.setText("\U0001fa9f  Painéis")
+        btn.setToolTip(
+            "Painéis: Grade de Opções · Histórico · Proventos · "
+            "Resultados · Feriados · Taxa Aluguel · Atualizar tudo"
+        )
+        btn.setPopupMode(QToolButton.InstantPopup)
+        btn.setMenu(menu)
+        btn.setAutoRaise(False)
+        btn.setCursor(Qt.PointingHandCursor)
+        # Estilo coerente com btn_calc: azul, hover azul mais claro
+        btn.setStyleSheet(
+            _btn_base
+            + "QToolButton {{ color: #9b59b6; border-color: rgba(155,89,182,0.5); border-width: 1px; }}"
+            + _btn_hover
+            + "QToolButton:hover {{ background-color: #2d1f3d; border-color: #9b59b6; }}"
+            + "QToolButton:menu-indicator { image: none; subcontrol-position: right center; width: 12px; }"
+        )
+
+        # Dropup: ao mostrar, reposiciona menu acima do botão
+        def _popup_acima(menu_obj: QMenu, btn_widget: QToolButton):
+            from PySide6.QtCore import QPoint
+            top_left = btn_widget.mapToGlobal(QPoint(0, 0))
+            size = menu_obj.sizeHint()
+            # posiciona com x = canto esquerdo do botão, y = topo do botão - altura menu
+            x = top_left.x()
+            y = top_left.y() - size.height()
+            menu_obj.move(x, y)
+            menu_obj.exec_()
+
+        # Override: clicar no botão abre o menu manualmente para cima
+        def _show_dropup():
+            size = menu.sizeHint()
+            from PySide6.QtCore import QPoint
+            top_left = btn.mapToGlobal(QPoint(0, 0))
+            x = top_left.x()
+            y = top_left.y() - size.height()
+            menu.move(x, y)
+            menu.exec_()
+
+        btn.clicked.connect(_show_dropup)
+        # Conserva referência para evitar GC
+        self._paineis_menu = menu
+        self._paineis_btn = btn
+
+        # Proxies para preservar API dos antigos botões no código restante
+        self.btn_importflash = _BtnProxy(self.action_btn_importflash, "📊 Grade Opções")
+        self.btn_historico = _BtnProxy(self.action_btn_historico, "📈 Histórico Operações")
+        self.btn_dividendos = _BtnProxy(self.action_btn_dividendos, "💰 Prov.")
+        self.btn_resultados = _BtnProxy(self.action_btn_resultados, "📊 Agenda de Balanços")
+        self.btn_feriados = _BtnProxy(self.action_btn_feriados, "🗓 Fer.")
+        self.btn_taxa_aluguel = _BtnProxy(self.action_btn_taxa_aluguel, "🏦 Tx Alug.")
+        self.btn_atualizar_tudo = _BtnProxy(self.action_btn_atualizar_tudo, "🔄 Atualizar")
+
+        return btn
+
     def _setup_ui(self):
         self.setWindowTitle("SpreadHunter — Monitor de Oportunidades")
         self.setMinimumSize(1200, 700)
@@ -179,8 +338,9 @@ class MainWindow(QMainWindow):
         header_v = self.vendidas_table_view.verticalHeader()
         header_v.setDefaultSectionSize(28)
         header_v.hide()
-        self.vendidas_table_view.mousePressEvent = lambda e: (setattr(self, '_foco_vendidas', True), QTableView.mousePressEvent(self.vendidas_table_view, e))[1]
-        self.table_view.mousePressEvent = lambda e: (setattr(self, '_foco_vendidas', False), QTableView.mousePressEvent(self.table_view, e))[1]
+        self.vendidas_table_view.mousePressEvent = lambda e: (setattr(self, '_foco_vendidas', True), setattr(self, '_foco_coberta', False), QTableView.mousePressEvent(self.vendidas_table_view, e))[2]
+        self.vendidas_table_view.doubleClicked.connect(self._on_vendidas_row_double_clicked)
+        self.table_view.mousePressEvent = lambda e: (setattr(self, '_foco_vendidas', False), setattr(self, '_foco_coberta', False), QTableView.mousePressEvent(self.table_view, e))[2]
 
         # --- Coberta table ---
         self.coberta_model = VendaCobertaTableModel()
@@ -210,7 +370,8 @@ class MainWindow(QMainWindow):
         header_co = self.coberta_table_view.verticalHeader()
         header_co.setDefaultSectionSize(28)
         header_co.hide()
-        self.coberta_table_view.mousePressEvent = lambda e: (setattr(self, '_foco_coberta', True), QTableView.mousePressEvent(self.coberta_table_view, e))[1]
+        self.coberta_table_view.mousePressEvent = lambda e: (setattr(self, '_foco_coberta', True), setattr(self, '_foco_vendidas', False), QTableView.mousePressEvent(self.coberta_table_view, e))[2]
+        self.coberta_table_view.doubleClicked.connect(self._on_coberta_row_double_clicked)
 
         self._aplicar_fonte_tamanho()
 
@@ -339,10 +500,10 @@ class MainWindow(QMainWindow):
         )
         _btn_hover = "QPushButton:hover {{ color: {}; }}".format(Palette.TEXT_PRIMARY)
 
-        self.btn_calc = QPushButton("\u2696  B&S")
+        self.btn_calc = QPushButton("\U0001f9ee  Calcs")
         self.btn_calc.setAutoDefault(False)
-        self.btn_calc.clicked.connect(self._abrir_calculadora)
-        self.btn_calc.setToolTip("Calculadora Black-Scholes: precificacao de opcoes, gregas e volatilidade implicita")
+        self.btn_calc.clicked.connect(self._abrir_calculadoras)
+        self.btn_calc.setToolTip("Calculadoras: Black-Scholes (preço, IV, gregas, ±2σ) + CDI (valor a investir)")
         self.btn_calc.setStyleSheet(
             _btn_base
             + "QPushButton {{ color: #4a90d9; border-color: rgba(74,144,217,0.5); border-width: 1px; }}"
@@ -351,100 +512,13 @@ class MainWindow(QMainWindow):
         )
         btn_layout.addWidget(self.btn_calc)
 
-        self.btn_importflash = QPushButton("\u26a1  Importar")
-        self.btn_importflash.setAutoDefault(False)
-        self.btn_importflash.clicked.connect(self._abrir_importflash)
-        self.btn_importflash.setToolTip("Importar instrumentos do opcoes.net.br via API OptionsChain")
-        self.btn_importflash.setStyleSheet(
-            _btn_base
-            + "QPushButton {{ color: #3a8fd4; border-color: rgba(58,143,212,0.5); border-width: 1px; }}"
-            + _btn_hover
-            + "QPushButton:hover {{ background-color: #1a3a5c; border-color: #3a8fd4; }}"
-        )
-        btn_layout.addWidget(self.btn_importflash)
+        self.btn_paineis = self._criar_dropup_paineis(_btn_base, _btn_hover)
+        btn_layout.addWidget(self.btn_paineis)
 
-        self.btn_historico = QPushButton("\U0001f4c8  Hist.")
-        self.btn_historico.setAutoDefault(False)
-        self.btn_historico.clicked.connect(self._abrir_historico)
-        self.btn_historico.setToolTip("Grafico de candles OHLC + volatilidade historica e implicita")
-        self.btn_historico.setStyleSheet(
-            _btn_base
-            + "QPushButton {{ color: #9b59b6; border-color: rgba(155,89,182,0.5); border-width: 1px; }}"
-            + _btn_hover
-            + "QPushButton:hover {{ background-color: #2d1f3d; border-color: #9b59b6; }}"
-        )
-        btn_layout.addWidget(self.btn_historico)
-
-        self.btn_dividendos = QPushButton("\U0001f4b0  Prov.")
-        self.btn_dividendos.setAutoDefault(False)
-        self.btn_dividendos.clicked.connect(self._abrir_dividendos)
-        self.btn_dividendos.setToolTip("Agenda de proventos (dividendos, JCP) via StatusInvest")
-        self.btn_dividendos.setStyleSheet(
-            _btn_base
-            + "QPushButton {{ color: #27ae60; border-color: rgba(39,174,96,0.45); border-width: 1px; }}"
-            + _btn_hover
-            + "QPushButton:hover {{ background-color: #1a3d2a; border-color: #27ae60; }}"
-        )
-        btn_layout.addWidget(self.btn_dividendos)
-
-        self.btn_resultados = QPushButton("\U0001f4ca  Res.")
-        self.btn_resultados.setAutoDefault(False)
-        self.btn_resultados.clicked.connect(self._abrir_resultados)
-        self.btn_resultados.setToolTip("Agenda de resultados (balanços) via Webwallet + CVM")
-        self.btn_resultados.setStyleSheet(
-            _btn_base
-            + "QPushButton {{ color: #e67e22; border-color: rgba(230,126,34,0.45); border-width: 1px; }}"
-            + _btn_hover
-            + "QPushButton:hover {{ background-color: #2d2a1a; border-color: #e67e22; }}"
-        )
-        btn_layout.addWidget(self.btn_resultados)
-
-        self.btn_feriados = QPushButton("\U0001f5d3  Fer.")
-        self.btn_feriados.setAutoDefault(False)
-        self.btn_feriados.clicked.connect(self._abrir_feriados)
-        self.btn_feriados.setToolTip("Calendario de feriados B3 — dias nao-uteis para calculo de DU")
-        self.btn_feriados.setStyleSheet(
-            _btn_base
-            + "QPushButton {{ color: #5a5a7a; border-color: rgba(90,90,122,0.5); border-width: 1px; }}"
-            + _btn_hover
-            + "QPushButton:hover {{ background-color: #2d2d3d; border-color: #7a7a9a; }}"
-        )
-        btn_layout.addWidget(self.btn_feriados)
-
-        self.btn_taxa_aluguel = QPushButton("\U0001f3e6  Tx Alug.")
-        self.btn_taxa_aluguel.setAutoDefault(False)
-        self.btn_taxa_aluguel.clicked.connect(self._abrir_coletar_taxa_aluguel)
-        self.btn_taxa_aluguel.setToolTip("Coletar e visualizar taxas de aluguel (BTC) via InvestSite")
-        self.btn_taxa_aluguel.setStyleSheet(
-            _btn_base
-            + "QPushButton {{ color: #f1c40f; border-color: rgba(241,196,15,0.40); border-width: 1px; }}"
-            + _btn_hover
-            + "QPushButton:hover {{ background-color: #3d3d0e; border-color: #f1c40f; }}"
-        )
-        btn_layout.addWidget(self.btn_taxa_aluguel)
-
-        self.btn_atualizar_tudo = QPushButton("\U0001f504  Atualizar")
-        self.btn_atualizar_tudo.setAutoDefault(False)
-        self.btn_atualizar_tudo.clicked.connect(self._atualizar_tudo)
-        self.btn_atualizar_tudo.setToolTip(
-            "Executar as 4 atualizacoes em sequencia:\n"
-            "1. Importar instrumentos (opcoes.net.br)\n"
-            "2. Coletar proventos (StatusInvest)\n"
-            "3. Coletar taxas de aluguel (InvestSite)\n"
-            "4. Agenda de resultados (Webwallet)"
-        )
-        self.btn_atualizar_tudo.setStyleSheet(
-            _btn_base
-            + "QPushButton {{ color: #27ae60; border-color: rgba(39,174,96,0.45); border-width: 1px; }}"
-            + _btn_hover
-            + "QPushButton:hover {{ background-color: #2d4a3a; border-color: #27ae60; }}"
-        )
-        btn_layout.addWidget(self.btn_atualizar_tudo)
-
-        self.btn_colar = QPushButton("\U0001f6e1  Collar")
+        self.btn_colar = QPushButton("\U0001f6e1  Collar Tradicional")
         self.btn_colar.setAutoDefault(False)
         self.btn_colar.clicked.connect(self._abrir_colar)
-        self.btn_colar.setToolTip("Collar Protetivo: PUT OTM + CALL OTM — protecao com participacao")
+        self.btn_colar.setToolTip("Collar Protetivo (tradicional): PUT OTM + CALL OTM — protecao com participacao")
         self.btn_colar.setStyleSheet(
             _btn_base
             + "QPushButton {{ color: #3498db; border-color: rgba(52,152,219,0.5); border-width: 1px; }}"
@@ -453,10 +527,10 @@ class MainWindow(QMainWindow):
         )
         btn_layout.addWidget(self.btn_colar)
 
-        self.btn_colar_cal = QPushButton("\U0001f4c5  Cal.")
+        self.btn_colar_cal = QPushButton("\U0001f4c5  Collar Calendário")
         self.btn_colar_cal.setAutoDefault(False)
         self.btn_colar_cal.clicked.connect(self._abrir_colar_calendario)
-        self.btn_colar_cal.setToolTip("Collar Calendario: PUT longa + PUT curta (ou CALL) — theta positivo")
+        self.btn_colar_cal.setToolTip("Collar Calendário: PUT longa + PUT curta (ou CALL) — theta positivo")
         self.btn_colar_cal.setStyleSheet(
             _btn_base
             + "QPushButton {{ color: #f39c12; border-color: rgba(243,156,18,0.45); border-width: 1px; }}"
@@ -503,7 +577,8 @@ class MainWindow(QMainWindow):
             + "QPushButton:checked {{ background-color: #3d0e0e; color: {}; border-color: #e74c3c; }}".format(Palette.TEXT_PRIMARY)
             + "QPushButton:checked:hover {{ background-color: #5d1e1e; border-color: #f06050; }}"
         )
-        btn_layout.addWidget(self.btn_varrer)
+        # btn_varrer é adicionado depois, ao lado do indicador RTD (lado direito da toolbar):
+        # btn_layout.addWidget(self.btn_varrer)
 
         btn_layout.addSpacing(16)
 
@@ -615,7 +690,8 @@ class MainWindow(QMainWindow):
         btn_layout.addSpacing(16)
         btn_layout.addStretch()
 
-        self.lbl_rtd_indicator = QLabel(" RTD: --- ")
+        btn_layout.addWidget(self.btn_varrer)
+        self.lbl_rtd_indicator = QLabel(" OFF ")
         self.lbl_rtd_indicator.setFixedHeight(24)
         self._update_rtd_indicator(False)
         btn_layout.addWidget(self.lbl_rtd_indicator)
@@ -759,13 +835,13 @@ class MainWindow(QMainWindow):
         if connected:
             self.lbl_rtd_indicator.setStyleSheet(
                 "background-color: {}; color: #ffffff; border-radius: 4px; "
-                "padding: 2px 10px; font-weight: bold; font-size: 9pt;".format(Palette.GREEN_DIM)
+                "padding: 2px 12px; font-weight: bold; font-size: 9pt;".format(Palette.GREEN_DIM)
             )
-            self.lbl_rtd_indicator.setText(" RTD: CONECTADO ")
+            self.lbl_rtd_indicator.setText(" RTD: ON ")
         else:
             self.lbl_rtd_indicator.setStyleSheet(
                 "background-color: {}; color: {}; border-radius: 4px; "
-                "padding: 2px 10px; font-weight: bold; font-size: 9pt;".format(Palette.RED_DIM, Palette.RED)
+                "padding: 2px 12px; font-weight: bold; font-size: 9pt;".format(Palette.RED_DIM, Palette.RED)
             )
             self.lbl_rtd_indicator.setText(" RTD: OFF ")
 
@@ -962,7 +1038,14 @@ class MainWindow(QMainWindow):
 
     def _abrir_pipeline(self):
         from src.ui.desktop.pipeline_dialog import PipelineDialog
-        tracker = getattr(self._worker._monitor_uc, '_ultimo_pipeline', None) if hasattr(self, '_worker') else None
+        if not hasattr(self, '_worker'):
+            return
+        if self._foco_coberta:
+            tracker = getattr(self._worker._monitor_coberta_uc, '_ultimo_pipeline', None)
+        elif self._foco_vendidas:
+            tracker = getattr(self._worker._monitor_vendidas_uc, '_ultimo_pipeline', None)
+        else:
+            tracker = getattr(self._worker._monitor_uc, '_ultimo_pipeline', None)
         dlg = PipelineDialog(tracker, self)
         dlg.exec_()
 
@@ -1242,86 +1325,26 @@ class MainWindow(QMainWindow):
         )
         self._status_left.setStyleSheet("color: {};".format(Palette.TEXT_SECONDARY))
 
-    def _abrir_calculadora(self):
-        from src.ui.desktop.calculadora_dialog import CalculadoraDialog
-        dialog = CalculadoraDialog(self)
-        dialog.exec_()
+    def _abrir_calculadoras(self):
+        from src.ui.desktop.calculadoras_dialog import CalculadorasDialog
+        dlg = CalculadorasDialog(self.db_path, self)
+        dlg.exec_()
 
     def _abrir_importflash(self):
-        from src.ui.desktop.blacklist_import_dialog import BlacklistImportDialog
-        dlg = BlacklistImportDialog(self.db_path, self)
-        if dlg.exec_() != QDialog.Accepted:
-            return
-
-        self.btn_importflash.setEnabled(False)
-        self.btn_importflash.setText("⏳  Importar...")
-        self._status_left.setText("ImportFlash: varrendo opcoes.net.br...")
-        self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.YELLOW))
-
-        class _ImportThread(QThread):
-            finished = Signal(int)
-            progress = Signal(str)
-
-            def run(self):
-                import io, contextlib
-
-                class _LineCapture(io.StringIO):
-                    def __init__(self, sig_target):
-                        super().__init__()
-                        self._buf = io.StringIO()
-                        self._partial = ""
-                        self._sig_target = sig_target
-
-                    def write(self, s):
-                        self._buf.write(s)
-                        self._partial += s
-                        while "\n" in self._partial:
-                            idx = self._partial.index("\n")
-                            line = self._partial[:idx]
-                            self._partial = self._partial[idx + 1 :]
-                            if line:
-                                self._sig_target.emit(line)
-
-                    def flush(self):
-                        pass
-
-                    def getvalue(self):
-                        return self._buf.getvalue()
-
-                captura = _LineCapture(self.progress)
-                with contextlib.redirect_stdout(captura), contextlib.redirect_stderr(captura):
-                    try:
-                        from scripts.validar_opcoes.importflash import main
-                        rc = main()
-                    except Exception as e:
-                        print(f"ERRO: {e}")
-                        import traceback
-                        traceback.print_exc()
-                        rc = 1
-                output = captura.getvalue()
-                if output:
-                    print(output, end="", flush=True)
-                self.finished.emit(rc if rc is not None else 1)
-
-        self._import_thread = _ImportThread()
-        self._import_thread.finished.connect(self._on_importflash_finished)
-        self._import_thread.progress.connect(
-            lambda msg: self._status_left.setText(f"ImportFlash: {msg[:120]}")
+        from src.ui.desktop.grade_opcoes_dialog import GradeOpcoesDialog
+        dialog = GradeOpcoesDialog(
+            self.db_path,
+            self,
+            on_import_concluido=self._on_importflash_concluido,
         )
-        self._import_thread.start()
+        dialog.exec_()
+        # Após fechar, garante recarga dos instrumentos no worker
+        self._worker.recarregar_instrumentos()
 
-    def _on_importflash_finished(self, exit_code: int):
-        self.btn_importflash.setEnabled(True)
-        self.btn_importflash.setText("\u26a1  Importar")
-        if exit_code == 0:
-            self._worker.recarregar_instrumentos()
-            self._status_left.setText("ImportFlash: concluido com sucesso!")
-            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
-            QMessageBox.information(self, "Importação", "Importação concluída com sucesso!")
-        else:
-            self._status_left.setText(f"ImportFlash: erro (codigo {exit_code})")
-            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.RED))
-            QMessageBox.critical(self, "Importação", f"Importação falhou (código {exit_code}).")
+    def _on_importflash_concluido(self, exit_code: int):
+        """Callback chamado pelo GradeOpcoesDialog quando importflash termina."""
+        self._status_left.setText("ImportFlash: concluído com sucesso!")
+        self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
 
     def _abrir_historico(self):
         from src.ui.desktop.historico_dialog import HistoricoDialog
@@ -1495,6 +1518,275 @@ class MainWindow(QMainWindow):
         dialog = ExportDialog(opp, self.exportar_uc, self, self.db_path)
         dialog.exec_()
 
+    def _on_vendidas_row_double_clicked(self, index):
+        src_idx = self.vendidas_table_view.model().mapToSource(index) if hasattr(self.vendidas_table_view.model(), 'mapToSource') else index
+        row = src_idx.row()
+        if row < 0 or row >= len(self._resultados_vendidas):
+            return
+        r = self._resultados_vendidas[row]
+        self._mostrar_detalhes_vendida(r)
+
+    def _on_coberta_row_double_clicked(self, index):
+        src_idx = self.coberta_table_view.model().mapToSource(index) if hasattr(self.coberta_table_view.model(), 'mapToSource') else index
+        row = src_idx.row()
+        if row < 0 or row >= len(self._resultados_coberta):
+            return
+        r = self._resultados_coberta[row]
+        self._mostrar_detalhes_coberta(r)
+
+    def _mostrar_detalhes_vendida(self, r):
+        from src.ui.desktop.theme import Palette
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFormLayout, QFrame, QTabWidget, QWidget
+        from PySide6.QtGui import QFont
+        from PySide6.QtCore import Qt
+
+        dialog = QDialog(self, Qt.Window)
+        strategy = "BOX VENDIDO" if r.classificacao == "BOX_VENDIDO" else "SBTH VENDIDA"
+        dialog.setWindowTitle("Exportar Operação - {} {}".format(r.ativo, strategy))
+        dialog.setMinimumWidth(520)
+        dialog.setMinimumHeight(500)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 12)
+        layout.setSpacing(10)
+
+        header = QLabel("{}  |  {}  |  Strike {:.2f}  |  {} ({} DTE)".format(
+            r.ativo, r.label_tipo, r.strike,
+            r.vencimento.strftime("%d/%m/%Y") if hasattr(r.vencimento, "strftime") else str(r.vencimento),
+            r.dias,
+        ))
+        header.setStyleSheet("font-size: 13pt; font-weight: bold; color: {}; padding: 6px 0;".format(Palette.TEXT_PRIMARY))
+        layout.addWidget(header)
+
+        tabs = QTabWidget()
+        layout.addWidget(tabs, stretch=1)
+
+        # --- Tab 1: Pernas & Custos ---
+        pernas_widget = QWidget()
+        pernas_layout = QVBoxLayout(pernas_widget)
+        pernas_layout.setContentsMargins(8, 12, 8, 8)
+
+        from PySide6.QtWidgets import QGroupBox, QFormLayout
+
+        g1 = QGroupBox("Pernas da Estrutura")
+        f1 = QFormLayout()
+        f1.setSpacing(8)
+
+        def _muted(t):
+            l = QLabel(t)
+            l.setStyleSheet("color: {}; font-size: 9pt;".format(Palette.TEXT_SECONDARY))
+            return l
+
+        f1.addRow(_muted("Venda Ativo ({})".format(r.ativo)), QLabel("R$ {:.2f} (of. compra)".format(r.preco_ativo)))
+        f1.addRow(_muted("Compra Put ({})".format(r.cod_put)), QLabel("R$ {:.2f} (of. compra)  Strike: {:.2f}".format(r.of_compra_put, r.strike)))
+        if r.classificacao == "BOX_VENDIDO" and r.cod_call:
+            f1.addRow(_muted("Venda Call ({})".format(r.cod_call)), QLabel("R$ {:.2f} (of. venda)  Strike: {:.2f}".format(r.of_venda_call, r.strike)))
+        g1.setLayout(f1)
+        pernas_layout.addWidget(g1)
+
+        g2 = QGroupBox("Resultado")
+        f2 = QFormLayout()
+        f2.setSpacing(8)
+
+        lucro = r.recebimento - r.strike
+        f2.addRow(_muted("Recebimento:"), QLabel("R$ {:.2f}".format(r.recebimento)))
+        f2.addRow(_muted("Lucro (Receb. − Strike):"), QLabel("R$ {:.2f}".format(lucro)))
+        if r.custo > 0:
+            pnl_final = lucro - r.custo
+            f2.addRow(_muted("− Custos B3:"), QLabel("−R$ {:.2f}".format(r.custo)))
+            f2.addRow(_muted("= Lucro Líquido:"), QLabel("R$ {:.2f}".format(pnl_final)))
+        f2.addRow(_muted("Retorno:"), QLabel("{:.2f}% / {:.2f}x CDI".format(r.pct_ganho * 100, r.pct_cdi)))
+        g2.setLayout(f2)
+        pernas_layout.addWidget(g2)
+        pernas_layout.addStretch()
+        tabs.addTab(pernas_widget, "Pernas & Custos")
+
+        # --- Tab 2: Dados de Mercado ---
+        mercado_widget = QWidget()
+        mercado_layout = QVBoxLayout(mercado_widget)
+        mercado_layout.setContentsMargins(8, 12, 8, 8)
+
+        g3 = QGroupBox("Ofertas")
+        f3 = QFormLayout()
+        f3.setSpacing(8)
+        f3.addRow(_muted("Preço Ativo:"), QLabel("R$ {:.2f}".format(r.preco_ativo)))
+        f3.addRow(_muted("Of. Compra PUT:"), QLabel("R$ {:.2f}".format(r.of_compra_put)))
+        if r.classificacao == "BOX_VENDIDO":
+            f3.addRow(_muted("Of. Venda CALL:"), QLabel("R$ {:.2f}".format(r.of_venda_call)))
+        g3.setLayout(f3)
+        mercado_layout.addWidget(g3)
+
+        g4 = QGroupBox("Liquidez & Quantidade")
+        f4 = QFormLayout()
+        f4.setSpacing(8)
+        liq_put_ok = r.liq_put_x_lote >= 0
+        ll = QLabel("{:.0f}".format(r.liq_put_x_lote))
+        ll.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN if liq_put_ok else Palette.RED))
+        f4.addRow(_muted("Liq Put x Lote:"), ll)
+        if r.classificacao == "BOX_VENDIDO":
+            liq_call_ok = r.liq_call_x_lote >= 0
+            lc = QLabel("{:.0f}".format(r.liq_call_x_lote))
+            lc.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN if liq_call_ok else Palette.RED))
+            f4.addRow(_muted("Liq Call x Lote:"), lc)
+        f4.addRow(_muted("Qtd PUT:"), QLabel("{:.0f}".format(r.qul_put)))
+        if r.classificacao == "BOX_VENDIDO":
+            f4.addRow(_muted("Qtd CALL:"), QLabel("{:.0f}".format(r.qul_call)))
+        g4.setLayout(f4)
+        mercado_layout.addWidget(g4)
+
+        g5 = QGroupBox("Moneyness & Status")
+        f5 = QFormLayout()
+        f5.setSpacing(8)
+        f5.addRow(_muted("Money PUT:"), QLabel("R$ {:.2f}".format(r.money_put)))
+        if r.classificacao == "BOX_VENDIDO":
+            f5.addRow(_muted("Money CALL:"), QLabel("R$ {:.2f}".format(r.money_call)))
+        status_lbl = QLabel("BLOQUEADO" if r.em_leilao else "OK")
+        if r.em_leilao:
+            status_lbl.setStyleSheet("color: #ffffff; background-color: {}; border-radius: 3px; padding: 2px 8px; font-weight: bold;".format(Palette.RED_DIM))
+        else:
+            status_lbl.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
+        f5.addRow(_muted("Status:"), status_lbl)
+        g5.setLayout(f5)
+        mercado_layout.addWidget(g5)
+        mercado_layout.addStretch()
+        tabs.addTab(mercado_widget, "Dados de Mercado")
+
+        # --- Botões ---
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
+
+        btn_pnt = QPushButton("\U0001f4cb Basket PNT")
+        btn_pnt.setProperty("class", "primary")
+        btn_pnt.clicked.connect(lambda: self._abrir_boleta_vendida(r))
+        btn_row.addWidget(btn_pnt)
+
+        btn_row.addStretch()
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.clicked.connect(dialog.reject)
+        btn_row.addWidget(btn_fechar)
+        layout.addLayout(btn_row)
+
+        dialog.exec_()
+
+    def _abrir_boleta_vendida(self, r):
+        strategy = "BOX VENDIDO" if r.classificacao == "BOX_VENDIDO" else "SBTH VENDIDA"
+        from src.ui.desktop.boleta_dialog import BoletaDialog
+        dlg = BoletaDialog(strategy, r, self.db_path, self)
+        dlg.exec_()
+
+    def _mostrar_detalhes_coberta(self, r):
+        from src.ui.desktop.theme import Palette
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFormLayout, QFrame, QTabWidget, QWidget, QGroupBox
+        from PySide6.QtCore import Qt
+
+        dialog = QDialog(self, Qt.Window)
+        dialog.setWindowTitle("Exportar Operação - {} VENDA COBERTA".format(r.ativo))
+        dialog.setMinimumWidth(520)
+        dialog.setMinimumHeight(480)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 12)
+        layout.setSpacing(10)
+
+        header = QLabel("{}  |  {}  |  Strike {:.2f}  |  {} ({} DTE)".format(
+            r.ativo, r.label_tipo, r.strike,
+            r.vencimento.strftime("%d/%m/%Y") if hasattr(r.vencimento, "strftime") else str(r.vencimento),
+            r.dias,
+        ))
+        header.setStyleSheet("font-size: 13pt; font-weight: bold; color: {}; padding: 6px 0;".format(Palette.TEXT_PRIMARY))
+        layout.addWidget(header)
+
+        tabs = QTabWidget()
+        layout.addWidget(tabs, stretch=1)
+
+        def _muted(t):
+            l = QLabel(t)
+            l.setStyleSheet("color: {}; font-size: 9pt;".format(Palette.TEXT_SECONDARY))
+            return l
+
+        # --- Tab 1: Pernas & Custos ---
+        pw = QWidget()
+        pl = QVBoxLayout(pw)
+        pl.setContentsMargins(8, 12, 8, 8)
+
+        g1 = QGroupBox("Pernas da Estrutura")
+        f1 = QFormLayout()
+        f1.setSpacing(8)
+        f1.addRow(_muted("Venda Ativo ({})".format(r.ativo)), QLabel("R$ {:.2f} (of. compra)".format(r.preco_ativo)))
+        f1.addRow(_muted("Venda Call ({})".format(r.cod_call)), QLabel("R$ {:.2f} (of. venda)  Strike: {:.2f}".format(r.of_venda_call, r.strike)))
+        g1.setLayout(f1)
+        pl.addWidget(g1)
+
+        g2 = QGroupBox("Resultado")
+        f2 = QFormLayout()
+        f2.setSpacing(8)
+        lucro = r.recebimento - r.strike
+        f2.addRow(_muted("Recebimento:"), QLabel("R$ {:.2f}".format(r.recebimento)))
+        f2.addRow(_muted("Lucro (Receb. − Strike):"), QLabel("R$ {:.2f}".format(lucro)))
+        f2.addRow(_muted("Retorno:"), QLabel("{:.2f}% / {:.2f}x CDI".format(r.pct_ganho * 100, r.pct_cdi)))
+        g2.setLayout(f2)
+        pl.addWidget(g2)
+        pl.addStretch()
+        tabs.addTab(pw, "Pernas & Custos")
+
+        # --- Tab 2: Dados de Mercado ---
+        mw = QWidget()
+        ml = QVBoxLayout(mw)
+        ml.setContentsMargins(8, 12, 8, 8)
+
+        g3 = QGroupBox("Ofertas")
+        f3 = QFormLayout()
+        f3.setSpacing(8)
+        f3.addRow(_muted("Preço Ativo:"), QLabel("R$ {:.2f}".format(r.preco_ativo)))
+        f3.addRow(_muted("Of. Venda CALL:"), QLabel("R$ {:.2f}".format(r.of_venda_call)))
+        g3.setLayout(f3)
+        ml.addWidget(g3)
+
+        g4 = QGroupBox("Liquidez & Quantidade")
+        f4 = QFormLayout()
+        f4.setSpacing(8)
+        liq_ok = r.liq_call_x_lote >= 0
+        ll = QLabel("{:.0f}".format(r.liq_call_x_lote))
+        ll.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN if liq_ok else Palette.RED))
+        f4.addRow(_muted("Liq Call x Lote:"), ll)
+        f4.addRow(_muted("Qtd CALL:"), QLabel("{:.0f}".format(r.qul_call)))
+        g4.setLayout(f4)
+        ml.addWidget(g4)
+
+        g5 = QGroupBox("Moneyness & Status")
+        f5 = QFormLayout()
+        f5.setSpacing(8)
+        f5.addRow(_muted("Money CALL:"), QLabel("R$ {:.2f}".format(r.money_call)))
+        status_lbl = QLabel("BLOQUEADO" if r.em_leilao else "OK")
+        if r.em_leilao:
+            status_lbl.setStyleSheet("color: #ffffff; background-color: {}; border-radius: 3px; padding: 2px 8px; font-weight: bold;".format(Palette.RED_DIM))
+        else:
+            status_lbl.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
+        f5.addRow(_muted("Status:"), status_lbl)
+        g5.setLayout(f5)
+        ml.addWidget(g5)
+        ml.addStretch()
+        tabs.addTab(mw, "Dados de Mercado")
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
+        btn_pnt = QPushButton("\U0001f4cb Basket PNT")
+        btn_pnt.setProperty("class", "primary")
+        btn_pnt.clicked.connect(lambda: self._abrir_boleta_coberta(r))
+        btn_row.addWidget(btn_pnt)
+        btn_row.addStretch()
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.clicked.connect(dialog.reject)
+        btn_row.addWidget(btn_fechar)
+        layout.addLayout(btn_row)
+
+        dialog.exec_()
+
+    def _abrir_boleta_coberta(self, r):
+        from src.ui.desktop.boleta_dialog import BoletaDialog
+        dlg = BoletaDialog("VENDA COBERTA", r, self.db_path, self)
+        dlg.exec_()
+
     def closeEvent(self, event):
         self._worker.parar()
         self._worker.finished.connect(self._worker.deleteLater)
@@ -1624,13 +1916,111 @@ class MainWindow(QMainWindow):
                 # --- Etapa 1: ⚡ Importar ---
                 self.progress_etapa.emit(1, "[1/4] Importando instrumentos...")
                 try:
-                    import io, contextlib
-                    from scripts.validar_opcoes.importflash import main
+                    import sqlite3
+                    from datetime import date
+                    from dateutil.relativedelta import relativedelta
+                    from collections import defaultdict
+                    from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
+                    from src.domain.entities.instrumento_opcional import TipoOpcao
+                    from src.infrastructure.persistence.database import get_db_path
 
-                    captura = io.StringIO()
-                    with contextlib.redirect_stdout(captura), contextlib.redirect_stderr(captura):
-                        rc = main()
-                    resultado["etapas"]["importflash"] = {"ok": rc == 0}
+                    client = OpcoesNetClient()
+                    ativos = client.fetch_available_assets()
+                    if not ativos:
+                        raise RuntimeError("Nao foi possivel obter lista de ativos")
+
+                    real_db = str(get_db_path())
+                    excluir_extra = ["IBOV11"]
+
+                    import_max_months = 9
+                    try:
+                        conn_cfg = sqlite3.connect(real_db)
+                        row_black = conn_cfg.execute(
+                            "SELECT valor FROM parametros_operacionais WHERE chave = 'black_list_import'"
+                        ).fetchone()
+                        row_meses = conn_cfg.execute(
+                            "SELECT valor FROM parametros_operacionais WHERE chave = 'import_max_months'"
+                        ).fetchone()
+                        conn_cfg.close()
+                        if row_black and row_black[0]:
+                            black_ativos = [a.strip().upper() for a in str(row_black[0]).split(",") if a.strip()]
+                            for a in black_ativos:
+                                if a not in excluir_extra:
+                                    excluir_extra.append(a)
+                        if row_meses and row_meses[0]:
+                            try:
+                                import_max_months = int(float(row_meses[0]))
+                            except (ValueError, TypeError):
+                                pass
+                    except Exception:
+                        pass
+
+                    data_limite = date.today() + relativedelta(months=import_max_months)
+                    todos_pares = []
+                    total_ativos = len(ativos)
+
+                    for idx, ativo in enumerate(ativos, 1):
+                        if ativo.upper() in excluir_extra:
+                            continue
+
+                        self.progress_item.emit(idx, total_ativos, ativo)
+                        try:
+                            opcoes = client.fetch_all_options(ativo, delay=0.35)
+                        except Exception:
+                            continue
+
+                        if not opcoes:
+                            continue
+
+                        opcoes_filtradas = [r for r in opcoes if r.get("vencimento", "") <= data_limite.isoformat()]
+                        if not opcoes_filtradas:
+                            continue
+
+                        grupos = defaultdict(lambda: {"PUT": "", "CALL": "", "MOD": ""})
+                        for r in opcoes_filtradas:
+                            key = (r["ativo"], r["vencimento"], r["strike"])
+                            if r["tipo"] == "PUT":
+                                grupos[key]["PUT"] = r["ticker"]
+                            else:
+                                grupos[key]["CALL"] = r["ticker"]
+                                if r.get("mod"):
+                                    grupos[key]["MOD"] = r["mod"]
+
+                        for (_ativo_key, ven, strike), p in grupos.items():
+                            cod_put = p["PUT"]
+                            cod_call = p["CALL"]
+                            if not cod_put or not cod_call:
+                                continue
+                            mod = p.get("MOD", "")
+                            if mod == "E":
+                                tipo = TipoOpcao.EUROPEIA
+                            elif mod == "A":
+                                tipo = TipoOpcao.AMERICANA
+                            else:
+                                continue
+                            todos_pares.append((_ativo_key, cod_put, cod_call, ven, strike, tipo.value))
+
+                    if not todos_pares:
+                        raise RuntimeError("Nenhum par encontrado")
+
+                    conn = sqlite3.connect(real_db)
+                    conn.execute("DELETE FROM instrumentos_base")
+                    conn.commit()
+
+                    inseridas = 0
+                    for atv, cod_put, cod_call, ven, strike, tipo in todos_pares:
+                        try:
+                            conn.execute(
+                                "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao, strike) VALUES (?, ?, ?, ?, ?, ?)",
+                                (atv, cod_put, cod_call, ven, tipo, float(strike) if strike else None),
+                            )
+                            inseridas += 1
+                        except sqlite3.IntegrityError:
+                            pass
+
+                    conn.commit()
+                    conn.close()
+                    resultado["etapas"]["importflash"] = {"ok": True}
                 except Exception as e:
                     resultado["etapas"]["importflash"] = {"ok": False, "erro": str(e)}
 
@@ -1718,20 +2108,25 @@ class MainWindow(QMainWindow):
         self._atualizar_tudo_progress_etapa = 0
 
         thread = _AtualizarTudoThread(self.db_path)
+        verbos = {1: "Importando", 2: "Coletando", 3: "Coletando", 4: "Coletando"}
+
         thread.progress_etapa.connect(
-            lambda etapa, msg: self._status_left.setText(msg)
-            and self._status_left.setStyleSheet(
-                "color: {}; font-weight: bold;".format(
-                    {1: Palette.ACCENT_BLUE_BRIGHT, 2: Palette.GREEN, 3: Palette.YELLOW, 4: Palette.ORANGE}.get(
-                        etapa, Palette.ORANGE
+            lambda etapa, msg: (
+                setattr(self, "_atualizar_tudo_progress_etapa", etapa),
+                self._status_left.setText(msg),
+                self._status_left.setStyleSheet(
+                    "color: {}; font-weight: bold;".format(
+                        {1: Palette.ACCENT_BLUE_BRIGHT, 2: Palette.GREEN, 3: Palette.YELLOW, 4: Palette.ORANGE}.get(
+                            etapa, Palette.ORANGE
+                        )
                     )
-                )
-            )
+                ),
+            )[-1]
         )
         thread.progress_item.connect(
             lambda corr, tot, ativo: self._status_left.setText(
                 f"[{ {1: '1', 2: '2', 3: '3', 4: '4'}.get(self._atualizar_tudo_progress_etapa, '?')}/4] "
-                f"Coletando {ativo} ({corr}/{tot})..."
+                f"{verbos.get(self._atualizar_tudo_progress_etapa, 'Processando')} {ativo} ({corr}/{tot})..."
             )
         )
         thread.finished.connect(self._on_atualizar_tudo_finished)
