@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QStackedWidget, QGraphicsOpacityEffect,
     QSplitter,
 )
-from PySide6.QtCore import Qt, QTimer, QSize, QProcess, QPropertyAnimation, QEasingCurve, QThread, Signal, QUrl
+from PySide6.QtCore import Qt, QTimer, QSize, QPropertyAnimation, QEasingCurve, QThread, Signal, QUrl
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtGui import QFont, QColor, QBrush, QIcon, QPixmap, QPainter, QAction, QShortcut, QKeySequence, QMovie
@@ -1867,19 +1867,29 @@ class MainWindow(QMainWindow):
     def _on_coleta_taxa_finished(self, resumo: dict):
         self.btn_taxa_aluguel.setEnabled(True)
         self.btn_taxa_aluguel.setText("\U0001f3e6  Tx Alug.")
-        
+
         status = resumo.get("status", "sucesso")
         if status == "sucesso":
-            self._status_left.setText("InvestSite: Coleta de taxas concluída!")
-            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.GREEN))
-
-            QMessageBox.information(self, "Taxa de Aluguel", msg)
+            sucessos = resumo.get("sucessos", 0)
+            falhas = resumo.get("falhas", 0)
+            self._status_left.setText(
+                "InvestSite: Coleta de taxas conclu\u00edda ({} sucessos / {} falhas).".format(sucessos, falhas)
+            )
+            self._status_left.setStyleSheet(
+                "color: {}; font-weight: bold;".format(Palette.GREEN)
+            )
+            QMessageBox.information(
+                self, "Taxa de Aluguel",
+                "Coleta conclu\u00edda: {} sucessos, {} falhas.".format(sucessos, falhas),
+            )
             self._abrir_visualizar_taxas()
         else:
             self._status_left.setText("InvestSite: Erro ao coletar taxas.")
-            self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.RED))
+            self._status_left.setStyleSheet(
+                "color: {}; font-weight: bold;".format(Palette.RED)
+            )
             erros = resumo.get("erros", ["Erro desconhecido"])
-            QMessageBox.critical(self, "Taxa de Aluguel", f"A coleta falhou:\n{erros[0]}")
+            QMessageBox.critical(self, "Taxa de Aluguel", "A coleta falhou:\n{}".format(erros[0]))
 
     def _abrir_visualizar_taxas(self):
         from src.infrastructure.persistence.repositories.repositories import TaxaAluguelRepository

@@ -65,7 +65,7 @@ def run_app(db_path=None):
     app.setStyle("Fusion")
 
     window = MainWindow(db_path)
-    window.show()
+    window.showMaximized()
 
     sys.exit(app.exec())
 

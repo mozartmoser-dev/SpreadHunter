@@ -79,7 +79,7 @@ _REGRAS_ESTRUTURAIS: dict[str, list[str]] = {
 
 _REGRAS_PARAM_MAP: dict[str, dict[str, str]] = {
     "BOX": {
-        "premio_risco": "Viabilidade: x CDI (pós B3, antes IR) >= {}",
+        "premio_risco_box": "Viabilidade: x CDI (pós B3, antes IR) >= {}",
     },
     "SBTH": {
         "premio_risco_box": "Viabilidade BOX: x CDI (pós B3, antes IR) >= {}",
@@ -90,10 +90,10 @@ _REGRAS_PARAM_MAP: dict[str, dict[str, str]] = {
         "colar_dist_max_pct": "Strike max distante = {}% do spot",
         "ranking_peso_colar_pop": "Peso Pop no Score = {}",
         "ranking_peso_colar_cdi": "Peso CDI no Score = {}",
-        "ranking_peso_colar_risco": "Peso risco leilão no Score = {}",
+        "ranking_peso_colar_risco": "Peso risco leilão (inverso) no Score = {}",
     },
     "COLLAR_CALENDARIO": {
-        "premio_risco": "Viabilidade: x CDI (pós B3, antes IR) >= {}",
+        "premio_risco_colar_calendario": "Viabilidade: x CDI (pós B3, antes IR) >= {}",
         "dte_call_min": "DTE call mínima = {} dias",
         "dte_call_max": "DTE call máxima = {} dias",
         "dte_extra_min": "Diferença DTE put−call mínima = {} dias",
@@ -110,7 +110,7 @@ _REGRAS_PARAM_MAP: dict[str, dict[str, str]] = {
         "ranking_peso_liquidez": "Peso liquidez no Score = {}",
     },
     "BOX_4P": {
-        "premio_risco": "Viabilidade: x CDI (pós B3, antes IR) >= {}",
+        "box_premio_risco": "Viabilidade: x CDI (pós B3, antes IR) >= {}",
         "box_qtd_min": "Profundidade mínima: qtd por perna >= {}",
         "box_soh_europeia": "Aceita apenas opções europeias = {}",
     },

@@ -13,6 +13,12 @@ class ResultadoVetorizado:
     pct_cdi_sbth: np.ndarray
     pct_cdi_box_liquido: np.ndarray
     pct_cdi_sbth_liquido: np.ndarray
+    pct_cdi_box_bruto: np.ndarray
+    pct_cdi_sbth_bruto: np.ndarray
+    pct_ganho_box_bruto: np.ndarray
+    pct_ganho_sbth_bruto: np.ndarray
+    pct_ganho_box_liquido: np.ndarray
+    pct_ganho_sbth_liquido: np.ndarray
     custo_box: np.ndarray
     custo_sbth: np.ndarray
     ganho_box: np.ndarray
@@ -47,7 +53,7 @@ class CalculadoraVetorizada:
         n = len(preco_ativo)
         if n == 0:
             empty = np.array([])
-            return ResultadoVetorizado(empty, empty, empty, empty, empty, empty, empty, empty, empty, empty)
+            return ResultadoVetorizado(empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty)
 
         # Preço de compra do ativo (lógica da calculadora original)
         preco_compra_ativo = np.where(of_venda_ativo > 0, of_venda_ativo, 0.0)
@@ -112,6 +118,12 @@ class CalculadoraVetorizada:
             pct_cdi_sbth=pct_cdi_sbth,
             pct_cdi_box_liquido=pct_cdi_box_liquido,
             pct_cdi_sbth_liquido=pct_cdi_sbth_liquido,
+            pct_cdi_box_bruto=pct_cdi_box_bruto,
+            pct_cdi_sbth_bruto=pct_cdi_sbth_bruto,
+            pct_ganho_box_bruto=pct_ganho_box_bruto,
+            pct_ganho_sbth_bruto=pct_ganho_sbth_bruto,
+            pct_ganho_box_liquido=pct_ganho_box_liq,
+            pct_ganho_sbth_liquido=pct_ganho_sbth_liq,
             custo_box=custo_box,
             custo_sbth=custo_sbth,
             ganho_box=ganho_box,

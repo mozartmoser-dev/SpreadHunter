@@ -59,3 +59,28 @@ class CalculadoraCustosB3:
             f"+reg=({self.taxa_registro:.4f})+iss=({self.iss:.4f})"
             f"={self.taxa_total():.4f} x premio=R${premio_medio:.2f} x {n_pernas} = R${custo:.4f}"
         )
+
+    def calcular_custos_vendida(
+        self,
+        *,
+        preco_ativo: float,
+        premio_medio_opcoes: float,
+        n_pernas_opcoes: int,
+        n_acoes: int = 1,
+    ) -> float:
+        """Custo B3 de uma estrutura vendida.
+
+        Cobrado ida-e-volta: assume que a posição pode ser fechada antes do
+        vencimento (rolagem é comum). Mesma tarifação B3 das estruturas
+        compradas — a B3 não distingue lado, cobra dos dois lados.
+
+        Estruturas vendidas atualmente:
+        - BOX_VENDIDA: vende ação + vende PUT + compra CALL → 2 opções + 1 ação
+        - SBTH_VENDIDA: vende ação + vende PUT → 1 opção + 1 ação
+        """
+        if preco_ativo <= 0 or n_pernas_opcoes <= 0:
+            return 0.0
+        return (
+            self.custos_opcao(premio_medio_opcoes, n_pernas=n_pernas_opcoes, ida_e_volta=True)
+            + self.custos_stock(preco_ativo, n_acoes=n_acoes, ida_e_volta=True)
+        )

@@ -50,6 +50,10 @@ def _make_opp(ativo="PETR4", classificacao="1BOX", operacao="BOX", viavel=True,
         tipo_opcao="A", classificacao=classificacao, operacao=operacao,
         custo_box=custo_box, pct_ganho_box=0.80, pct_cdi_box=1.5,
         custo_sbth=custo_sbth, pct_ganho_sbth=0.30, pct_cdi_sbth=1.2,
+        pct_ganho_box_bruto=0.80, pct_ganho_box_liquido=0.60,
+        pct_cdi_box_bruto=1.5, pct_cdi_box_liquido=1.2,
+        pct_ganho_sbth_bruto=0.30, pct_ganho_sbth_liquido=0.20,
+        pct_cdi_sbth_bruto=1.2, pct_cdi_sbth_liquido=0.9,
         cdi_periodo=0.01,
         viavel=viavel, preco_compra_ativo=18.01, of_venda_put=2.5, of_compra_call=0.8,
         liq_put_x_lote=liq_put_x_lote, liq_call_x_lote=liq_call_x_lote,
@@ -113,16 +117,16 @@ class TestMonitorTableModel:
     def test_ganho_display_box(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(classificacao="1BOX")])
-        ganho_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "ganho_display"][0]
+        ganho_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "ganho_bruto_display"][0]
         index = model.index(0, ganho_col)
-        assert "80.00%" == model.data(index, Qt.ItemDataRole.DisplayRole)
+        assert "80.00% (BOX)" == model.data(index, Qt.ItemDataRole.DisplayRole)
 
     def test_ganho_display_sbth(self):
         model = MonitorTableModel()
         model.atualizar([_make_opp(classificacao="2SBTH", operacao="SBTH")])
-        ganho_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "ganho_display"][0]
+        ganho_col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "ganho_bruto_display"][0]
         index = model.index(0, ganho_col)
-        assert "30.00%" == model.data(index, Qt.ItemDataRole.DisplayRole)
+        assert "30.00% (SBTH)" == model.data(index, Qt.ItemDataRole.DisplayRole)
 
     def test_strike_display(self):
         model = MonitorTableModel()
@@ -302,7 +306,7 @@ class TestOportunidadeMonitorDTO:
 
     def test_label_rentabilidade_tp(self):
         opp = _make_opp(classificacao="TP.Op", operacao="NEUTRA", viavel=False)
-        assert opp.label_rentabilidade == "1.50x CDI"
+        assert opp.label_rentabilidade == "1.50x CDI (liq: 1.20x)"
 
     def test_is_box(self):
         assert _make_opp(classificacao="1BOX").is_box is True

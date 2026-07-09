@@ -70,5 +70,8 @@ def criar_data_source(fonte: str, **kwargs) -> MarketDataSource:
         if "send_delay_ms" in kwargs:
             adapter.set_send_delay(kwargs["send_delay_ms"])
         return adapter
+    if fonte == "mock":
+        from src.infrastructure.providers.mock_market_data import MockDataSource
+        return MockDataSource(db_path=kwargs.get("db_path"))
     from src.infrastructure.providers.rtd_profit_adapter import RTDProfitAdapter
     return RTDProfitAdapter()

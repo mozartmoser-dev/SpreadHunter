@@ -46,6 +46,12 @@ class ResultadoBOXSBTH:
     operacao: str
     pct_cdi_sbth_liquido: float = 0.0
     pct_cdi_box_liquido: float = 0.0
+    pct_ganho_sbth_bruto: float = 0.0
+    pct_ganho_sbth_liquido: float = 0.0
+    pct_cdi_sbth_bruto: float = 0.0
+    pct_ganho_box_bruto: float = 0.0
+    pct_ganho_box_liquido: float = 0.0
+    pct_cdi_box_bruto: float = 0.0
 
 
 class CalculadoraBoxSbth:
@@ -109,6 +115,12 @@ class CalculadoraBoxSbth:
             cdi_periodo=round(cdi_periodo, 6),
             classificacao=classificacao,
             operacao=operacao,
+            pct_ganho_sbth_bruto=round(pct_ganho_sbth_bruto, 6),
+            pct_ganho_sbth_liquido=round(pct_ganho_sbth_liq, 6),
+            pct_cdi_sbth_bruto=round(pct_cdi_sbth_bruto, 6),
+            pct_ganho_box_bruto=round(pct_ganho_box_bruto, 6),
+            pct_ganho_box_liquido=round(pct_ganho_box_liq, 6),
+            pct_cdi_box_bruto=round(pct_cdi_box_bruto, 6),
         )
 
     def _calcular_custo_sbth(self, dados: DadosMercado) -> float:

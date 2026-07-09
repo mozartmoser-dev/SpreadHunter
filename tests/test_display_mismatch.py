@@ -315,6 +315,12 @@ def _monitor_opp(**overrides) -> OportunidadeMonitor:
         pct_ganho_box=0.10,
         pct_cdi_box=2.0,
         pct_cdi_box_liquido=1.5,
+        pct_ganho_sbth_bruto=0.05,
+        pct_ganho_sbth_liquido=0.035,
+        pct_cdi_sbth_bruto=1.5,
+        pct_ganho_box_bruto=0.10,
+        pct_ganho_box_liquido=0.07,
+        pct_cdi_box_bruto=2.0,
         cdi_periodo=0.13,
         viavel=True,
         liq_put_x_lote=100,
@@ -339,7 +345,10 @@ def _monitor_col_key(key):
     ("label_tipo", "BOX"),
     ("ativo", "PETR4"),
     ("strike", "30.00"),
-    ("ganho_display", "10.00%"),
+    ("ganho_bruto_display", "10.00% (BOX)"),
+    ("ganho_liq_display", "7.00% (BOX)"),
+    ("rent_cdi_bruto_display", "2.00x CDI (BOX)"),
+    ("rent_cdi_liq_display", "1.50x CDI (BOX)"),
     ("label_dias", "29d"),
     ("vencimento", "17/07/2026"),
     ("liq_indicator", "\u2713"),
@@ -365,37 +374,37 @@ def test_monitor_cell_display_box(qapp, col_key, expected):
     assert result == expected, f"col_key={col_key}: got {result!r}, expected {expected!r}"
 
 
-def test_monitor_ganho_display_sbth(qapp):
-    """ganho_display must use percent_sbth for SBTH classification."""
+def test_monitor_ganho_bruto_display_sbth(qapp):
+    """ganho_bruto_display must use percent_sbth_bruto for SBTH classification."""
     model = MonitorTableModel()
-    model.atualizar([_monitor_opp(classificacao="2SBTH", pct_ganho_sbth=0.07)])
-    idx = model.index(0, _monitor_col_key("ganho_display"))
-    assert model.data(idx, Qt.ItemDataRole.DisplayRole) == "7.00%"
+    model.atualizar([_monitor_opp(classificacao="2SBTH", pct_ganho_sbth_bruto=0.07)])
+    idx = model.index(0, _monitor_col_key("ganho_bruto_display"))
+    assert model.data(idx, Qt.ItemDataRole.DisplayRole) == "7.00% (SBTH)"
 
 
-def test_monitor_ganho_display_boxsbth(qapp):
-    """ganho_display must use max(ganho_box, ganho_sbth) for BOX+SBTH."""
+def test_monitor_ganho_bruto_display_boxsbth(qapp):
+    """ganho_bruto_display must show both SBTH and BOX for BOX+SBTH classification."""
     model = MonitorTableModel()
     model.atualizar([_monitor_opp(classificacao="3BOXSBTH",
-                                  pct_ganho_box=0.08, pct_ganho_sbth=0.12)])
-    idx = model.index(0, _monitor_col_key("ganho_display"))
+                                  pct_ganho_box_bruto=0.08, pct_ganho_sbth_bruto=0.12)])
+    idx = model.index(0, _monitor_col_key("ganho_bruto_display"))
     result = model.data(idx, Qt.ItemDataRole.DisplayRole)
-    assert result == "12.00%", f"got {result!r}"
+    assert result == "12.00% (SBTH) | 8.00% (BOX)", f"got {result!r}"
 
-def test_monitor_ganho_display_sbth_only(qapp):
-    """ganho_display must use sbth for 2SBTH regardless of box value."""
+def test_monitor_ganho_bruto_display_sbth_only(qapp):
+    """ganho_bruto_display must use sbth for 2SBTH regardless of box value."""
     model = MonitorTableModel()
     model.atualizar([_monitor_opp(classificacao="2SBTH",
-                                  pct_ganho_box=0.15, pct_ganho_sbth=0.07)])
-    idx = model.index(0, _monitor_col_key("ganho_display"))
-    assert model.data(idx, Qt.ItemDataRole.DisplayRole) == "7.00%"
+                                  pct_ganho_box_bruto=0.15, pct_ganho_sbth_bruto=0.07)])
+    idx = model.index(0, _monitor_col_key("ganho_bruto_display"))
+    assert model.data(idx, Qt.ItemDataRole.DisplayRole) == "7.00% (SBTH)"
 
 
-def test_monitor_ganho_display_other(qapp):
-    """ganho_display must show '-' when both percentages are zero."""
+def test_monitor_ganho_bruto_display_other(qapp):
+    """ganho_bruto_display must show '-' when both percentages are zero."""
     model = MonitorTableModel()
-    model.atualizar([_monitor_opp(classificacao="Outras", pct_ganho_box=0.0, pct_ganho_sbth=0.0)])
-    idx = model.index(0, _monitor_col_key("ganho_display"))
+    model.atualizar([_monitor_opp(classificacao="Outras", pct_ganho_box_bruto=0.0, pct_ganho_sbth_bruto=0.0)])
+    idx = model.index(0, _monitor_col_key("ganho_bruto_display"))
     assert model.data(idx, Qt.ItemDataRole.DisplayRole) == "-"
 
 

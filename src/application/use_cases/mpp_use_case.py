@@ -423,13 +423,13 @@ class MPPUseCase:
                 venc = r["vencimento"]
                 if isinstance(venc, str):
                     venc = date.fromisoformat(venc)
-            mapa[cod_put] = {
-                "cod_put": cod_put,
-                "cod_call": r["cod_call"],
-                "ativo": r["ativo"],
-                "vencimento": venc,
-                "tipo_opcao": r["tipo_opcao"],
-            }
+                mapa[cod_put] = {
+                    "cod_put": cod_put,
+                    "cod_call": r["cod_call"],
+                    "ativo": r["ativo"],
+                    "vencimento": venc,
+                    "tipo_opcao": r["tipo_opcao"],
+                }
             return mapa
         finally:
             conn.close()
