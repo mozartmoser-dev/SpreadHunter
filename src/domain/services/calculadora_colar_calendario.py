@@ -65,6 +65,9 @@ class ResultadoColarCalendario:
     be_alta: float | None = None
     be_baixa_intrinseco: float | None = None
     be_alta_intrinseco: float | None = None
+    ratio_call: float = 1.0
+    ratio_put: float = 1.0
+    is_cauda: bool = False
 
 
 class CalculadoraColarCalendario:

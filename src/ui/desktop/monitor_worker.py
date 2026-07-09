@@ -14,6 +14,7 @@ from src.application.use_cases.monitor_vendidas import MonitorVendidasUseCase
 from src.application.use_cases.monitor_venda_coberta import MonitorVendaCobertaUseCase
 from src.application.use_cases.mpp_use_case import MPPUseCase
 from src.domain.services.pipeline_tracker import PipelineTracker
+from src.domain.services.calculadora_cauda_assincrona import CalculadoraCaudaAssincrona
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
 from src.domain.services.market_data_source import criar_data_source, MarketDataSource
 from src.application.dtos.dtos import EngineStatsDTO
@@ -83,7 +84,7 @@ class MonitorWorker(QThread):
     def run(self):
         com_initialized = False
         fonte = self._ler_param_str("fonte_market_data", "profit")
-        usa_com = (fonte != "openfast")
+        usa_com = (fonte not in ("openfast", "mock"))
         if usa_com:
             try:
                 import pythoncom
@@ -94,7 +95,7 @@ class MonitorWorker(QThread):
                 logger.warning("MonitorWorker: pythoncom não disponível. Thread rodará sem COM.")
                 self.status_message.emit("Aviso: pythoncom ausente. RTD indisponível.")
 
-        fonte_nome = "Open Fast Socket" if fonte == "openfast" else "Profit RTD"
+        fonte_nome = {"openfast": "Open Fast Socket", "profit": "Profit RTD", "mock": "Mock (Teste)"}.get(fonte, fonte)
         logger.info("MonitorWorker: iniciando fonte de dados: %s", fonte_nome)
 
         rtd = self._rtd_main
@@ -102,6 +103,9 @@ class MonitorWorker(QThread):
             if fonte == "openfast":
                 delay_ms = self._ler_param_int("openfast_send_delay_ms", 1)
                 rtd = criar_data_source("openfast", send_delay_ms=delay_ms)
+            elif fonte == "mock":
+                rtd = criar_data_source("mock", db_path=self.db_path)
+                self._rtd_main = rtd
             else:
                 rtd = criar_data_source("profit")
         self._mercado_provider = MercadoDataProvider(self.db_path, rtd)
@@ -239,6 +243,17 @@ class MonitorWorker(QThread):
                 pass
         return default
 
+    def _ler_param_float(self, chave: str, default: float) -> float:
+        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+        repo = ParametroRepository(self.db_path)
+        param = repo.get_by_chave(chave)
+        if param is not None:
+            try:
+                return float(param.valor)
+            except (ValueError, TypeError):
+                pass
+        return default
+
     def recarregar_parametros(self):
         self._monitor_uc.recarregar_parametros()
         self._monitor_vendidas_uc.recarregar_parametros()
@@ -340,13 +355,13 @@ class MonitorWorker(QThread):
         self.oportunidades_atualizadas.emit(resultados)
 
         # Box/SBTH Vendido
-        vendidas = self._monitor_vendidas_uc.varrer(dados_mercado)
+        vendidas = self._monitor_vendidas_uc.varrer(dados_mercado, pipeline_tracker=PipelineTracker())
         if not self._mostrar_tp_op:
             vendidas = [r for r in vendidas if r.viavel]
         self.oportunidades_vendidas_atualizadas.emit(vendidas)
 
         # Venda Coberta
-        coberta = self._monitor_coberta_uc.varrer(dados_mercado)
+        coberta = self._monitor_coberta_uc.varrer(dados_mercado, pipeline_tracker=PipelineTracker())
         if not self._mostrar_tp_op:
             coberta = [r for r in coberta if r.viavel]
         self.oportunidades_coberta_atualizadas.emit(coberta)
@@ -386,7 +401,101 @@ class MonitorWorker(QThread):
             dados_md = getattr(self, '_ultimo_dados_mercado', None)
             tracker = PipelineTracker()
             resultados = self._monitor_colares_cal_uc.varrer(rtd, dados_md, params, ativos, pipeline_tracker=tracker)
+            cauda_habilitado = self._ler_param_int("calda_habilitado", 1)
+            if cauda_habilitado and resultados:
+                try:
+                    cauda = self._processar_cauda(resultados)
+                    tracker.add_stage(
+                        "14. Pós-processamento (Cauda)",
+                        len(resultados), len(cauda),
+                        f"{len(cauda)} variantes com cauda geradas" if cauda else "Nenhum par atingiu o alvo CDI no range sigma"
+                    )
+                    resultados.extend(cauda)
+                except Exception:
+                    logger.exception("Erro ao processar Cauda Assíncrona")
+                    tracker.add_stage("14. Pós-processamento (Cauda)", 0, 0, "ERRO")
             self.colares_calendario_atualizados.emit(resultados)
+
+    def _processar_cauda(self, resultados: list) -> list:
+        from src.domain.services.calculadora_colar_calendario import ResultadoColarCalendario
+        cauda_results: list = []
+        taxa_cdi = self._ler_param_float("taxa_cdi", 0.145)
+        calda_premio_risco = self._ler_param_float("calda_premio_risco", 2.5)
+        calda_desvios_cauda = self._ler_param_float("calda_desvios_cauda", 3.0)
+        calda_ratio_max = self._ler_param_int("calda_ratio_max", 50)
+        calda_ratio_put_min = self._ler_param_float("calda_ratio_put_min", 0.3)
+        calda_ratio_put_step = self._ler_param_float("calda_ratio_put_step", 0.01)
+
+        for r in resultados:
+            if not r.viavel:
+                continue
+            cauda = CalculadoraCaudaAssincrona.calcular(
+                preco_ativo=r.preco_ativo,
+                strike_call=r.strike_call,
+                strike_put=r.strike_put,
+                premio_call=r.premio_call,
+                premio_put=r.premio_put,
+                dte_call=r.dte_call,
+                ativo=r.ativo,
+                iv_call_pct=r.iv_call,
+                pnl_projetado_base=r.pnl_projetado,
+                capital_empregado_base=r.capital_empregado,
+                pct_cdi_base=r.pct_cdi,
+                taxa_cdi=taxa_cdi,
+                calda_premio_risco=calda_premio_risco,
+                calda_desvios_cauda=calda_desvios_cauda,
+                calda_ratio_max=calda_ratio_max,
+                calda_ratio_put_min=calda_ratio_put_min,
+                calda_ratio_put_step=calda_ratio_put_step,
+                custo_b3_base=r.custo_b3,
+                preco_compra=r.preco_compra,
+                iv_put_pct=r.iv_put,
+                dte_put=r.dte_put,
+            )
+            if cauda is None:
+                continue
+
+            novo = ResultadoColarCalendario(
+                ativo=r.ativo,
+                vencimento_call=r.vencimento_call,
+                vencimento_put=r.vencimento_put,
+                dte_call=r.dte_call,
+                dte_put=r.dte_put,
+                dte_extra=r.dte_extra,
+                strike_call=r.strike_call,
+                strike_put=r.strike_put,
+                cod_call=r.cod_call,
+                cod_put=r.cod_put,
+                preco_ativo=r.preco_ativo,
+                premio_call=r.premio_call,
+                premio_put=r.premio_put,
+                net_credito=round(r.premio_call - r.premio_put, 4),
+                iv_call=r.iv_call,
+                iv_put=r.iv_put,
+                valor_put_venc_call=r.valor_put_venc_call,
+                pnl_stock=r.pnl_stock,
+                pnl_projetado=cauda.pnl_projetado,
+                capital_empregado=r.capital_empregado,
+                pct_retorno=0.0,
+                pct_cdi=cauda.pct_cdi_com_ratio,
+                delta_total=r.delta_total,
+                theta_call=r.theta_call,
+                theta_put=r.theta_put,
+                theta_liquido=r.theta_liquido,
+                viavel=True,
+                tipo=r.tipo,
+                r=taxa_cdi,
+                custo_b3=cauda.custo_b3_base,
+                score=round(cauda.score_cauda, 4),
+                preco_compra=r.preco_compra,
+                be_baixa=r.be_baixa,
+                be_alta=cauda.breakeven_direito,
+                ratio_call=cauda.ratio_call,
+                ratio_put=cauda.ratio_put,
+                is_cauda=True,
+            )
+            cauda_results.append(novo)
+        return cauda_results
 
     def _processar_box_4p(self, rtd):
         self._box_mutex.lock()
@@ -458,6 +567,7 @@ class MonitorWorker(QThread):
 
     def _processar_manutencao(self):
         self._manutencao_cycle += 1
+        # Roda a cada 2 ciclos do monitor. Com _interval_ms=3000, sai a cada ~6s.
         if self._manutencao_cycle % 2 != 0 or not self._mercado_provider:
             return
         t0 = time.perf_counter()
@@ -471,7 +581,8 @@ class MonitorWorker(QThread):
                 self.mpp_status_changed.emit(True)
                 logger.info("MPP: carga completa, instantâneo ativado")
 
-        # A cada ~60 min (144 ciclos de manutencao * 25s ≈ 3600s)
+        # Limpeza periodica das tabelas temporais do MPP (snapshot, historico,
+        # spread_history). Com _interval_ms=3000, 1440 ciclos ~= 72 min.
         if self._manutencao_cycle % 1440 == 0:
             t1 = time.perf_counter()
             self._monitor_mpp_uc.limpar_snapshots_antigos()

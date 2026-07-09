@@ -395,6 +395,21 @@ class MercadoDataProvider:
         self._lock.lock()
         try:
             try:
+                # Mock source: atalho direto, sem scan
+                if getattr(self.source, 'is_mock', False):
+                    instrumentos = self.inst_repo.get_all()
+                    from src.infrastructure.providers.mock_market_data import MockMarketDataProvider
+                    mock_provider = MockMarketDataProvider(preco_base=18.0)
+                    dados = mock_provider.gerar_dados_para_instrumentos(instrumentos)
+                    if dados:
+                        self._chaves_com_book = set(dados.keys())
+                        self._chaves_detalhes_completos = set(dados.keys())
+                        self._chaves_registradas = set(dados.keys())
+                        self._registrado = True
+                        self._ativos_registrados = {k.split("|")[0] for k in dados}
+                        self.source.popular_cache(dados)
+                    return dados
+
                 t_reg = time.perf_counter()
                 # Carrega a lista completa do banco apenas quando necessário
                 # (evita ler 52k linhas do SQLite a cada ciclo)
@@ -410,13 +425,15 @@ class MercadoDataProvider:
                     if not self._registrado:
                         if self._prioridade_set:
                             prio = [inst for inst in instrumentos if f"{inst.ativo}|{inst.cod_put}" in self._prioridade_set or inst.cod_put in self._prioridade_set]
-                            self._registrar_batch_inteligente(prio, batch_size=2000)
+                            regs = self._registrar_batch_inteligente(prio, batch_size=2000)
+                            self._flush_buffer(regs)
                             if self._registrado:
                                 self._background_offset = len(prio)
                                 self._registro_remaining_idx = len(prio)
                                 logger.info("Onda 1 prioritária concluída: %d instrumentos monitorados. Background scan ativo para novos entrantes.", len(self._chaves_registradas))
                         else:
-                            self._registrar_batch_inteligente(instrumentos, batch_size=2000)
+                            regs = self._registrar_batch_inteligente(instrumentos, batch_size=2000)
+                            self._flush_buffer(regs)
                 # Força refresh logo após Onda 1 completa pra garantir dados reais do servidor
                 if self._registrado and not getattr(self, '_refresh_pos_onda1', False):
                     self._refresh_pos_onda1 = True

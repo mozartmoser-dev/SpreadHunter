@@ -122,7 +122,7 @@ def _seed_parametros_colar(conn):
         ("ranking_peso_colar_risco", "1.0", "COLAR", "Peso do risco de leilão (inverso) no Score do Colar Protetivo"),
         ("taxa_ir_pct", "0.15", "GERAL", "Aliquota de IR sobre lucro em operacoes (15% swing trade)"),
         ("rtd_refresh_timeout_ms", "5000", "GERAL", "Timeout do RTD RefreshData em ms (0 = sem timeout)"),
-        ("fonte_market_data", "openfast", "GERAL", "Fonte de market data (profit=Profit RTD via COM, openfast=Open Fast Socket TCP)"),
+        ("fonte_market_data", "openfast", "GERAL", "Fonte de market data (profit=Profit RTD via COM, openfast=Open Fast Socket TCP, mock=Dados simulados p/ teste)"),
         ("openfast_send_delay_ms", "2", "GERAL", "Delay entre comandos SQT (ms). 0 = delay minimo (1ms)"),
         ("elegibilidade_strike_max_pct", "0.70", "BOX_SINTETICO", "Strike máximo % do spot para elegibilidade de pescaria"),
         ("dte_call_min", "25", "COLLAR_CALENDARIO", "DTE mínimo para call no collar calendário"),
@@ -208,7 +208,9 @@ def _seed_parametros_colar(conn):
         ("calda_habilitado", "1", "COLLAR_CALENDARIO_CAUDA", "Habilitar variante Cauda Assincrona (0=desligado)"),
         ("calda_premio_risco", "2.5", "COLLAR_CALENDARIO_CAUDA", "Multiplo do CDI para target de retorno da Cauda"),
         ("calda_desvios_cauda", "3.0", "COLLAR_CALENDARIO_CAUDA", "N de desvios padrao para o breakeven superior"),
-        ("calda_ratio_max", "50.0", "COLLAR_CALENDARIO_CAUDA", "Ratio maximo CALL:ativo permitido"),
+        ("calda_ratio_max", "50.0", "COLLAR_CALENDARIO_CAUDA", "Percentual maximo extra de CALLs sobre o ativo (ex: 50 = +50% = ratio 1.5x)"),
+        ("calda_ratio_put_min", "0.3", "COLLAR_CALENDARIO_CAUDA", "Ratio minimo da PUT (ex: 0.3 = 30% da base)"),
+        ("calda_ratio_put_step", "0.01", "COLLAR_CALENDARIO_CAUDA", "Passo de incremento para varredura dos ratios"),
     ]
     for p in params + mpp_params + perf_params:
         conn.execute(

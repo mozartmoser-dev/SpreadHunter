@@ -62,11 +62,24 @@ class OpenFastSocketAdapter:
             self._socket.settimeout(5.0)
             self._socket.connect((self._host, self._port))
             self._socket.sendall(b"OPENFAST\n")
-            resp = self._socket.recv(4096).decode("utf-8", errors="ignore").strip()
-            linhas = resp.split("\n")
-            linha_version = next((l for l in linhas if l.strip().startswith("version")), None)
+            buffer = ""
+            linha_version = None
+            expire = time.time() + 5.0
+            while time.time() < expire:
+                try:
+                    chunk = self._socket.recv(4096).decode("utf-8", errors="ignore")
+                    if not chunk:
+                        break
+                    buffer += chunk
+                    if "\n" in buffer:
+                        linhas = buffer.split("\n")
+                        linha_version = next((l for l in linhas if l.strip().startswith("version")), None)
+                        if linha_version:
+                            break
+                except socket.timeout:
+                    continue
             if not linha_version:
-                raise ConnectionError(f"Handshake inesperado: {resp!r}")
+                logger.warning("Open Fast: handshake sem version line (simulador?): %s", buffer[:200])
             self._socket.settimeout(1.0)
             self._conectado = True
             self._ultimo_syn = time.time()
@@ -75,7 +88,7 @@ class OpenFastSocketAdapter:
             )
             self._reader_thread.start()
             logger.info("Open Fast conectado em %s:%d — handshake: %s",
-                        self._host, self._port, resp[:120].replace("\r\n", "; "))
+                        self._host, self._port, buffer[:120].replace("\r\n", "; "))
         except Exception as e:
             self._conectado = False
             logger.warning("Open Fast: falha na conexão: %s", e)

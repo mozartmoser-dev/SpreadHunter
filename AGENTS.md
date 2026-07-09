@@ -538,6 +538,18 @@ de ambiente que o .exe não reporta.
 ### Solução
 Pedir para rodar `python main.py` em vez do .exe → vê stacktrace completo.
 
+### Atenção — Onda 1 / `_flush_buffer`
+
+Sempre que alterar `_registrar_batch_inteligente()` ou `capturar_dados_mercado()`,
+verifique se TODOS os branches chamam `self._flush_buffer()` após
+`_registrar_batch_inteligente()`. O retorno da função é a lista de inscrições
+que precisa ser enviada ao socket. Se esquecer o flush, as opções nunca são
+assinadas → book=0 mesmo com FAST conectado.
+
+Histórico: bug introduzido em 29/06/2026 (commit 08025c9) quando o flush foi
+adicionado apenas nos ativos prioritários, mas não na Onda 1 geral.
+Corrigido em 09/07/2026.
+
 ### Arquivos auxiliares no projeto
 - `requirements.txt` — pacotes pip com versões pinadas (Python 3.13.14).
 - `INSTRUCOES_AMIGO.txt` — passo a passo para rodar via dev,

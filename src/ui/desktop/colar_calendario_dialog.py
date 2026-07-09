@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QLineEdit, QFormLayout, QFrame,
     QListWidget, QListWidgetItem, QWidget, QTextEdit, QSpinBox, QDoubleSpinBox,
+    QComboBox,
 )
 from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal
 from PySide6.QtGui import QFont, QColor, QBrush
@@ -13,6 +14,7 @@ from src.infrastructure.persistence.repositories.repositories import ParametroRe
 from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
 from src.ui.desktop.copy_utils import copiar_texto_formatado, copiar_figura_clipboard, salvar_figura_arquivo
 from src.ui.desktop.theme import Palette
+from src.ui.desktop.constants import SELETOR_TODOS
 
 CUSTOS_DISCLOSURE = (
     "\n\n* Custos já incluem taxa B3 (emolumento 0,025% + liquidação 0,0275% por perna) "
@@ -67,6 +69,7 @@ class ColarCalTableModel(QAbstractTableModel):
         ("θ Líq", "theta_liquido"),
         ("P Put VC", "valor_put_venc_call"),
         ("Viés", "tipo_str"),
+        ("Ratio", "ratio_call"),
     ]
 
     def __init__(self, items=None):
@@ -138,6 +141,7 @@ class ColarCalTableModel(QAbstractTableModel):
                     "theta_liquido": "Theta líquido da estrutura (θ CALL − θ PUT). Positivo = ganha tempo.",
                     "valor_put_venc_call": "Valor estimado da PUT no vencimento da CALL, projetado pelo Black-Scholes.",
                     "tipo_str": "Classificação do viés: Alta, Baixa ou Neutro.",
+                    "ratio_call": "Quantas CALLs vendidas por lote de ação (Cauda Assíncrona).",
                 }
                 return tips.get(self.COLUMNS[section][1])
         return None
@@ -176,12 +180,15 @@ class ColarCalTableModel(QAbstractTableModel):
                 if hasattr(val, "strftime"):
                     return val.strftime("%d/%m")
                 return str(val)
+            if col_key == "ratio_call":
+                return f"{int(val)}x" if val else "1x"
             return str(val)
         if role == Qt.ItemDataRole.ForegroundRole:
             if col_key == "tipo_str":
                 tipo = item.get("tipo_str", "")
+                base = tipo.replace(" Cauda", "")
                 cores = {"Alta": QColor("#2ecc71"), "Baixa": QColor("#e74c3c"), "Neutro": QColor("#f39c12")}
-                return QBrush(cores.get(tipo, QColor(Palette.TEXT_PRIMARY)))
+                return QBrush(cores.get(base, QColor(Palette.TEXT_PRIMARY)))
             if col_key in ("pct_cdi", "score", "score_iv"):
                 return QBrush(QColor(Palette.YELLOW))
             if col_key in ("theta_liquido",):
@@ -227,6 +234,7 @@ class ColarCalSortProxy(QSortFilterProxyModel):
         self._filtro_lista = None
         self._top_n = 0
         self._top_n_accept_set: set[int] | None = None
+        self._filtro_cauda = 0
 
     def set_filtro_ativo(self, texto: str):
         self._filtro_ativo = texto.strip().upper()
@@ -243,6 +251,10 @@ class ColarCalSortProxy(QSortFilterProxyModel):
     def set_top_n(self, n: int):
         self._top_n = n
         self._top_n_accept_set = None
+        self.invalidate()
+
+    def set_filtro_cauda(self, valor: int):
+        self._filtro_cauda = valor
         self.invalidate()
 
     def sort(self, column, order):
@@ -285,6 +297,14 @@ class ColarCalSortProxy(QSortFilterProxyModel):
             return ativo in self._filtro_lista
         if self._filtro_ativo:
             return self._filtro_ativo in ativo.upper()
+
+        if self._filtro_cauda > 0:
+            if hasattr(src, '_items') and row < len(src._items):
+                is_cauda = src._items[row].get('is_cauda', False)
+                if self._filtro_cauda == 1 and is_cauda:
+                    return False
+                if self._filtro_cauda == 2 and not is_cauda:
+                    return False
 
         if self._top_n > 0:
             if self._top_n_accept_set is None:
@@ -354,6 +374,20 @@ class ColarCalendarioDialog(QDialog):
         """)
         self.btn_bell.toggled.connect(self._toggle_som)
         header_layout.addWidget(self.btn_bell)
+
+        self.btn_export_csv = QPushButton("📥 Export CSV")
+        self.btn_export_csv.setFixedHeight(24)
+        self.btn_export_csv.setCursor(Qt.PointingHandCursor)
+        self.btn_export_csv.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #2d2d44; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid {Palette.BORDER}; border-radius: 4px;
+                padding: 2px 10px; font-size: 8pt;
+            }}
+            QPushButton:hover {{ background-color: #3d3d55; }}
+        """)
+        self.btn_export_csv.clicked.connect(self._exportar_csv)
+        header_layout.addWidget(self.btn_export_csv)
 
         layout.addLayout(header_layout)
 
@@ -461,6 +495,30 @@ class ColarCalendarioDialog(QDialog):
         topn_row.addStretch()
         left_panel.addLayout(topn_row)
 
+        sep_cauda = QFrame()
+        sep_cauda.setFrameShape(QFrame.HLine)
+        sep_cauda.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
+        left_panel.addWidget(sep_cauda)
+
+        lbl_cauda = QLabel("Variante:")
+        lbl_cauda.setStyleSheet(f"color: {Palette.TEXT_MUTED}; font-size: 9pt; font-weight: bold;")
+        left_panel.addWidget(lbl_cauda)
+
+        self.combo_cauda = QComboBox()
+        self.combo_cauda.addItems(["Todas", "Base", "Cauda"])
+        self.combo_cauda.setStyleSheet("""
+            QComboBox {
+                background-color: #1e1e2f; color: #e0e0e0;
+                border: 1px solid #2d2d44; border-radius: 3px;
+                padding: 2px 4px; font-size: 8pt;
+            }
+            QComboBox:focus { border-color: #e67e22; }
+            QComboBox::drop-down { border: none; }
+            QComboBox::down-arrow { image: none; }
+        """)
+        self.combo_cauda.currentIndexChanged.connect(self._on_cauda_filter_changed)
+        left_panel.addWidget(self.combo_cauda)
+
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
         sep.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
@@ -547,6 +605,10 @@ class ColarCalendarioDialog(QDialog):
 
     def _on_topn_changed(self, n: int):
         self.proxy.set_top_n(n)
+        self._atualizar_status()
+
+    def _on_cauda_filter_changed(self, idx: int):
+        self.proxy.set_filtro_cauda(idx)
         self._atualizar_status()
 
     def _on_search_ativos_debounced(self):
@@ -1018,6 +1080,33 @@ class ColarCalendarioDialog(QDialog):
                                 "Dados de debug copiados para a área de transferência.\n"
                                 "Cole (Ctrl+V) aqui no chat.")
 
+    def _exportar_csv(self):
+        from PySide6.QtWidgets import QApplication, QMessageBox
+        import csv, io
+        if not self._resultados:
+            QMessageBox.information(self, "Export CSV", "Nenhum resultado para exportar.")
+            return
+        cols = [c[1] for c in self._model.COLUMNS]
+        saida = io.StringIO()
+        w = csv.writer(saida, delimiter=",", quoting=csv.QUOTE_MINIMAL)
+        w.writerow(cols)
+        for r in self._resultados:
+            row = []
+            for k in cols:
+                v = getattr(r, k, None)
+                if v is None:
+                    row.append("-")
+                elif isinstance(v, float):
+                    row.append(f"{v:.4f}")
+                else:
+                    row.append(str(v))
+            w.writerow(row)
+        texto = saida.getvalue()
+        QApplication.clipboard().setText(texto)
+        QMessageBox.information(self, "CSV Exportado",
+                                f"{len(self._resultados)} linhas exportadas para a área de transferência.\n"
+                                "Cole (Ctrl+V) aqui no chat.")
+
     def _explicar_estrategia(self, r):
         from src.domain.services.calculadora_colar_calendario import CalculadoraColarCalendario
 
@@ -1078,15 +1167,17 @@ class ColarCalendarioDialog(QDialog):
             T_call = r.dte_call / 365
             T_rem = r.dte_extra / 365
 
-            x_min = min(Kp, S0) * 0.85
-            x_max = max(Kc, S0) * 1.15
+            ratio = max(getattr(r, 'ratio_call', 1), 1)
+            x_min = min(Kp, S0) * (0.80 if ratio > 1 else 0.85)
+            x_max = max(Kc, S0) * (1.25 if ratio > 1 else 1.15)
             x = np.linspace(x_min, x_max, 500)
 
             repo = ParametroRepository(self._db_path)
             param = repo.get_by_chave("taxa_cdi")
             rf = param.valor if param else 0.1450
             stock_pnl = np.minimum(x, Kc) - S0  # acao vendida a Kc se ITM
-            call_pnl = Pc  # premio recebido, acao cobre exercicio
+            call_pnl = Pc * ratio
+            naked_pnl = -(ratio - 1) * np.maximum(0, x - Kc)  # CALLs extras descobertas
             if T_rem > 0:
                 dp1 = (np.log(x / Kp) + (rf + 0.5 * iv_p ** 2) * T_rem) / (iv_p * np.sqrt(T_rem))
                 dp2 = dp1 - iv_p * np.sqrt(T_rem)
@@ -1095,7 +1186,7 @@ class ColarCalendarioDialog(QDialog):
                 put_val = np.maximum(Kp - x, 0)
             put_pnl = put_val - Pp
 
-            pnl = stock_pnl + call_pnl + put_pnl
+            pnl = stock_pnl + call_pnl + naked_pnl + put_pnl
 
             # Sigmas (1 desvio = S0 * IV_call * sqrt(T_call))
             sigma_spot = S0 * iv_c * np.sqrt(T_call)
@@ -1791,7 +1882,7 @@ class ColarCalendarioDialog(QDialog):
         usar_whitelist = bool(whitelist)
         self.lista_ativos.blockSignals(True)
         self.lista_ativos.clear()
-        item_todos = QListWidgetItem("TODOS")
+        item_todos = QListWidgetItem(SELETOR_TODOS)
         item_todos.setFlags(item_todos.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
         item_todos.setForeground(QColor(Palette.YELLOW))
         item_todos.setToolTip("Mostrar todos os ativos")
@@ -1869,8 +1960,10 @@ class ColarCalendarioDialog(QDialog):
                     "capital_empregado": r.capital_empregado,
                     "pct_retorno": r.pct_retorno,
                     "pct_cdi": r.pct_cdi,
-                    "tipo_str": r.tipo.value,
+                    "tipo_str": (r.tipo.value + " Cauda") if getattr(r, 'is_cauda', False) else r.tipo.value,
                     "viavel": r.viavel,
+                    "ratio_call": r.ratio_call,
+                    "is_cauda": getattr(r, 'is_cauda', False),
                 })
             self.model.atualizar(items)
         finally:
