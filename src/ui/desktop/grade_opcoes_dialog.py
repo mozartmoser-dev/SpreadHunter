@@ -13,6 +13,7 @@ from __future__ import annotations
 import io
 import contextlib
 import math
+from zoneinfo import ZoneInfo
 import re
 from datetime import date
 from typing import TYPE_CHECKING
@@ -527,13 +528,16 @@ class GradeOpcoesDialog(QDialog):
         self.lbl_status.setText(rotulo)
 
     def _ultima_importacao(self, insts):
-        """Retorna o created_at mais recente entre os instrumentos."""
+        """Retorna o created_at mais recente entre os instrumentos (em horário de Brasília)."""
         if not insts:
             return None
         maiores = [i.created_at for i in insts if i.created_at is not None]
         if not maiores:
             return None
-        return max(maiores)
+        ult = max(maiores)
+        if ult.tzinfo is None:
+            ult = ult.replace(tzinfo=ZoneInfo("UTC"))
+        return ult.astimezone(ZoneInfo("America/Sao_Paulo"))
 
     def _criar_linha(self, inst) -> QTreeWidgetItem:
         """Cria um nó de strike com layout CALL | CALL tipo | Strike | PUT | PUT tipo.

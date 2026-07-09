@@ -743,7 +743,7 @@
       "chave": "fonte_market_data",
       "valor": "openfast",
       "estrategia": "GERAL",
-      "descricao": "Fonte de market data (0=Profit RTD, 1=Open Fast Socket)"
+      "descricao": "Fonte de dados"
     },
     {
       "chave": "openfast_send_delay_ms",
@@ -843,19 +843,19 @@
     },
     {
       "chave": "calda_premio_risco",
-      "valor": "2.5",
+      "valor": "3.0",
       "estrategia": "COLLAR_CALENDARIO_CAUDA",
       "descricao": "Múltiplo do CDI para target de retorno da Cauda"
     },
     {
       "chave": "calda_desvios_cauda",
-      "valor": "3.0",
+      "valor": "1.0",
       "estrategia": "COLLAR_CALENDARIO_CAUDA",
-      "descricao": "Nº de desvios padrão para o breakeven superior"
+      "descricao": "N de desvios padrao para o range"
     },
     {
       "chave": "calda_ratio_max",
-      "valor": "50.0",
+      "valor": "40.0",
       "estrategia": "COLLAR_CALENDARIO_CAUDA",
       "descricao": "Ratio máximo CALL:ativo permitido"
     },

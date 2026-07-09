@@ -1,6 +1,6 @@
 import logging
 
-from datetime import date
+from datetime import date, datetime
 
 from src.application.dtos.dtos_venda_coberta import OportunidadeVendaCoberta
 from src.domain.services.calendario_b3 import dc_to_du
@@ -42,12 +42,13 @@ class MonitorVendaCobertaUseCase:
         return int(self._get_param("venda_coberta_lote_liquidez", 100))
 
     def varrer(self, dados_mercado: dict[str, dict], pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeVendaCoberta]:
+        agora = datetime.now()
         hoje = date.today()
         inst_map = self.inst_repo.get_all_mapped()
         taxa_repo = TaxaAluguelRepository(self.db_path)
         taxa_map = taxa_repo.get_latest_all()
         premio_risco = self._get_param("venda_coberta_premio_risco", 1.08)
-        dias_minimos = int(self._get_param("venda_coberta_dias_minimos", 10))
+        dias_maximos = int(self._get_param("venda_coberta_dias_maximos", 30))
         dist_max_pct = self._get_param("venda_coberta_dist_max_pct", 0.20)
         self._ultimo_pipeline = pipeline_tracker
 
@@ -67,7 +68,7 @@ class MonitorVendaCobertaUseCase:
             if not inst or not inst.vencimento or inst.vencimento <= hoje:
                 continue
             chaves_com_inst += 1
-            if inst.dias_ate_vencimento is None or inst.dias_ate_vencimento < dias_minimos:
+            if inst.dias_ate_vencimento is None or inst.dias_ate_vencimento > dias_maximos:
                 continue
             chaves_dentro_dias += 1
 
@@ -111,7 +112,17 @@ class MonitorVendaCobertaUseCase:
             pct_cdi = pct / cdi_periodo if cdi_periodo > 0 else 0.0
             viavel = pct_cdi >= premio_risco and not em_leilao and liq_call_ok
 
-            custo = 0.0  # custo B3 simplificado
+            custo = self._custos_b3.calcular_custos_vendida(
+                preco_ativo=preco_ativo,
+                premio_medio_opcoes=of_venda_call if of_venda_call > 0 else 0.0,
+                n_pernas_opcoes=1,
+                n_acoes=1,
+            )
+            ganho_antes_ir = recebimento - strike - custo
+            ir_coberta = self._custos_b3.ajustar_ir(max(ganho_antes_ir, 0.0))
+            ganho_liq = ganho_antes_ir - ir_coberta
+            pct_liq = ganho_liq / capital if capital > 0 else 0.0
+            pct_cdi_liq = pct_liq / cdi_periodo if cdi_periodo > 0 else 0.0
 
             resultados.append(OportunidadeVendaCoberta(
                 ativo=ativo,
@@ -121,6 +132,7 @@ class MonitorVendaCobertaUseCase:
                 cod_put=inst.cod_put,
                 cod_call=inst.cod_call,
                 tipo_opcao=inst.tipo_opcao.value,
+                detectado_em=agora,
                 recebimento=round(recebimento, 2),
                 pct_ganho=round(pct, 6),
                 pct_cdi=round(pct_cdi, 4),
@@ -136,6 +148,10 @@ class MonitorVendaCobertaUseCase:
                 money_call=round(money_call, 2),
                 custo=round(custo, 2),
                 taxa_aluguel=round(taxa_aluguel, 2),
+                pct_ganho_bruto=round(pct, 6),
+                pct_ganho_liquido=round(pct_liq, 6),
+                pct_cdi_bruto=round(pct_cdi, 4),
+                pct_cdi_liquido=round(pct_cdi_liq, 4),
             ))
 
         n_viaveis = sum(1 for r in resultados if r.viavel)
@@ -145,7 +161,7 @@ class MonitorVendaCobertaUseCase:
             self._ultimo_pipeline.nome_estrategia = "VENDA COBERTA"
             self._ultimo_pipeline.add_stage("1. Com chave composta", len(dados_mercado), chaves_com_chave)
             self._ultimo_pipeline.add_stage("2. Instrumento válido", chaves_com_chave, chaves_com_inst, "Instrumento não encontrado ou vencido")
-            self._ultimo_pipeline.add_stage("3. DTE mínimo", chaves_com_inst, chaves_dentro_dias, f"DTE < {dias_minimos}d")
+            self._ultimo_pipeline.add_stage("3. DTE máximo", chaves_com_inst, chaves_dentro_dias, f"DTE > {dias_maximos}d")
             self._ultimo_pipeline.add_stage("4. Strike RTD", chaves_dentro_dias, chaves_com_strike, "Strike ausente/zero")
             self._ultimo_pipeline.add_stage("5. Condição preço", chaves_com_strike, n_cond, f"Strike>{preco_ativo*(1-dist_max_pct):.0f} ou recebimento<=strike")
             self._ultimo_pipeline.add_stage("6. Resultados", n_cond, len(resultados))

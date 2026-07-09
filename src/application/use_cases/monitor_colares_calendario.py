@@ -2,7 +2,7 @@ import logging
 import math
 import time
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 from src.domain.services.calculadora_colar_calendario import (
@@ -106,6 +106,7 @@ class MonitorColaresCalendarioUseCase:
                 params.setdefault(k, v)
 
         hoje = date.today()
+        agora = datetime.now()
         calls_por_ativo: dict[str, list] = defaultdict(list)
         puts_por_ativo: dict[str, list] = defaultdict(list)
         stats = {"total": 0, "sem_vencimento": 0, "sem_codigos": 0, "sem_dias": 0, "sem_strike": 0, "sem_strike_registrado": 0, "sem_ocp_ovd": 0, "sem_ocp_registrado": 0, "sem_ovd_registrado": 0, "sem_preco": 0, "sem_qul": 0, "calls": 0, "puts": 0, "fora_dte": 0, "fora_ativo": 0}
@@ -371,6 +372,7 @@ class MonitorColaresCalendarioUseCase:
                     )
 
                     if resultado:
+                        resultado.detectado_em = agora
                         resultados.append(resultado)
                         c_calc_ok += 1
                         if resultado.viavel:

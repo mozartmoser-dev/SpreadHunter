@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 import numpy as np
 from scipy.stats import norm
@@ -68,6 +68,7 @@ class ResultadoColarCalendario:
     ratio_call: float = 1.0
     ratio_put: float = 1.0
     is_cauda: bool = False
+    detectado_em: datetime | None = None
 
 
 class CalculadoraColarCalendario:

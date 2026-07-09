@@ -120,7 +120,7 @@ PARAMETROS_POR_ESTRATEGIA = {
     "VENDA_COBERTA": [
         ("venda_coberta_premio_risco", "Premio Risco (x CDI)"),
         ("venda_coberta_lote_liquidez", "Lote Liquidez CALL"),
-        ("venda_coberta_dias_minimos", "Dias Minimos Vencimento"),
+        ("venda_coberta_dias_maximos", "Dias Maximos Vencimento"),
         ("venda_coberta_dist_max_pct", "Distancia Max Strike Abaixo Spot"),
     ],
     "SBTH_VENDIDA": [
@@ -198,7 +198,7 @@ PARAMETROS_INFO = {
         "precedencia": "Banco de Dados -> Azul Marinho (padrao)",
     },
     "fonte_market_data": {
-        "descricao": "Define a fonte de dados de mercado em tempo real. 'Profit RTD' usa o servidor RTD do Profit Pro via COM/DCOM. 'Open Fast Socket' usa conexao TCP direta (localhost:557) sem COM.",
+        "descricao": "Define a fonte de dados de mercado em tempo real. 'Profit RTD' usa o servidor RTD do Profit Pro via COM/DCOM. 'Open Fast Socket' usa conexao TCP direta (localhost:557) sem COM. 'Mock (Teste)' usa dados simulados sem conexao externa.",
         "usado_em": "MercadoDataProvider — todas as estrategias que consomem precos em tempo real.",
         "precedencia": "Banco de Dados -> 'openfast' (Open Fast Socket, padrao)",
     },
@@ -631,6 +631,7 @@ class ParametrosWidget(QWidget):
         "SBTH_VENDIDA",
         "COLLAR_CALENDARIO_CAUDA",
         "PERFORMANCE",
+        "IMPORTACAO",
         "TELEGRAM",
         "SOM",
     ]
@@ -784,7 +785,7 @@ class ParametrosWidget(QWidget):
                     widget.addItems(["Azul Marinho", "Grafite / Slate", "True Dark / Charcoal"])
                 elif "fonte_market_data" in chave:
                     widget = QComboBox()
-                    widget.addItems(["Profit RTD", "Open Fast Socket"])
+                    widget.addItems(["Profit RTD", "Open Fast Socket", "Mock (Teste)"])
                 elif "telegram_bot_token" in chave or "telegram_chat_id" in chave or "_list_" in chave:
                     widget = QLineEdit()
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
@@ -1111,8 +1112,8 @@ class ParametrosWidget(QWidget):
                     else:
                         widget.setCurrentIndex(0)
                 elif chave == "fonte_market_data":
-                    idx = 1 if str(val) == "openfast" else 0
-                    widget.setCurrentIndex(idx)
+                    idx_map = {"profit": 0, "openfast": 1, "mock": 2}
+                    widget.setCurrentIndex(idx_map.get(str(val), 0))
                 else:
                     idx = int(val)
                     widget.setCurrentIndex(idx)
@@ -1135,7 +1136,7 @@ class ParametrosWidget(QWidget):
                     if chave in ("som_arquivo", "som_arquivo_vendidas", "som_arquivo_coberta"):
                         valor = widget.currentData() or ""
                     elif chave == "fonte_market_data":
-                        valor = "openfast" if widget.currentIndex() == 1 else "profit"
+                        valor = {1: "openfast", 2: "mock"}.get(widget.currentIndex(), "profit")
                     else:
                         valor = int(widget.currentIndex())
                 elif isinstance(widget, QLineEdit):

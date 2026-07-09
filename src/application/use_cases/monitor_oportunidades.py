@@ -2,7 +2,7 @@ import logging
 import time
 
 import numpy as np
-from datetime import date
+from datetime import date, datetime
 
 from src.application.dtos.dtos import OportunidadeMonitor
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
@@ -76,6 +76,7 @@ class MonitorOportunidadesUseCase:
         taxa_repo = TaxaAluguelRepository(self.db_path)
         taxa_map = taxa_repo.get_latest_all()
         resultados = []
+        agora = datetime.now()
         hoje = date.today()
 
         if not dados_mercado:
@@ -184,6 +185,7 @@ class MonitorOportunidadesUseCase:
             
             opp = self._calcular_oportunidade(inst, mercado, calc_oo, taxa_map)
             if opp:
+                opp.detectado_em = agora
                 resultados.append(opp)
 
         if pipeline_tracker is not None:
@@ -391,6 +393,12 @@ class MonitorOportunidadesUseCase:
             pct_ganho_box=resultado.pct_ganho_box,
             pct_cdi_box=resultado.pct_cdi_box,
             pct_cdi_box_liquido=resultado.pct_cdi_box_liquido,
+            pct_ganho_sbth_bruto=resultado.pct_ganho_sbth_bruto,
+            pct_ganho_sbth_liquido=resultado.pct_ganho_sbth_liquido,
+            pct_cdi_sbth_bruto=resultado.pct_cdi_sbth_bruto,
+            pct_ganho_box_bruto=resultado.pct_ganho_box_bruto,
+            pct_ganho_box_liquido=resultado.pct_ganho_box_liquido,
+            pct_cdi_box_bruto=resultado.pct_cdi_box_bruto,
             cdi_periodo=resultado.cdi_periodo,
             viavel=viavel,
             preco_compra_ativo=dados.preco_compra_ativo,

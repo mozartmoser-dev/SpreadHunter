@@ -2,7 +2,7 @@ import logging
 import math
 import time
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
@@ -70,13 +70,14 @@ class MonitorColaresUseCase:
             }
 
         hoje = date.today()
+        agora = datetime.now()
 
         if dados_mercado is not None:
             dados = self._extrair_de_dados_mercado(dados_mercado, inst_map, params, hoje, pipeline_tracker)
         else:
             dados = self._ler_dados_rtd_all(inst_map, rtd, params, hoje, pipeline_tracker)
 
-        return self._combinar_pares(dados, calc, params, pipeline_tracker)
+        return self._combinar_pares(dados, calc, params, pipeline_tracker, agora)
 
     def _extrair_de_dados_mercado(self, dados_mercado, inst_map, params, hoje, pipeline_tracker=None):
         grupos = defaultdict(list)
@@ -324,7 +325,9 @@ class MonitorColaresUseCase:
             "vencimento": inst.vencimento,
         }
 
-    def _combinar_pares(self, grupos: dict, calc: CalculadoraColar, params: dict, pipeline_tracker=None) -> list[ResultadoColar]:
+    def _combinar_pares(self, grupos: dict, calc: CalculadoraColar, params: dict, pipeline_tracker=None, agora: datetime | None = None) -> list[ResultadoColar]:
+        if agora is None:
+            agora = datetime.now()
         resultados = []
         c_grupos = c_poucos = c_pares = c_invalid = c_dist = c_calc_ok = c_calc_none = 0
         total_members = sum(len(m) for m in grupos.values())
@@ -370,6 +373,7 @@ class MonitorColaresUseCase:
                         preco_compra_ativo=put_data.get("preco_compra_ativo"),
                     )
                     if resultado:
+                        resultado.detectado_em = agora
                         resultados.append(resultado)
                         c_calc_ok += 1
                     else:

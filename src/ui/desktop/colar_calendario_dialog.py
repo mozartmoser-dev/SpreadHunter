@@ -21,6 +21,15 @@ CUSTOS_DISCLOSURE = (
     "e IR (15% sobre o lucro líquido)."
 )
 
+def _formatar_detectado(detectado_em):
+    if detectado_em is None:
+        return ""
+    from zoneinfo import ZoneInfo
+    dt = detectado_em
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Sao_Paulo"))
+    return dt.strftime("%d/%m/%Y %H:%M:%S")
+
 logger = logging.getLogger(__name__)
 
 WHITELIST_CHAVE = "white_list_colar_calendario"
@@ -70,6 +79,7 @@ class ColarCalTableModel(QAbstractTableModel):
         ("P Put VC", "valor_put_venc_call"),
         ("Viés", "tipo_str"),
         ("Ratio", "ratio_call"),
+        ("Detectado", "label_detectado"),
     ]
 
     def __init__(self, items=None):
@@ -142,6 +152,7 @@ class ColarCalTableModel(QAbstractTableModel):
                     "valor_put_venc_call": "Valor estimado da PUT no vencimento da CALL, projetado pelo Black-Scholes.",
                     "tipo_str": "Classificação do viés: Alta, Baixa ou Neutro.",
                     "ratio_call": "Quantas CALLs vendidas por lote de ação (Cauda Assíncrona).",
+                    "label_detectado": "Data e hora (Brasília) em que o monitor detectou a oportunidade pelo RTD (DD/MM/YYYY HH:MM:SS).",
                 }
                 return tips.get(self.COLUMNS[section][1])
         return None
@@ -180,6 +191,8 @@ class ColarCalTableModel(QAbstractTableModel):
                 if hasattr(val, "strftime"):
                     return val.strftime("%d/%m")
                 return str(val)
+            if col_key == "label_detectado":
+                return val or ""
             if col_key == "ratio_call":
                 return f"{int(val)}x" if val else "1x"
             return str(val)
@@ -1964,6 +1977,7 @@ class ColarCalendarioDialog(QDialog):
                     "viavel": r.viavel,
                     "ratio_call": r.ratio_call,
                     "is_cauda": getattr(r, 'is_cauda', False),
+                    "label_detectado": _formatar_detectado(getattr(r, 'detectado_em', None)),
                 })
             self.model.atualizar(items)
         finally:

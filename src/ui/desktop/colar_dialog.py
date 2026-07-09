@@ -11,11 +11,22 @@ from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
 from src.ui.desktop.copy_utils import copiar_texto_formatado, copiar_figura_clipboard, salvar_figura_arquivo
 from src.ui.desktop.theme import Palette
+from src.ui.desktop.constants import SELETOR_TODOS
 
 CUSTOS_DISCLOSURE = (
     "\n\n* Custos já incluem taxa B3 (emolumento 0,025% + liquidação 0,0275% por perna) "
     "e IR (15% sobre o lucro líquido)."
 )
+
+
+def _formatar_detectado(detectado_em):
+    if detectado_em is None:
+        return ""
+    from zoneinfo import ZoneInfo
+    dt = detectado_em
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Sao_Paulo"))
+    return dt.strftime("%d/%m/%Y %H:%M:%S")
 
 
 WHITELIST_CHAVE_COLAR = "white_list_colar"
@@ -64,6 +75,7 @@ class ColarTableModel(QAbstractTableModel):
         ("Pior Líq", "pior_liquido"),
         ("Risco Desp.", "risco_str"),
         ("Dias", "dias"),
+        ("Detectado", "label_detectado"),
     ]
 
     def __init__(self, items=None):
@@ -105,6 +117,7 @@ class ColarTableModel(QAbstractTableModel):
                     "pior_liquido": "Valor do pior resultado líquido (após B3 + IR)." + CUSTOS_DISCLOSURE,
                     "risco_str": "Nível de risco de leilão baseado no volume das opções.",
                     "dias": "Dias corridos até o vencimento.",
+                    "label_detectado": "Data e hora (Brasília) em que o monitor detectou a oportunidade pelo RTD (DD/MM/YYYY HH:MM:SS).",
                 }
                 return tips.get(self.COLUMNS[section][1])
         return None
@@ -136,6 +149,8 @@ class ColarTableModel(QAbstractTableModel):
                     if hasattr(val, "strftime"):
                         return val.strftime("%d/%m/%Y")
                     return str(val)
+                if col_key == "label_detectado":
+                    return val or ""
             except Exception:
                 return str(val)
             return str(val)
@@ -2054,7 +2069,7 @@ class ColarDialog(QDialog):
         self.lista_ativos.blockSignals(True)
         self.lista_ativos.clear()
 
-        item_todos = QListWidgetItem("TODOS")
+        item_todos = QListWidgetItem(SELETOR_TODOS)
         item_todos.setFlags(item_todos.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
         item_todos.setForeground(QColor(Palette.YELLOW))
         item_todos.setToolTip("Mostrar todos os ativos")
@@ -2123,6 +2138,7 @@ class ColarDialog(QDialog):
                     "viavel": r.viavel,
                     "pop_upside": r.pop_upside,
                     "pop_downside": r.pop_downside,
+                    "label_detectado": _formatar_detectado(r.detectado_em),
                 })
 
             self.model.atualizar(items)

@@ -1,6 +1,6 @@
 import logging
 
-from datetime import date
+from datetime import date, datetime
 
 from src.application.dtos.dtos_vendida import OportunidadeVendida
 from src.domain.services.calendario_b3 import dc_to_du
@@ -43,6 +43,7 @@ class MonitorVendidasUseCase:
         return int(self._get_param(chave, 100))
 
     def varrer(self, dados_mercado: dict[str, dict], pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeVendida]:
+        agora = datetime.now()
         hoje = date.today()
         inst_map = self.inst_repo.get_all_mapped()
         taxa_repo = TaxaAluguelRepository(self.db_path)
@@ -114,9 +115,20 @@ class MonitorVendidasUseCase:
                 pct = (recebimento_box - strike) / capital if capital > 0 else 0.0
                 pct_cdi = pct / cdi_periodo if cdi_periodo > 0 else 0.0
                 viavel = pct_cdi >= premio_risco and not em_leilao and liq_ok
+                premio_medio_box_vendido = (
+                    (of_compra_put + of_venda_call) / 2 if of_compra_put > 0 and of_venda_call > 0 else 0.0
+                )
                 custo = self._custos_b3.calcular_custos_vendida(
-                    preco_ativo, strike, "BOX_VENDIDO", inst.vencimento
-                ) if hasattr(self._custos_b3, "calcular_custos_vendida") else 0.0
+                    preco_ativo=preco_ativo,
+                    premio_medio_opcoes=premio_medio_box_vendido,
+                    n_pernas_opcoes=2,
+                    n_acoes=1,
+                )
+                ganho_antes_ir = recebimento_box - strike - custo
+                ir_box = self._custos_b3.ajustar_ir(max(ganho_antes_ir, 0.0))
+                ganho_liq = ganho_antes_ir - ir_box
+                pct_liq = ganho_liq / capital if capital > 0 else 0.0
+                pct_cdi_liq = pct_liq / cdi_periodo if cdi_periodo > 0 else 0.0
                 resultados.append(OportunidadeVendida(
                     ativo=ativo,
                     strike=strike,
@@ -126,6 +138,7 @@ class MonitorVendidasUseCase:
                     cod_call=inst.cod_call,
                     tipo_opcao=inst.tipo_opcao.value,
                     classificacao="BOX_VENDIDO",
+                    detectado_em=agora,
                     recebimento=round(recebimento_box, 2),
                     pct_ganho=round(pct, 6),
                     pct_cdi=round(pct_cdi, 4),
@@ -142,6 +155,10 @@ class MonitorVendidasUseCase:
                     money_call=round(money_call, 2),
                     custo=round(custo, 2),
                     taxa_aluguel=round(taxa_aluguel, 2),
+                    pct_ganho_bruto=round(pct, 6),
+                    pct_ganho_liquido=round(pct_liq, 6),
+                    pct_cdi_bruto=round(pct_cdi, 4),
+                    pct_cdi_liquido=round(pct_cdi_liq, 4),
                 ))
 
             if cond_sbth:
@@ -153,8 +170,16 @@ class MonitorVendidasUseCase:
                 pct_cdi = pct / cdi_periodo if cdi_periodo > 0 else 0.0
                 viavel = pct_cdi >= premio_risco and not em_leilao and liq_ok
                 custo = self._custos_b3.calcular_custos_vendida(
-                    preco_ativo, strike, "SBTH_VENDIDA", inst.vencimento
-                ) if hasattr(self._custos_b3, "calcular_custos_vendida") else 0.0
+                    preco_ativo=preco_ativo,
+                    premio_medio_opcoes=of_compra_put if of_compra_put > 0 else 0.0,
+                    n_pernas_opcoes=1,
+                    n_acoes=1,
+                )
+                ganho_antes_ir = recebimento_sbth - strike - custo
+                ir_sbth = self._custos_b3.ajustar_ir(max(ganho_antes_ir, 0.0))
+                ganho_liq = ganho_antes_ir - ir_sbth
+                pct_liq = ganho_liq / capital if capital > 0 else 0.0
+                pct_cdi_liq = pct_liq / cdi_periodo if cdi_periodo > 0 else 0.0
                 resultados.append(OportunidadeVendida(
                     ativo=ativo,
                     strike=strike,
@@ -164,6 +189,7 @@ class MonitorVendidasUseCase:
                     cod_call=inst.cod_call,
                     tipo_opcao=inst.tipo_opcao.value,
                     classificacao="SBTH_VENDIDA",
+                    detectado_em=agora,
                     recebimento=round(recebimento_sbth, 2),
                     pct_ganho=round(pct, 6),
                     pct_cdi=round(pct_cdi, 4),
@@ -180,6 +206,10 @@ class MonitorVendidasUseCase:
                     money_call=round(money_call, 2),
                     custo=round(custo, 2),
                     taxa_aluguel=round(taxa_aluguel, 2),
+                    pct_ganho_bruto=round(pct, 6),
+                    pct_ganho_liquido=round(pct_liq, 6),
+                    pct_cdi_bruto=round(pct_cdi, 4),
+                    pct_cdi_liquido=round(pct_cdi_liq, 4),
                 ))
 
         n_box = sum(1 for r in resultados if r.classificacao == "BOX_VENDIDO")

@@ -16,8 +16,10 @@ class MonitorTableModel(QAbstractTableModel):
         ("Tipo (i)", "label_tipo"),
         ("Ativo (i)", "ativo"),
         ("Strike (i)", "strike"),
-        ("Ganho % (i)", "ganho_display"),
-        ("Rent. vs CDI (i)", "label_rentabilidade"),
+        ("GANHO%BRUTO", "ganho_bruto_display"),
+        ("GANHO%LIQ", "ganho_liq_display"),
+        ("RENT.CDIBRUTO", "rent_cdi_bruto_display"),
+        ("RENT.CDILIQ", "rent_cdi_liq_display"),
         ("Dias (i)", "label_dias"),
         ("Vencimento (i)", "vencimento"),
         ("Liq (i)", "liq_indicator"),
@@ -35,6 +37,7 @@ class MonitorTableModel(QAbstractTableModel):
         ("Cod Put", "cod_put"),
         ("Cod Call", "cod_call"),
         ("BTC", "taxa_aluguel"),
+        ("Detectado", "label_detectado"),
     ]
 
     HIDDEN_BY_DEFAULT = {
@@ -45,6 +48,7 @@ class MonitorTableModel(QAbstractTableModel):
         "qul_put", "qul_call",
         "tipo_opcao", "cod_put", "cod_call",
         "leilao_display",
+        "label_detectado",
     }
 
     _BG_VIABLE_BOX = QColor(Palette.ROW_BOX)
@@ -60,10 +64,13 @@ class MonitorTableModel(QAbstractTableModel):
     _FG_MUTED = QBrush(QColor(Palette.TEXT_MUTED))
 
     _CENTER_COLS = {
-        "strike", "custo_sbth_display", "custo_box_display", "ganho_display",
+        "strike", "custo_sbth_display", "custo_box_display",
+        "ganho_bruto_display", "ganho_liq_display",
+        "rent_cdi_bruto_display", "rent_cdi_liq_display",
         "label_dias", "leilao_display", "liq_indicator",
         "liq_put_display", "liq_call_display", "of_compra_put", "of_venda_call",
         "qul_put", "qul_call", "money_display", "tipo_opcao", "taxa_aluguel",
+        "label_detectado",
     }
 
     def __init__(self, parent=None):
@@ -89,8 +96,10 @@ class MonitorTableModel(QAbstractTableModel):
                 "label_tipo": "Tipo de estratégia identificada (BOX, SBTH ou BOX+SBTH).",
                 "ativo": "Código da ação objeto (ex: PETR4) que dá origem às opções.",
                 "strike": "Preço de exercício das opções envolvidas na estrutura.",
-                "ganho_display": "Percentual de ganho projetado para a operação até o vencimento." + CUSTOS_DISCLOSURE,
-                "label_rentabilidade": "Rentabilidade da operação comparada à taxa CDI do período." + CUSTOS_DISCLOSURE,
+                "ganho_bruto_display": "Ganho percentual BRUTO — sem descontar taxas B3 nem IR." + CUSTOS_DISCLOSURE,
+                "ganho_liq_display": "Ganho percentual LÍQUIDO — com taxas B3 e IR descontados (valor que efetivamente sobra)." + CUSTOS_DISCLOSURE,
+                "rent_cdi_bruto_display": "Rentabilidade BRUTA comparada à taxa CDI do período (sem descontos)." + CUSTOS_DISCLOSURE,
+                "rent_cdi_liq_display": "Rentabilidade LÍQUIDA comparada à taxa CDI — B3 e IR descontados." + CUSTOS_DISCLOSURE,
                 "label_dias": "Quantidade de dias corridos até a data de vencimento.",
                 "vencimento": "Data de expiração das opções da montagem.",
                 "liq_indicator": "Sinalizador de liquidez (✓: Ambos lados ok, ✗: Falta liquidez).",
@@ -108,10 +117,13 @@ class MonitorTableModel(QAbstractTableModel):
                 "cod_put": "Código do ativo da PUT na B3.",
                 "cod_call": "Código do ativo da CALL na B3.",
                 "taxa_aluguel": "Taxa de aluguel (BTC) da ação objeto — InvestSite.",
+                "label_detectado": "Data e hora (Brasília) em que o monitor detectou a oportunidade pelo RTD (DD/MM/YYYY HH:MM:SS). Útil para correlacionar com o book.",
             }
             col_key = self.COLUMNS[section][1]
             base = tips.get(col_key, self.COLUMNS[section][0])
-            if col_key in ("ganho_display", "label_rentabilidade", "custo_box_display", "custo_sbth_display"):
+            if col_key in ("ganho_bruto_display", "ganho_liq_display",
+                           "rent_cdi_bruto_display", "rent_cdi_liq_display",
+                           "custo_box_display", "custo_sbth_display"):
                 return base
             return base
             
@@ -146,8 +158,14 @@ class MonitorTableModel(QAbstractTableModel):
     def _display_data(self, opp: OportunidadeMonitor, col_key: str):
         if col_key == "label_tipo":
             return opp.label_tipo
-        if col_key == "label_rentabilidade":
-            return opp.label_rentabilidade
+        if col_key == "rent_cdi_bruto_display":
+            return opp.rent_cdi_bruto_display
+        if col_key == "rent_cdi_liq_display":
+            return opp.rent_cdi_liq_display
+        if col_key == "ganho_bruto_display":
+            return opp.ganho_bruto_display
+        if col_key == "ganho_liq_display":
+            return opp.ganho_liq_display
         if col_key == "label_dias":
             return opp.label_dias
         if col_key == "strike":
@@ -156,16 +174,6 @@ class MonitorTableModel(QAbstractTableModel):
             return opp.custo_sbth_display
         if col_key == "custo_box_display":
             return opp.custo_box_display
-        if col_key == "ganho_display":
-            if opp.classificacao == "1BOX":
-                return "{:.2f}%".format(opp.pct_ganho_box * 100)
-            if opp.classificacao == "2SBTH":
-                return "{:.2f}%".format(opp.pct_ganho_sbth * 100)
-            
-            max_ganho = max(opp.pct_ganho_box, opp.pct_ganho_sbth)
-            if max_ganho != 0:
-                return "{:.2f}%".format(max_ganho * 100)
-            return "-"
         if col_key == "leilao_display":
             return "\u26a0 LEILAO" if opp.em_leilao else ""
         if col_key == "liq_indicator":
@@ -192,6 +200,8 @@ class MonitorTableModel(QAbstractTableModel):
             return opp.money_display
         if col_key == "taxa_aluguel":
             return "{:.2f}%".format(opp.taxa_aluguel)
+        if col_key == "label_detectado":
+            return opp.label_detectado
         if col_key == "tipo_opcao":
             labels = {"A": "AMER", "E": "EUR", "P": "PUT"}
             return labels.get(opp.tipo_opcao, opp.tipo_opcao)
@@ -241,10 +251,17 @@ class MonitorTableModel(QAbstractTableModel):
         if col_key == "liq_call_display":
             return self._FG_RED if opp.liq_call_x_lote < 0 else self._FG_GREEN
 
-        if col_key == "ganho_display":
-            if opp.classificacao in ("1BOX", "3BOXSBTH") and opp.pct_ganho_box > 0:
+        if col_key == "ganho_bruto_display":
+            if opp.classificacao in ("1BOX", "3BOXSBTH") and opp.pct_ganho_box_bruto > 0:
                 return self._FG_GREEN
-            if opp.classificacao == "2SBTH" and opp.pct_ganho_sbth > 0:
+            if opp.classificacao == "2SBTH" and opp.pct_ganho_sbth_bruto > 0:
+                return self._FG_GREEN
+            return self._FG_MUTED
+
+        if col_key == "ganho_liq_display":
+            if opp.classificacao in ("1BOX", "3BOXSBTH") and opp.pct_ganho_box_liquido > 0:
+                return self._FG_GREEN
+            if opp.classificacao == "2SBTH" and opp.pct_ganho_sbth_liquido > 0:
                 return self._FG_GREEN
             return self._FG_MUTED
 
@@ -257,8 +274,13 @@ class MonitorTableModel(QAbstractTableModel):
                 return QBrush(QColor(Palette.PURPLE))
             return self._FG_MUTED
 
-        if col_key == "label_rentabilidade":
-            if opp.pct_cdi_box > 0 or opp.pct_cdi_sbth > 0:
+        if col_key == "rent_cdi_bruto_display":
+            if opp.pct_cdi_box_bruto > 0 or opp.pct_cdi_sbth_bruto > 0:
+                return QBrush(QColor(Palette.YELLOW))
+            return self._FG_MUTED
+
+        if col_key == "rent_cdi_liq_display":
+            if opp.pct_cdi_box_liquido > 0 or opp.pct_cdi_sbth_liquido > 0:
                 return QBrush(QColor(Palette.YELLOW))
             return self._FG_MUTED
 
@@ -295,7 +317,22 @@ class MonitorTableModel(QAbstractTableModel):
             font.setBold(True)
             return font
 
-        if col_key == "ganho_display":
+        if col_key == "ganho_bruto_display":
+            font = QFont()
+            font.setBold(True)
+            return font
+
+        if col_key == "ganho_liq_display":
+            font = QFont()
+            font.setBold(True)
+            return font
+
+        if col_key == "rent_cdi_bruto_display":
+            font = QFont()
+            font.setBold(True)
+            return font
+
+        if col_key == "rent_cdi_liq_display":
             font = QFont()
             font.setBold(True)
             return font

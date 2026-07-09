@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 from src.domain.services.calendario_b3 import dc_to_du
 from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
@@ -36,6 +36,7 @@ class ResultadoBox:
     viavel: bool
     dias: int
     taxa_aluguel: float = 0.0
+    detectado_em: datetime | None = None
 
 
 class CalculadoraBox:

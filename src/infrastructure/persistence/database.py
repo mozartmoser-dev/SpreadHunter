@@ -202,7 +202,7 @@ def _seed_parametros_colar(conn):
         ("fonte_tamanho", "9", "GERAL", "Tamanho da fonte do sistema (8-16)"),
         ("venda_coberta_premio_risco", "1.08", "VENDA_COBERTA", "Premio risco minimo sobre CDI para Venda Coberta"),
         ("venda_coberta_lote_liquidez", "100", "VENDA_COBERTA", "Lote minimo de liquidez da CALL para Venda Coberta"),
-        ("venda_coberta_dias_minimos", "10", "VENDA_COBERTA", "Dias minimos ate o vencimento para Venda Coberta"),
+        ("venda_coberta_dias_maximos", "30", "VENDA_COBERTA", "Dias maximos ate o vencimento para TAXA"),
         ("venda_coberta_dist_max_pct", "0.20", "VENDA_COBERTA", "Distancia maxima do strike abaixo do spot (%)"),
         ("sbth_vendida_dist_ativo", "1.20", "SBTH_VENDIDA", "Distancia minima strike/spot (x) para SBTH Vendida — filtro de entrada"),
         ("calda_habilitado", "1", "COLLAR_CALENDARIO_CAUDA", "Habilitar variante Cauda Assincrona (0=desligado)"),

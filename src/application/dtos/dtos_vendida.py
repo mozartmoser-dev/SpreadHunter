@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 
 @dataclass(slots=True)
@@ -28,6 +28,21 @@ class OportunidadeVendida:
     money_call: float = 0.0
     custo: float = 0.0
     taxa_aluguel: float = 0.0
+    pct_ganho_bruto: float = 0.0
+    pct_ganho_liquido: float = 0.0
+    pct_cdi_bruto: float = 0.0
+    pct_cdi_liquido: float = 0.0
+    detectado_em: datetime | None = None
+
+    @property
+    def label_detectado(self) -> str:
+        if self.detectado_em is None:
+            return ""
+        dt = self.detectado_em
+        if dt.tzinfo is None:
+            from zoneinfo import ZoneInfo
+            dt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Sao_Paulo"))
+        return dt.strftime("%d/%m/%Y %H:%M:%S")
 
     @property
     def label_tipo(self) -> str:
@@ -66,3 +81,19 @@ class OportunidadeVendida:
     @property
     def leilao_display(self) -> str:
         return "\u26a0 LEILAO" if self.em_leilao else ""
+
+    @property
+    def ganho_bruto_display(self) -> str:
+        return "{:.2f}%".format(self.pct_ganho_bruto * 100)
+
+    @property
+    def ganho_liq_display(self) -> str:
+        return "{:.2f}%".format(self.pct_ganho_liquido * 100)
+
+    @property
+    def rent_cdi_bruto_display(self) -> str:
+        return "{:.2f}x CDI".format(self.pct_cdi_bruto)
+
+    @property
+    def rent_cdi_liq_display(self) -> str:
+        return "{:.2f}x CDI".format(self.pct_cdi_liquido)

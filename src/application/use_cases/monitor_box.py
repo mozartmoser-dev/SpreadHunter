@@ -1,7 +1,7 @@
 import logging
 import time
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +107,7 @@ class MonitorBoxUseCase:
         taxa_map = taxa_repo.get_latest_all()
 
         hoje = date.today()
+        agora = datetime.now()
         grupos: dict[tuple[str, date], list[dict]] = defaultdict(list)
 
         filtro = {"total": 0, "venc": 0, "white": 0, "rtd": 0, "filtros": 0, "grupos": 0}
@@ -202,6 +203,7 @@ class MonitorBoxUseCase:
                     if resultado:
                         taxa_ent = taxa_map.get(ativo)
                         resultado.taxa_aluguel = taxa_ent.taxa_atual if taxa_ent else 0.0
+                        resultado.detectado_em = agora
                         resultados.append(resultado)
                         if resultado.viavel and self._mpp_use_case:
                             self._mpp_use_case.registrar_box_encontrado(

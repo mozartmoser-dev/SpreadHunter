@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 
 
@@ -35,6 +35,12 @@ class OportunidadeMonitor:
     pct_ganho_box: float = 0.0
     pct_cdi_box: float = 0.0
     pct_cdi_box_liquido: float = 0.0
+    pct_ganho_sbth_bruto: float = 0.0
+    pct_ganho_sbth_liquido: float = 0.0
+    pct_cdi_sbth_bruto: float = 0.0
+    pct_ganho_box_bruto: float = 0.0
+    pct_ganho_box_liquido: float = 0.0
+    pct_cdi_box_bruto: float = 0.0
     cdi_periodo: float = 0.0
     viavel: bool = False
     preco_compra_ativo: float = 0.0
@@ -50,6 +56,17 @@ class OportunidadeMonitor:
     money_put: float = 0.0
     money_call: float = 0.0
     taxa_aluguel: float = 0.0
+    detectado_em: datetime | None = None
+
+    @property
+    def label_detectado(self) -> str:
+        if self.detectado_em is None:
+            return ""
+        dt = self.detectado_em
+        if dt.tzinfo is None:
+            from zoneinfo import ZoneInfo
+            dt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Sao_Paulo"))
+        return dt.strftime("%d/%m/%Y %H:%M:%S")
 
     @property
     def custo_sbth_display(self) -> str:
@@ -91,6 +108,54 @@ class OportunidadeMonitor:
         if cdi_liq > 0:
             return f"{base} (liq: {cdi_liq:.2f}x)"
         return base
+
+    @property
+    def ganho_bruto_display(self) -> str:
+        if self.classificacao == "1BOX":
+            return "{:.2f}% (BOX)".format(self.pct_ganho_box_bruto * 100)
+        if self.classificacao == "2SBTH":
+            return "{:.2f}% (SBTH)".format(self.pct_ganho_sbth_bruto * 100)
+        if self.classificacao == "3BOXSBTH":
+            return "{:.2f}% (SBTH) | {:.2f}% (BOX)".format(
+                self.pct_ganho_sbth_bruto * 100, self.pct_ganho_box_bruto * 100
+            )
+        return "-"
+
+    @property
+    def ganho_liq_display(self) -> str:
+        if self.classificacao == "1BOX":
+            return "{:.2f}% (BOX)".format(self.pct_ganho_box_liquido * 100)
+        if self.classificacao == "2SBTH":
+            return "{:.2f}% (SBTH)".format(self.pct_ganho_sbth_liquido * 100)
+        if self.classificacao == "3BOXSBTH":
+            return "{:.2f}% (SBTH) | {:.2f}% (BOX)".format(
+                self.pct_ganho_sbth_liquido * 100, self.pct_ganho_box_liquido * 100
+            )
+        return "-"
+
+    @property
+    def rent_cdi_bruto_display(self) -> str:
+        if self.classificacao == "1BOX":
+            return "{:.2f}x CDI (BOX)".format(self.pct_cdi_box_bruto)
+        if self.classificacao == "2SBTH":
+            return "{:.2f}x CDI (SBTH)".format(self.pct_cdi_sbth_bruto)
+        if self.classificacao == "3BOXSBTH":
+            return "{:.2f}x CDI (SBTH) | {:.2f}x CDI (BOX)".format(
+                self.pct_cdi_sbth_bruto, self.pct_cdi_box_bruto
+            )
+        return "-"
+
+    @property
+    def rent_cdi_liq_display(self) -> str:
+        if self.classificacao == "1BOX":
+            return "{:.2f}x CDI (BOX)".format(self.pct_cdi_box_liquido)
+        if self.classificacao == "2SBTH":
+            return "{:.2f}x CDI (SBTH)".format(self.pct_cdi_sbth_liquido)
+        if self.classificacao == "3BOXSBTH":
+            return "{:.2f}x CDI (SBTH) | {:.2f}x CDI (BOX)".format(
+                self.pct_cdi_sbth_liquido, self.pct_cdi_box_liquido
+            )
+        return "-"
 
     @property
     def label_dias(self) -> str:

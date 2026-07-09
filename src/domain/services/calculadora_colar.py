@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 
 import numpy as np
@@ -58,6 +58,7 @@ class ResultadoColar:
     pop_upside: float | None = None
     pop_downside: float | None = None
     score: float = 0.0
+    detectado_em: datetime | None = None
 
 
 @dataclass(slots=True)

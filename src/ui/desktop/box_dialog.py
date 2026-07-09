@@ -16,6 +16,15 @@ CUSTOS_DISCLOSURE = (
     "e IR (15% sobre o lucro líquido)."
 )
 
+def _formatar_detectado(detectado_em):
+    if detectado_em is None:
+        return ""
+    from zoneinfo import ZoneInfo
+    dt = detectado_em
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Sao_Paulo"))
+    return dt.strftime("%d/%m/%Y %H:%M:%S")
+
 
 BOX_4P_COLUMNS = [
     ("Ativo", "ativo"),
@@ -43,6 +52,7 @@ BOX_4P_COLUMNS = [
     ("Q P2", "qtd_bid_put_k2"),
     ("Dias", "dias"),
     ("Venc", "vencimento"),
+    ("Detectado", "label_detectado"),
 ]
 
 
@@ -88,6 +98,7 @@ class BoxTableModel(QAbstractTableModel):
                     "dias": "Dias corridos até o vencimento.",
                     "vencimento": "Data de expiração das opções.",
                     "taxa_aluguel": "Taxa de aluguel (BTC) da ação objeto — InvestSite.",
+                    "label_detectado": "Data e hora (Brasília) em que o monitor detectou a oportunidade pelo RTD (DD/MM/YYYY HH:MM:SS).",
                 }
                 return tips.get(BOX_4P_COLUMNS[section][1])
         return None
@@ -430,6 +441,7 @@ class BoxDialog(QDialog):
                 "vencimento": r.vencimento,
                 "taxa_aluguel": r.taxa_aluguel,
                 "viavel": r.viavel,
+                "label_detectado": _formatar_detectado(getattr(r, 'detectado_em', None)),
             })
         self.model.atualizar(rows)
         n = len(rows)
