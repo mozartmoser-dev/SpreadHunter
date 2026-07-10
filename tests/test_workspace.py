@@ -226,7 +226,11 @@ def test_qsettings_lista_whitelist_contem_chaves_principais():
     from src.application.services.workspace_service import _QSETTINGS_KEYS_CONHECIDAS
     for chave in [
         "colunas_ocultas",
+        "colunas_ocultas_vendidas",
+        "colunas_ocultas_coberta",
         "main_table_order",
+        "vendidas_table_order",
+        "coberta_table_order",
         "colar_table_order",
         "colar_cal_table_order",
         "box_table_order",
@@ -234,3 +238,4 @@ def test_qsettings_lista_whitelist_contem_chaves_principais():
         "parametros/last_section",
     ]:
         assert chave in _QSETTINGS_KEYS_CONHECIDAS
+    assert len(_QSETTINGS_KEYS_CONHECIDAS) == 11

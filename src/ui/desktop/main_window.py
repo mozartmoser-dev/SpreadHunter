@@ -327,6 +327,7 @@ class MainWindow(QMainWindow):
         h2.setSectionResizeMode(QHeaderView.ResizeToContents)
         h2.setSectionsMovable(True)
         h2.setDragEnabled(True)
+        h2.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(h2, "vendidas_table_order")))
         h2.setStyleSheet(
             "QHeaderView::section { background-color: #1e1e1e; color: #e57373; "
             "font-weight: bold; font-size: 9pt; padding: 4px 8px; border: 1px solid #333; }"
@@ -335,6 +336,8 @@ class MainWindow(QMainWindow):
         h2.customContextMenuRequested.connect(self._show_column_menu_vendidas)
         for i in range(self.vendidas_model.columnCount()):
             self.vendidas_table_view.setColumnHidden(i, VendidasTableModel.COLUMNS[i][1] in VendidasTableModel.HIDDEN_BY_DEFAULT)
+        self._apply_hidden_columns_vendidas()
+        restaurar_ordem_colunas(h2, "vendidas_table_order")
         header_v = self.vendidas_table_view.verticalHeader()
         header_v.setDefaultSectionSize(28)
         header_v.hide()
@@ -359,6 +362,7 @@ class MainWindow(QMainWindow):
         h3.setSectionResizeMode(QHeaderView.ResizeToContents)
         h3.setSectionsMovable(True)
         h3.setDragEnabled(True)
+        h3.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(h3, "coberta_table_order")))
         h3.setStyleSheet(
             "QHeaderView::section { background-color: #1e1e1e; color: #42a5f5; "
             "font-weight: bold; font-size: 9pt; padding: 4px 8px; border: 1px solid #333; }"
@@ -367,6 +371,8 @@ class MainWindow(QMainWindow):
         h3.customContextMenuRequested.connect(self._show_column_menu_coberta)
         for i in range(self.coberta_model.columnCount()):
             self.coberta_table_view.setColumnHidden(i, VendaCobertaTableModel.COLUMNS[i][1] in VendaCobertaTableModel.HIDDEN_BY_DEFAULT)
+        self._apply_hidden_columns_coberta()
+        restaurar_ordem_colunas(h3, "coberta_table_order")
         header_co = self.coberta_table_view.verticalHeader()
         header_co.setDefaultSectionSize(28)
         header_co.hide()
@@ -827,6 +833,34 @@ class MainWindow(QMainWindow):
         for i, (_, col_key) in enumerate(MonitorTableModel.COLUMNS):
             self.table_view.setColumnHidden(i, col_key in hidden_cols)
 
+    def _apply_hidden_columns_vendidas(self):
+        from PySide6.QtCore import QSettings
+        settings = QSettings("Spreadhunter", "DesktopMonitor")
+        hidden_cols = settings.value("colunas_ocultas_vendidas", None)
+        if hidden_cols is None:
+            return
+        if isinstance(hidden_cols, str):
+            hidden_cols = hidden_cols.split(",") if hidden_cols else []
+        elif not isinstance(hidden_cols, list):
+            hidden_cols = list(hidden_cols)
+        cols = VendidasTableModel.COLUMNS
+        for i, (_, col_key) in enumerate(cols):
+            self.vendidas_table_view.setColumnHidden(i, col_key in hidden_cols)
+
+    def _apply_hidden_columns_coberta(self):
+        from PySide6.QtCore import QSettings
+        settings = QSettings("Spreadhunter", "DesktopMonitor")
+        hidden_cols = settings.value("colunas_ocultas_coberta", None)
+        if hidden_cols is None:
+            return
+        if isinstance(hidden_cols, str):
+            hidden_cols = hidden_cols.split(",") if hidden_cols else []
+        elif not isinstance(hidden_cols, list):
+            hidden_cols = list(hidden_cols)
+        cols = VendaCobertaTableModel.COLUMNS
+        for i, (_, col_key) in enumerate(cols):
+            self.coberta_table_view.setColumnHidden(i, col_key in hidden_cols)
+
     def _save_column_visibility(self):
         from PySide6.QtCore import QSettings
         settings = QSettings("Spreadhunter", "DesktopMonitor")
@@ -835,6 +869,26 @@ class MainWindow(QMainWindow):
             if self.table_view.isColumnHidden(i):
                 hidden_cols.append(col_key)
         settings.setValue("colunas_ocultas", hidden_cols)
+
+    def _save_column_visibility_vendidas(self):
+        from PySide6.QtCore import QSettings
+        settings = QSettings("Spreadhunter", "DesktopMonitor")
+        hidden_cols = []
+        cols = VendidasTableModel.COLUMNS
+        for i, (_, col_key) in enumerate(cols):
+            if self.vendidas_table_view.isColumnHidden(i):
+                hidden_cols.append(col_key)
+        settings.setValue("colunas_ocultas_vendidas", hidden_cols)
+
+    def _save_column_visibility_coberta(self):
+        from PySide6.QtCore import QSettings
+        settings = QSettings("Spreadhunter", "DesktopMonitor")
+        hidden_cols = []
+        cols = VendaCobertaTableModel.COLUMNS
+        for i, (_, col_key) in enumerate(cols):
+            if self.coberta_table_view.isColumnHidden(i):
+                hidden_cols.append(col_key)
+        settings.setValue("colunas_ocultas_coberta", hidden_cols)
 
     def _show_column_menu(self, pos):
         menu = QMenu(self)
@@ -854,22 +908,32 @@ class MainWindow(QMainWindow):
     def _show_column_menu_vendidas(self, pos):
         menu = QMenu(self)
         header = self.vendidas_table_view.horizontalHeader()
-        for i, (col_name, col_key) in enumerate(VendidasTableModel.COLUMNS):
+        col_actions = {}
+        for i, (col_name, _) in enumerate(VendidasTableModel.COLUMNS):
             action = menu.addAction(col_name)
             action.setCheckable(True)
             action.setChecked(not self.vendidas_table_view.isColumnHidden(i))
-            action.toggled.connect(lambda checked, idx=i: self.vendidas_table_view.setColumnHidden(idx, not checked))
-        menu.exec_(header.mapToGlobal(pos))
+            col_actions[id(action)] = i
+        chosen = menu.exec_(header.mapToGlobal(pos))
+        if chosen is not None and id(chosen) in col_actions:
+            col_idx = col_actions[id(chosen)]
+            self.vendidas_table_view.setColumnHidden(col_idx, not chosen.isChecked())
+            self._save_column_visibility_vendidas()
 
     def _show_column_menu_coberta(self, pos):
         menu = QMenu(self)
         header = self.coberta_table_view.horizontalHeader()
-        for i, (col_name, col_key) in enumerate(VendaCobertaTableModel.COLUMNS):
+        col_actions = {}
+        for i, (col_name, _) in enumerate(VendaCobertaTableModel.COLUMNS):
             action = menu.addAction(col_name)
             action.setCheckable(True)
             action.setChecked(not self.coberta_table_view.isColumnHidden(i))
-            action.toggled.connect(lambda checked, idx=i: self.coberta_table_view.setColumnHidden(idx, not checked))
-        menu.exec_(header.mapToGlobal(pos))
+            col_actions[id(action)] = i
+        chosen = menu.exec_(header.mapToGlobal(pos))
+        if chosen is not None and id(chosen) in col_actions:
+            col_idx = col_actions[id(chosen)]
+            self.coberta_table_view.setColumnHidden(col_idx, not chosen.isChecked())
+            self._save_column_visibility_coberta()
 
     def _setup_status_bar(self):
         self._status_left = QLabel("Pronto")

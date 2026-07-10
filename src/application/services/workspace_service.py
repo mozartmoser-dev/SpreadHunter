@@ -21,6 +21,8 @@ _logger = logging.getLogger(__name__)
 _QSETTINGS_KEYS_CONHECIDAS = [
     "parametros/last_section",
     "colunas_ocultas",
+    "colunas_ocultas_vendidas",
+    "colunas_ocultas_coberta",
     "main_table_order",
     "vendidas_table_order",
     "coberta_table_order",
