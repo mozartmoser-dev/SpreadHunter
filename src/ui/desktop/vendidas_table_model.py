@@ -32,7 +32,7 @@ class VendidasTableModel(QAbstractTableModel):
         ("Of Vd Call", "of_venda_call"),
         ("Qul Put", "qul_put"),
         ("Qul Call", "qul_call"),
-        ("Tipo Op.", "tipo_opcao"),
+        ("MOD", "tipo_opcao"),
         ("Cod Put", "cod_put"),
         ("Cod Call", "cod_call"),
         ("BTC", "taxa_aluguel"),
@@ -114,7 +114,7 @@ class VendidasTableModel(QAbstractTableModel):
                 "of_venda_call": "Oferta de venda (ASK) da CALL.",
                 "qul_put": "Quantidade de PUT no livro de ofertas.",
                 "qul_call": "Quantidade de CALL no livro de ofertas.",
-                "tipo_opcao": "Tipo de opcao: AMER (Americana) ou EUR (Europeia).",
+                "tipo_opcao": "MOD — estilo da opção: 🇺🇸 = Americana (A) | 🇪🇺 = Europeia (E).",
                 "cod_put": "Codigo B3 da opcao de venda (PUT).",
                 "cod_call": "Codigo B3 da opcao de compra (CALL).",
                 "taxa_aluguel": "Taxa de aluguel do ativo (BTC - Banco de Títulos e Custódia).",
@@ -196,8 +196,8 @@ class VendidasTableModel(QAbstractTableModel):
         if col_key == "qul_call":
             return "{:.0f}".format(item.qul_call) if item.qul_call > 0 else "-"
         if col_key == "tipo_opcao":
-            labels = {"A": "AMER", "E": "EUR", "P": "PUT"}
-            return labels.get(item.tipo_opcao, item.tipo_opcao)
+            bandeiras = {"A": "🇺🇸", "E": "🇪🇺", "P": "🇪🇺"}
+            return bandeiras.get(item.tipo_opcao, "-")
         if col_key == "cod_put":
             return item.cod_put
         if col_key == "cod_call":

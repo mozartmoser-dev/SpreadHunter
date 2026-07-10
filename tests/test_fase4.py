@@ -247,7 +247,7 @@ class TestMonitorTableModel:
         model = MonitorTableModel()
         model.atualizar([_make_opp()])
         col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "tipo_opcao"][0]
-        assert model.data(model.index(0, col), Qt.ItemDataRole.DisplayRole) == "AMER"
+        assert model.data(model.index(0, col), Qt.ItemDataRole.DisplayRole) == "🇺🇸"
 
 
 class TestMockMarketDataProvider:

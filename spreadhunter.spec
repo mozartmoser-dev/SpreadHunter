@@ -32,6 +32,7 @@ a = Analysis(
         "win32process", "win32clipboard", "pythoncom",
         "hashlib", "logging.handlers", "sqlite3",
         "PIL", "PIL._tkinter_finder",
+        "tzdata",
     ],
     excludes=[
         "tkinter", "pytest",

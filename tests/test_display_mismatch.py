@@ -361,7 +361,7 @@ def _monitor_col_key(key):
     ("of_venda_call", "35.00"),
     ("qul_put", "500"),
     ("qul_call", "600"),
-    ("tipo_opcao", "AMER"),
+    ("tipo_opcao", "🇺🇸"),
     ("cod_put", "PETRH26"),
     ("cod_call", "PETRI26"),
 ])
@@ -421,8 +421,9 @@ def test_monitor_liq_indicator(qapp):
 
 
 def test_monitor_tipo_opcao_labels(qapp):
-    """tipo_opcao mapping: A→AMER, E→EUR, P→PUT."""
-    for raw, expected in [("A", "AMER"), ("E", "EUR"), ("P", "PUT"), ("X", "X")]:
+    """tipo_opcao mapping: A->bandeira EUA, E->bandeira Europa,
+    P->bandeira Europa (PUTs B3 sao europeias), X->'-'."""
+    for raw, expected in [("A", "🇺🇸"), ("E", "🇪🇺"), ("P", "🇪🇺"), ("X", "-")]:
         model = MonitorTableModel()
         model.atualizar([_monitor_opp(tipo_opcao=raw)])
         idx = model.index(0, _monitor_col_key("tipo_opcao"))

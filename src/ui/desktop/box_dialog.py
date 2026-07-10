@@ -283,6 +283,29 @@ class BoxDialog(QDialog):
         self.btn_regras.clicked.connect(self._abrir_regras)
         header.addWidget(self.btn_regras)
 
+        self.btn_export_csv = QPushButton("📥 Export CSV")
+        self.btn_export_csv.setStyleSheet("""
+            QPushButton {
+                background-color: transparent; color: #8be08b;
+                border: 1px solid #8be08b66; border-radius: 4px;
+                padding: 4px 10px; font-size: 9pt;
+            }
+            QPushButton:hover { background-color: #8be08b22; }
+        """)
+        self.btn_export_csv.setToolTip("Exporta a grade do BOX 4P para o clipboard em CSV.\nSe houver uma linha selecionada, exporta apenas ela; senao, todas.")
+        self.btn_export_csv.clicked.connect(self._exportar_csv)
+        header.addWidget(self.btn_export_csv)
+
+    def _exportar_csv(self):
+        from src.ui.desktop.copy_utils import exportar_monitor_csv
+        exportar_monitor_csv(
+            resultados=self._resultados,
+            colunas=BOX_4P_COLUMNS,
+            table_view=self.table_view,
+            parent=self,
+            titulo_janela="Export CSV - BOX 4P",
+        )
+
         layout.addLayout(header)
 
         body = QHBoxLayout()

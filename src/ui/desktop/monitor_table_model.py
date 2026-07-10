@@ -33,7 +33,7 @@ class MonitorTableModel(QAbstractTableModel):
         ("Of Vd Call", "of_venda_call"),
         ("Qul Put", "qul_put"),
         ("Qul Call", "qul_call"),
-        ("Tipo Op.", "tipo_opcao"),
+        ("MOD", "tipo_opcao"),
         ("Cod Put", "cod_put"),
         ("Cod Call", "cod_call"),
         ("BTC", "taxa_aluguel"),
@@ -113,7 +113,7 @@ class MonitorTableModel(QAbstractTableModel):
                 "of_venda_call": "Oferta de venda da CALL (ask) — menor preço que alguém vende.",
                 "qul_put": "Quantidade de contratos negociados da PUT no pregão (volume).",
                 "qul_call": "Quantidade de contratos negociados da CALL no pregão (volume).",
-                "tipo_opcao": "Estilo da opção: AMER (americana) ou EUR (europeia).",
+                "tipo_opcao": "MOD — estilo da opção: 🇺🇸 = Americana (A) | 🇪🇺 = Europeia (E).",
                 "cod_put": "Código do ativo da PUT na B3.",
                 "cod_call": "Código do ativo da CALL na B3.",
                 "taxa_aluguel": "Taxa de aluguel (BTC) da ação objeto — InvestSite.",
@@ -203,8 +203,8 @@ class MonitorTableModel(QAbstractTableModel):
         if col_key == "label_detectado":
             return opp.label_detectado
         if col_key == "tipo_opcao":
-            labels = {"A": "AMER", "E": "EUR", "P": "PUT"}
-            return labels.get(opp.tipo_opcao, opp.tipo_opcao)
+            bandeiras = {"A": "🇺🇸", "E": "🇪🇺", "P": "🇪🇺"}
+            return bandeiras.get(opp.tipo_opcao, "-")
         value = getattr(opp, col_key, None)
         if value is None:
             return ""

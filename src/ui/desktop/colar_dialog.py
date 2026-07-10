@@ -561,6 +561,19 @@ class ColarDialog(QDialog):
         self.btn_regras.clicked.connect(self._abrir_regras)
         left_panel.addWidget(self.btn_regras)
 
+        self.btn_export_csv = QPushButton("📥 Export CSV")
+        self.btn_export_csv.setStyleSheet("""
+            QPushButton {
+                background-color: transparent; color: #8be08b;
+                border: 1px solid #8be08b66; border-radius: 4px;
+                padding: 4px 10px; font-size: 9pt;
+            }
+            QPushButton:hover { background-color: #8be08b22; }
+        """)
+        self.btn_export_csv.setToolTip("Exporta a grade do COLAR para o clipboard em CSV.\nSe houver uma linha selecionada, exporta apenas ela; senao, todas.")
+        self.btn_export_csv.clicked.connect(self._exportar_csv)
+        left_panel.addWidget(self.btn_export_csv)
+
         self.lbl_scan_status = QLabel("✅ Pronto")
         self.lbl_scan_status.setStyleSheet(f"color: {Palette.GREEN}; font-size: 8pt;")
         left_panel.addWidget(self.lbl_scan_status)
@@ -609,6 +622,17 @@ class ColarDialog(QDialog):
         todos_ativos = self._carregar_todos_ativos()
         if todos_ativos:
             self._popular_lista_ativos(todos_ativos)
+
+    def _exportar_csv(self):
+        from src.ui.desktop.copy_utils import exportar_monitor_csv
+        from src.ui.desktop.colar_dialog import ColarTableModel
+        exportar_monitor_csv(
+            resultados=self._resultados,
+            colunas=ColarTableModel.COLUMNS,
+            table_view=self.table_view,
+            parent=self,
+            titulo_janela="Export CSV - COLAR",
+        )
 
     def _on_filtro_pop_changed(self):
         up = self.spin_pop_upside.text().strip()

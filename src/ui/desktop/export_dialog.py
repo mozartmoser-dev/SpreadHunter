@@ -185,6 +185,27 @@ class ExportDialog(QDialog):
         custos_form.addRow(self._label_muted("Ganho % BOX:"), lbl_ganho_box)
         custos_form.addRow(self._label_muted("vs CDI BOX:"), lbl_cdi_box)
 
+        custos_form.addRow(self._spacer(), QLabel(""))
+
+        detectado_txt = "-"
+        det = getattr(self.oportunidade, "detectado_em", None)
+        if det is not None:
+            try:
+                from datetime import datetime, timezone
+                from zoneinfo import ZoneInfo
+                dt = det if isinstance(det, datetime) else None
+                if dt and dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=ZoneInfo("America/Sao_Paulo"))
+                if dt:
+                    detectado_txt = dt.astimezone(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M:%S (Brasília)")
+            except Exception:
+                detectado_txt = str(det)
+        lbl_detectado = QLabel(detectado_txt)
+        lbl_detectado.setStyleSheet(
+            "color: {}; font-family: Consolas, monospace; font-size: 9pt;".format(Palette.TEXT_SECONDARY)
+        )
+        custos_form.addRow(self._label_muted("Detectado:"), lbl_detectado)
+
         custos_group.setLayout(custos_form)
         layout.addWidget(custos_group)
         layout.addStretch()

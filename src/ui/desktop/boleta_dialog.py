@@ -93,6 +93,27 @@ class BoletaDialog(QDialog):
         coef_layout.addStretch()
         layout.addLayout(coef_layout)
 
+        det_layout = QHBoxLayout()
+        det_layout.setSpacing(8)
+        det_lbl_caption = QLabel("Detectado pelo monitor:")
+        det_lbl_caption.setStyleSheet(f"color: {Palette.TEXT_SECONDARY}; font-size: 8.5pt;")
+        det_layout.addWidget(det_lbl_caption)
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        det = getattr(self.r, "detectado_em", None)
+        det_txt = "-"
+        if isinstance(det, datetime):
+            if det.tzinfo is None:
+                det = det.replace(tzinfo=ZoneInfo("America/Sao_Paulo"))
+            det_txt = det.astimezone(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M:%S (Brasília)")
+        elif det is not None:
+            det_txt = str(det)
+        det_lbl = QLabel(det_txt)
+        det_lbl.setStyleSheet(f"color: {Palette.TEXT_SECONDARY}; font-family: Consolas, monospace; font-size: 8.5pt;")
+        det_layout.addWidget(det_lbl)
+        det_layout.addStretch()
+        layout.addLayout(det_layout)
+
         self.lbl_acumulo_header = QLabel("Baskets acumulados:")
         self.lbl_acumulo_header.setStyleSheet(
             f"color: {Palette.TEXT_SECONDARY}; font-size: 9pt; font-weight: bold; margin-top: 4px;"

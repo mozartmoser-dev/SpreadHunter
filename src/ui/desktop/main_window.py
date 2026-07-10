@@ -645,6 +645,22 @@ class MainWindow(QMainWindow):
         self.btn_bell.toggled.connect(self._toggle_som_global)
         btn_layout.addWidget(self.btn_bell)
 
+        self.btn_export_box = QPushButton("📥")
+        self.btn_export_box.setFixedSize(26, 24)
+        self.btn_export_box.setToolTip("Exportar linhas BOX/SBTH (CSV -> clipboard).\nCom linha selecionada: so ela. Sem: todas.")
+        self.btn_export_box.setCursor(Qt.PointingHandCursor)
+        self.btn_export_box.setStyleSheet("""
+            QPushButton {
+                background-color: #1e1e2f; color: #8be08b;
+                border: 1px solid #8be08b66; border-radius: 4px;
+                font-size: 10pt; padding: 0; margin: 0;
+                text-align: center;
+            }
+            QPushButton:hover { background-color: #2d2d44; }
+        """)
+        self.btn_export_box.clicked.connect(self._exportar_csv_box)
+        btn_layout.addWidget(self.btn_export_box)
+
         self.btn_bell_v = QPushButton("🔕")
         self.btn_bell_v.setFixedSize(26, 24)
         self.btn_bell_v.setToolTip("Som VENDIDAS: desligado (clique para ligar)")
@@ -666,6 +682,22 @@ class MainWindow(QMainWindow):
         self.btn_bell_v.toggled.connect(self._toggle_som_vendidas)
         btn_layout.addWidget(self.btn_bell_v)
 
+        self.btn_export_vendidas = QPushButton("📥")
+        self.btn_export_vendidas.setFixedSize(26, 24)
+        self.btn_export_vendidas.setToolTip("Exportar linhas VENDIDAS (CSV -> clipboard).\nCom linha selecionada: so ela. Sem: todas.")
+        self.btn_export_vendidas.setCursor(Qt.PointingHandCursor)
+        self.btn_export_vendidas.setStyleSheet("""
+            QPushButton {
+                background-color: #1e1e2f; color: #8be08b;
+                border: 1px solid #8be08b66; border-radius: 4px;
+                font-size: 10pt; padding: 0; margin: 0;
+                text-align: center;
+            }
+            QPushButton:hover { background-color: #2d2d44; }
+        """)
+        self.btn_export_vendidas.clicked.connect(self._exportar_csv_vendidas)
+        btn_layout.addWidget(self.btn_export_vendidas)
+
         self.btn_bell_c = QPushButton("\U0001f514")
         self.btn_bell_c.setFixedSize(26, 24)
         self.btn_bell_c.setToolTip("Som VENDA COBERTA: desligado (clique para ligar)")
@@ -686,6 +718,22 @@ class MainWindow(QMainWindow):
         """)
         self.btn_bell_c.toggled.connect(self._toggle_som_coberta)
         btn_layout.addWidget(self.btn_bell_c)
+
+        self.btn_export_coberta = QPushButton("📥")
+        self.btn_export_coberta.setFixedSize(26, 24)
+        self.btn_export_coberta.setToolTip("Exportar linhas TAXA (CSV -> clipboard).\nCom linha selecionada: so ela. Sem: todas.")
+        self.btn_export_coberta.setCursor(Qt.PointingHandCursor)
+        self.btn_export_coberta.setStyleSheet("""
+            QPushButton {
+                background-color: #1e1e2f; color: #8be08b;
+                border: 1px solid #8be08b66; border-radius: 4px;
+                font-size: 10pt; padding: 0; margin: 0;
+                text-align: center;
+            }
+            QPushButton:hover { background-color: #2d2d44; }
+        """)
+        self.btn_export_coberta.clicked.connect(self._exportar_csv_coberta)
+        btn_layout.addWidget(self.btn_export_coberta)
 
         btn_layout.addSpacing(16)
         btn_layout.addStretch()
@@ -1282,9 +1330,42 @@ class MainWindow(QMainWindow):
         self._som_vendidas_ativado = ativo
         self.btn_bell_v.setToolTip("Som VENDIDAS: ligado" if ativo else "Som VENDIDAS: desligado")
 
+    def _exportar_csv_box(self):
+        from src.ui.desktop.copy_utils import exportar_monitor_csv
+        from src.ui.desktop.monitor_table_model import MonitorTableModel
+        exportar_monitor_csv(
+            resultados=self._resultados_brutos,
+            colunas=MonitorTableModel.COLUMNS,
+            table_view=self.table_view,
+            parent=self,
+            titulo_janela="Export CSV - BOX/SBTH",
+        )
+
     def _toggle_som_coberta(self, ativo: bool):
         self._som_coberta_ativado = ativo
         self.btn_bell_c.setToolTip("Som VENDA COBERTA: ligado" if ativo else "Som VENDA COBERTA: desligado")
+
+    def _exportar_csv_vendidas(self):
+        from src.ui.desktop.copy_utils import exportar_monitor_csv
+        from src.ui.desktop.vendidas_table_model import VendidasTableModel
+        exportar_monitor_csv(
+            resultados=self._resultados_vendidas,
+            colunas=VendidasTableModel.COLUMNS,
+            table_view=self.vendidas_table_view,
+            parent=self,
+            titulo_janela="Export CSV - VENDIDAS",
+        )
+
+    def _exportar_csv_coberta(self):
+        from src.ui.desktop.copy_utils import exportar_monitor_csv
+        from src.ui.desktop.venda_coberta_table_model import VendaCobertaTableModel
+        exportar_monitor_csv(
+            resultados=self._resultados_coberta,
+            colunas=VendaCobertaTableModel.COLUMNS,
+            table_view=self.coberta_table_view,
+            parent=self,
+            titulo_janela="Export CSV - TAXA",
+        )
 
     def _aplicar_fonte_tamanho(self):
         from src.infrastructure.persistence.repositories.repositories import ParametroRepository
@@ -1597,6 +1678,21 @@ class MainWindow(QMainWindow):
             f2.addRow(_muted("− Custos B3:"), QLabel("−R$ {:.2f}".format(r.custo)))
             f2.addRow(_muted("= Lucro Líquido:"), QLabel("R$ {:.2f}".format(pnl_final)))
         f2.addRow(_muted("Retorno:"), QLabel("{:.2f}% / {:.2f}x CDI".format(r.pct_ganho * 100, r.pct_cdi)))
+
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        det = getattr(r, "detectado_em", None)
+        det_txt = "-"
+        if isinstance(det, datetime):
+            if det.tzinfo is None:
+                det = det.replace(tzinfo=ZoneInfo("America/Sao_Paulo"))
+            det_txt = det.astimezone(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M:%S (Brasília)")
+        elif det is not None:
+            det_txt = str(det)
+        det_lbl = QLabel(det_txt)
+        det_lbl.setStyleSheet("color: {}; font-family: Consolas, monospace; font-size: 9pt;".format(Palette.TEXT_SECONDARY))
+        f2.addRow(_muted("Detectado:"), det_lbl)
+
         g2.setLayout(f2)
         pernas_layout.addWidget(g2)
         pernas_layout.addStretch()
@@ -1725,6 +1821,21 @@ class MainWindow(QMainWindow):
         f2.addRow(_muted("Recebimento:"), QLabel("R$ {:.2f}".format(r.recebimento)))
         f2.addRow(_muted("Lucro (Receb. − Strike):"), QLabel("R$ {:.2f}".format(lucro)))
         f2.addRow(_muted("Retorno:"), QLabel("{:.2f}% / {:.2f}x CDI".format(r.pct_ganho * 100, r.pct_cdi)))
+
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        det = getattr(r, "detectado_em", None)
+        det_txt = "-"
+        if isinstance(det, datetime):
+            if det.tzinfo is None:
+                det = det.replace(tzinfo=ZoneInfo("America/Sao_Paulo"))
+            det_txt = det.astimezone(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M:%S (Brasília)")
+        elif det is not None:
+            det_txt = str(det)
+        det_lbl = QLabel(det_txt)
+        det_lbl.setStyleSheet("color: {}; font-family: Consolas, monospace; font-size: 9pt;".format(Palette.TEXT_SECONDARY))
+        f2.addRow(_muted("Detectado:"), det_lbl)
+
         g2.setLayout(f2)
         pl.addWidget(g2)
         pl.addStretch()
