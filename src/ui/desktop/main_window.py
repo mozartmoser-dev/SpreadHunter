@@ -512,6 +512,20 @@ class MainWindow(QMainWindow):
         )
         btn_layout.addWidget(self.btn_calc)
 
+        self.btn_workspace = QPushButton("\U0001f4c1  Workspace")
+        self.btn_workspace.setAutoDefault(False)
+        self.btn_workspace.clicked.connect(self._abrir_workspace)
+        self.btn_workspace.setToolTip(
+            "Workspace (Ctrl+Shift+S): salvar/restaurar snapshot de parâmetros + ordem de colunas"
+        )
+        self.btn_workspace.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #b388ff; border-color: rgba(179,136,255,0.5); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #3d2d6a; border-color: #b388ff; }}"
+        )
+        btn_layout.addWidget(self.btn_workspace)
+
         self.btn_paineis = self._criar_dropup_paineis(_btn_base, _btn_hover)
         btn_layout.addWidget(self.btn_paineis)
 
@@ -1114,6 +1128,21 @@ class MainWindow(QMainWindow):
         self._worker.recarregar_parametros()
         self._aplicar_fonte_tamanho()
         self._update_cdi_display()
+
+    def _abrir_workspace(self):
+        try:
+            from src.application.services.workspace_service import WorkspaceService
+            from src.ui.desktop.workspace_dialog import WorkspaceDialog
+            service = WorkspaceService(db_path=self.db_path)
+            service.garantir_system_default()
+            dlg = WorkspaceDialog(service, parent=self)
+            dlg.exec_()
+        except Exception as e:
+            try:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.critical(self, "Workspace", f"Falha ao abrir o diálogo:\n{e}")
+            except Exception:
+                pass
 
     def _on_fade_finished(self):
         self._transicao_opacity.setOpacity(1.0)

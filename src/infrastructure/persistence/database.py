@@ -589,4 +589,16 @@ CREATE TABLE IF NOT EXISTS calendario_resultados (
 
 CREATE INDEX IF NOT EXISTS idx_calendario_resultados_ativo ON calendario_resultados(ativo);
 CREATE INDEX IF NOT EXISTS idx_calendario_resultados_data ON calendario_resultados(data_publicacao);
+
+CREATE TABLE IF NOT EXISTS workspace_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_system INTEGER NOT NULL DEFAULT 0,
+    app_version TEXT NOT NULL,
+    parametros_json TEXT NOT NULL DEFAULT '{}',
+    workspace_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_snapshots_nome ON workspace_snapshots(nome);
 """
