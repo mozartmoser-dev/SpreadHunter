@@ -497,7 +497,7 @@ class CalculadoraColarCalendario:
             # % Retorno e x CDI
             pct_ret = (total / cap) * 100 if cap > 0 else 0.0
             du_total = dc_to_du(None, None, r.dte_call)
-            cdi_periodo = (1 + taxa_cdi) ** (du_total / 252) - 1
+            cdi_periodo = (1 + rf) ** (du_total / 252) - 1
             x_cdi = (total / cap) / cdi_periodo if cdi_periodo > 0 else 0.0
 
             # Largura da barra da gaussiana (PDF normalizado)
