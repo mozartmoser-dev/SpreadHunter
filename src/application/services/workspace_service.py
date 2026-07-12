@@ -102,13 +102,17 @@ class WorkspaceService:
         )
         return self._snapshot_repo_inst().criar(snapshot)
 
-    def restaurar(self, snapshot_id: int) -> None:
+    def restaurar(self, snapshot_id: int, chaves_a_ignorar: set[str] | None = None) -> None:
         snapshot = self._snapshot_repo_inst().obter(snapshot_id)
         if snapshot is None:
             raise ValueError(f"Snapshot id={snapshot_id} não encontrado")
 
+        workspace = snapshot.workspace
+        if chaves_a_ignorar:
+            workspace = {k: v for k, v in workspace.items() if k not in chaves_a_ignorar}
+
         self._aplicar_parametros(snapshot.parametros)
-        self._aplicar_workspace(snapshot.workspace)
+        self._aplicar_workspace(workspace)
 
     def _aplicar_parametros(self, parametros: dict[str, dict[str, Any]]) -> None:
         for chave, raw in parametros.items():

@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from src.application.services.workspace_service import WorkspaceService
 from src.domain.entities.workspace_snapshot import WorkspaceSnapshot
+from src.ui.desktop.column_utils import detectar_incompatibilidade
 
 
 class WorkspaceDialog(QDialog):
@@ -275,8 +276,34 @@ class WorkspaceDialog(QDialog):
         )
         if resp != QMessageBox.Yes:
             return
+
+        diffs = detectar_incompatibilidade(snap.workspace)
+        chaves_a_ignorar: set[str] = set()
+        if diffs:
+            linhas = ["Incompatibilidade de colunas detectada:\n"]
+            for chave, (n_snap, n_atual) in diffs.items():
+                linhas.append(f"  • {chave}: snapshot tem {n_snap} colunas, atual tem {n_atual}")
+            linhas.append("\nEscolha uma opção:")
+            linhas.append("  • Restaurar parcial: aplica só o que ainda existe")
+            linhas.append("  • Manter atual: não restaura as chaves de ordem incompatíveis")
+            linhas.append("  • Cancelar: aborta a restauração")
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Incompatibilidade de Colunas")
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText("\n".join(linhas))
+            btn_parcial = msg.addButton("Restaurar parcial", QMessageBox.AcceptRole)
+            btn_manter = msg.addButton("Manter atual", QMessageBox.RejectRole)
+            btn_cancelar = msg.addButton("Cancelar", QMessageBox.RejectRole)
+            msg.exec()
+            clicked = msg.clickedButton()
+            if clicked is btn_cancelar:
+                return
+            if clicked is btn_manter:
+                chaves_a_ignorar = set(diffs.keys())
+            # Restore parcial: chaves_a_ignorar fica vazio — o restaurar() aplica tudo
+
         try:
-            self._service.restaurar(snap.id)
+            self._service.restaurar(snap.id, chaves_a_ignorar=chaves_a_ignorar)
         except Exception as e:
             QMessageBox.critical(self, "Workspace", f"Falha ao restaurar:\n{e}")
             return

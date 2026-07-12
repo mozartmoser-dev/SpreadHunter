@@ -108,3 +108,96 @@ class TestCaudaBasics:
         r = CalculadoraCaudaAssincrona.calcular(**self.BASE)
         if r:
             assert r.score_cauda > 0
+
+
+class TestProcessarOtimizado:
+    """Tests for processar_otimizado — 4 variantes, veto 3sigmas, id_chassi."""
+
+    BASE = dict(
+        preco_ativo=100.0,
+        strike_call=105.0,
+        strike_put=100.0,
+        premio_call=4.0,
+        premio_put=3.0,
+        dte_call=5,
+        ativo="PETR4",
+        iv_call_pct=15.0,
+        pnl_projetado_base=1.0,
+        capital_empregado_base=100.0,
+        pct_cdi_base=3.0,
+        dte_put=5,
+        iv_put_pct=15.0,
+        calda_ratio_put_step=0.05,
+        limite_min_put=0.80,
+        limite_max_call=1.30,
+    )
+
+    def test_retorna_lista(self):
+        resultados = CalculadoraCaudaAssincrona.processar_otimizado(**self.BASE)
+        assert isinstance(resultados, list)
+        assert len(resultados) > 0
+
+    def test_quatro_variantes_max(self):
+        resultados = CalculadoraCaudaAssincrona.processar_otimizado(**self.BASE)
+        assert len(resultados) <= 4
+        for r in resultados:
+            assert r.viavel
+
+    def test_mesmo_id_chassi(self):
+        resultados = CalculadoraCaudaAssincrona.processar_otimizado(**self.BASE)
+        if len(resultados) >= 2:
+            chassi = resultados[0].id_chassi
+            for r in resultados[1:]:
+                assert r.id_chassi == chassi
+
+    def test_estagio_base_se_existe(self):
+        resultados = CalculadoraCaudaAssincrona.processar_otimizado(**self.BASE)
+        bases = [r for r in resultados if r.estagio == "Base"]
+        assert len(bases) <= 1
+
+    def test_estagios_presentes(self):
+        resultados = CalculadoraCaudaAssincrona.processar_otimizado(**self.BASE)
+        estagios = {r.estagio for r in resultados}
+        assert "Rendimento" in estagios
+        assert "Proteção" in estagios
+        assert "Platô" in estagios
+
+    def test_ratios_no_range(self):
+        resultados = CalculadoraCaudaAssincrona.processar_otimizado(**self.BASE)
+        for r in resultados:
+            assert self.BASE["limite_min_put"] <= r.ratio_put <= 1.0
+            assert 1.0 <= r.ratio_call <= self.BASE["limite_max_call"]
+
+    def test_pnl_cauda_positivo_veto_3s(self):
+        """Escudo de 3 sigmas: nenhum candidato com PnL<0 em ±3σ."""
+        resultados = CalculadoraCaudaAssincrona.processar_otimizado(**self.BASE)
+        for r in resultados:
+            assert r.pnl_na_cauda_esquerda >= 0
+            assert r.pnl_na_cauda_direita >= 0
+
+    def test_retorna_vazio_iv_zero(self):
+        base = dict(self.BASE)
+        base["iv_call_pct"] = 0.0
+        assert CalculadoraCaudaAssincrona.processar_otimizado(**base) == []
+
+    def test_retorna_vazio_dte_zero(self):
+        base = dict(self.BASE)
+        base["dte_call"] = 0
+        assert CalculadoraCaudaAssincrona.processar_otimizado(**base) == []
+
+    def test_breakevens_nas_variantes(self):
+        resultados = CalculadoraCaudaAssincrona.processar_otimizado(**self.BASE)
+        for r in resultados:
+            if r.ratio_call > 1.0:
+                assert r.breakeven_direito is not None
+            if r.ratio_put < 1.0:
+                assert r.breakeven_esquerdo is not None
+
+    def test_campos_preenchidos(self):
+        resultados = CalculadoraCaudaAssincrona.processar_otimizado(**self.BASE)
+        for r in resultados:
+            assert r.ativo == "PETR4"
+            assert r.strike_call == 105.0
+            assert r.strike_put == 100.0
+            assert r.ratio_call >= 1.0
+            assert r.dte_call == 5

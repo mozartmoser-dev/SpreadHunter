@@ -555,3 +555,92 @@ Corrigido em 09/07/2026.
 - `INSTRUCOES_AMIGO.txt` — passo a passo para rodar via dev,
   troubleshoot de problemas comuns, geração do .exe.
 
+---
+
+## Pendências (perguntar na próxima sessão)
+
+Na sessão 10/07/2026 implementamos Fase 1 (Workspace snapshot/restore) e Fase 2
+(persistir ordem+visibilidade em VENDIDAS/TAXA). Duas fases futuras foram
+projetadas mas **não executadas** — perguntar ao usuário se quer continuar:
+
+### Fase 3 — Largura de coluna persistente ✅ (11/07/2026)
+`column_utils.py` ganha `salvar_largura_colunas()` / `restaurar_largura_colunas()`.
+Plug nos 5 diálogos (colar, colar_cal, box, mpp, main). `QHeaderView.resizeSection`
+lido/escrito no QSettings. `sectionResized` via `QTimer.singleShot(0, ...)`
+(mesma técnica anti-segfault da ordem).
+
+**Limpeza automática**: `limpar_e_restaurar_colunas(header, order_key, width_key)`
+remove chaves QSettings com nº de colunas divergente do header atual antes de
+restaurar. Evita lixo órfão de snapshots desatualizados (snapshot com 5 colunas
+vs header atual com 3) ser aplicado de forma parcial e confusa.
+
+### Fase 4 — Detecção de incompatibilidade no restore do Workspace ✅ (11/07/2026)
+Ao restaurar um snapshot, comparar número de colunas. Se diferente, oferecer 3
+opções: manter/restaurar parcial/cancelar. Implementado em
+`workspace_dialog.py` via `detectar_incompatibilidade()` e
+`WorkspaceService.restaurar(snapshot_id, chaves_a_ignorar=None)`.
+
+---
+
+## Sessão 11/07/2026 — Motor de Engenharia de Payoff (Otimizado)
+
+### `processar_otimizado()` — Fronteira de Eficiência
+
+Novo método **estático** em `CalculadoraCaudaAssincrona` (`calculadora_cauda_assincrona.py`):
+
+- Varredura 2D: `ratio_call` de 1.0 até `limite_max_call` (default 1.40) × `ratio_put` de `limite_min_put` (default 0.85) até 1.0
+- **Escudo de 3 Sigmas**: veto de qualquer candidato com PnL projetado < 0 em ±3σ
+- Gera **4 variantes** conectadas pelo mesmo `id_chassi` (UUID hash):
+  1. **Base** (ratio 1:1) — se viável
+  2. **Alta Otimizada** — maximiza %CDI + distância do breakeven direito
+  3. **Baixa Otimizada** — ratio_put mais próximo de 1.0, be_esquerdo fora de -2σ
+  4. **Neutro Otimizada (Platô)** — maximiza simetria × CDI entre -2σ e +2σ
+- Campos `estagio` e `id_chassi` no `ResultadoCaudaAssincrona`
+
+### Parâmetros novos (estratégia `COLLAR_CALENDARIO_CAUDA`)
+
+| Chave | Default | Descrição |
+|---|---|---|
+| `limite_min_put` | 0.85 | Ratio mínimo da PUT no Otimizado |
+| `limite_max_call` | 1.40 | Ratio máximo da CALL no Otimizado |
+| `calda_ratio_put_min` | 0.30 | Ratio mínimo da PUT na Cauda (antes só existia no seed) |
+| `calda_ratio_put_step` | 0.01 | Passo de varredura dos ratios |
+
+### Tabela `historico_simulacoes`
+
+Criada via SCHEMA + migração `_migrar_historico_simulacoes()`:
+- `id_chassi` (TEXT), `estagio` (TEXT), `ativo`, `preco_ativo`, `strike_call`, `strike_put`, `dte_original`, `iv_call`, `ratio_call`, `ratio_put`, `pnl_cauda_esq`, `pnl_cauda_dir`, `be_esq`, `be_dir`, `pct_cdi`, `detectado_em`
+- Índices em `id_chassi`, `ativo`, `detectado_em`
+- Repositório: `HistoricoSimulacoesRepository` (`repositories.py`) com `salvar_lote()`, `listar()`, `exportar_tudo()`
+
+### Pipeline
+
+**monitor_worker.py** — após Cauda Assíncrona (estágio 14):
+- Estágio 15: chama `_processar_otimizado()` → `CalculadoraCaudaAssincrona.processar_otimizado()` → persiste lote na `historico_simulacoes`
+
+### UI
+
+- **Botão "📊 Simulações"** na barra principal (ao lado de Workspace) → abre `HistoricoSimulacoesDialog`
+- **Dialog** (`historico_simulacoes_dialog.py`): tabela escura com 17 colunas, duplo clique mostra detalhes
+- **Botão "📤 Exportar Tudo"**: copia TSV para área de transferência
+- Colunas editáveis: arrastar, ordenar, largura persistente com limpeza automática
+
+### Arquivos alterados/criados
+
+| Arquivo | Mudança |
+|---|---|
+| `calculadora_cauda_assincrona.py` | +`processar_otimizado()`, campos `estagio`/`id_chassi` |
+| `database.py` | +tabela `historico_simulacoes` no SCHEMA, +`_migrar_historico_simulacoes()`, seed 4 novos parâmetros |
+| `repositories.py` | +`HistoricoSimulacoesRepository` |
+| `parametro_operacional.py` | +4 parâmetros `COLLAR_CALENDARIO_CAUDA` |
+| `parametros_default.json` | +4 parâmetros |
+| `monitor_worker.py` | +`_processar_otimizado()`, estágio 15, import do repo |
+| `historico_simulacoes_dialog.py` | **(novo)** dialog com export TSV |
+| `main_window.py` | +botão "📊 Simulações" |
+| `parametros_widget.py` | +4 linhas na seção `COLLAR_CALENDARIO_CAUDA` |
+| `test_calculadora_cauda_assincrona.py` | +11 testes `TestProcessarOtimizado` |
+
+### Testes
+
+**430/430 passando** (419 anteriores + 11 novos).
+

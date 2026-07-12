@@ -75,8 +75,37 @@ def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
     _migrar_fonte_market_data(conn)
     _migrar_feriados_b3(conn)
     _migrar_calendario_resultados(conn)
+    _migrar_historico_simulacoes(conn)
     conn.commit()
     return conn
+
+
+def _migrar_historico_simulacoes(conn):
+    """Cria tabela historico_simulacoes se nao existir (Fase Otimizado)."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS historico_simulacoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_chassi TEXT NOT NULL,
+            estagio TEXT NOT NULL,
+            ativo TEXT NOT NULL,
+            preco_ativo REAL NOT NULL,
+            strike_call REAL NOT NULL,
+            strike_put REAL NOT NULL,
+            dte_original INTEGER NOT NULL,
+            iv_call REAL NOT NULL,
+            ratio_call REAL NOT NULL,
+            ratio_put REAL NOT NULL,
+            pnl_cauda_esq REAL NOT NULL,
+            pnl_cauda_dir REAL NOT NULL,
+            be_esq REAL,
+            be_dir REAL,
+            pct_cdi REAL NOT NULL,
+            detectado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_historico_simulacoes_chassi ON historico_simulacoes(id_chassi)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_historico_simulacoes_ativo ON historico_simulacoes(ativo)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_historico_simulacoes_data ON historico_simulacoes(detectado_em)")
 
 
 def _seed_parametros_colar(conn):
@@ -211,6 +240,8 @@ def _seed_parametros_colar(conn):
         ("calda_ratio_max", "50.0", "COLLAR_CALENDARIO_CAUDA", "Percentual maximo extra de CALLs sobre o ativo (ex: 50 = +50% = ratio 1.5x)"),
         ("calda_ratio_put_min", "0.3", "COLLAR_CALENDARIO_CAUDA", "Ratio minimo da PUT (ex: 0.3 = 30% da base)"),
         ("calda_ratio_put_step", "0.01", "COLLAR_CALENDARIO_CAUDA", "Passo de incremento para varredura dos ratios"),
+        ("limite_min_put", "0.85", "COLLAR_CALENDARIO_CAUDA", "Ratio minimo da PUT para Otimizado (processar_otimizado)"),
+        ("limite_max_call", "1.40", "COLLAR_CALENDARIO_CAUDA", "Ratio maximo da CALL para Otimizado (processar_otimizado)"),
     ]
     for p in params + mpp_params + perf_params:
         conn.execute(
@@ -601,4 +632,28 @@ CREATE TABLE IF NOT EXISTS workspace_snapshots (
 );
 
 CREATE INDEX IF NOT EXISTS idx_workspace_snapshots_nome ON workspace_snapshots(nome);
+
+CREATE TABLE IF NOT EXISTS historico_simulacoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_chassi TEXT NOT NULL,
+    estagio TEXT NOT NULL,
+    ativo TEXT NOT NULL,
+    preco_ativo REAL NOT NULL,
+    strike_call REAL NOT NULL,
+    strike_put REAL NOT NULL,
+    dte_original INTEGER NOT NULL,
+    iv_call REAL NOT NULL,
+    ratio_call REAL NOT NULL,
+    ratio_put REAL NOT NULL,
+    pnl_cauda_esq REAL NOT NULL,
+    pnl_cauda_dir REAL NOT NULL,
+    be_esq REAL,
+    be_dir REAL,
+    pct_cdi REAL NOT NULL,
+    detectado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_historico_simulacoes_chassi ON historico_simulacoes(id_chassi);
+CREATE INDEX IF NOT EXISTS idx_historico_simulacoes_ativo ON historico_simulacoes(ativo);
+CREATE INDEX IF NOT EXISTS idx_historico_simulacoes_data ON historico_simulacoes(detectado_em);
 """

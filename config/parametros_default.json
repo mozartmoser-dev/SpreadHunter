@@ -843,13 +843,13 @@
     },
     {
       "chave": "calda_premio_risco",
-      "valor": "3.0",
+      "valor": "2.8",
       "estrategia": "COLLAR_CALENDARIO_CAUDA",
       "descricao": "Múltiplo do CDI para target de retorno da Cauda"
     },
     {
       "chave": "calda_desvios_cauda",
-      "valor": "1.0",
+      "valor": "2.0",
       "estrategia": "COLLAR_CALENDARIO_CAUDA",
       "descricao": "N de desvios padrao para o range"
     },
@@ -860,10 +860,40 @@
       "descricao": "Ratio máximo CALL:ativo permitido"
     },
     {
+      "chave": "calda_ratio_put_min",
+      "valor": "0.3",
+      "estrategia": "COLLAR_CALENDARIO_CAUDA",
+      "descricao": "Ratio mínimo da PUT (ex: 0.3 = 30% da base)"
+    },
+    {
+      "chave": "calda_ratio_put_step",
+      "valor": "0.01",
+      "estrategia": "COLLAR_CALENDARIO_CAUDA",
+      "descricao": "Passo de incremento para varredura dos ratios"
+    },
+    {
+      "chave": "limite_min_put",
+      "valor": "0.85",
+      "estrategia": "COLLAR_CALENDARIO_CAUDA",
+      "descricao": "Ratio mínimo da PUT para Otimizado (processar_otimizado)"
+    },
+    {
+      "chave": "limite_max_call",
+      "valor": "1.40",
+      "estrategia": "COLLAR_CALENDARIO_CAUDA",
+      "descricao": "Ratio máximo da CALL para Otimizado (processar_otimizado)"
+    },
+    {
       "chave": "sbth_vendida_dist_ativo",
       "valor": "1.2",
       "estrategia": "SBTH_VENDIDA",
       "descricao": "Distancia minima strike/spot (x) - filtro de entrada SBTH Vendida"
+    },
+    {
+      "chave": "venda_coberta_dias_maximos",
+      "valor": "30.0",
+      "estrategia": "VENDA_COBERTA",
+      "descricao": "Dias maximos ate o vencimento para TAXA"
     }
   ]
 }

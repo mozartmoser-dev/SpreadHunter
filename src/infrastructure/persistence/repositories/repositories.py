@@ -984,3 +984,66 @@ class CalendarioResultadosRepository:
             return {r["cnpj"]: r["ativo"] for r in rows}
         finally:
             conn.close()
+
+
+class HistoricoSimulacoesRepository:
+    def __init__(self, db_path=None):
+        self.db_path = db_path
+
+    def salvar_lote(self, registros: list[dict]) -> int:
+        conn = get_connection(self.db_path)
+        try:
+            conn.executemany(
+                """INSERT INTO historico_simulacoes
+                   (id_chassi, estagio, ativo, preco_ativo, strike_call, strike_put,
+                    dte_original, iv_call, ratio_call, ratio_put,
+                    pnl_cauda_esq, pnl_cauda_dir, be_esq, be_dir, pct_cdi)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                [
+                    (r["id_chassi"], r["estagio"], r["ativo"],
+                     r["preco_ativo"], r["strike_call"], r["strike_put"],
+                     r["dte_original"], r["iv_call"],
+                     r["ratio_call"], r["ratio_put"],
+                     r["pnl_cauda_esq"], r["pnl_cauda_dir"],
+                     r.get("be_esq"), r.get("be_dir"), r["pct_cdi"])
+                    for r in registros
+                ]
+            )
+            conn.commit()
+            return len(registros)
+        finally:
+            conn.close()
+
+    def listar(self, limite: int = 500) -> list[dict]:
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM historico_simulacoes ORDER BY detectado_em DESC LIMIT ?",
+                (limite,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def listar_por_chassi(self, id_chassi: str) -> list[dict]:
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM historico_simulacoes WHERE id_chassi = ? ORDER BY estagio",
+                (id_chassi,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def contar(self) -> int:
+        conn = get_connection(self.db_path)
+        try:
+            row = conn.execute("SELECT COUNT(*) AS total FROM historico_simulacoes").fetchone()
+            return row["total"] if row else 0
+        finally:
+            conn.close()
+
+    def exportar_tudo(self) -> list[dict]:
+        rows = self.listar(limite=999999)
+        return rows

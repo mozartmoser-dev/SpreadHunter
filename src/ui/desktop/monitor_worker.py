@@ -14,10 +14,11 @@ from src.application.use_cases.monitor_vendidas import MonitorVendidasUseCase
 from src.application.use_cases.monitor_venda_coberta import MonitorVendaCobertaUseCase
 from src.application.use_cases.mpp_use_case import MPPUseCase
 from src.domain.services.pipeline_tracker import PipelineTracker
-from src.domain.services.calculadora_cauda_assincrona import CalculadoraCaudaAssincrona
+from src.domain.services.calculadora_cauda_assincrona import CalculadoraCaudaAssincrona, ResultadoCaudaAssincrona
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
 from src.domain.services.market_data_source import criar_data_source, MarketDataSource
 from src.application.dtos.dtos import EngineStatsDTO
+from src.infrastructure.persistence.repositories.repositories import HistoricoSimulacoesRepository
 
 logger = logging.getLogger(__name__)
 
@@ -414,6 +415,18 @@ class MonitorWorker(QThread):
                 except Exception:
                     logger.exception("Erro ao processar Cauda Assíncrona")
                     tracker.add_stage("14. Pós-processamento (Cauda)", 0, 0, "ERRO")
+            try:
+                otimizadas = self._processar_otimizado(resultados)
+                if otimizadas:
+                    resultados.extend(otimizadas)
+                    tracker.add_stage(
+                        "15. Pós-processamento (Otimizado)",
+                        len(resultados), len(otimizadas),
+                        f"{len(otimizadas)} variantes otimizadas adicionadas"
+                    )
+            except Exception:
+                logger.exception("Erro ao processar Otimizado")
+                tracker.add_stage("15. Pós-processamento (Otimizado)", 0, 0, "ERRO")
             self.colares_calendario_atualizados.emit(resultados)
 
     def _processar_cauda(self, resultados: list) -> list:
@@ -496,6 +509,108 @@ class MonitorWorker(QThread):
             )
             cauda_results.append(novo)
         return cauda_results
+
+    def _processar_otimizado(self, resultados: list) -> list:
+        from src.domain.services.calculadora_colar_calendario import ResultadoColarCalendario
+        ui_results: list = []
+        repo = HistoricoSimulacoesRepository(self.db_path)
+        taxa_cdi = self._ler_param_float("taxa_cdi", 0.145)
+        limite_min_put = self._ler_param_float("limite_min_put", 0.85)
+        limite_max_call = self._ler_param_float("limite_max_call", 1.40)
+
+        for r in resultados:
+            if not r.viavel:
+                continue
+            variantes = CalculadoraCaudaAssincrona.processar_otimizado(
+                preco_ativo=r.preco_ativo,
+                strike_call=r.strike_call,
+                strike_put=r.strike_put,
+                premio_call=r.premio_call,
+                premio_put=r.premio_put,
+                dte_call=r.dte_call,
+                ativo=r.ativo,
+                iv_call_pct=r.iv_call,
+                pnl_projetado_base=r.pnl_projetado,
+                capital_empregado_base=r.capital_empregado,
+                pct_cdi_base=r.pct_cdi,
+                taxa_cdi=taxa_cdi,
+                limite_min_put=limite_min_put,
+                limite_max_call=limite_max_call,
+                custo_b3_base=r.custo_b3,
+                preco_compra=r.preco_compra,
+                iv_put_pct=r.iv_put,
+                dte_put=r.dte_put,
+            )
+            if not variantes:
+                continue
+
+            registros = []
+            for v in variantes:
+                registros.append({
+                    "id_chassi": v.id_chassi,
+                    "estagio": v.estagio,
+                    "ativo": v.ativo,
+                    "preco_ativo": v.preco_ativo,
+                    "strike_call": v.strike_call,
+                    "strike_put": v.strike_put,
+                    "dte_original": v.dte_call,
+                    "iv_call": v.iv_call,
+                    "ratio_call": v.ratio_call,
+                    "ratio_put": v.ratio_put,
+                    "pnl_cauda_esq": v.pnl_na_cauda_esquerda,
+                    "pnl_cauda_dir": v.pnl_na_cauda_direita,
+                    "be_esq": v.breakeven_esquerdo,
+                    "be_dir": v.breakeven_direito,
+                    "pct_cdi": v.pct_cdi_com_ratio,
+                })
+
+                novo = ResultadoColarCalendario(
+                    ativo=r.ativo,
+                    vencimento_call=r.vencimento_call,
+                    vencimento_put=r.vencimento_put,
+                    dte_call=r.dte_call,
+                    dte_put=r.dte_put,
+                    dte_extra=r.dte_extra,
+                    strike_call=r.strike_call,
+                    strike_put=r.strike_put,
+                    cod_call=r.cod_call,
+                    cod_put=r.cod_put,
+                    preco_ativo=r.preco_ativo,
+                    premio_call=r.premio_call,
+                    premio_put=r.premio_put,
+                    net_credito=round(r.premio_call - r.premio_put, 4),
+                    iv_call=r.iv_call,
+                    iv_put=r.iv_put,
+                    valor_put_venc_call=r.valor_put_venc_call,
+                    pnl_stock=r.pnl_stock,
+                    pnl_projetado=round(v.pnl_com_ratio, 4),
+                    capital_empregado=r.capital_empregado,
+                    pct_retorno=0.0,
+                    pct_cdi=v.pct_cdi_com_ratio,
+                    delta_total=r.delta_total,
+                    theta_call=r.theta_call,
+                    theta_put=r.theta_put,
+                    theta_liquido=r.theta_liquido,
+                    viavel=True,
+                    tipo=r.tipo,
+                    r=taxa_cdi,
+                    custo_b3=v.custo_b3_base,
+                    score=0.0,
+                    preco_compra=r.preco_compra,
+                    be_baixa=v.breakeven_esquerdo,
+                    be_alta=v.breakeven_direito,
+                    ratio_call=v.ratio_call,
+                    ratio_put=v.ratio_put,
+                    is_otimizado=True,
+                    estagio_otimizado=v.estagio,
+                    detectado_em=r.detectado_em,
+                )
+                ui_results.append(novo)
+
+            if registros:
+                repo.salvar_lote(registros)
+
+        return ui_results
 
     def _processar_box_4p(self, rtd):
         self._box_mutex.lock()

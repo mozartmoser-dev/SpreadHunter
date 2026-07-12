@@ -147,4 +147,8 @@ class ParametroOperacional:
         "calda_premio_risco": {"valor": 2.5, "estrategia": "COLLAR_CALENDARIO_CAUDA", "descricao": "Múltiplo do CDI para target de retorno da Cauda"},
         "calda_desvios_cauda": {"valor": 3.0, "estrategia": "COLLAR_CALENDARIO_CAUDA", "descricao": "Nº de desvios padrão para o breakeven superior"},
         "calda_ratio_max": {"valor": 50.0, "estrategia": "COLLAR_CALENDARIO_CAUDA", "descricao": "Ratio máximo CALL:ativo permitido"},
+        "calda_ratio_put_min": {"valor": 0.3, "estrategia": "COLLAR_CALENDARIO_CAUDA", "descricao": "Ratio mínimo da PUT (ex: 0.3 = 30% da base)"},
+        "calda_ratio_put_step": {"valor": 0.01, "estrategia": "COLLAR_CALENDARIO_CAUDA", "descricao": "Passo de incremento para varredura dos ratios"},
+        "limite_min_put": {"valor": 0.85, "estrategia": "COLLAR_CALENDARIO_CAUDA", "descricao": "Ratio mínimo da PUT para Otimizado (processar_otimizado)"},
+        "limite_max_call": {"valor": 1.40, "estrategia": "COLLAR_CALENDARIO_CAUDA", "descricao": "Ratio máximo da CALL para Otimizado (processar_otimizado)"},
     }

@@ -8,7 +8,7 @@ from collections import Counter
 from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal, QUrl
 from PySide6.QtGui import QFont, QColor, QBrush, QDesktopServices
 
-from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
+from src.ui.desktop.column_utils import salvar_ordem_colunas, salvar_largura_colunas, limpar_e_restaurar_colunas
 from src.ui.desktop.theme import Palette
 
 CUSTOS_DISCLOSURE = (
@@ -360,7 +360,8 @@ class BoxDialog(QDialog):
         header_h.setSectionsMovable(True)
         header_h.setDragEnabled(True)
         header_h.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(header_h, "box_table_order")))
-        restaurar_ordem_colunas(header_h, "box_table_order")
+        header_h.sectionResized.connect(lambda: QTimer.singleShot(0, lambda: salvar_largura_colunas(header_h, "box_table_width")))
+        limpar_e_restaurar_colunas(header_h, "box_table_order", "box_table_width")
         self.table_view.verticalHeader().setDefaultSectionSize(22)
         self.table_view.verticalHeader().hide()
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)

@@ -11,7 +11,7 @@ from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
-from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
+from src.ui.desktop.column_utils import salvar_ordem_colunas, salvar_largura_colunas, limpar_e_restaurar_colunas
 from src.ui.desktop.copy_utils import copiar_texto_formatado, copiar_figura_clipboard, salvar_figura_arquivo
 from src.ui.desktop.theme import Palette
 from src.ui.desktop.constants import SELETOR_TODOS
@@ -199,8 +199,10 @@ class ColarCalTableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.ForegroundRole:
             if col_key == "tipo_str":
                 tipo = item.get("tipo_str", "")
-                base = tipo.replace(" Cauda", "")
-                cores = {"Alta": QColor("#2ecc71"), "Baixa": QColor("#e74c3c"), "Neutro": QColor("#f39c12")}
+                base = tipo.replace(" Cauda", "").replace(" Otimizada", "")
+                cores = {"Alta": QColor("#2ecc71"), "Baixa": QColor("#e74c3c"), "Neutro": QColor("#f39c12"),
+                         "Rendimento": QColor("#2ecc71"), "Proteção": QColor("#e74c3c"), "Platô": QColor("#9b59b6"),
+                         "Base": QColor("#888888")}
                 return QBrush(cores.get(base, QColor(Palette.TEXT_PRIMARY)))
             if col_key in ("pct_cdi", "score", "score_iv"):
                 return QBrush(QColor(Palette.YELLOW))
@@ -231,6 +233,10 @@ class ColarCalTableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.BackgroundRole:
             if not item.get("viavel", False):
                 return QBrush(QColor(Palette.ROW_NOT_VIABLE))
+            if item.get("is_otimizado", False):
+                return QBrush(QColor("#1a0d30"))
+            if item.get("is_cauda", False):
+                return QBrush(QColor("#1a1a00"))
             return None
         return None
 
@@ -314,9 +320,13 @@ class ColarCalSortProxy(QSortFilterProxyModel):
         if self._filtro_cauda > 0:
             if hasattr(src, '_items') and row < len(src._items):
                 is_cauda = src._items[row].get('is_cauda', False)
-                if self._filtro_cauda == 1 and is_cauda:
+                is_otimizado = src._items[row].get('is_otimizado', False)
+                if self._filtro_cauda == 1:  # Base = hide cauda AND otimizado
+                    if is_cauda or is_otimizado:
+                        return False
+                elif self._filtro_cauda == 2 and not is_cauda:  # só Cauda
                     return False
-                if self._filtro_cauda == 2 and not is_cauda:
+                elif self._filtro_cauda == 3 and not is_otimizado:  # só Otimizada
                     return False
 
         if self._top_n > 0:
@@ -518,7 +528,7 @@ class ColarCalendarioDialog(QDialog):
         left_panel.addWidget(lbl_cauda)
 
         self.combo_cauda = QComboBox()
-        self.combo_cauda.addItems(["Todas", "Base", "Cauda"])
+        self.combo_cauda.addItems(["Todas", "Base", "Cauda", "Otimizada"])
         self.combo_cauda.setStyleSheet("""
             QComboBox {
                 background-color: #1e1e2f; color: #e0e0e0;
@@ -592,7 +602,8 @@ class ColarCalendarioDialog(QDialog):
         header.setSectionsMovable(True)
         header.setDragEnabled(True)
         header.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(header, "colar_cal_table_order")))
-        restaurar_ordem_colunas(header, "colar_cal_table_order")
+        header.sectionResized.connect(lambda: QTimer.singleShot(0, lambda: salvar_largura_colunas(header, "colar_cal_table_width")))
+        limpar_e_restaurar_colunas(header, "colar_cal_table_order", "colar_cal_table_width")
         header.setSectionResizeMode(QHeaderView.Interactive)
         self.table_view.verticalHeader().setDefaultSectionSize(24)
         self.table_view.verticalHeader().hide()
@@ -1973,10 +1984,15 @@ class ColarCalendarioDialog(QDialog):
                     "capital_empregado": r.capital_empregado,
                     "pct_retorno": r.pct_retorno,
                     "pct_cdi": r.pct_cdi,
-                    "tipo_str": (r.tipo.value + " Cauda") if getattr(r, 'is_cauda', False) else r.tipo.value,
+                    "tipo_str": (
+                        (r.tipo.value + " Cauda") if getattr(r, 'is_cauda', False)
+                        else (str(getattr(r, 'estagio_otimizado', '')) or "Otimizada") if getattr(r, 'is_otimizado', False)
+                        else r.tipo.value
+                    ),
                     "viavel": r.viavel,
                     "ratio_call": r.ratio_call,
                     "is_cauda": getattr(r, 'is_cauda', False),
+                    "is_otimizado": getattr(r, 'is_otimizado', False),
                     "label_detectado": _formatar_detectado(getattr(r, 'detectado_em', None)),
                 })
             self.model.atualizar(items)

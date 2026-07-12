@@ -68,6 +68,8 @@ class ResultadoColarCalendario:
     ratio_call: float = 1.0
     ratio_put: float = 1.0
     is_cauda: bool = False
+    is_otimizado: bool = False
+    estagio_otimizado: str | None = None
     detectado_em: datetime | None = None
 
 

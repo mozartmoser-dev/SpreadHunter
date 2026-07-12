@@ -170,6 +170,10 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("calda_premio_risco", "Premio risco (x CDI)"),
         ("calda_desvios_cauda", "Desvios padrao para breakeven sup."),
         ("calda_ratio_max", "Ratio maximo CALL:ativo"),
+        ("calda_ratio_put_min", "Ratio minimo da PUT"),
+        ("calda_ratio_put_step", "Passo de varredura dos ratios"),
+        ("limite_min_put", "Ratio min PUT (Otimizado)"),
+        ("limite_max_call", "Ratio max CALL (Otimizado)"),
     ],
     "BOX_4P": [
         ("box_premio_risco", "Premio risco (x CDI)"),

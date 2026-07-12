@@ -4,7 +4,15 @@ import pytest
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QApplication, QTableView, QHeaderView
 
-from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
+from src.ui.desktop.column_utils import (
+    salvar_ordem_colunas,
+    restaurar_ordem_colunas,
+    salvar_largura_colunas,
+    restaurar_largura_colunas,
+    limpar_colunas_incompativeis,
+    limpar_e_restaurar_colunas,
+    detectar_incompatibilidade,
+)
 
 
 @pytest.fixture(scope="session")
@@ -156,3 +164,207 @@ def test_sectionmoved_com_timer_nao_crash(qapp):
     from PySide6.QtCore import QSettings
     saved = QSettings("Spreadhunter", "DesktopMonitor").value(KEY)
     assert saved is not None, "Column order must have been saved"
+
+
+def test_salvar_restaurar_largura_roundtrip(qapp):
+    """Column width save/restore round-trip must preserve custom widths."""
+    from PySide6.QtCore import QAbstractTableModel, QSettings
+
+    class TestModel(QAbstractTableModel):
+        def rowCount(self, parent=None): return 0
+        def columnCount(self, parent=None): return 4
+
+    table = QTableView()
+    table.setModel(TestModel())
+    header = table.horizontalHeader()
+
+    KEY = "test_width_roundtrip"
+    header.resizeSection(0, 120)
+    header.resizeSection(1, 200)
+    header.resizeSection(2, 80)
+    header.resizeSection(3, 150)
+    salvar_largura_colunas(header, KEY)
+
+    saved_raw = QSettings("Spreadhunter", "DesktopMonitor").value(KEY)
+    saved = [int(x) for x in saved_raw]
+    assert saved == [120, 200, 80, 150]
+
+    table2 = QTableView()
+    table2.setModel(TestModel())
+    header2 = table2.horizontalHeader()
+    header2.resizeSection(0, 50)
+    header2.resizeSection(1, 50)
+    header2.resizeSection(2, 50)
+    header2.resizeSection(3, 50)
+    restaurar_largura_colunas(header2, KEY)
+
+    assert header2.sectionSize(0) == 120
+    assert header2.sectionSize(1) == 200
+    assert header2.sectionSize(2) == 80
+    assert header2.sectionSize(3) == 150
+
+
+def test_restaurar_largura_com_mais_colunas_snapshot(qapp):
+    """Quando snapshot tem mais larguras que o header atual, aplica só as que cabem."""
+    from PySide6.QtCore import QAbstractTableModel, QSettings
+
+    QSettings("Spreadhunter", "DesktopMonitor").setValue("test_width_extra", [100, 200, 300, 400, 500])
+
+    class TestModel(QAbstractTableModel):
+        def rowCount(self, parent=None): return 0
+        def columnCount(self, parent=None): return 3
+
+    table = QTableView()
+    table.setModel(TestModel())
+    header = table.horizontalHeader()
+    restaurar_largura_colunas(header, "test_width_extra")
+    assert header.sectionSize(0) == 100
+    assert header.sectionSize(1) == 200
+    assert header.sectionSize(2) == 300
+
+
+def test_restaurar_largura_com_menos_colunas_snapshot(qapp):
+    """Quando snapshot tem menos larguras que o header atual, colunas extras mantêm default."""
+    from PySide6.QtCore import QAbstractTableModel, QSettings
+
+    QSettings("Spreadhunter", "DesktopMonitor").setValue("test_width_menor", [100, 200])
+
+    class TestModel(QAbstractTableModel):
+        def rowCount(self, parent=None): return 0
+        def columnCount(self, parent=None): return 4
+
+    table = QTableView()
+    table.setModel(TestModel())
+    header = table.horizontalHeader()
+    default_width = header.sectionSize(2)
+    restaurar_largura_colunas(header, "test_width_menor")
+    assert header.sectionSize(0) == 100
+    assert header.sectionSize(1) == 200
+    assert header.sectionSize(2) == default_width  # não há no snapshot
+    assert header.sectionSize(3) == default_width
+
+
+def test_limpar_colunas_incompativeis_quando_mais_colunas(qapp):
+    """limpar_colunas_incompativeis deve remover QSettings se nº de colunas bate não."""
+    from PySide6.QtCore import QAbstractTableModel, QSettings
+
+    qs = QSettings("Spreadhunter", "DesktopMonitor")
+    KEY_O = "test_limpar_order"
+    KEY_W = "test_limpar_width"
+    qs.setValue(KEY_O, [0, 1, 2, 3, 4])  # 5 colunas no snapshot
+    qs.setValue(KEY_W, [100, 200, 300, 400, 500])
+
+    class TestModel(QAbstractTableModel):
+        def rowCount(self, parent=None): return 0
+        def columnCount(self, parent=None): return 3  # 3 no header (incompatível)
+
+    table = QTableView()
+    table.setModel(TestModel())
+    header = table.horizontalHeader()
+    removed = limpar_colunas_incompativeis(header, KEY_O, KEY_W)
+    assert removed is True
+    assert qs.value(KEY_O) is None
+    assert qs.value(KEY_W) is None
+
+
+def test_limpar_colunas_incompativeis_quando_compativel_nao_atualiza(qapp):
+    """limpar_colunas_incompativeis não deve remover se nº bater."""
+    from PySide6.QtCore import QAbstractTableModel, QSettings
+
+    qs = QSettings("Spreadhunter", "DesktopMonitor")
+    KEY_O = "test_ok_order"
+    KEY_W = "test_ok_width"
+    qs.setValue(KEY_O, [0, 1, 2])
+    qs.setValue(KEY_W, [100, 200, 300])
+
+    class TestModel(QAbstractTableModel):
+        def rowCount(self, parent=None): return 0
+        def columnCount(self, parent=None): return 3
+
+    table = QTableView()
+    table.setModel(TestModel())
+    header = table.horizontalHeader()
+    removed = limpar_colunas_incompativeis(header, KEY_O, KEY_W)
+    assert removed is False
+    assert [int(x) for x in qs.value(KEY_O)] == [0, 1, 2]
+    assert [int(x) for x in qs.value(KEY_W)] == [100, 200, 300]
+
+
+def test_limpar_e_restaurar_colunas_aplica_se_compativel(qapp):
+    """limpar_e_restaurar_colunas não destrói configuração válida."""
+    from PySide6.QtCore import QAbstractTableModel, QSettings
+
+    qs = QSettings("Spreadhunter", "DesktopMonitor")
+    KEY_O = "test_combo_order"
+    KEY_W = "test_combo_width"
+    qs.setValue(KEY_O, [2, 0, 1])
+    qs.setValue(KEY_W, [150, 90, 200])
+
+    class TestModel(QAbstractTableModel):
+        def rowCount(self, parent=None): return 0
+        def columnCount(self, parent=None): return 3
+
+    table = QTableView()
+    table.setModel(TestModel())
+    header = table.horizontalHeader()
+    header.setSectionsMovable(True)
+    header.setDragEnabled(True)
+    limpar_e_restaurar_colunas(header, KEY_O, KEY_W)
+    assert [header.logicalIndex(v) for v in range(header.count())] == [2, 0, 1]
+    assert header.sectionSize(0) == 150
+    assert header.sectionSize(1) == 90
+    assert header.sectionSize(2) == 200
+
+
+def test_limpar_e_restaurar_colunas_descarta_se_incompativel(qapp):
+    """limpar_e_restaurar_colunas descarta snapshot incompatível sem aplicar ordem/lixo."""
+    from PySide6.QtCore import QAbstractTableModel, QSettings
+
+    qs = QSettings("Spreadhunter", "DesktopMonitor")
+    KEY_O = "test_combo_bad_order"
+    KEY_W = "test_combo_bad_width"
+    qs.setValue(KEY_O, [3, 1, 2, 0, 4])  # 5 colunas
+    qs.setValue(KEY_W, [10, 20, 30, 40, 50])
+
+    class TestModel(QAbstractTableModel):
+        def rowCount(self, parent=None): return 0
+        def columnCount(self, parent=None): return 3  # incompatível
+
+    table = QTableView()
+    table.setModel(TestModel())
+    header = table.horizontalHeader()
+    header.setSectionsMovable(True)
+    header.setDragEnabled(True)
+    limpar_e_restaurar_colunas(header, KEY_O, KEY_W)
+    assert qs.value(KEY_O) is None
+    assert qs.value(KEY_W) is None
+    assert [header.logicalIndex(v) for v in range(header.count())] == [0, 1, 2]
+
+
+def test_detectar_incompatibilidade_retorna_diffs(qapp):
+    """detectar_incompatibilidade retorna dict {chave: (snap, atual)}."""
+    from PySide6.QtCore import QSettings
+
+    qs = QSettings("Spreadhunter", "DesktopMonitor")
+    qs.setValue("main_table_order", [0, 1, 2, 3])  # 4
+    qs.setValue("colar_table_order", [0, 1])     # 2
+
+    # Snapshot com 5 colunas em main e 2 em colar
+    snap = {
+        "main_table_order": [4, 0, 1, 2, 3],   # n_snap=5 vs atual=4 → diff
+        "colar_table_order": [0, 1],            # n_snap=2 vs atual=2 → ok
+    }
+    diffs = detectar_incompatibilidade(snap)
+    assert "main_table_order" in diffs
+    assert diffs["main_table_order"] == (5, 4)
+    assert "colar_table_order" not in diffs
+
+
+def test_detectar_incompatibilidade_sem_snapshot_atual(qapp):
+    """Se QSettings atual está vazio, não há incompatibilidade."""
+    from PySide6.QtCore import QSettings
+
+    QSettings("Spreadhunter", "DesktopMonitor").remove("colar_table_order")
+    snap = {"colar_table_order": [0, 1, 2]}
+    diffs = detectar_incompatibilidade(snap)
+    assert diffs == {}

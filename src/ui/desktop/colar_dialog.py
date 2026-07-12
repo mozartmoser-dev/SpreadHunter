@@ -8,7 +8,11 @@ from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTime
 from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
-from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
+from src.ui.desktop.column_utils import (
+    salvar_ordem_colunas,
+    salvar_largura_colunas,
+    limpar_e_restaurar_colunas,
+)
 from src.ui.desktop.copy_utils import copiar_texto_formatado, copiar_figura_clipboard, salvar_figura_arquivo
 from src.ui.desktop.theme import Palette
 from src.ui.desktop.constants import SELETOR_TODOS
@@ -599,7 +603,8 @@ class ColarDialog(QDialog):
         header.setSectionsMovable(True)
         header.setDragEnabled(True)
         header.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(header, "colar_table_order")))
-        restaurar_ordem_colunas(header, "colar_table_order")
+        header.sectionResized.connect(lambda: QTimer.singleShot(0, lambda: salvar_largura_colunas(header, "colar_table_width")))
+        limpar_e_restaurar_colunas(header, "colar_table_order", "colar_table_width")
         header.setSectionResizeMode(QHeaderView.Interactive)
         self.table_view.verticalHeader().setDefaultSectionSize(26)
         self.table_view.verticalHeader().hide()

@@ -32,7 +32,11 @@ from src.ui.desktop.colar_calendario_dialog import ColarCalendarioDialog
 from src.ui.desktop.box_dialog import BoxDialog
 from src.ui.desktop.mpp_dialog import MppDialog
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
-from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
+from src.ui.desktop.column_utils import (
+    salvar_ordem_colunas,
+    salvar_largura_colunas,
+    limpar_e_restaurar_colunas,
+)
 
 
 def _make_led_icon(color_hex: str, size: int = 12) -> QIcon:
@@ -291,11 +295,12 @@ class MainWindow(QMainWindow):
         self.table_view.horizontalHeader().setContextMenuPolicy(Qt.CustomContextMenu)
         self.table_view.horizontalHeader().customContextMenuRequested.connect(self._show_column_menu)
         self.table_view.horizontalHeader().sectionMoved.connect(lambda: salvar_ordem_colunas(self.table_view.horizontalHeader(), "main_table_order"))
+        self.table_view.horizontalHeader().sectionResized.connect(lambda: QTimer.singleShot(0, lambda: salvar_largura_colunas(self.table_view.horizontalHeader(), "main_table_width")))
         self.table_view.verticalHeader().setDefaultSectionSize(28)
         self.table_view.verticalHeader().hide()
         self.table_view.setShowGrid(True)
         self._apply_hidden_columns()
-        restaurar_ordem_colunas(self.table_view.horizontalHeader(), "main_table_order")
+        limpar_e_restaurar_colunas(self.table_view.horizontalHeader(), "main_table_order", "main_table_width")
         self.table_view.horizontalHeader().setStyleSheet(
             "QHeaderView::section { background-color: #1e1e1e; color: #4caf50; "
             "font-weight: bold; font-size: 9pt; padding: 4px 8px; border: 1px solid #333; }"
@@ -328,6 +333,7 @@ class MainWindow(QMainWindow):
         h2.setSectionsMovable(True)
         h2.setDragEnabled(True)
         h2.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(h2, "vendidas_table_order")))
+        h2.sectionResized.connect(lambda: QTimer.singleShot(0, lambda: salvar_largura_colunas(h2, "vendidas_table_width")))
         h2.setStyleSheet(
             "QHeaderView::section { background-color: #1e1e1e; color: #e57373; "
             "font-weight: bold; font-size: 9pt; padding: 4px 8px; border: 1px solid #333; }"
@@ -337,7 +343,7 @@ class MainWindow(QMainWindow):
         for i in range(self.vendidas_model.columnCount()):
             self.vendidas_table_view.setColumnHidden(i, VendidasTableModel.COLUMNS[i][1] in VendidasTableModel.HIDDEN_BY_DEFAULT)
         self._apply_hidden_columns_vendidas()
-        restaurar_ordem_colunas(h2, "vendidas_table_order")
+        limpar_e_restaurar_colunas(h2, "vendidas_table_order", "vendidas_table_width")
         header_v = self.vendidas_table_view.verticalHeader()
         header_v.setDefaultSectionSize(28)
         header_v.hide()
@@ -363,6 +369,7 @@ class MainWindow(QMainWindow):
         h3.setSectionsMovable(True)
         h3.setDragEnabled(True)
         h3.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(h3, "coberta_table_order")))
+        h3.sectionResized.connect(lambda: QTimer.singleShot(0, lambda: salvar_largura_colunas(h3, "coberta_table_width")))
         h3.setStyleSheet(
             "QHeaderView::section { background-color: #1e1e1e; color: #42a5f5; "
             "font-weight: bold; font-size: 9pt; padding: 4px 8px; border: 1px solid #333; }"
@@ -372,7 +379,7 @@ class MainWindow(QMainWindow):
         for i in range(self.coberta_model.columnCount()):
             self.coberta_table_view.setColumnHidden(i, VendaCobertaTableModel.COLUMNS[i][1] in VendaCobertaTableModel.HIDDEN_BY_DEFAULT)
         self._apply_hidden_columns_coberta()
-        restaurar_ordem_colunas(h3, "coberta_table_order")
+        limpar_e_restaurar_colunas(h3, "coberta_table_order", "coberta_table_width")
         header_co = self.coberta_table_view.verticalHeader()
         header_co.setDefaultSectionSize(28)
         header_co.hide()
@@ -531,6 +538,18 @@ class MainWindow(QMainWindow):
             + "QPushButton:hover {{ background-color: #3d2d6a; border-color: #b388ff; }}"
         )
         btn_layout.addWidget(self.btn_workspace)
+
+        self.btn_historico_sim = QPushButton("\U0001f4ca  Simulações")
+        self.btn_historico_sim.setAutoDefault(False)
+        self.btn_historico_sim.clicked.connect(self._abrir_historico_simulacoes)
+        self.btn_historico_sim.setToolTip("Histórico de simulações otimizadas (Collar Calendário)")
+        self.btn_historico_sim.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #e67e22; border-color: rgba(230,126,34,0.5); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #3d2a15; border-color: #e67e22; }}"
+        )
+        btn_layout.addWidget(self.btn_historico_sim)
 
         self.btn_paineis = self._criar_dropup_paineis(_btn_base, _btn_hover)
         btn_layout.addWidget(self.btn_paineis)
@@ -1205,6 +1224,18 @@ class MainWindow(QMainWindow):
             try:
                 from PySide6.QtWidgets import QMessageBox
                 QMessageBox.critical(self, "Workspace", f"Falha ao abrir o diálogo:\n{e}")
+            except Exception:
+                pass
+
+    def _abrir_historico_simulacoes(self):
+        try:
+            from src.ui.desktop.historico_simulacoes_dialog import HistoricoSimulacoesDialog
+            dlg = HistoricoSimulacoesDialog(parent=self)
+            dlg.exec_()
+        except Exception as e:
+            try:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.critical(self, "Simulações", f"Falha ao abrir histórico:\n{e}")
             except Exception:
                 pass
 

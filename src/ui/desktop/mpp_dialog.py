@@ -2,10 +2,10 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QTableView, QHeaderView, QAbstractItemView, QTextEdit, QSplitter,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 
-from src.ui.desktop.column_utils import salvar_ordem_colunas, restaurar_ordem_colunas
+from src.ui.desktop.column_utils import salvar_ordem_colunas, salvar_largura_colunas, limpar_e_restaurar_colunas
 from src.ui.desktop.mpp_table_model import MppTableModel
 from src.ui.desktop.theme import Palette
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
@@ -92,7 +92,8 @@ class MppDialog(QDialog):
         header.setSectionsMovable(True)
         header.setDragEnabled(True)
         header.sectionMoved.connect(lambda: salvar_ordem_colunas(header, "mpp_table_order"))
-        restaurar_ordem_colunas(header, "mpp_table_order")
+        header.sectionResized.connect(lambda: QTimer.singleShot(0, lambda: salvar_largura_colunas(header, "mpp_table_width")))
+        limpar_e_restaurar_colunas(header, "mpp_table_order", "mpp_table_width")
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
         self.table_view.verticalHeader().setDefaultSectionSize(28)
         self.table_view.verticalHeader().hide()
