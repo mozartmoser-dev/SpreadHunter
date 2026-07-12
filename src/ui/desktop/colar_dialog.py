@@ -1023,7 +1023,7 @@ class ColarDialog(QDialog):
             QPushButton:hover {{ background-color: #3d3d55; }}
         """)
         n_sig = max(5, int(r.dias * 5 / 7))
-        btn_grafico.clicked.connect(lambda: self._plot_historico(r.ativo, r.preco_ativo, r.strike_put, r.strike_call, n_sig))
+        btn_grafico.clicked.connect(lambda: self._plot_historico(r.ativo, r.preco_ativo, r.strike_put, r.strike_call, n_sig, r.iv_call, r.iv_put))
         btn_row.addWidget(btn_grafico)
 
         btn_explicar = QPushButton("🔍 Explicar")
@@ -1601,7 +1601,7 @@ class ColarDialog(QDialog):
         payoff_layout.addLayout(btn_row)
         payoff_dialog.exec_()
 
-    def _plot_historico(self, ativo: str, preco_atual: float = None, strike_put: float = None, strike_call: float = None, n_sessoes: int = 21):
+    def _plot_historico(self, ativo: str, preco_atual: float = None, strike_put: float = None, strike_call: float = None, n_sessoes: int = 21, iv_call: float = 0.0, iv_put: float = 0.0):
         from PySide6.QtWidgets import QMessageBox
         import numpy as np
         from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -1727,51 +1727,54 @@ class ColarDialog(QDialog):
 
         fig.canvas.mpl_connect('motion_notify_event', _on_hover)
 
-        # Sigma levels + Gauss inset
-        if len(closes) > 10:
+        # Sigma levels + Gauss inset — vol implícita (fonte única, alinhada ao BS do cálculo)
+        if len(closes) > 10 and preco_atual is not None and preco_atual > 0 and iv_call > 0 and iv_put > 0:
             from scipy.stats import norm
             prices_arr = np.array(closes)
-            log_ret = np.diff(np.log(prices_arr))
-            sigma_daily = np.std(log_ret)
-            sigma_periodo = sigma_daily * np.sqrt(n_sessoes)
-            spot = closes[-1]
-            sigmas = [spot * (1 + i * sigma_periodo) for i in range(-3, 4) if i != 0]
-            ylo = min(min(sigmas), prices_arr.min())
-            yhi = max(max(sigmas), prices_arr.max())
-            pad = (yhi - ylo) * 0.03
-            ax1.set_ylim(ylo - pad, yhi + pad)
-            for i in range(-3, 4):
-                if i == 0: continue
-                p = spot * (1 + i * sigma_periodo)
-                ax1.axhline(p, color=ACCENT, linewidth=0.5, linestyle=':', alpha=0.25)
-                ax1.text(dates[-1], p, f'{i}σ R${p:.2f}',
-                         ha='right', va='center', color=ACCENT, fontsize=6.5, alpha=0.7,
-                         bbox=dict(boxstyle='round,pad=0.15', facecolor='#1a1a1a', edgecolor='none', alpha=0.6))
-            # Gauss inset (corner)
-            x_gauss = np.linspace(-3.5*sigma_periodo, 3.5*sigma_periodo, 300)
-            y_gauss = norm.pdf(x_gauss, 0, sigma_periodo)
-            ax_inset = ax1.inset_axes([0.02, 0.65, 0.18, 0.28], facecolor='#1a1a1a')
-            ax_inset.plot(x_gauss, y_gauss, color=ACCENT, linewidth=1.2, alpha=0.8)
-            ax_inset.fill_between(x_gauss, 0, y_gauss, color=ACCENT, alpha=0.1)
-            ax_inset.axvline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
-            # Marcar strikes no Gauss
-            for strike, cor, letra in [(strike_put, '#4caf50', 'P'),
-                                        (strike_call, '#ff3355', 'C')]:
-                if strike is not None and strike > 0:
-                    desvio = (strike - spot) / spot / sigma_periodo
-                    ax_inset.axvline(desvio, color=cor, linewidth=1.5, linestyle='-', alpha=0.9)
-                    ax_inset.text(desvio, ax_inset.get_ylim()[1] * 0.9, letra,
-                                  ha='center', va='top', color=cor, fontsize=5.5,
-                                  bbox=dict(boxstyle='round,pad=0.1', facecolor='#1a1a1a', edgecolor=cor, alpha=0.5))
-            for i in range(1, 4):
-                for s in (-i*sigma_periodo, i*sigma_periodo):
-                    ax_inset.axvline(s, color=ACCENT, linewidth=0.4, linestyle=':', alpha=0.2)
-            ax_inset.set_facecolor('#1a1a1a')
-            ax_inset.tick_params(colors=TEXT, labelsize=5)
-            for spine in ax_inset.spines.values():
-                spine.set_color('#333')
-            ax_inset.set_title(f'{n_sessoes} preg — strikes no Gauss', color=TEXT, fontsize=6)
-            ax_inset.set_ylabel('dens.', color=TEXT, fontsize=5)
+            iv_media = (iv_call + iv_put) / 2 / 100.0
+            sigma_diario = iv_media / np.sqrt(252)
+            sigma_periodo = sigma_diario * np.sqrt(n_sessoes)
+            spot = preco_atual
+            if sigma_periodo > 0:
+                sigmas = [spot * (1 + i * sigma_periodo) for i in range(-3, 4) if i != 0]
+                ylo = min(min(sigmas), prices_arr.min())
+                yhi = max(max(sigmas), prices_arr.max())
+                pad = (yhi - ylo) * 0.03
+                ax1.set_ylim(ylo - pad, yhi + pad)
+                for i in range(-3, 4):
+                    if i == 0: continue
+                    p = spot * (1 + i * sigma_periodo)
+                    ax1.axhline(p, color=ACCENT, linewidth=0.5, linestyle=':', alpha=0.25)
+                    ax1.text(dates[-1], p, f'{i}σ R${p:.2f}',
+                             ha='right', va='center', color=ACCENT, fontsize=6.5, alpha=0.7,
+                             bbox=dict(boxstyle='round,pad=0.15', facecolor='#1a1a1a', edgecolor='none', alpha=0.6))
+                # Gauss inset (corner)
+                x_gauss = np.linspace(-3.5*sigma_periodo, 3.5*sigma_periodo, 300)
+                y_gauss = norm.pdf(x_gauss, 0, sigma_periodo)
+                ax_inset = ax1.inset_axes([0.02, 0.65, 0.18, 0.28], facecolor='#1a1a1a')
+                ax_inset.plot(x_gauss, y_gauss, color=ACCENT, linewidth=1.2, alpha=0.8)
+                ax_inset.fill_between(x_gauss, 0, y_gauss, color=ACCENT, alpha=0.1)
+                ax_inset.axvline(0, color=TEXT, linewidth=0.5, linestyle='-', alpha=0.3)
+                # Marcar strikes no Gauss
+                for strike, cor, letra in [(strike_put, '#4caf50', 'P'),
+                                            (strike_call, '#ff3355', 'C')]:
+                    if strike is not None and strike > 0:
+                        desvio = (strike - spot) / spot / sigma_periodo
+                        ax_inset.axvline(desvio, color=cor, linewidth=1.5, linestyle='-', alpha=0.9)
+                        ax_inset.text(desvio, ax_inset.get_ylim()[1] * 0.9, letra,
+                                      ha='center', va='top', color=cor, fontsize=5.5,
+                                      bbox=dict(boxstyle='round,pad=0.1', facecolor='#1a1a1a', edgecolor=cor, alpha=0.5))
+                for i in range(1, 4):
+                    for s in (-i*sigma_periodo, i*sigma_periodo):
+                        ax_inset.axvline(s, color=ACCENT, linewidth=0.4, linestyle=':', alpha=0.2)
+                ax_inset.set_facecolor('#1a1a1a')
+                ax_inset.tick_params(colors=TEXT, labelsize=5)
+                for spine in ax_inset.spines.values():
+                    spine.set_color('#333')
+                ax_inset.set_title(f'{n_sessoes} preg • IV {iv_media*100:.0f}%', color=TEXT, fontsize=6)
+                ax_inset.set_ylabel('dens.', color=TEXT, fontsize=5)
+        else:
+            logger.warning("Faixas sigma não desenhadas — preco_atual/IV indisponíveis (fora de mercado? RTD sem dados?)")
 
         # --- Bottom subplot: Volume + Volatilidade ---
         if has_vol:

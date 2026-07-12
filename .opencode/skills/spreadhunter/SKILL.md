@@ -60,6 +60,17 @@ src/
 
 4. **Custos B3** usam prêmio da opção / preço da ação como base
    (NUNCA strike). Ida-e-volta (×2).
+5. **Coerência do book** — regra absoluta: **quem vende recebe `bid_*`,
+   quem compra paga `ask_*`**. Nunca inverter. Aplica-se a TODO cálculo:
+   - Comprar ativo: paga **ask** (`of_venda_ativo`), NUNCA bid.
+   - Vender ativo: recebe **bid** (`of_compra_ativo`), NUNCA ask.
+   - Comprar opção: paga **ask** (`of_venda_*`).
+   - Vender opção: recebe **bid** (`of_compra_*`).
+   - **Atenção aos nomes:** `of_venda_*` = oferta de venda no book = ASK
+     (você paga); `of_compra_*` = oferta de compra no book = BID (você
+     recebe). Referem-se ao **lado do book**, não ao lado do trader.
+   - Collar: `preco_compra_ativo` usa `of_venda_ativo` (ask) — correto
+     ao comprar a ação. Inverter bid/ask → subestima capital → infla % CDI.
 
 5. **Collar calendário**: aceita calls e puts ITM/ATM/OTM. Pareamento
    por distância de strike (`calendario_strike_diff_max`).
