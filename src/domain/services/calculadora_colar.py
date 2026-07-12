@@ -59,6 +59,9 @@ class ResultadoColar:
     pop_downside: float | None = None
     score: float = 0.0
     detectado_em: datetime | None = None
+    qtd_acao: int = 100
+    qtd_call: int = 100
+    qtd_put: int = 100
 
 
 @dataclass(slots=True)
@@ -186,6 +189,9 @@ class CalculadoraColar:
         ativo: str,
         vencimento: date,
         preco_compra_ativo: float | None = None,
+        qtd_acao: int = 1,
+        qtd_call: int = 1,
+        qtd_put: int = 1,
     ) -> ResultadoColar | None:
         if preco_ativo <= 0 or dias <= 0:
             logger.debug("Collar CALC %s %s %s: preco_ativo<=0 ou dias<=0", ativo, cod_put, cod_call)
@@ -201,7 +207,7 @@ class CalculadoraColar:
         if preco_compra <= 0:
             logger.debug("Collar CALC %s %s %s: preco_compra_ativo=%.2f (ask do ativo zerado)", ativo, cod_put, cod_call, preco_compra_ativo or 0)
             return None
-        custo_liquido = preco_compra + premio_put - premio_call
+        custo_liquido = preco_compra * qtd_acao + premio_put * qtd_put - premio_call * qtd_call
         if custo_liquido <= 0:
             logger.debug("Collar CALC %s %s %s: custo_liquido<=0 (compra=%.2f + put=%.2f - call=%.2f)", ativo, cod_put, cod_call, preco_compra, premio_put, premio_call)
             return None
@@ -210,12 +216,12 @@ class CalculadoraColar:
         if cdi_periodo <= 0:
             return None
 
-        pior_retorno = self.calcular_pior_retorno(custo_liquido, strike_put, strike_call)
-        melhor_retorno = strike_call - custo_liquido
+        pior_retorno = strike_put * qtd_acao - custo_liquido
+        melhor_retorno = strike_call * qtd_acao - custo_liquido
 
-        premio_medio = (premio_put + premio_call) / 2
-        custo_b3 = (self.custos_b3.custos_opcao(premio_medio, n_pernas=2) +
-                    self.custos_b3.custos_stock(preco_compra, n_acoes=1))
+        custo_b3 = (self.custos_b3.custos_opcao(premio_call, n_pernas=1) * qtd_call +
+                    self.custos_b3.custos_opcao(premio_put, n_pernas=1) * qtd_put +
+                    self.custos_b3.custos_stock(preco_compra, n_acoes=qtd_acao))
         pior_retorno_liquido = pior_retorno - custo_b3
         melhor_retorno_liquido = melhor_retorno - custo_b3
 
@@ -276,4 +282,7 @@ class CalculadoraColar:
             preco_compra=round(preco_compra, 2),
             pop_upside=round(pop_upside * 100, 1) if pop_upside is not None else None,
             pop_downside=round(pop_downside * 100, 1) if pop_downside is not None else None,
+            qtd_acao=qtd_acao,
+            qtd_call=qtd_call,
+            qtd_put=qtd_put,
         )

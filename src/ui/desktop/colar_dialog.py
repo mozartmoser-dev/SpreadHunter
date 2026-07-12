@@ -1088,9 +1088,13 @@ class ColarDialog(QDialog):
         S0 = r.preco_ativo
         Kc, Kp = r.strike_call, r.strike_put
         Pc, Pp = r.premio_call, r.premio_put
+        qtd_a = r.qtd_acao
+        qtd_c = r.qtd_call
+        qtd_p = r.qtd_put
         custo = r.custo_liquido
         pior = r.pior_retorno
-        melhor = Kc - custo
+        melhor = r.melhor_retorno
+        compra_acao = r.preco_compra * qtd_a
 
         html = "\n".join([
             "<h3>📖 Explicação — Colar Protetivo (Coberto)</h3>",
@@ -1100,12 +1104,12 @@ class ColarDialog(QDialog):
             "Você compra a ação, compra uma PUT de proteção e vende uma CALL para financiar a PUT. ",
             "O lucro máximo é limitado pelo strike da CALL, e a perda máxima é limitada pelo strike da PUT.</p>",
             "<hr>",
-            "<p><b>Montagem:</b></p>",
+            "<p><b>Montagem ({qtd_a} ações / {qtd_c} calls / {qtd_p} puts):</b></p>",
             "<ul>",
-            f"<li>Comprar ação: <b>−R$ {custo - Pp + Pc:.2f}</b></li>",
-            f"<li>Comprar PUT {r.cod_put} K={Kp:.2f}: <b>−R$ {Pp:.2f}</b></li>",
-            f"<li>Vender CALL {r.cod_call} K={Kc:.2f}: <b>+R$ {Pc:.2f}</b></li>",
-            f"<li><b>Custo líquido = R$ {custo:.2f}</b> ({custo - Pp + Pc:.2f} + {Pp:.2f} − {Pc:.2f})</li>",
+            f"<li>Comprar {qtd_a} ação R$ {r.preco_compra:.2f}: <b>−R$ {compra_acao:.2f}</b></li>",
+            f"<li>Comprar {qtd_p} PUT {r.cod_put} K={Kp:.2f}: <b>−R$ {Pp * qtd_p:.2f}</b></li>",
+            f"<li>Vender {qtd_c} CALL {r.cod_call} K={Kc:.2f}: <b>+R$ {Pc * qtd_c:.2f}</b></li>",
+            f"<li><b>Custo líquido = R$ {custo:.2f}</b> ({compra_acao:.2f} + {Pp * qtd_p:.2f} − {Pc * qtd_c:.2f})</li>",
             "</ul>",
             "<hr>",
             "<p><b>Cenários no vencimento:</b></p>",
@@ -1169,6 +1173,10 @@ class ColarDialog(QDialog):
     def _exportar_debug(self, r):
         from PySide6.QtWidgets import QApplication, QMessageBox
 
+        qtd_a = r.qtd_acao
+        qtd_c = r.qtd_call
+        qtd_p = r.qtd_put
+
         lines = [
             "=== DEBUG COLAR PROTETIVO ===",
             "",
@@ -1186,9 +1194,15 @@ class ColarDialog(QDialog):
             f"IV Put:         {r.iv_put:.2f}%",
             f"Vencimento:     {r.vencimento}",
             "",
+            "--- QUANTIDADES ---",
+            f"qtd_acao:       {qtd_a}",
+            f"qtd_call:       {qtd_c}",
+            f"qtd_put:        {qtd_p}",
+            "",
             "--- MONTAGEM ---",
             f"Custo liquido:      R$ {r.custo_liquido:.4f}",
             f"Pior retorno:       R$ {r.pior_retorno:.4f}",
+            f"Melhor retorno:     R$ {r.melhor_retorno:.4f}",
             f"Pct ganho:          {r.pct_ganho*100:.4f}%",
             f"Pct CDI:            {r.pct_cdi:.2f}x",
             "",
@@ -1213,7 +1227,10 @@ class ColarDialog(QDialog):
         from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.figure import Figure
 
-        preco_compra = r.custo_liquido - r.premio_put + r.premio_call
+        qtd_a = r.qtd_acao
+        qtd_c = r.qtd_call
+        qtd_p = r.qtd_put
+        preco_compra = r.preco_compra
         S = r.preco_ativo
         Kp = r.strike_put
         Kc = r.strike_call
@@ -1225,13 +1242,13 @@ class ColarDialog(QDialog):
         x_max = max(Kc, S) * 1.15
         x = np.linspace(x_min, x_max, 500)
 
-        stock_pnl = x - preco_compra
-        put_pnl = np.maximum(Kp - x, 0) - Pp
-        call_pnl = Pc - np.maximum(x - Kc, 0)
+        stock_pnl = (x - preco_compra) * qtd_a
+        put_pnl = (np.maximum(Kp - x, 0) - Pp) * qtd_p
+        call_pnl = (Pc - np.maximum(x - Kc, 0)) * qtd_c
         total_pnl = stock_pnl + put_pnl + call_pnl
 
-        pior_ret = Kp - custo
-        melhor_ret = Kc - custo
+        pior_ret = r.pior_retorno
+        melhor_ret = r.melhor_retorno
         cdi_periodo = r.pct_ganho / r.pct_cdi if r.pct_cdi > 0 else 0
         pct_melhor = (melhor_ret / custo) * 100
         pct_melhor_cdi = pct_melhor / (cdi_periodo * 100) if cdi_periodo > 0 else 0
@@ -1388,7 +1405,10 @@ class ColarDialog(QDialog):
         from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.figure import Figure
 
-        preco_compra = r.custo_liquido - r.premio_put + r.premio_call
+        qtd_a = r.qtd_acao
+        qtd_c = r.qtd_call
+        qtd_p = r.qtd_put
+        preco_compra = r.preco_compra
         S = r.preco_ativo
         Kp = r.strike_put
         Kc = r.strike_call
@@ -1400,13 +1420,13 @@ class ColarDialog(QDialog):
         x_max = max(Kc, S) * 1.15
         x = np.linspace(x_min, x_max, 500)
 
-        stock_pnl = x - preco_compra
-        put_pnl = np.maximum(Kp - x, 0) - Pp
-        call_pnl = Pc - np.maximum(x - Kc, 0)
+        stock_pnl = (x - preco_compra) * qtd_a
+        put_pnl = (np.maximum(Kp - x, 0) - Pp) * qtd_p
+        call_pnl = (Pc - np.maximum(x - Kc, 0)) * qtd_c
         total_pnl = stock_pnl + put_pnl + call_pnl
 
-        pior_ret = Kp - custo
-        melhor_ret = Kc - custo
+        pior_ret = r.pior_retorno
+        melhor_ret = r.melhor_retorno
         cdi_periodo = r.pct_ganho / r.pct_cdi if r.pct_cdi > 0 else 0
         pct_melhor = (melhor_ret / custo) * 100
         pct_melhor_cdi = pct_melhor / (cdi_periodo * 100) if cdi_periodo > 0 else 0

@@ -510,6 +510,9 @@ class MonitorWorker(QThread):
                 ratio_call=cauda.ratio_call,
                 ratio_put=cauda.ratio_put,
                 is_cauda=True,
+                qtd_acao=r.qtd_acao,
+                qtd_call=r.qtd_call,
+                qtd_put=r.qtd_put,
             )
             cauda_results.append(novo)
         return cauda_results
@@ -622,6 +625,9 @@ class MonitorWorker(QThread):
                     is_otimizado=True,
                     estagio_otimizado=v.estagio,
                     detectado_em=r.detectado_em,
+                    qtd_acao=r.qtd_acao,
+                    qtd_call=r.qtd_call,
+                    qtd_put=r.qtd_put,
                 )
                 ui_results.append(novo)
 

@@ -1028,6 +1028,14 @@ class ColarCalendarioDialog(QDialog):
         import numpy as np
         from scipy.stats import norm
 
+        qtd_a = getattr(r, 'qtd_acao', 100)
+        qtd_c = getattr(r, 'qtd_call', 100)
+        qtd_p = getattr(r, 'qtd_put', 100)
+        ratio_c = getattr(r, 'ratio_call', 1.0) or 1.0
+        ratio_p = getattr(r, 'ratio_put', 1.0) or 1.0
+        qtd_c_real = qtd_c * ratio_c
+        qtd_p_real = qtd_p * ratio_p
+
         T_call = r.dte_call / 365
         T_put = r.dte_put / 365
         T_rem = r.dte_extra / 365
@@ -1036,8 +1044,8 @@ class ColarCalendarioDialog(QDialog):
         param = repo.get_by_chave("taxa_cdi")
         rf = param.valor if param else 0.1450
         cdi_periodo = (1 + rf) ** (du / 252) - 1
-        pnl_stk = min(r.preco_ativo, r.strike_call) - r.preco_ativo
-        pnl_call = r.premio_call
+        pnl_stk = (min(r.preco_ativo, r.strike_call) - r.preco_ativo) * qtd_a
+        pnl_call = r.premio_call * qtd_c_real
         if T_rem > 0:
             dp1 = (np.log(r.preco_ativo / r.strike_put) + (rf + 0.5 * (r.iv_put / 100) ** 2) * T_rem) / ((r.iv_put / 100) * np.sqrt(T_rem))
             dp2 = dp1 - (r.iv_put / 100) * np.sqrt(T_rem)
@@ -1045,7 +1053,7 @@ class ColarCalendarioDialog(QDialog):
         else:
             put_val_vc = max(r.strike_put - r.preco_ativo, 0)
 
-        pnl_put = put_val_vc - r.premio_put
+        pnl_put = (put_val_vc - r.premio_put) * qtd_p_real
         pnl_total = pnl_stk + pnl_call + pnl_put
         cap = r.capital_empregado
         ret = pnl_total / cap if cap > 0 else 0
@@ -1071,16 +1079,21 @@ class ColarCalendarioDialog(QDialog):
             f"Venc Call:      {r.vencimento_call}",
             f"Venc Put:       {r.vencimento_put}",
             "",
+            "--- QUANTIDADES ---",
+            f"qtd_acao:       {qtd_a}",
+            f"qtd_call:       {qtd_c} x ratio {ratio_c:.2f} = {qtd_c_real:.0f} efetivos",
+            f"qtd_put:        {qtd_p} x ratio {ratio_p:.2f} = {qtd_p_real:.0f} efetivos",
+            "",
             "--- MODELO COBERTO (acao + opcoes) ---",
             f"T_call (anos):  {T_call:.6f}",
             f"T_rem  (anos):  {T_rem:.6f}",
             f"r (fixa):       {rf:.4f}",
             f"CDI periodo:    {cdi_periodo*100:.4f}% = (1+{rf})^({du}/252)-1",
-            f"Acao comprada a R$ {r.preco_ativo:.2f}",
-            f"Acao PnL:      min({r.preco_ativo:.2f}, {r.strike_call:.2f}) - {r.preco_ativo:.2f} = R$ {pnl_stk:.4f}",
-            f"Short Call PnL: R$ {r.premio_call:.4f} (premio recebido, acao cobre)",
+            f"Acao comprada a R$ {r.preco_ativo:.2f} x {qtd_a}",
+            f"Acao PnL:      min({r.preco_ativo:.2f}, {r.strike_call:.2f}) - {r.preco_ativo:.2f} x {qtd_a} = R$ {pnl_stk:.4f}",
+            f"Short Call PnL: R$ {r.premio_call:.4f} x {qtd_c_real:.0f} = R$ {pnl_call:.4f} (premio recebido, acao cobre)",
             f"Put val @callVC: BS(S={r.preco_ativo:.2f}, K={r.strike_put:.2f}, T={T_rem:.4f}, r={rf:.4f}, IV={r.iv_put:.2f}%) = R$ {put_val_vc:.4f}",
-            f"Long Put PnL:   {put_val_vc:.4f} - {r.premio_put:.4f} = R$ {pnl_put:.4f}",
+            f"Long Put PnL:   ({put_val_vc:.4f} - {r.premio_put:.4f}) x {qtd_p_real:.0f} = R$ {pnl_put:.4f}",
             f"Capital empreg: R$ {cap:.4f}",
             "",
             "--- RESULTADO ---",

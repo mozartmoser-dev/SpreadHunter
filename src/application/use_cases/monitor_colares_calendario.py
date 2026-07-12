@@ -98,6 +98,9 @@ class MonitorColaresCalendarioUseCase:
             "dte_total_max": self._get_param("dte_total_max", 180),
             "qul_min_put": self._get_param("colar_qul_min_put", 100),
             "qul_min_call": self._get_param("colar_qul_min_call", 100),
+            "qtd_acao": int(self._get_param("calendario_qtd_ativo", 100)),
+            "qtd_call": int(self._get_param("calendario_qtd_call", 100)),
+            "qtd_put": int(self._get_param("calendario_qtd_put", 100)),
         }
         if params is None:
             params = defaults
@@ -369,6 +372,9 @@ class MonitorColaresCalendarioUseCase:
                         dividendos=dividendos_ativo,
                         iv_hist_min=iv_hist_min,
                         iv_hist_max=iv_hist_max,
+                        qtd_acao=params["qtd_acao"],
+                        qtd_call=params["qtd_call"],
+                        qtd_put=params["qtd_put"],
                     )
 
                     if resultado:

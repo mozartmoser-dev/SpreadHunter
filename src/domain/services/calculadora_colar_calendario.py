@@ -71,6 +71,9 @@ class ResultadoColarCalendario:
     is_otimizado: bool = False
     estagio_otimizado: str | None = None
     detectado_em: datetime | None = None
+    qtd_acao: int = 100
+    qtd_call: int = 100
+    qtd_put: int = 100
 
 
 class CalculadoraColarCalendario:
@@ -261,6 +264,9 @@ class CalculadoraColarCalendario:
         dividendos: list[tuple[date, float]] | None = None,
         iv_hist_min: float | None = None,
         iv_hist_max: float | None = None,
+        qtd_acao: int = 1,
+        qtd_call: int = 1,
+        qtd_put: int = 1,
     ) -> ResultadoColarCalendario | None:
         if r is None:
             r = self.taxa_cdi
@@ -291,7 +297,7 @@ class CalculadoraColarCalendario:
 
         preco_compra = preco_compra_ativo if (preco_compra_ativo and preco_compra_ativo > 0) else preco_ativo
 
-        net_credito = premio_call - premio_put
+        net_credito = premio_call * qtd_call - premio_put * qtd_put
 
         delta_call = self.bs_delta(S_bs_call, strike_call, T_call, r_cont, iv_call, 'call')
         delta_put = self.bs_delta(S_bs_put, strike_put, T_put, r_cont, iv_put, 'put')
@@ -314,10 +320,15 @@ class CalculadoraColarCalendario:
         T_put_rem = dc_to_du(None, None, dte_extra) / 252.0 if dte_extra > 0 else 0
         valor_put_vc = self.black_scholes(S_bs_call, strike_put, T_put_rem, r_cont, iv_put, 'put') if T_put_rem > 0 else 0
 
-        # Modelo COBERTO: compra 100 acoes + short call + long put
-        pnl_call = premio_call  # premio recebido, acao cobre exercicio
-        pnl_stock = min(preco_ativo, strike_call) - preco_compra  # acao vendida a Kc se ITM
-        pnl_put = valor_put_vc - premio_put
+        # Modelo COBERTO: compra acoes + short call + long put
+        # Unit PnL first, then scale by qtd
+        pnl_call_unit = premio_call
+        pnl_stock_unit = min(preco_ativo, strike_call) - preco_compra
+        pnl_put_unit = valor_put_vc - premio_put
+
+        pnl_call = pnl_call_unit * qtd_call
+        pnl_stock = pnl_stock_unit * qtd_acao
+        pnl_put = pnl_put_unit * qtd_put
         pnl_projetado = pnl_call + pnl_stock + pnl_put
 
         if pnl_projetado <= 0:
@@ -328,9 +339,9 @@ class CalculadoraColarCalendario:
         if cdi_periodo <= 0:
             return None
 
-        capital_empregado = preco_compra + premio_put - premio_call
+        capital_empregado = preco_compra * qtd_acao + premio_put * qtd_put - premio_call * qtd_call
         capital_base = abs(capital_empregado) if capital_empregado <= 0 else capital_empregado
-        risco_max = max(0.0, capital_empregado - min(strike_call, strike_put)) if capital_empregado > 0 else capital_base
+        risco_max = max(0.0, capital_empregado - min(strike_call, strike_put) * qtd_acao) if capital_empregado > 0 else capital_base
 
         vega_call = self.bs_vega(S_bs_call, strike_call, T_call, r_cont, iv_call)
         vega_put = self.bs_vega(S_bs_put, strike_put, T_put, r_cont, iv_put)
@@ -346,9 +357,9 @@ class CalculadoraColarCalendario:
             iv_rank_put = (iv_put - iv_hist_min) / (iv_hist_max - iv_hist_min)
             iv_rank = (iv_rank_call + iv_rank_put) / 2
 
-        premio_medio = (premio_call + premio_put) / 2
-        custo_b3 = (self.custos_b3.custos_opcao(premio_medio, n_pernas=2) +
-                    self.custos_b3.custos_stock(preco_compra, n_acoes=1))
+        custo_b3 = (self.custos_b3.custos_opcao(premio_call, n_pernas=1) * qtd_call +
+                    self.custos_b3.custos_opcao(premio_put, n_pernas=1) * qtd_put +
+                    self.custos_b3.custos_stock(preco_compra, n_acoes=qtd_acao))
         pnl_projetado_liquido = pnl_projetado - custo_b3
 
         ganho_base = max(pnl_projetado_liquido, 0.0)
@@ -418,6 +429,9 @@ class CalculadoraColarCalendario:
             gamma_call=round(gamma_call, 4),
             gamma_put=round(gamma_put, 4),
             preco_compra=round(preco_compra, 2),
+            qtd_acao=qtd_acao,
+            qtd_call=qtd_call,
+            qtd_put=qtd_put,
         )
 
     @staticmethod
@@ -440,8 +454,13 @@ class CalculadoraColarCalendario:
             d2 = d1 - sigma * np.sqrt(T)
             return K * np.exp(-rf * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
 
-        cap = S0 + Pp - Pc
-        net = Pc - Pp
+        # Scaling factors: qtd * ratio
+        qtd_acao = r.qtd_acao
+        qtd_call_real = r.qtd_call * getattr(r, 'ratio_call', 1.0)
+        qtd_put_real = r.qtd_put * getattr(r, 'ratio_put', 1.0)
+
+        cap = S0 * qtd_acao + Pp * qtd_put_real - Pc * qtd_call_real
+        net = Pc * qtd_call_real - Pp * qtd_put_real
 
         # Calcula o desvio padrao (sigma) do periodo a partir do IV medio
         iv_medio = ((r.iv_call / 100) + (r.iv_put / 100)) / 2
@@ -476,23 +495,32 @@ class CalculadoraColarCalendario:
 
         pdf_peak = norm.pdf(0.0, 0.0, 1.0)
         cenarios = []
+        naked_pnl = max(0, qtd_call_real - qtd_acao)  # CALLs extras descobertas, se houver
         for n_sigma, label, S_T in pares_cenarios:
             if S_T > Kc:
-                s_pnl = Kc - S0
-                c_pnl = Pc
-                put_bs = bs_put(S_T, Kp, T_rem, iv_p)
-                p_pnl = put_bs - Pp
+                s_pnl_u = Kc - S0
+                c_pnl_u = Pc
+                put_bs_u = bs_put(S_T, Kp, T_rem, iv_p)
+                p_pnl_u = put_bs_u - Pp
             else:
-                put_bs = bs_put(S_T, Kp, T_rem, iv_p)
-                pnl_no_ex = (S_T - S0) + Pc + (put_bs - Pp)
+                put_bs_u = bs_put(S_T, Kp, T_rem, iv_p)
+                pnl_no_ex = (S_T - S0) + Pc + (put_bs_u - Pp)
                 pnl_ex = (Kp - S0) + Pc - Pp
                 if pnl_ex > pnl_no_ex:
-                    s_pnl, c_pnl, p_pnl = (Kp - S0), Pc, -Pp
+                    s_pnl_u, c_pnl_u, p_pnl_u = (Kp - S0), Pc, -Pp
                 else:
-                    s_pnl, c_pnl, p_pnl = (S_T - S0), Pc, (put_bs - Pp)
-            total = s_pnl + c_pnl + p_pnl
-            put_intrin = max(Kp - S_T, 0)
-            put_extrin = put_bs - put_intrin
+                    s_pnl_u, c_pnl_u, p_pnl_u = (S_T - S0), Pc, (put_bs_u - Pp)
+            # Scale by quantities
+            s_pnl = s_pnl_u * qtd_acao
+            c_pnl = c_pnl_u * min(qtd_call_real, qtd_acao)  # calls cobertas
+            if naked_pnl > 0:
+                naked = -naked_pnl * max(0, S_T - Kc)  # perda em calls nuas
+            else:
+                naked = 0.0
+            p_pnl = p_pnl_u * qtd_put_real
+            total = s_pnl + c_pnl + naked + p_pnl
+            put_intrin = max(Kp - S_T, 0) * qtd_put_real
+            put_extrin = (put_bs_u - max(Kp - S_T, 0)) * qtd_put_real
 
             # % Retorno e x CDI
             pct_ret = (total / cap) * 100 if cap > 0 else 0.0
@@ -500,10 +528,17 @@ class CalculadoraColarCalendario:
             cdi_periodo = (1 + rf) ** (du_total / 252) - 1
             x_cdi = (total / cap) / cdi_periodo if cdi_periodo > 0 else 0.0
 
+            # Líquido por cenário (B3 fixo + IR variável)
+            pnl_pos_b3 = total - r.custo_b3
+            ir_cenario = pnl_pos_b3 * 0.15 if pnl_pos_b3 > 0 else 0.0
+            pnl_liquido_cenario = pnl_pos_b3 - ir_cenario
+            x_cdi_liquido = (pnl_liquido_cenario / cap) / cdi_periodo if cdi_periodo > 0 else 0.0
+
             # Largura da barra da gaussiana (PDF normalizado)
             pdf = norm.pdf(n_sigma, 0.0, 1.0)
             bar_pct = max(4, int(28 * pdf / pdf_peak))
-            cenarios.append((n_sigma, label, S_T, s_pnl, c_pnl, put_bs, put_intrin, put_extrin, p_pnl, total, pct_ret, x_cdi, bar_pct))
+            put_bs_total = put_bs_u * qtd_put_real
+            cenarios.append((n_sigma, label, S_T, s_pnl, c_pnl, put_bs_total, put_intrin, put_extrin, p_pnl, total, pct_ret, x_cdi, pnl_liquido_cenario, x_cdi_liquido, bar_pct))
 
         call_Itm = S0 > Kc
         call_intrin = max(S0 - Kc, 0) if call_Itm else 0
@@ -528,10 +563,10 @@ class CalculadoraColarCalendario:
             "<hr>",
             "<p><b>Montagem:</b></p>",
             "<ul>",
-            f"<li>Comprar ação: <b>−R$ {S0:.2f}</b></li>",
-            f"<li>Vender CALL {r.cod_call} K={Kc:.2f}: <b>+R$ {Pc:.2f}</b> {call_premio_txt}</li>",
-            f"<li>Comprar PUT {r.cod_put} K={Kp:.2f}: <b>−R$ {Pp:.2f}</b></li>",
-            f"<li><b>Capital empregado = R$ {cap:.2f}</b> ({S0:.2f} + {Pp:.2f} − {Pc:.2f})</li>",
+            f"<li>Comprar ação ({qtd_acao}x): <b>−R$ {S0 * qtd_acao:.2f}</b></li>",
+            f"<li>Vender CALL {r.cod_call} K={Kc:.2f} ({int(qtd_call_real)}x): <b>+R$ {Pc * qtd_call_real:.2f}</b> {call_premio_txt}</li>",
+            f"<li>Comprar PUT {r.cod_put} K={Kp:.2f} ({int(qtd_put_real)}x): <b>−R$ {Pp * qtd_put_real:.2f}</b></li>",
+            f"<li><b>Capital empregado = R$ {cap:.2f}</b> ({S0 * qtd_acao:.2f} + {Pp * qtd_put_real:.2f} − {Pc * qtd_call_real:.2f})</li>",
             f"<li>Débito/Crédito líquido: <b>R$ {net:.2f}</b></li>",
             "</ul>",
             "<hr>",
@@ -540,9 +575,9 @@ class CalculadoraColarCalendario:
             "<tr style='background:#2d2d44;'>"
             "<th style='width:30px;'></th><th>Cenário</th><th>S_T</th><th>Ação</th><th>CALL</th>"
             "<th>PUT (BS)</th><th>Intrín</th><th>Extrín</th>"
-            "<th>PnL Total</th><th>% Retorno</th><th>× CDI</th></tr>",
+             "<th>PnL Total</th><th>% Retorno</th><th>× CDI Bruto</th><th>× CDI Líq.</th></tr>",
         ]
-        for n_sigma, label, S_T, s_pnl, c_pnl, put_bs, pint, pext, p_pnl, total, pct_ret, x_cdi, bar_pct in cenarios:
+        for n_sigma, label, S_T, s_pnl, c_pnl, put_bs, pint, pext, p_pnl, total, pct_ret, x_cdi, pnl_liq, x_cdi_liq, bar_pct in cenarios:
             cor = "#2ecc71" if total > 0 else "#e74c3c"
             svg_bar = (
                 f'<svg width="28" height="18" viewBox="0 0 28 18">'
@@ -556,7 +591,7 @@ class CalculadoraColarCalendario:
                 f"<td>R$ {c_pnl:.2f}</td><td>R$ {put_bs:.2f}</td>"
                 f"<td>R$ {pint:.2f}</td><td>R$ {pext:.2f}</td>"
                 f"<td style='color:{cor};font-weight:bold;'>R$ {total:.2f}</td>"
-                f"<td>{pct_ret:.2f}%</td><td>{x_cdi:.2f}x</td></tr>"
+                f"<td>{pct_ret:.2f}%</td><td>{x_cdi:.2f}x</td><td>{x_cdi_liq:.2f}x</td></tr>"
             )
         lines.append("</table>")
 
@@ -564,6 +599,7 @@ class CalculadoraColarCalendario:
         pnls = [c[9] for c in cenarios]
         rets = [c[10] for c in cenarios]
         cdi_vals = [c[11] for c in cenarios]
+        cdi_liq_vals = [c[13] for c in cenarios]
         pior_pnl = min(pnls)
         melhor_pnl = max(pnls)
         lucros = sum(1 for v in pnls if v > 0)
@@ -571,9 +607,10 @@ class CalculadoraColarCalendario:
         idx_melhor = pnls.index(melhor_pnl)
         lines.append(
             f"<p><b>Resumo dos cenários:</b><br>"
-            f"Pior PnL: {cenarios[idx_pior][1]} → <b>R$ {pior_pnl:.2f}</b> ({cenarios[idx_pior][10]:.2f}%, {cenarios[idx_pior][11]:.2f}x CDI)<br>"
-            f"Melhor PnL: {cenarios[idx_melhor][1]} → <b>R$ {melhor_pnl:.2f}</b> ({cenarios[idx_melhor][10]:.2f}%, {cenarios[idx_melhor][11]:.2f}x CDI)<br>"
-            f"Faixa de ×CDI: {min(cdi_vals):.2f}x a {max(cdi_vals):.2f}x<br>"
+            f"Pior PnL: {cenarios[idx_pior][1]} → <b>R$ {pior_pnl:.2f}</b> ({cenarios[idx_pior][10]:.2f}%, {cenarios[idx_pior][11]:.2f}x CDI Bruto / {cenarios[idx_pior][13]:.2f}x CDI Líq.)<br>"
+            f"Melhor PnL: {cenarios[idx_melhor][1]} → <b>R$ {melhor_pnl:.2f}</b> ({cenarios[idx_melhor][10]:.2f}%, {cenarios[idx_melhor][11]:.2f}x CDI Bruto / {cenarios[idx_melhor][13]:.2f}x CDI Líq.)<br>"
+            f"Faixa de ×CDI Bruto: {min(cdi_vals):.2f}x a {max(cdi_vals):.2f}x  |  "
+            f"Faixa de ×CDI Líq.: {min(cdi_liq_vals):.2f}x a {max(cdi_liq_vals):.2f}x<br>"
             f"Cenários com lucro: <b>{lucros}/{len(cenarios)}</b> ({lucros/len(cenarios)*100:.0f}%)"
             f"</p>"
         )
@@ -589,7 +626,7 @@ class CalculadoraColarCalendario:
             f"A PUT vale R$ {c_baixa[5]:.2f} pelo modelo BS "
             f"(intrínseco=R$ {c_baixa[6]:.2f}, extrínseco=R$ {c_baixa[7]:.2f}).<br>"
             f"<b>Resultado: R$ {tot_baixa:.2f} ({sinal_b})</b> "
-            f"({c_baixa[10]:.2f}% / {c_baixa[11]:.2f}x CDI) neste cenário.</p>"
+            f"({c_baixa[10]:.2f}% / {c_baixa[11]:.2f}x CDI Bruto / {c_baixa[13]:.2f}x CDI Líq.) neste cenário.</p>"
         )
 
         c_proj = cenarios[4]
@@ -603,7 +640,7 @@ class CalculadoraColarCalendario:
             f"{call_texto}.<br>"
             f"A PUT ainda tem {r.dte_extra}d de vida, valendo R$ {c_proj[5]:.2f} "
             f"(intrínseco=R$ {c_proj[6]:.2f} + extrínseco=R$ {c_proj[7]:.2f}).<br>"
-            f"<b>PnL = R$ {c_proj[9]:.2f}</b> ({c_proj[10]:.2f}% / {c_proj[11]:.2f}x CDI)</p>"
+            f"<b>PnL = R$ {c_proj[9]:.2f}</b> ({c_proj[10]:.2f}% / {c_proj[11]:.2f}x CDI Bruto / {c_proj[13]:.2f}x CDI Líq.)</p>"
         )
 
         for idx, rotulo in [(8, "sobe para"), (5, "sobe levemente para")]:
@@ -622,7 +659,7 @@ class CalculadoraColarCalendario:
                 f"{'lucro' if c_alta[3] >= 0 else 'perda'} de R$ {c_alta[3]:.2f} na ação.<br>"
                 f"{put_texto}<br>"
                 f"<b>Resultado: R$ {tot_alta:.2f} ({sinal_a}).</b> "
-                f"({c_alta[10]:.2f}% / {c_alta[11]:.2f}x CDI)</p>"
+                f"({c_alta[10]:.2f}% / {c_alta[11]:.2f}x CDI Bruto / {c_alta[13]:.2f}x CDI Líq.)</p>"
             )
 
         # Breakevens
@@ -678,7 +715,7 @@ class CalculadoraColarCalendario:
                 f"A CALL está ITM (acima do strike). O prêmio de R$ {Pc:.2f} "
                 f"cobre a perda de R$ {S0 - Kc:.2f} na venda da ação. "
                 f"O {resumo_pnl} bruto de R$ {ext:.2f} "
-                f"({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI) é o "
+                f"({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI Bruto) é o "
                 f"extrínseco da CALL menos o custo líquido da PUT.</p>"
             )
         else:
@@ -686,7 +723,7 @@ class CalculadoraColarCalendario:
                 f"<p><b>Resumo:</b><br>"
                 f"Esta estratégia aposta que o ativo estará <b>próximo de R$ {Kc:.2f}</b> "
                 f"no vencimento da CALL. O {resumo_pnl} bruto de R$ {ext:.2f} "
-                f"({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI) vem do "
+                f"({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI Bruto) vem do "
                 f"valor extrínseco residual da PUT. O resultado real "
                 f"depende de onde o ativo estará naquele dia.</p>"
             )
@@ -697,7 +734,8 @@ class CalculadoraColarCalendario:
             f"− Custos B3 (emol+liq+reg+ISS): <b>−R$ {r.custo_b3:.2f}</b><br>"
             f"= PnL pós-B3: <b>R$ {pnl_b3:.2f}</b><br>"
             f"− IR (15%): <b>−R$ {r.custo_ir:.2f}</b><br>"
-            f"<b>= PnL Líquido: R$ {pnl_liquido:.2f}</b>  ({r.pct_cdi_liquido:.2f}x CDI líquido)"
+            f"<b>= PnL Líquido: R$ {pnl_liquido:.2f}</b><br>"
+            f"× CDI Bruto: {r.pct_cdi:.2f}x  |  × CDI Líquido: {r.pct_cdi_liquido:.2f}x"
             "</p>"
         )
 
