@@ -416,7 +416,10 @@ class MonitorWorker(QThread):
                     logger.exception("Erro ao processar Cauda Assíncrona")
                     tracker.add_stage("14. Pós-processamento (Cauda)", 0, 0, "ERRO")
             try:
-                otimizadas = self._processar_otimizado(resultados)
+                if cauda_habilitado and resultados:
+                    otimizadas = self._processar_otimizado(resultados)
+                else:
+                    otimizadas = []
                 if otimizadas:
                     resultados.extend(otimizadas)
                     tracker.add_stage(
@@ -427,6 +430,7 @@ class MonitorWorker(QThread):
             except Exception:
                 logger.exception("Erro ao processar Otimizado")
                 tracker.add_stage("15. Pós-processamento (Otimizado)", 0, 0, "ERRO")
+
             self.colares_calendario_atualizados.emit(resultados)
 
     def _processar_cauda(self, resultados: list) -> list:
@@ -512,11 +516,16 @@ class MonitorWorker(QThread):
 
     def _processar_otimizado(self, resultados: list) -> list:
         from src.domain.services.calculadora_colar_calendario import ResultadoColarCalendario
+        from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
         ui_results: list = []
         repo = HistoricoSimulacoesRepository(self.db_path)
         taxa_cdi = self._ler_param_float("taxa_cdi", 0.145)
         limite_min_put = self._ler_param_float("limite_min_put", 0.85)
         limite_max_call = self._ler_param_float("limite_max_call", 1.40)
+        emol = self._ler_param_float("taxa_emolumento_pct", 0.00025)
+        liq = self._ler_param_float("taxa_liquidacao_pct", 0.000275)
+        ir = self._ler_param_float("taxa_ir_pct", 0.15)
+        custos_b3_calc = CalculadoraCustosB3(emol, liq, ir)
 
         for r in resultados:
             if not r.viavel:
@@ -546,6 +555,15 @@ class MonitorWorker(QThread):
 
             registros = []
             for v in variantes:
+                # fix: recalcula custo_b3 proporcional ao ratio efetivo de opções
+                n = v.ratio_call  # CALLs vendidas por lote
+                m = v.ratio_put   # PUTs compradas por lote
+                custo_b3_variante = (
+                    custos_b3_calc.custos_opcao(r.premio_call, n_pernas=1, ida_e_volta=True) * n
+                    + custos_b3_calc.custos_opcao(r.premio_put, n_pernas=1, ida_e_volta=True) * m
+                    + custos_b3_calc.custos_stock(r.preco_compra or r.preco_ativo, n_acoes=1)
+                )
+
                 registros.append({
                     "id_chassi": v.id_chassi,
                     "estagio": v.estagio,
@@ -594,7 +612,7 @@ class MonitorWorker(QThread):
                     viavel=True,
                     tipo=r.tipo,
                     r=taxa_cdi,
-                    custo_b3=v.custo_b3_base,
+                    custo_b3=round(custo_b3_variante, 4),  # fix: custo real por ratio
                     score=0.0,
                     preco_compra=r.preco_compra,
                     be_baixa=v.breakeven_esquerdo,

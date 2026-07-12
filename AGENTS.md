@@ -235,3 +235,50 @@ Validar se o Profit Pro usa **DC→DU exato (com feriados)** ou
 calculadoras para `dc_to_du_exato(hoje, inst.vencimento)` em vez de
 `dc_to_du(None, None, dias)`. Teste: comparar IV do Profit vs IV próprio
 com `T_exato` vs `T_aproximado` para um papel de vencimento conhecido.
+
+## Recomendação de Modelos (opencode Go)
+
+Quando eu sugerir qual modelo usar, sigo a classificação abaixo:
+
+1. 🥇 **DeepSeek (V3 ou R1)** — melhor escolha para este sistema.
+   - Raciocínio matemático/financeiro nativo (Black-Scholes, otimizações
+     numéricas).
+   - Excelente aderência a arquiteturas complexas com muitas regras de
+     negócio cruzadas.
+   - Entende threading Python (QThread, locks, thread safety) de forma
+     confiável.
+   - Segue regras de AGENTS.md com alta fidelidade — não "inventa" atalhos.
+   - DeepSeek-R1 raciocina antes de codar, evitando bugs em fórmulas
+     financeiras críticas.
+
+2. 🥈 **Qwen 3 (Plus)** — segunda opção sólida, especialmente com modo
+   thinking ativado.
+   - Muito bom em Python com bibliotecas científicas (scipy, numpy,
+     matplotlib).
+   - Qwen3-235B (API Plus) tem benchmark de código comparável ao
+     DeepSeek-V3.
+   - Tende a respeitar type hints e convenções — importante para o padrão
+     do Spreadhunter.
+   - Limitação: às vezes "criativo demais" com arquitetura quando não há
+     contexto suficiente.
+
+3. 🥉 **GLM-Z1 / GLM 5-2** — funcional mas com ressalvas importantes.
+   - Bom em Python genérico, mas perde precisão em código financeiro
+     quantitativo.
+   - Pode confundir a separação domain/application/infrastructure (Clean
+     Architecture).
+   - Histórico de erros em fórmulas Black-Scholes e cálculos de gregas.
+   - Melhor para tarefas UI simples do que para calculadoras de opções.
+
+**Ordem de uso preferida pelo usuário:** DeepSeek → Qwen 3 → GLM.
+
+⚠️ **Refatoração crítica** = mexer em:
+- `monitor_worker.py`, `monitor_colares_calendario.py`
+- `calculadora_*.py`, `calculadora_cauda_assincrona.py`
+- `database.py`, `repositories.py` (schema, migrações)
+- `parametro_operacional.py`, `main_window.py` (lógica estrutural)
+
+✅ **Rotineiro** = ajustes em:
+- Tests, dialogs, models de tabela, tooltips, parâmetros, colours
+- `column_utils.py`, `regras_dialog.py`, filtros, labels
+- Pequenos fixes sem impacto no cálculo ou nos dados

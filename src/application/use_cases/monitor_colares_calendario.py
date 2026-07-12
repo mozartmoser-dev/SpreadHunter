@@ -469,7 +469,9 @@ class MonitorColaresCalendarioUseCase:
         for r in resultados:
             iv_rank_norm = min(r.iv_rank / 100.0, 1.0) if r.iv_rank else 0.0
             strike_menor = min(r.strike_call, r.strike_put)
-            dist_norm = max(0.0, (strike_menor - r.capital_empregado) / strike_menor) if strike_menor > 0 else 0.0
+            # fix: distância relativa do spot ao menor strike (folga de segurança real)
+            # quanto maior a distância spot→Kp, maior a proteção antes de perder
+            dist_norm = max(0.0, abs(r.preco_ativo - strike_menor) / r.preco_ativo) if r.preco_ativo > 0 else 0.0
             theta_m = abs(r.theta_liquido) / max(r.capital_empregado, 1) * 1000
             vega_n = max(r.vega_liquido, 0) / 100
             liq_n = 0.5
@@ -482,6 +484,7 @@ class MonitorColaresCalendarioUseCase:
                 "liq": liq_n,
                 "risco": risco_n,
             })
+
 
         max_iv = max(x["iv_rank"] for x in raw_iv) or 1.0
         max_dist = max(x["dist"] for x in raw_iv) or 1.0

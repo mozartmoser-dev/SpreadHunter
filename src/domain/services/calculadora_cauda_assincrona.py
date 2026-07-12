@@ -431,6 +431,7 @@ class CalculadoraCaudaAssincrona:
                 return 0.0
             divisor = max(c["pnl_2l"], c["pnl_2r"])
             return piso / divisor if divisor > 0 else 0.0
+
         neutro = max(candidatos, key=lambda c: _simetria(c) * c["pct_cdi"])
         resultados.append(_montar(neutro, "Platô"))
 

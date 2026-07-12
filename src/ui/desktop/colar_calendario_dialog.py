@@ -1192,6 +1192,7 @@ class ColarCalendarioDialog(QDialog):
             T_rem = r.dte_extra / 365
 
             ratio = max(getattr(r, 'ratio_call', 1), 1)
+            ratio_put = max(getattr(r, 'ratio_put', 1.0), 0.01)  # fix: escala m PUTs
             x_min = min(Kp, S0) * (0.80 if ratio > 1 else 0.85)
             x_max = max(Kc, S0) * (1.25 if ratio > 1 else 1.15)
             x = np.linspace(x_min, x_max, 500)
@@ -1199,7 +1200,9 @@ class ColarCalendarioDialog(QDialog):
             repo = ParametroRepository(self._db_path)
             param = repo.get_by_chave("taxa_cdi")
             rf = param.valor if param else 0.1450
-            stock_pnl = np.minimum(x, Kc) - S0  # acao vendida a Kc se ITM
+            # fix: usa preco_compra (ASK real) como custo da ação, não o spot atual
+            S_custo = getattr(r, 'preco_compra', None) or S0
+            stock_pnl = np.minimum(x, Kc) - S_custo
             call_pnl = Pc * ratio
             naked_pnl = -(ratio - 1) * np.maximum(0, x - Kc)  # CALLs extras descobertas
             if T_rem > 0:
@@ -1208,7 +1211,8 @@ class ColarCalendarioDialog(QDialog):
                 put_val = Kp * np.exp(-rf * T_rem) * norm.cdf(-dp2) - x * norm.cdf(-dp1)
             else:
                 put_val = np.maximum(Kp - x, 0)
-            put_pnl = put_val - Pp
+            # fix: escala pelo ratio_put (m PUTs compradas, não necessariamente 1)
+            put_pnl = ratio_put * put_val - ratio_put * Pp
 
             pnl = stock_pnl + call_pnl + naked_pnl + put_pnl
 
