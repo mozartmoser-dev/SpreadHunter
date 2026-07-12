@@ -644,3 +644,27 @@ Criada via SCHEMA + migração `_migrar_historico_simulacoes()`:
 
 **430/430 passando** (419 anteriores + 11 novos).
 
+---
+
+## Recomendação de Modelos (opencode Go)
+
+Quando eu sugerir qual modelo usar, sigo a classificação abaixo:
+
+| Tarefa | Modelo | Consumo |
+|--------|--------|---------|
+| Planejamento / Arquitetura | **Claude Sonnet 4** | Alto (uso moderado) |
+| Refatoração crítica (worker, calculadoras, pipeline, banco) | **Claude Sonnet 4** | Alto |
+| Implementação / Ajustes / UI / Testes | **DeepSeek-V4** ou **GLM-5-2** | Baixo |
+| Sessões leves / Consultas / Debug rápido | **MiniMax M3** | Baixo |
+
+⚠️ **Refatoração crítica** = mexer em:
+- `monitor_worker.py`, `monitor_colares_calendario.py`
+- `calculadora_*.py`, `calculadora_cauda_assincrona.py`
+- `database.py`, `repositories.py` (schema, migrações)
+- `parametro_operacional.py`, `main_window.py` (lógica estrutural)
+
+✅ **Rotineiro** = ajustes em:
+- Tests, dialogs, models de tabela, tooltips, parâmetros, colours
+- `column_utils.py`, `regras_dialog.py`, filtros, labels
+- Pequenos fixes sem impacto no cálculo ou nos dados
+
