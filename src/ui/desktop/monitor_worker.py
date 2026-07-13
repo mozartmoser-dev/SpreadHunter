@@ -580,6 +580,10 @@ class MonitorWorker(QThread):
                     "be_esq": v.breakeven_esquerdo,
                     "be_dir": v.breakeven_direito,
                     "pct_cdi": v.pct_cdi_com_ratio,
+                    "qtd_acao": r.qtd_acao,
+                    "premio_call": r.premio_call,
+                    "premio_put": r.premio_put,
+                    "preco_compra": r.preco_compra or r.preco_ativo,
                 })
 
                 novo = ResultadoColarCalendario(

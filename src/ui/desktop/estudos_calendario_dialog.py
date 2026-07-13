@@ -31,28 +31,28 @@ C_ORANGE = "#f39c12"
 C_BLUE = "#4a90d9"
 
 COLUMNS = [
-    ("Chassi", 70),
-    ("Ativo", 60),
-    ("Est\u00e1gio", 90),
-    ("Pre\u00e7o", 60),
-    ("Kc", 60),
-    ("Kp", 60),
-    ("DTE", 36),
-    ("rC", 36),
-    ("rP", 36),
-    ("Qtd Calls", 60),
-    ("Qtd Puts", 60),
-    ("BE esq", 65),
-    ("BE dir", 65),
-    ("%CDI", 55),
-    ("PnL -3\u03c3", 70),
-    ("PnL +3\u03c3", 70),
-    ("\u03c3 esq", 55),
-    ("\u03c3 dir", 55),
-    ("\u03c3$ esq", 65),
-    ("\u03c3$ dir", 65),
-    ("Piso 2\u03c3", 65),
-    ("# ciclos", 55),
+    ("Chassi", 70, "ID único do grupo de otimização"),
+    ("Ativo", 60, "Código do ativo B3"),
+    ("Est\u00e1gio", 90, "Base=original, Platô=simetria, Proteção=sem BE esq, Rendimento=maior range"),
+    ("Pre\u00e7o", 60, "Preço atual do ativo (R$)"),
+    ("Kc", 60, "Strike da CALL vendida"),
+    ("Kp", 60, "Strike da PUT comprada"),
+    ("DTE", 36, "Dias até o vencimento (Days To Expiry)"),
+    ("rC", 36, "Ratio CALL: qtd calls vendidas por ação"),
+    ("rP", 36, "Ratio PUT: qtd puts compradas por ação"),
+    ("Lotes C", 55, "Contratos de CALL (arredondado p/ lote B3)"),
+    ("Lotes P", 55, "Contratos de PUT (arredondado p/ lote B3)"),
+    ("BE esq", 65, "Breakeven esquerdo: preço onde PnL=0 no lado inferior"),
+    ("BE dir", 65, "Breakeven direito: preço onde PnL=0 no lado superior"),
+    ("%CDI", 55, "Retorno percentual do CDI no período"),
+    ("PnL -3\u03c3", 70, "PnL na cauda esquerda em -3σ (R$)"),
+    ("PnL +3\u03c3", 70, "PnL na cauda direita em +3σ (R$)"),
+    ("\u03c3 esq", 55, "Desvios-padrão do spot até o BE esquerdo"),
+    ("\u03c3 dir", 55, "Desvios-padrão do spot até o BE direito"),
+    ("\u03c3$ esq", 65, "Distância em R$ do spot até o BE esquerdo"),
+    ("\u03c3$ dir", 65, "Distância em R$ do spot até o BE direito"),
+    ("Piso 2\u03c3", 65, "Menor PnL dentro de ±2σ (R$); negativo=risco)"),
+    ("# ciclos", 55, "Quantas vezes este chassi foi registrado"),
 ]
 
 
@@ -115,8 +115,11 @@ class EstudosCalendarioTableModel(QAbstractTableModel):
         return None
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
-            return COLUMNS[section][0]
+        if orientation == Qt.Horizontal:
+            if role == Qt.DisplayRole:
+                return COLUMNS[section][0]
+            if role == Qt.ToolTipRole:
+                return COLUMNS[section][2]
         return None
 
     def atualizar(self, items):
@@ -174,10 +177,11 @@ class EstudosCalendarioDialog(QDialog):
         header.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(header, KEY)))
         limpar_e_restaurar_colunas(header, KEY, "estudos_calendario_width")
         header.setSectionResizeMode(QHeaderView.Interactive)
-        for i, (_, w) in enumerate(COLUMNS):
+        for i, (_, w, _) in enumerate(COLUMNS):
             header.resizeSection(i, w)
         self.table_view.verticalHeader().setDefaultSectionSize(22)
         self.table_view.verticalHeader().hide()
+        self.table_view.doubleClicked.connect(self._on_row_double_clicked)
         layout.addWidget(self.table_view, stretch=1)
 
         btn_layout = QHBoxLayout()
@@ -189,6 +193,113 @@ class EstudosCalendarioDialog(QDialog):
         btn_layout.addStretch()
         btn_layout.addWidget(self.btn_fechar)
         layout.addLayout(btn_layout)
+
+    def _on_row_double_clicked(self, index):
+        if not index.isValid():
+            return
+        item = self.model._items[index.row()]
+        self._plot_payoff(item)
+
+    def _plot_payoff(self, r):
+        from PySide6.QtWidgets import QMessageBox
+        import traceback
+        try:
+            import numpy as np
+            from scipy.stats import norm
+            from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+            from matplotlib.figure import Figure
+
+            # Extrair dados
+            S0 = r.get("preco_ativo", 0)
+            Kc = r.get("strike_call", 0)
+            Kp = r.get("strike_put", 0)
+            Pc = r.get("premio_call", 0)
+            Pp = r.get("premio_put", 0)
+            iv_c = r.get("iv_call", 0) / 100.0
+            T_call = r.get("dte_original", 0) / 365.0
+            T_rem = 0  # sem segunda perna no historico_simulacoes
+            n = r.get("ratio_call", 1)
+            m = r.get("ratio_put", 1)
+            S_custo = r.get("preco_compra", 0) or S0
+
+            if S0 <= 0 or Kc <= 0 or Kp <= 0:
+                QMessageBox.warning(self, "Grafico", "Dados insuficientes para gerar payoff.")
+                return
+
+            # Range de precos
+            sigma_spot = S0 * iv_c * np.sqrt(T_call) if iv_c > 0 and T_call > 0 else S0 * 0.02
+            x_min = min(Kp, S0) * 0.92
+            x_max = max(Kc, S0) * 1.08
+            x = np.linspace(x_min, x_max, 500)
+
+            # PnL: stock + calls + puts
+            stock_pnl = np.minimum(x, Kc) - S_custo
+            call_pnl = Pc * n
+            naked_pnl = -(n - 1) * np.maximum(0, x - Kc)
+            put_pnl = m * np.maximum(Kp - x, 0) - m * Pp
+            pnl = stock_pnl + call_pnl + naked_pnl + put_pnl
+
+            # Cores
+            BG = '#0d0d0d'; TEXT_C = '#c0c0c0'; RED = '#ff3355'
+            ACCENT = '#ffc107'; GREEN = '#4caf50'; SPOT_CLR = '#42a5f5'
+            SIGMA_C = '#6c5ce7'
+
+            fig = Figure(figsize=(9, 5), facecolor=BG)
+            ax = fig.add_subplot(111, facecolor=BG)
+
+            for i in range(len(x) - 1):
+                mid = (pnl[i] + pnl[i + 1]) / 2
+                cor = GREEN if mid >= 0 else RED
+                ax.plot(x[i:i + 2], pnl[i:i + 2], color=cor, linewidth=2.5, solid_capstyle='round')
+
+            ax.axhline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5)
+
+            # Spot
+            ax.axvline(S0, color=SPOT_CLR, linewidth=1.2, linestyle='--', alpha=0.6)
+            ax.text(S0, ax.get_ylim()[0] + (ax.get_ylim()[1] - ax.get_ylim()[0]) * 0.02,
+                    f'Spot={S0:.2f}', color=SPOT_CLR, fontsize=7, ha='center', alpha=0.7)
+
+            # Breakevens
+            be_esq = r.get("be_esq")
+            be_dir = r.get("be_dir")
+            if be_esq is not None:
+                ax.axvline(be_esq, color=SIGMA_C, linewidth=1, linestyle=':', alpha=0.6)
+                ax.text(be_esq, ax.get_ylim()[1] * 0.9, f'BEesq={be_esq:.2f}',
+                        color=SIGMA_C, fontsize=6.5, ha='center', rotation=90, alpha=0.7)
+            if be_dir is not None:
+                ax.axvline(be_dir, color=SIGMA_C, linewidth=1, linestyle=':', alpha=0.6)
+                ax.text(be_dir, ax.get_ylim()[1] * 0.9, f'BEdir={be_dir:.2f}',
+                        color=SIGMA_C, fontsize=6.5, ha='center', rotation=90, alpha=0.7)
+
+            # Strikes
+            for strike, nome, cor_s in [(Kp, 'Kp', RED), (Kc, 'Kc', GREEN)]:
+                ax.axvline(strike, color=cor_s, linewidth=0.6, linestyle='--', alpha=0.3)
+                ax.text(strike, ax.get_ylim()[0], f'{nome}={strike:.2f}',
+                        color=cor_s, fontsize=6, ha='center', alpha=0.5)
+
+            ax.set_xlabel('Preço do Ativo (R$)', color=TEXT_C, fontsize=8)
+            ax.set_ylabel('PnL (R$)', color=TEXT_C, fontsize=8)
+            ax.tick_params(colors=TEXT_C, labelsize=7)
+            for spine in ax.spines.values():
+                spine.set_color('#2d2d44')
+
+            titulo = f'{r.get("ativo","")} | {r.get("estagio","")} | rC={n:.2f} rP={m:.2f}'
+            ax.set_title(titulo, color=ACCENT, fontsize=9, fontweight='bold')
+
+            fig.tight_layout()
+
+            from PySide6.QtWidgets import QDialog, QVBoxLayout
+            dlg = QDialog(self)
+            dlg.setWindowTitle(f"Payoff - {r.get('id_chassi','')} / {r.get('estagio','')}")
+            dlg.resize(800, 500)
+            dlg.setStyleSheet("background-color: #0d0d0d;")
+            lay = QVBoxLayout(dlg)
+            canvas = FigureCanvas(fig)
+            lay.addWidget(canvas)
+            dlg.exec_()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Falha ao gerar grafico:\n{e}\n{traceback.format_exc()}")
 
     def _carregar(self):
         try:
@@ -214,8 +325,8 @@ class EstudosCalendarioDialog(QDialog):
                 d["pnl_esq_str"] = f'{r["pnl_cauda_esq"]:.2f}' if r["pnl_cauda_esq"] is not None else "-"
                 d["pnl_dir_str"] = f'{r["pnl_cauda_dir"]:.2f}' if r["pnl_cauda_dir"] is not None else "-"
 
-                # Quantities (lots)
-                qtd_acao = 100  # standard lot
+                # Quantities (lots) from actual qtd_acao
+                qtd_acao = r["qtd_acao"] if r["qtd_acao"] else 100
                 d["qtd_calls"] = max(1, int(r["ratio_call"] * qtd_acao / 100 + 0.5))
                 d["qtd_puts"] = max(0, int(r["ratio_put"] * qtd_acao / 100 + 0.5))
 

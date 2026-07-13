@@ -100,12 +100,26 @@ def _migrar_historico_simulacoes(conn):
             be_esq REAL,
             be_dir REAL,
             pct_cdi REAL NOT NULL,
+            qtd_acao INTEGER NOT NULL DEFAULT 100,
+            premio_call REAL NOT NULL DEFAULT 0,
+            premio_put REAL NOT NULL DEFAULT 0,
+            preco_compra REAL NOT NULL DEFAULT 0,
             detectado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_historico_simulacoes_chassi ON historico_simulacoes(id_chassi)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_historico_simulacoes_ativo ON historico_simulacoes(ativo)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_historico_simulacoes_data ON historico_simulacoes(detectado_em)")
+
+    # Migrações de colunas novas
+    for col, tipo in [("qtd_acao", "INTEGER NOT NULL DEFAULT 100"),
+                      ("premio_call", "REAL NOT NULL DEFAULT 0"),
+                      ("premio_put", "REAL NOT NULL DEFAULT 0"),
+                      ("preco_compra", "REAL NOT NULL DEFAULT 0")]:
+        try:
+            conn.execute(f"ALTER TABLE historico_simulacoes ADD COLUMN {col} {tipo}")
+        except Exception:
+            pass
 
 
 def _seed_parametros_colar(conn):
@@ -646,6 +660,10 @@ CREATE TABLE IF NOT EXISTS historico_simulacoes (
     be_esq REAL,
     be_dir REAL,
     pct_cdi REAL NOT NULL,
+    qtd_acao INTEGER NOT NULL DEFAULT 100,
+    premio_call REAL NOT NULL DEFAULT 0,
+    premio_put REAL NOT NULL DEFAULT 0,
+    preco_compra REAL NOT NULL DEFAULT 0,
     detectado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
