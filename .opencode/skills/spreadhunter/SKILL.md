@@ -27,7 +27,7 @@ aprovação/rejeição. O fluxo deve ser: proposta → confirmação → execuç
   `src/infrastructure/integrations/opcoesnet_client.py`
 - **Matemática**: scipy 1.17.1, numpy 2.4.6
 - **Gráficos**: matplotlib 3.11.0 (backend qtagg)
-- **Testes**: pytest 9.1.0 (159 testes)
+- **Testes**: pytest 9.1.0 (442 testes)
 
 ## Estrutura de Pastas
 

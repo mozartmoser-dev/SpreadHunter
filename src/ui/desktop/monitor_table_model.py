@@ -1,7 +1,8 @@
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex
-from PySide6.QtGui import QColor, QBrush, QFont
+from PySide6.QtGui import QColor, QBrush, QFont, QIcon
 
 from src.application.dtos.dtos import OportunidadeMonitor
+from src.ui.desktop.flag_icons import flag_icon
 from src.ui.desktop.theme import Palette
 
 
@@ -148,6 +149,9 @@ class MonitorTableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.FontRole:
             return self._font_data(opp, col_key)
 
+        if role == Qt.ItemDataRole.DecorationRole and col_key == "tipo_opcao":
+            return flag_icon(opp.tipo_opcao)
+
         if role == Qt.ItemDataRole.TextAlignmentRole:
             if col_key in self._CENTER_COLS:
                 return Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
@@ -203,8 +207,7 @@ class MonitorTableModel(QAbstractTableModel):
         if col_key == "label_detectado":
             return opp.label_detectado
         if col_key == "tipo_opcao":
-            bandeiras = {"A": "🇺🇸", "E": "🇪🇺", "P": "🇪🇺"}
-            return bandeiras.get(opp.tipo_opcao, "-")
+            return ""
         value = getattr(opp, col_key, None)
         if value is None:
             return ""

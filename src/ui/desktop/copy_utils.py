@@ -62,11 +62,10 @@ def _valor_csv(r, chave: str, model=None, model_row: int | None = None,
                 rendered = model.data(idx, Qt.ItemDataRole.DisplayRole)
 
                 # CSV mantem o codigo canonico (A/E) em vez de bandeirinhas.
-                # Bandeirinhas sao puramente display.
-                if chave == "tipo_opcao" and isinstance(rendered, str):
-                    if rendered.strip() in ("🇺🇸", "🇪🇺"):
-                        v = getattr(r, chave, None)
-                        return v if v else "-"
+                # Bandeirinhas sao puramente display (DecorationRole).
+                if chave == "tipo_opcao":
+                    v = getattr(r, chave, None)
+                    return v if v else "-"
 
                 return rendered  # mantem exatamente o que a grade mostra
 

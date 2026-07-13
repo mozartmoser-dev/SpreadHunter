@@ -247,7 +247,10 @@ class TestMonitorTableModel:
         model = MonitorTableModel()
         model.atualizar([_make_opp()])
         col = [i for i, c in enumerate(MonitorTableModel.COLUMNS) if c[1] == "tipo_opcao"][0]
-        assert model.data(model.index(0, col), Qt.ItemDataRole.DisplayRole) == "🇺🇸"
+        assert model.data(model.index(0, col), Qt.ItemDataRole.DisplayRole) == ""
+        icon = model.data(model.index(0, col), Qt.ItemDataRole.DecorationRole)
+        from PySide6.QtGui import QIcon
+        assert isinstance(icon, QIcon)
 
 
 class TestMockMarketDataProvider:

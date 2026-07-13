@@ -47,7 +47,8 @@ def _check_csv_equiv(model, row_idx, chaves, resultado_obj):
         if v_str == "" and rendered_str in (None, ""):
             v_str = "-"
 
-        # tipo_opcao: CSV mantem o codigo canonico (A/E) intencionalmente
+        # tipo_opcao: grade mostra só bandeira (DisplayRole vazio),
+        # CSV mantem o codigo canonico (A/E) intencionalmente
         if chave == "tipo_opcao":
             assert v_str in ("A", "E"), (
                 f"coluna 'tipo_opcao' esperada como codigo canonico no CSV; "

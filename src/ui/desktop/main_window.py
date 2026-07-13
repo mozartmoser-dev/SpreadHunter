@@ -8,10 +8,10 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QToolBar, QToolButton, QLabel, QDialog, QMessageBox,
     QHeaderView, QTableView, QAbstractItemView, QFrame, QMenu,
-    QCheckBox, QComboBox, QStackedWidget, QGraphicsOpacityEffect,
+    QAbstractSpinBox, QCheckBox, QComboBox, QSpinBox, QStackedWidget, QGraphicsOpacityEffect,
     QSplitter,
 )
-from PySide6.QtCore import Qt, QTimer, QSize, QPropertyAnimation, QEasingCurve, QThread, Signal, QUrl
+from PySide6.QtCore import Qt, QTimer, QSize, QPropertyAnimation, QEasingCurve, QThread, Signal, QUrl, QSortFilterProxyModel
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtGui import QFont, QColor, QBrush, QIcon, QPixmap, QPainter, QAction, QShortcut, QKeySequence, QMovie
@@ -49,6 +49,71 @@ def _make_led_icon(color_hex: str, size: int = 12) -> QIcon:
     painter.drawEllipse(1, 1, size - 2, size - 2)
     painter.end()
     return QIcon(pixmap)
+
+
+class TopNSortProxy(QSortFilterProxyModel):
+    """Proxy que mantém só as N melhores linhas por ativo (coluna 1).
+
+    Agrupa linhas pelo valor da coluna ``_ativo_col`` (default 1 = "Ativo"),
+    ordena cada grupo pela coluna de ordenação atual (ou ``_default_sort_col``
+    se nenhuma), e mantém só as ``_top_n`` primeiras de cada grupo.
+    ``_top_n = 0`` = desliga o filtro (mostra todos).
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._top_n = 0
+        self._top_n_accept_set: set[int] | None = None
+        self._default_sort_col = 3
+        self._ativo_col = 1
+
+    def set_top_n(self, n: int):
+        self._top_n = n
+        self._top_n_accept_set = None
+        self.invalidateFilter()
+
+    def invalidate_top_n(self):
+        self._top_n_accept_set = None
+        self.invalidateFilter()
+
+    def sort(self, column, order):
+        super().sort(column, order)
+        self._top_n_accept_set = None
+
+    def _recompute_top_n(self):
+        src = self.sourceModel()
+        n = self._top_n
+        sort_col = self.sortColumn()
+        if sort_col < 0:
+            sort_col = self._default_sort_col
+        sort_order = self.sortOrder()
+
+        rows_by_ativo: dict[str, list[int]] = {}
+        for row in range(src.rowCount()):
+            idx = src.index(row, self._ativo_col)
+            ativo = src.data(idx, Qt.ItemDataRole.DisplayRole) or ""
+            rows_by_ativo.setdefault(ativo, []).append(row)
+
+        accept: set[int] = set()
+        for ativo, rows in rows_by_ativo.items():
+            def _sort_key(r):
+                idx = src.index(r, sort_col)
+                raw = src.data(idx, Qt.ItemDataRole.DisplayRole) or "0"
+                try:
+                    return float(str(raw).replace("R$", "").replace("x", "").replace("%", "").replace(",", ".").strip())
+                except Exception:
+                    return 0.0
+            sorted_rows = sorted(rows, key=_sort_key, reverse=(sort_order == Qt.DescendingOrder))
+            accept.update(sorted_rows[:n])
+
+        self._top_n_accept_set = accept
+
+    def filterAcceptsRow(self, row, parent):
+        if self._top_n > 0:
+            if self._top_n_accept_set is None:
+                self._recompute_top_n()
+            if row not in self._top_n_accept_set:
+                return False
+        return True
 
 
 class MainWindow(QMainWindow):
@@ -281,12 +346,14 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(8)
 
         self.table_model = MonitorTableModel()
+        self._main_proxy = TopNSortProxy()
+        self._main_proxy.setSourceModel(self.table_model)
         self.table_view = QTableView()
-        self.table_view.setModel(self.table_model)
+        self.table_view.setModel(self._main_proxy)
         self.table_view.setAlternatingRowColors(True)
         self.table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table_view.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table_view.setSortingEnabled(False)
+        self.table_view.setSortingEnabled(True)
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
         self.table_view.horizontalHeader().setStretchLastSection(True)
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
@@ -317,12 +384,14 @@ class MainWindow(QMainWindow):
 
         # --- Vendidas table ---
         self.vendidas_model = VendidasTableModel()
+        self._vend_proxy = TopNSortProxy()
+        self._vend_proxy.setSourceModel(self.vendidas_model)
         self.vendidas_table_view = QTableView()
-        self.vendidas_table_view.setModel(self.vendidas_model)
+        self.vendidas_table_view.setModel(self._vend_proxy)
         self.vendidas_table_view.setAlternatingRowColors(True)
         self.vendidas_table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.vendidas_table_view.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.vendidas_table_view.setSortingEnabled(False)
+        self.vendidas_table_view.setSortingEnabled(True)
         self.vendidas_table_view.setFont(font)
         self.vendidas_table_view.verticalHeader().setDefaultSectionSize(28)
         self.vendidas_table_view.verticalHeader().hide()
@@ -353,12 +422,14 @@ class MainWindow(QMainWindow):
 
         # --- Coberta table ---
         self.coberta_model = VendaCobertaTableModel()
+        self._taxa_proxy = TopNSortProxy()
+        self._taxa_proxy.setSourceModel(self.coberta_model)
         self.coberta_table_view = QTableView()
-        self.coberta_table_view.setModel(self.coberta_model)
+        self.coberta_table_view.setModel(self._taxa_proxy)
         self.coberta_table_view.setAlternatingRowColors(True)
         self.coberta_table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.coberta_table_view.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.coberta_table_view.setSortingEnabled(False)
+        self.coberta_table_view.setSortingEnabled(True)
         self.coberta_table_view.setFont(font)
         self.coberta_table_view.verticalHeader().setDefaultSectionSize(28)
         self.coberta_table_view.verticalHeader().hide()
@@ -700,6 +771,35 @@ class MainWindow(QMainWindow):
         self.btn_export_box.clicked.connect(self._exportar_csv_box)
         btn_layout.addWidget(self.btn_export_box)
 
+        self._spin_topn_box = QWidget()
+        self._spin_topn_box.setFixedSize(52, 24)
+        self._spin_topn_box.setToolTip("0 = mostra todos. 1-N = só as N melhores linhas de cada ativo (coluna de ordenação atual)")
+        hb = QHBoxLayout(self._spin_topn_box)
+        hb.setContentsMargins(0, 0, 0, 0)
+        hb.setSpacing(1)
+        self._spin_topn_val = QLabel("0")
+        self._spin_topn_val.setFixedSize(22, 22)
+        self._spin_topn_val.setAlignment(Qt.AlignCenter)
+        self._spin_topn_val.setStyleSheet("QLabel { background-color: #0d0d1a; color: #4caf50; "
+            "border: 1px solid #2a5a2a; border-radius: 2px; font-size: 7pt; font-weight: bold; }")
+        self._spin_topn_minus = QPushButton("-")
+        self._spin_topn_minus.setFixedSize(14, 22)
+        self._spin_topn_minus.setStyleSheet("QPushButton { background-color: #1a1a2e; color: #4caf50; "
+            "border: 1px solid #2a5a2a; border-radius: 2px; font-size: 8pt; font-weight: bold; padding: 0; }"
+            "QPushButton:hover { background-color: #2a2a3e; }")
+        self._spin_topn_plus = QPushButton("+")
+        self._spin_topn_plus.setFixedSize(14, 22)
+        self._spin_topn_plus.setStyleSheet("QPushButton { background-color: #1a1a2e; color: #4caf50; "
+            "border: 1px solid #2a5a2a; border-radius: 2px; font-size: 8pt; font-weight: bold; padding: 0; }"
+            "QPushButton:hover { background-color: #2a2a3e; }")
+        hb.addWidget(self._spin_topn_minus)
+        hb.addWidget(self._spin_topn_val)
+        hb.addWidget(self._spin_topn_plus)
+        self._spin_topn_n = 0
+        self._spin_topn_minus.clicked.connect(lambda: self._set_topn_box(self._spin_topn_n - 1))
+        self._spin_topn_plus.clicked.connect(lambda: self._set_topn_box(self._spin_topn_n + 1))
+        btn_layout.addWidget(self._spin_topn_box)
+
         self.btn_bell_v = QPushButton("🔕")
         self.btn_bell_v.setFixedSize(26, 24)
         self.btn_bell_v.setToolTip("Som VENDIDAS: desligado (clique para ligar)")
@@ -737,6 +837,35 @@ class MainWindow(QMainWindow):
         self.btn_export_vendidas.clicked.connect(self._exportar_csv_vendidas)
         btn_layout.addWidget(self.btn_export_vendidas)
 
+        self._spin_topn_vend = QWidget()
+        self._spin_topn_vend.setFixedSize(52, 24)
+        self._spin_topn_vend.setToolTip("0 = mostra todos. 1-N = só as N melhores linhas de cada ativo (coluna de ordenação atual)")
+        hb = QHBoxLayout(self._spin_topn_vend)
+        hb.setContentsMargins(0, 0, 0, 0)
+        hb.setSpacing(1)
+        self._spin_topn_vend_val = QLabel("0")
+        self._spin_topn_vend_val.setFixedSize(22, 22)
+        self._spin_topn_vend_val.setAlignment(Qt.AlignCenter)
+        self._spin_topn_vend_val.setStyleSheet("QLabel { background-color: #0d0d1a; color: #e57373; "
+            "border: 1px solid #8a3a3a; border-radius: 2px; font-size: 7pt; font-weight: bold; }")
+        self._spin_topn_vend_minus = QPushButton("-")
+        self._spin_topn_vend_minus.setFixedSize(14, 22)
+        self._spin_topn_vend_minus.setStyleSheet("QPushButton { background-color: #1a1a2e; color: #e57373; "
+            "border: 1px solid #8a3a3a; border-radius: 2px; font-size: 8pt; font-weight: bold; padding: 0; }"
+            "QPushButton:hover { background-color: #2a2a3e; }")
+        self._spin_topn_vend_plus = QPushButton("+")
+        self._spin_topn_vend_plus.setFixedSize(14, 22)
+        self._spin_topn_vend_plus.setStyleSheet("QPushButton { background-color: #1a1a2e; color: #e57373; "
+            "border: 1px solid #8a3a3a; border-radius: 2px; font-size: 8pt; font-weight: bold; padding: 0; }"
+            "QPushButton:hover { background-color: #2a2a3e; }")
+        hb.addWidget(self._spin_topn_vend_minus)
+        hb.addWidget(self._spin_topn_vend_val)
+        hb.addWidget(self._spin_topn_vend_plus)
+        self._spin_topn_vend_n = 0
+        self._spin_topn_vend_minus.clicked.connect(lambda: self._set_topn_vend(self._spin_topn_vend_n - 1))
+        self._spin_topn_vend_plus.clicked.connect(lambda: self._set_topn_vend(self._spin_topn_vend_n + 1))
+        btn_layout.addWidget(self._spin_topn_vend)
+
         self.btn_bell_c = QPushButton("\U0001f514")
         self.btn_bell_c.setFixedSize(26, 24)
         self.btn_bell_c.setToolTip("Som VENDA COBERTA: desligado (clique para ligar)")
@@ -773,6 +902,35 @@ class MainWindow(QMainWindow):
         """)
         self.btn_export_coberta.clicked.connect(self._exportar_csv_coberta)
         btn_layout.addWidget(self.btn_export_coberta)
+
+        self._spin_topn_taxa = QWidget()
+        self._spin_topn_taxa.setFixedSize(52, 24)
+        self._spin_topn_taxa.setToolTip("0 = mostra todos. 1-N = só as N melhores linhas de cada ativo (coluna de ordenação atual)")
+        hb = QHBoxLayout(self._spin_topn_taxa)
+        hb.setContentsMargins(0, 0, 0, 0)
+        hb.setSpacing(1)
+        self._spin_topn_taxa_val = QLabel("0")
+        self._spin_topn_taxa_val.setFixedSize(22, 22)
+        self._spin_topn_taxa_val.setAlignment(Qt.AlignCenter)
+        self._spin_topn_taxa_val.setStyleSheet("QLabel { background-color: #0d0d1a; color: #42a5f5; "
+            "border: 1px solid #2a4a7a; border-radius: 2px; font-size: 7pt; font-weight: bold; }")
+        self._spin_topn_taxa_minus = QPushButton("-")
+        self._spin_topn_taxa_minus.setFixedSize(14, 22)
+        self._spin_topn_taxa_minus.setStyleSheet("QPushButton { background-color: #1a1a2e; color: #42a5f5; "
+            "border: 1px solid #2a4a7a; border-radius: 2px; font-size: 8pt; font-weight: bold; padding: 0; }"
+            "QPushButton:hover { background-color: #2a2a3e; }")
+        self._spin_topn_taxa_plus = QPushButton("+")
+        self._spin_topn_taxa_plus.setFixedSize(14, 22)
+        self._spin_topn_taxa_plus.setStyleSheet("QPushButton { background-color: #1a1a2e; color: #42a5f5; "
+            "border: 1px solid #2a4a7a; border-radius: 2px; font-size: 8pt; font-weight: bold; padding: 0; }"
+            "QPushButton:hover { background-color: #2a2a3e; }")
+        hb.addWidget(self._spin_topn_taxa_minus)
+        hb.addWidget(self._spin_topn_taxa_val)
+        hb.addWidget(self._spin_topn_taxa_plus)
+        self._spin_topn_taxa_n = 0
+        self._spin_topn_taxa_minus.clicked.connect(lambda: self._set_topn_taxa(self._spin_topn_taxa_n - 1))
+        self._spin_topn_taxa_plus.clicked.connect(lambda: self._set_topn_taxa(self._spin_topn_taxa_n + 1))
+        btn_layout.addWidget(self._spin_topn_taxa)
 
         btn_layout.addSpacing(16)
         btn_layout.addStretch()
@@ -1287,6 +1445,21 @@ class MainWindow(QMainWindow):
     def _on_tp_op_toggled(self, checked):
         self._worker.set_mostrar_tp_op(checked)
 
+    def _set_topn_box(self, n: int):
+        self._spin_topn_n = max(0, min(9, n))
+        self._spin_topn_val.setText(str(self._spin_topn_n))
+        self._main_proxy.set_top_n(self._spin_topn_n)
+
+    def _set_topn_vend(self, n: int):
+        self._spin_topn_vend_n = max(0, min(9, n))
+        self._spin_topn_vend_val.setText(str(self._spin_topn_vend_n))
+        self._vend_proxy.set_top_n(self._spin_topn_vend_n)
+
+    def _set_topn_taxa(self, n: int):
+        self._spin_topn_taxa_n = max(0, min(9, n))
+        self._spin_topn_taxa_val.setText(str(self._spin_topn_taxa_n))
+        self._taxa_proxy.set_top_n(self._spin_topn_taxa_n)
+
     def _on_rtd_status(self, connected: bool):
         self._rtd_connected = connected
         self._update_rtd_indicator(connected)
@@ -1313,6 +1486,7 @@ class MainWindow(QMainWindow):
         else:
             filtrados = self._resultados_vendidas
         self.vendidas_model.atualizar(filtrados)
+        self._vend_proxy.invalidate_top_n()
         n = len(filtrados)
         viaveis = sum(1 for r in filtrados if r.viavel)
         self._status_vendidas.setText(f"\U0001f4c9 {n} ({viaveis} viav)" if n else "")
@@ -1332,6 +1506,7 @@ class MainWindow(QMainWindow):
         else:
             filtrados = self._resultados_coberta
         self.coberta_model.atualizar(filtrados)
+        self._taxa_proxy.invalidate_top_n()
         n = len(filtrados)
         viaveis = sum(1 for r in filtrados if r.viavel)
         self._status_coberta.setText(f"\U0001f4c9 {n} ({viaveis} viav)" if n else "")
@@ -1351,6 +1526,7 @@ class MainWindow(QMainWindow):
         else:
             filtrados = self._resultados_brutos
         self.table_model.atualizar(filtrados)
+        self._main_proxy.invalidate_top_n()
         self._total_opps = len(filtrados)
         self._total_viaveis = sum(1 for r in filtrados if r.viavel)
         if self._total_opps > 0:
@@ -1392,6 +1568,15 @@ class MainWindow(QMainWindow):
         else:
             self._filtro_vencimento = key
             self._filtrar_e_atualizar_tabela()
+
+    @staticmethod
+    def _dashboard_sort_key(data: str):
+        raw = data[2:] if data.startswith("S-") else data
+        try:
+            dt = datetime.strptime(raw, "%d/%m/%y")
+        except ValueError:
+            return (datetime.max, 1)
+        return (dt, 0 if data.startswith("S-") else 1)
 
     def _atualizar_dashboard(self):
         count_c: Counter = Counter()
@@ -1436,13 +1621,14 @@ class MainWindow(QMainWindow):
         b.clicked.connect(lambda: self._filtrar_por_vencimento(None))
         self._dashboard_layout.insertWidget(self._dashboard_layout.count() - 1, b)
 
-        for data in sorted(todas):
+        for data in sorted(todas, key=self._dashboard_sort_key):
             qc = count_c.get(data, 0)
             qv = count_v.get(data, 0)
             qco = count_co.get(data, 0)
-            qt = qc + qv + qco
+            display_date = data[2:] if data.startswith("S-") else data
+            tipo = "S" if data.startswith("S-") else "M"
             ativo = (data == self._filtro_vencimento) or (data == self._filtro_vencimento_vendidas) or (data == self._filtro_vencimento_coberta)
-            b = _badge(f" {data}  {qt} ({qc}C {qv}V) ", "#1e3a1e", "#4caf50", "#2e5a2e", ativo)
+            b = _badge(f" {display_date}  {tipo} ({qc}C {qv}V) ", "#1e3a1e", "#4caf50", "#2e5a2e", ativo)
             b.clicked.connect(lambda checked, k=data: self._filtrar_por_vencimento(k))
             self._dashboard_layout.insertWidget(self._dashboard_layout.count() - 1, b)
 
