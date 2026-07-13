@@ -622,6 +622,18 @@ class MainWindow(QMainWindow):
         )
         btn_layout.addWidget(self.btn_historico_sim)
 
+        self.btn_estudos_cal = QPushButton("\U0001f4ca  Estudos Calendário")
+        self.btn_estudos_cal.setAutoDefault(False)
+        self.btn_estudos_cal.clicked.connect(self._abrir_estudos_calendario)
+        self.btn_estudos_cal.setToolTip("Comparação Base vs Platô vs Proteção vs Rendimento (Collar Calendário)")
+        self.btn_estudos_cal.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #00bcd4; border-color: rgba(0,188,212,0.5); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #0a3a40; border-color: #00bcd4; }}"
+        )
+        btn_layout.addWidget(self.btn_estudos_cal)
+
         self.btn_paineis = self._criar_dropup_paineis(_btn_base, _btn_hover)
         btn_layout.addWidget(self.btn_paineis)
 
@@ -1394,6 +1406,18 @@ class MainWindow(QMainWindow):
             try:
                 from PySide6.QtWidgets import QMessageBox
                 QMessageBox.critical(self, "Simulações", f"Falha ao abrir histórico:\n{e}")
+            except Exception:
+                pass
+
+    def _abrir_estudos_calendario(self):
+        try:
+            from src.ui.desktop.estudos_calendario_dialog import EstudosCalendarioDialog
+            dlg = EstudosCalendarioDialog(parent=self)
+            dlg.exec_()
+        except Exception as e:
+            try:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.critical(self, "Estudos", f"Falha ao abrir estudos:\n{e}")
             except Exception:
                 pass
 

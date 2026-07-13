@@ -1044,6 +1044,15 @@ class HistoricoSimulacoesRepository:
         finally:
             conn.close()
 
+    def limpar(self) -> int:
+        conn = get_connection(self.db_path)
+        try:
+            cursor = conn.execute("DELETE FROM historico_simulacoes")
+            conn.commit()
+            return cursor.rowcount
+        finally:
+            conn.close()
+
     def exportar_tudo(self) -> list[dict]:
         rows = self.listar(limite=999999)
         return rows

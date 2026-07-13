@@ -144,6 +144,9 @@ class HistoricoSimulacoesDialog(QDialog):
         self.btn_exportar = QPushButton("📤 Exportar Tudo")
         self.btn_exportar.clicked.connect(self._exportar)
         btn_layout.addWidget(self.btn_exportar)
+        self.btn_limpar = QPushButton("🗑 Limpar Histórico")
+        self.btn_limpar.clicked.connect(self._limpar)
+        btn_layout.addWidget(self.btn_limpar)
         self.btn_recarregar = QPushButton("🔄 Recarregar")
         self.btn_recarregar.clicked.connect(self._carregar)
         btn_layout.addWidget(self.btn_recarregar)
@@ -167,6 +170,20 @@ class HistoricoSimulacoesDialog(QDialog):
         item = self.model._items[index.row()]
         linhas = "\n".join(f"{COLUMNS[i][0]}: {self.model.data(self.model.index(index.row(), i))}" for i in range(len(COLUMNS)))
         QMessageBox.information(self, "Detalhes do Registro", linhas)
+
+    def _limpar(self):
+        resposta = QMessageBox.question(
+            self, "Limpar Histórico",
+            "Tem certeza que deseja apagar TODOS os registros do histórico de simulações?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if resposta == QMessageBox.Yes:
+            try:
+                total = self._repo.limpar()
+                self._carregar()
+                QMessageBox.information(self, "Limpar", f"{total} registro(s) removido(s).")
+            except Exception as e:
+                QMessageBox.critical(self, "Erro", f"Falha ao limpar histórico:\n{e}")
 
     def _exportar(self):
         items = self.model._items

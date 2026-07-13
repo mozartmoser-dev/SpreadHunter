@@ -1,8 +1,11 @@
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
 import numpy as np
 from scipy.stats import norm
+
+logger = logging.getLogger(__name__)
 from scipy.optimize import brentq
 
 from src.domain.services.calendario_b3 import dc_to_du, frac_du
@@ -275,6 +278,9 @@ class CalculadoraColarCalendario:
             return None
         if premio_call <= 0 or premio_put <= 0:
             return None
+        if qtd_acao % 100 != 0 or qtd_call % 100 != 0 or qtd_put % 100 != 0:
+            logger.debug("CollarCal CALC %s: qtd nao multipla de 100 acao=%d call=%d put=%d", ativo, qtd_acao, qtd_call, qtd_put)
+            return None
 
         T_call = dc_to_du(None, None, dte_call) / 252.0
         T_put = dc_to_du(None, None, dte_put) / 252.0
@@ -454,10 +460,13 @@ class CalculadoraColarCalendario:
             d2 = d1 - sigma * np.sqrt(T)
             return K * np.exp(-rf * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
 
-        # Scaling factors: qtd * ratio
+        # Scaling factors: qtd * ratio (snapped to B3 lot of 100 shares)
         qtd_acao = r.qtd_acao
-        qtd_call_real = r.qtd_call * getattr(r, 'ratio_call', 1.0)
-        qtd_put_real = r.qtd_put * getattr(r, 'ratio_put', 1.0)
+        _LOTE = 100
+        raw_call = r.qtd_call * getattr(r, 'ratio_call', 1.0)
+        raw_put = r.qtd_put * getattr(r, 'ratio_put', 1.0)
+        qtd_call_real = max(1, int(raw_call / _LOTE + 0.5)) * _LOTE if qtd_acao > 0 else raw_call
+        qtd_put_real = max(0, int(raw_put / _LOTE + 0.5)) * _LOTE if qtd_acao > 0 else raw_put
 
         cap = S0 * qtd_acao + Pp * qtd_put_real - Pc * qtd_call_real
         net = Pc * qtd_call_real - Pp * qtd_put_real

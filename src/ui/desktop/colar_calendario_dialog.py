@@ -78,7 +78,8 @@ class ColarCalTableModel(QAbstractTableModel):
         ("θ Líq", "theta_liquido"),
         ("P Put VC", "valor_put_venc_call"),
         ("Viés", "tipo_str"),
-        ("Ratio", "ratio_call"),
+        ("R Call", "ratio_call"),
+        ("R Put", "ratio_put"),
         ("Detectado", "label_detectado"),
     ]
 
@@ -194,7 +195,9 @@ class ColarCalTableModel(QAbstractTableModel):
             if col_key == "label_detectado":
                 return val or ""
             if col_key == "ratio_call":
-                return f"{int(val)}x" if val else "1x"
+                return f"{val:.2f}x" if val else "1.00x"
+            if col_key == "ratio_put":
+                return f"{val:.2f}x" if val else "1.00x"
             return str(val)
         if role == Qt.ItemDataRole.ForegroundRole:
             if col_key == "tipo_str":
@@ -914,6 +917,32 @@ class ColarCalendarioDialog(QDialog):
         add_row("% CDI Líq:", f"{r.pct_cdi_liquido:.2f}x",
                 cor=Palette.GREEN if r.pct_cdi_liquido >= 1.0 else Palette.RED,
                 tooltip="Retorno líquido (pós-B3 e IR) comparado ao CDI do período." + CUSTOS_DISCLOSURE)
+
+        is_otimizado = getattr(r, 'is_otimizado', False)
+        if is_otimizado:
+            estagio = getattr(r, 'estagio_otimizado', '')
+            cor_estagio = {"Rendimento": "#2ecc71", "Proteção": "#e74c3c", "Platô": "#9b59b6", "Base": "#888888"}.get(estagio, Palette.YELLOW)
+            add_row("Estágio:", estagio, cor=cor_estagio)
+            qtd_a = getattr(r, 'qtd_acao', 100)
+            qtd_c = getattr(r, 'qtd_call', 100)
+            qtd_p = getattr(r, 'qtd_put', 100)
+            rc = getattr(r, 'ratio_call', 1.0) or 1.0
+            rp = getattr(r, 'ratio_put', 1.0) or 1.0
+            add_row("Ratio Call:", f"{rc:.2f}x  ({int(qtd_c * rc)} contratos)", cor=Palette.CYAN)
+            add_row("Ratio Put:", f"{rp:.2f}x  ({int(qtd_p * rp)} contratos)", cor=Palette.CYAN)
+            add_row("Ação:", f"{qtd_a} ações", cor=Palette.TEXT_PRIMARY)
+            be_esq = getattr(r, 'be_baixa', None)
+            be_dir = getattr(r, 'be_alta', None)
+            if be_esq is not None:
+                add_row("BE Esq (B&S):", f"R$ {be_esq:.2f}", cor=Palette.CYAN)
+            if be_dir is not None:
+                add_row("BE Dir (B&S):", f"R$ {be_dir:.2f}", cor=Palette.CYAN)
+
+        sep_be = QFrame()
+        sep_be.setFrameShape(QFrame.HLine)
+        sep_be.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
+        form.addRow(sep_be)
+
         if r.be_baixa is not None:
             add_row("BE Baixa (B&S):", f"R$ {r.be_baixa:.2f}", cor=Palette.CYAN)
         if r.be_alta is not None:
@@ -1206,8 +1235,11 @@ class ColarCalendarioDialog(QDialog):
 
             ratio = max(getattr(r, 'ratio_call', 1), 1)
             ratio_put = max(getattr(r, 'ratio_put', 1.0), 0.01)  # fix: escala m PUTs
-            x_min = min(Kp, S0) * (0.80 if ratio > 1 else 0.85)
-            x_max = max(Kc, S0) * (1.25 if ratio > 1 else 1.15)
+            sigma_spot = S0 * iv_c * np.sqrt(T_call)
+            s3_l = S0 - 3 * sigma_spot
+            s3_r = S0 + 3 * sigma_spot
+            x_min = min(Kp, S0, s3_l) * (0.92 if ratio > 1 else 0.95)
+            x_max = max(Kc, S0, s3_r) * (1.08 if ratio > 1 else 1.05)
             x = np.linspace(x_min, x_max, 500)
 
             repo = ParametroRepository(self._db_path)
@@ -1228,9 +1260,6 @@ class ColarCalendarioDialog(QDialog):
             put_pnl = ratio_put * put_val - ratio_put * Pp
 
             pnl = stock_pnl + call_pnl + naked_pnl + put_pnl
-
-            # Sigmas (1 desvio = S0 * IV_call * sqrt(T_call))
-            sigma_spot = S0 * iv_c * np.sqrt(T_call)
 
             BG = '#0d0d0d'; TEXT = '#c0c0c0'; RED = '#ff3355'
             ACCENT = '#ffc107'; SIGMA_C = '#6c5ce7'
@@ -2012,6 +2041,7 @@ class ColarCalendarioDialog(QDialog):
                     ),
                     "viavel": r.viavel,
                     "ratio_call": r.ratio_call,
+                    "ratio_put": r.ratio_put,
                     "is_cauda": getattr(r, 'is_cauda', False),
                     "is_otimizado": getattr(r, 'is_otimizado', False),
                     "label_detectado": _formatar_detectado(getattr(r, 'detectado_em', None)),

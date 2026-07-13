@@ -199,6 +199,9 @@ class CalculadoraColar:
         if premio_put <= 0 or premio_call <= 0:
             logger.debug("Collar CALC %s %s %s: premio<=0 put=%s call=%s", ativo, cod_put, cod_call, premio_put, premio_call)
             return None
+        if qtd_acao % 100 != 0 or qtd_call % 100 != 0 or qtd_put % 100 != 0:
+            logger.debug("Collar CALC %s %s %s: qtd nao multipla de 100 acao=%d call=%d put=%d", ativo, cod_put, cod_call, qtd_acao, qtd_call, qtd_put)
+            return None
 
         tipo = self.classificar_tipo(preco_ativo, strike_put, strike_call)
         em_leilao = status_put != "Aberto" or status_call != "Aberto"

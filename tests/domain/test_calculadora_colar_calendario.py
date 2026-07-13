@@ -146,6 +146,9 @@ class TestCalcular:
             ativo="TEST4",
             vencimento_call=date(2026, 6, 27),
             vencimento_put=date(2026, 7, 27),
+            qtd_acao=100,
+            qtd_call=100,
+            qtd_put=100,
         )
         assert r is not None
         assert r.ativo == "TEST4"
@@ -175,12 +178,14 @@ class TestCalcular:
     def test_pnl_negativo_retorna_none(self):
         calc = CalculadoraColarCalendario()
         assert calc.calcular(50, 55, 45, 0.1, 0.1, "C", "P", 365, 365,
-                             "T", date(2026, 6, 27), date(2026, 7, 27)) is None
+                             "T", date(2026, 6, 27), date(2026, 7, 27),
+                             qtd_acao=100, qtd_call=100, qtd_put=100) is None
 
     def test_viabilidade_por_premio_risco(self):
         calc_alto = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=100)
         r = calc_alto.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
-                               date(2026, 6, 27), date(2026, 7, 27))
+                               date(2026, 6, 27), date(2026, 7, 27),
+                               qtd_acao=100, qtd_call=100, qtd_put=100)
         assert r is not None
         assert bool(r.viavel) is False
 
@@ -252,6 +257,9 @@ class TestCalcularPvDividendos:
             vencimento_call=date(2026, 6, 27),
             vencimento_put=date(2026, 7, 27),
             dividendos=divs,
+            qtd_acao=100,
+            qtd_call=100,
+            qtd_put=100,
         )
         assert r is not None
         assert isinstance(r, ResultadoColarCalendario)
@@ -262,7 +270,8 @@ class TestGerarExplicacao:
     def test_gera_html(self):
         calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
         r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
-                          date(2026, 6, 27), date(2026, 7, 27))
+                          date(2026, 6, 27), date(2026, 7, 27),
+                          qtd_acao=100, qtd_call=100, qtd_put=100)
         assert r is not None
         html = CalculadoraColarCalendario.gerar_explicacao(r)
         assert "<h3>" in html
@@ -312,7 +321,8 @@ class TestRiscoMax:
         calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
         r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
                           date(2026, 6, 27), date(2026, 7, 27),
-                          preco_compra_ativo=37)
+                          preco_compra_ativo=37,
+                          qtd_acao=100, qtd_call=100, qtd_put=100)
         assert r is not None
         assert r.risco_max >= 0
         if r.capital_empregado <= min(r.strike_call, r.strike_put):
@@ -322,7 +332,8 @@ class TestRiscoMax:
         calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
         r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
                           date(2026, 6, 27), date(2026, 7, 27),
-                          preco_compra_ativo=50)
+                          preco_compra_ativo=50,
+                          qtd_acao=100, qtd_call=100, qtd_put=100)
         assert r is not None
         if r.capital_empregado > min(r.strike_call, r.strike_put):
             assert r.risco_max > 0
@@ -332,7 +343,8 @@ class TestIvRank:
     def test_iv_rank_zero_sem_historico(self):
         calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
         r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
-                          date(2026, 6, 27), date(2026, 7, 27))
+                          date(2026, 6, 27), date(2026, 7, 27),
+                          qtd_acao=100, qtd_call=100, qtd_put=100)
         assert r is not None
         assert r.iv_rank == 0.0
 
@@ -340,7 +352,8 @@ class TestIvRank:
         calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
         r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
                           date(2026, 6, 27), date(2026, 7, 27),
-                          iv_hist_min=0.1, iv_hist_max=0.5)
+                          iv_hist_min=0.1, iv_hist_max=0.5,
+                          qtd_acao=100, qtd_call=100, qtd_put=100)
         assert r is not None
         assert r.iv_rank > 0
 
@@ -348,6 +361,62 @@ class TestIvRank:
         calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
         r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
                           date(2026, 6, 27), date(2026, 7, 27),
-                          iv_hist_min=0.5, iv_hist_max=0.1)
+                          iv_hist_min=0.5, iv_hist_max=0.1,
+                          qtd_acao=100, qtd_call=100, qtd_put=100)
         assert r is not None
         assert r.iv_rank == 0.0
+
+
+class TestQtdMultiplo100:
+    """Quantities must be multiples of 100 (B3 lot size)."""
+
+    def test_qtd_acao_nao_multiplo_rejeitada(self):
+        calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
+        r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
+                          date(2026, 6, 27), date(2026, 7, 27),
+                          qtd_acao=150, qtd_call=100, qtd_put=100)
+        assert r is None
+
+    def test_qtd_call_nao_multiplo_rejeitada(self):
+        calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
+        r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
+                          date(2026, 6, 27), date(2026, 7, 27),
+                          qtd_acao=100, qtd_call=137, qtd_put=100)
+        assert r is None
+
+    def test_qtd_put_nao_multiplo_rejeitada(self):
+        calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
+        r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
+                          date(2026, 6, 27), date(2026, 7, 27),
+                          qtd_acao=100, qtd_call=100, qtd_put=89)
+        assert r is None
+
+    def test_qtd_multiplo_100_aceita(self):
+        calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
+        r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
+                          date(2026, 6, 27), date(2026, 7, 27),
+                          qtd_acao=200, qtd_call=200, qtd_put=200)
+        assert r is not None
+        assert r.viavel
+
+    def test_qtd_multiplo_300_aceita(self):
+        calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
+        r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
+                          date(2026, 6, 27), date(2026, 7, 27),
+                          qtd_acao=300, qtd_call=300, qtd_put=300)
+        assert r is not None
+
+    def test_gerar_explicacao_snaps_ratio_call_para_lote(self):
+        """gerar_explicacao should snap qtd*ratio to multiple of 100."""
+        calc = CalculadoraColarCalendario(taxa_cdi=0.145, premio_risco=1.0)
+        r = calc.calcular(50, 55, 45, 3, 2, "C", "P", 30, 60, "T",
+                          date(2026, 6, 27), date(2026, 7, 27),
+                          qtd_acao=100, qtd_call=100, qtd_put=100)
+        assert r is not None
+        r.ratio_call = 1.23  # simulate unsnapped ratio
+        r.ratio_put = 0.85
+        html = CalculadoraColarCalendario.gerar_explicacao(r)
+        # After snapping: call=100→1.23→123→round(123/100)=1→1*100=100
+        # put=100→0.85→85→round(85/100)=1→1*100=100
+        assert "100x)" in html
+        assert "CALL" in html

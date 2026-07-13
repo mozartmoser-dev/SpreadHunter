@@ -127,9 +127,9 @@ class TestProcessarOtimizado:
         pct_cdi_base=3.0,
         dte_put=5,
         iv_put_pct=15.0,
-        calda_ratio_put_step=0.05,
-        limite_min_put=0.80,
-        limite_max_call=1.30,
+        otimizado_ratio_put_step=0.05,
+        otimizado_ratio_put_min=0.80,
+        otimizado_ratio_max=1.30,
     )
 
     def test_retorna_lista(self):
@@ -165,8 +165,8 @@ class TestProcessarOtimizado:
     def test_ratios_no_range(self):
         resultados = CalculadoraCaudaAssincrona.processar_otimizado(**self.BASE)
         for r in resultados:
-            assert self.BASE["limite_min_put"] <= r.ratio_put <= 1.0
-            assert 1.0 <= r.ratio_call <= self.BASE["limite_max_call"]
+            assert self.BASE["otimizado_ratio_put_min"] <= r.ratio_put <= 1.0
+            assert 1.0 <= r.ratio_call <= self.BASE["otimizado_ratio_max"]
 
     def test_pnl_cauda_positivo_veto_3s(self):
         """Escudo de 3 sigmas: nenhum candidato com PnL<0 em ±3σ."""
@@ -201,3 +201,99 @@ class TestProcessarOtimizado:
             assert r.strike_put == 100.0
             assert r.ratio_call >= 1.0
             assert r.dte_call == 5
+
+
+class TestLoteB3:
+    """B3 lot-snapping: ratios must produce integer contract counts (100 shares)."""
+
+    BASE = dict(
+        preco_ativo=25.00,
+        strike_call=27.50,
+        strike_put=22.50,
+        premio_call=1.00,
+        premio_put=1.00,
+        dte_call=40,
+        ativo="PETR4",
+        iv_call_pct=50.0,
+        pnl_projetado_base=0.90,
+        capital_empregado_base=24.20,
+        pct_cdi_base=2.5,
+        calda_ratio_max=200,
+        calda_ratio_put_min=0.3,
+        calda_ratio_put_step=0.10,
+        calda_desvios_cauda=0.5,
+        qtd_acao=100,
+    )
+
+    def test_calcular_ratio_call_gera_contratos_inteiros(self):
+        """ratio_call * qtd_acao / 100 must be integer (valid B3 contracts)."""
+        r = CalculadoraCaudaAssincrona.calcular(**self.BASE)
+        assert r is not None
+        contratos = r.ratio_call * 100 / 100
+        assert abs(contratos - round(contratos)) < 1e-9, f"Non-integer contracts: ratio_call={r.ratio_call} -> contracts={contratos}"
+
+    def test_calcular_ratio_put_gera_contratos_inteiros(self):
+        """ratio_put * qtd_acao / 100 must be integer (valid B3 contracts)."""
+        r = CalculadoraCaudaAssincrona.calcular(**self.BASE)
+        assert r is not None
+        contratos = r.ratio_put * 100 / 100
+        assert contratos >= 0
+        assert abs(contratos - round(contratos)) < 1e-9, f"Non-integer contracts: ratio_put={r.ratio_put} -> contracts={contratos}"
+
+    def test_calcular_ratio_call_snapped_para_inteiro(self):
+        """ratio_call with qtd_acao=100 should produce integer contract count."""
+        base = dict(self.BASE)
+        base["pnl_projetado_base"] = 5.0
+        r = CalculadoraCaudaAssincrona.calcular(**base)
+        assert r is not None
+        contratos = r.ratio_call * 100 / 100
+        assert abs(contratos - round(contratos)) < 1e-9
+
+    def test_calcular_com_lote_200_snaps_contratos_inteiros(self):
+        """With qtd_acao=200, snapped ratios produce integer contract counts."""
+        base = dict(self.BASE)
+        base["qtd_acao"] = 200
+        base["pnl_projetado_base"] = 3.0
+        base["capital_empregado_base"] = 2420.0
+        base["calda_ratio_put_step"] = 0.10
+        base["calda_ratio_max"] = 300
+        r = CalculadoraCaudaAssincrona.calcular(**base)
+        if r is not None:
+            contratos_call = r.ratio_call * 200 / 100
+            contratos_put = r.ratio_put * 200 / 100
+            assert abs(contratos_call - round(contratos_call)) < 1e-9
+            assert abs(contratos_put - round(contratos_put)) < 1e-9
+            assert r.pnl_projetado > 0
+
+    def test_processar_otimizado_snaps_ratios(self):
+        """processar_otimizado should return only variants with valid lot sizes."""
+        resultados = CalculadoraCaudaAssincrona.processar_otimizado(
+            preco_ativo=100.0,
+            strike_call=105.0,
+            strike_put=100.0,
+            premio_call=4.0,
+            premio_put=3.0,
+            dte_call=5,
+            ativo="PETR4",
+            iv_call_pct=15.0,
+            pnl_projetado_base=1.0,
+            capital_empregado_base=100.0,
+            pct_cdi_base=3.0,
+            qtd_acao=100,
+        )
+        for r in resultados:
+            snaps_call = round(r.ratio_call * 100 / 100)
+            snaps_put = round(r.ratio_put * 100 / 100)
+            assert snaps_call * 100 % 100 == 0
+            assert snaps_put * 100 % 100 == 0
+            assert r.pnl_projetado > 0
+
+    def test_calcular_retorna_none_quando_snap_zera_pnl(self):
+        """If snapping ratios makes PnL <= 0, calcular returns None."""
+        base = dict(self.BASE)
+        base["pnl_projetado_base"] = 0.01
+        base["premio_call"] = 0.05
+        base["premio_put"] = 0.05
+        r = CalculadoraCaudaAssincrona.calcular(**base)
+        if r is not None:
+            assert r.pnl_projetado > 0

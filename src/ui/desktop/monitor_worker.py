@@ -402,34 +402,21 @@ class MonitorWorker(QThread):
             dados_md = getattr(self, '_ultimo_dados_mercado', None)
             tracker = PipelineTracker()
             resultados = self._monitor_colares_cal_uc.varrer(rtd, dados_md, params, ativos, pipeline_tracker=tracker)
-            cauda_habilitado = self._ler_param_int("calda_habilitado", 1)
-            if cauda_habilitado and resultados:
-                try:
-                    cauda = self._processar_cauda(resultados)
-                    tracker.add_stage(
-                        "14. Pós-processamento (Cauda)",
-                        len(resultados), len(cauda),
-                        f"{len(cauda)} variantes com cauda geradas" if cauda else "Nenhum par atingiu o alvo CDI no range sigma"
-                    )
-                    resultados.extend(cauda)
-                except Exception:
-                    logger.exception("Erro ao processar Cauda Assíncrona")
-                    tracker.add_stage("14. Pós-processamento (Cauda)", 0, 0, "ERRO")
             try:
-                if cauda_habilitado and resultados:
+                if resultados:
                     otimizadas = self._processar_otimizado(resultados)
                 else:
                     otimizadas = []
                 if otimizadas:
                     resultados.extend(otimizadas)
                     tracker.add_stage(
-                        "15. Pós-processamento (Otimizado)",
+                        "14. Pós-processamento (Otimizado)",
                         len(resultados), len(otimizadas),
                         f"{len(otimizadas)} variantes otimizadas adicionadas"
                     )
             except Exception:
                 logger.exception("Erro ao processar Otimizado")
-                tracker.add_stage("15. Pós-processamento (Otimizado)", 0, 0, "ERRO")
+                tracker.add_stage("14. Pós-processamento (Otimizado)", 0, 0, "ERRO")
 
             self.colares_calendario_atualizados.emit(resultados)
 
@@ -468,6 +455,7 @@ class MonitorWorker(QThread):
                 preco_compra=r.preco_compra,
                 iv_put_pct=r.iv_put,
                 dte_put=r.dte_put,
+                qtd_acao=r.qtd_acao,
             )
             if cauda is None:
                 continue
@@ -523,8 +511,11 @@ class MonitorWorker(QThread):
         ui_results: list = []
         repo = HistoricoSimulacoesRepository(self.db_path)
         taxa_cdi = self._ler_param_float("taxa_cdi", 0.145)
-        limite_min_put = self._ler_param_float("limite_min_put", 0.85)
-        limite_max_call = self._ler_param_float("limite_max_call", 1.40)
+        otimizado_desvios_sigma = self._ler_param_float("otimizado_desvios_sigma", 2.0)
+        otimizado_sigma_rendimento = self._ler_param_float("otimizado_sigma_rendimento", 2.0)
+        otimizado_ratio_put_min = self._ler_param_float("otimizado_ratio_put_min", 0.80)
+        otimizado_ratio_max = self._ler_param_float("otimizado_ratio_max", 1.40)
+        otimizado_ratio_put_step = self._ler_param_float("otimizado_ratio_put_step", 0.10)
         emol = self._ler_param_float("taxa_emolumento_pct", 0.00025)
         liq = self._ler_param_float("taxa_liquidacao_pct", 0.000275)
         ir = self._ler_param_float("taxa_ir_pct", 0.15)
@@ -546,21 +537,27 @@ class MonitorWorker(QThread):
                 capital_empregado_base=r.capital_empregado,
                 pct_cdi_base=r.pct_cdi,
                 taxa_cdi=taxa_cdi,
-                limite_min_put=limite_min_put,
-                limite_max_call=limite_max_call,
+                otimizado_ratio_put_min=otimizado_ratio_put_min,
+                otimizado_ratio_max=otimizado_ratio_max,
+                otimizado_desvios_sigma=otimizado_desvios_sigma,
+                otimizado_ratio_put_step=otimizado_ratio_put_step,
+                otimizado_sigma_rendimento=otimizado_sigma_rendimento,
                 custo_b3_base=r.custo_b3,
                 preco_compra=r.preco_compra,
                 iv_put_pct=r.iv_put,
                 dte_put=r.dte_put,
+                qtd_acao=r.qtd_acao,
             )
             if not variantes:
                 continue
 
+            premio_risco = self._ler_param_float("premio_risco_colar_calendario", 0.9)
             registros = []
             for v in variantes:
-                # fix: recalcula custo_b3 proporcional ao ratio efetivo de opções
-                n = v.ratio_call  # CALLs vendidas por lote
-                m = v.ratio_put   # PUTs compradas por lote
+                if v.estagio != "Base" and v.pct_cdi_com_ratio < max(r.pct_cdi, premio_risco):
+                    continue
+                n = v.ratio_call
+                m = v.ratio_put
                 custo_b3_variante = (
                     custos_b3_calc.custos_opcao(r.premio_call, n_pernas=1, ida_e_volta=True) * n
                     + custos_b3_calc.custos_opcao(r.premio_put, n_pernas=1, ida_e_volta=True) * m

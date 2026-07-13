@@ -9,6 +9,9 @@ class BadgeDelegate(QStyledItemDelegate):
 
     def paint(self, painter, option, index):
         model = index.model()
+        from PySide6.QtCore import QSortFilterProxyModel
+        if isinstance(model, QSortFilterProxyModel):
+            model = model.sourceModel()
         col_key = model.COLUMNS[index.column()][1]
         text = index.data(Qt.ItemDataRole.DisplayRole)
 

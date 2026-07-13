@@ -37,7 +37,6 @@ ESTRATEGIA_LABELS = {
     "COLLAR_CALENDARIO": "Collar Calendário",
     "BOX_4P": "Box Spread 4 Pontas",
     "VENDA_COBERTA": "Taxa",
-    "COLLAR_CALENDARIO_CAUDA": "Collar Cal. Cauda Assíncrona",
     "SBTH_VENDIDA": "SBTH Vendida",
 }
 
@@ -53,7 +52,6 @@ ESTRATEGIA_COLORS = {
     "COLLAR_CALENDARIO": "#f39c12",
     "BOX_4P": "#e74c3c",
     "VENDA_COBERTA": "#2ecc71",
-    "COLLAR_CALENDARIO_CAUDA": "#e67e22",
     "IMPORTACAO": "#8e44ad",
 }
 
@@ -138,6 +136,8 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("ranking_peso_colar_pop", "Peso Pop no Score Ranking"),
         ("ranking_peso_colar_cdi", "Peso % CDI no Score Ranking"),
         ("ranking_peso_colar_risco", "Peso risco leilão (inverso) no Score Ranking"),
+        ("colar_qul_min_put", "Qtd min negócios (QUL) da PUT"),
+        ("colar_qul_min_call", "Qtd min negócios (QUL) da CALL"),
         ("white_list_colar", "Whitelist de ativos (separados por virgula)"),
     ],
     "COLLAR_CALENDARIO": [
@@ -163,17 +163,11 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("ranking_peso_credito", "Peso crédito no Score Ranking"),
         ("ranking_peso_liquidez", "Peso liquidez no Score Ranking"),
         ("white_list_colar_calendario", "Whitelist de ativos (separados por virgula)"),
-        ("telegram_cleanup_timeout", "Timeout historico Telegram (s)"),
-    ],
-    "COLLAR_CALENDARIO_CAUDA": [
-        ("calda_habilitado", "Habilitar Cauda Assincrona (1=sim, 0=nao)"),
-        ("calda_premio_risco", "Premio risco (x CDI)"),
-        ("calda_desvios_cauda", "Desvios padrao para breakeven sup."),
-        ("calda_ratio_max", "Ratio maximo CALL:ativo"),
-        ("calda_ratio_put_min", "Ratio minimo da PUT"),
-        ("calda_ratio_put_step", "Passo de varredura dos ratios"),
-        ("limite_min_put", "Ratio min PUT (Otimizado)"),
-        ("limite_max_call", "Ratio max CALL (Otimizado)"),
+        ("otimizado_desvios_sigma", "Desvios padrao para o range (3σ protecao)"),
+        ("otimizado_sigma_rendimento", "Sigma alvo do Rendimento (CDI exigido)"),
+        ("otimizado_ratio_max", "Ratio maximo CALL:ativo"),
+        ("otimizado_ratio_put_min", "Ratio minimo da PUT"),
+        ("otimizado_ratio_put_step", "Passo de varredura do ratio"),
     ],
     "BOX_4P": [
         ("box_premio_risco", "Premio risco (x CDI)"),
@@ -489,13 +483,13 @@ PARAMETROS_INFO = {
         "precedencia": "Banco de Dados -> 100 (padrao)",
     },
     "colar_qul_min_put": {
-        "descricao": "Quantidade minima de negocios realizados (QUL) que a PUT precisa ter para ser considerada no Colar. Filtra opcoes com baixa liquidez.",
-        "usado_em": "Monitor de Colares (filtro de liquidez).",
+        "descricao": "Quantidade minima de negocios realizados (QUL) que a PUT precisa ter para ser considerada. Filtra opcoes com baixa liquidez.",
+        "usado_em": "Monitor de Colares e Collar Calendario (filtro de liquidez).",
         "precedencia": "Banco de Dados -> 100 (padrao)",
     },
     "colar_qul_min_call": {
-        "descricao": "Quantidade minima de negocios realizados (QUL) que a CALL precisa ter para ser considerada no Colar.",
-        "usado_em": "Monitor de Colares (filtro de liquidez).",
+        "descricao": "Quantidade minima de negocios realizados (QUL) que a CALL precisa ter para ser considerada. Filtra opcoes com baixa liquidez.",
+        "usado_em": "Monitor de Colares e Collar Calendario (filtro de liquidez).",
         "precedencia": "Banco de Dados -> 100 (padrao)",
     },
     "box_premio_risco": {
@@ -608,6 +602,11 @@ PARAMETROS_INFO = {
         "usado_em": "Motor de Priorizacao de Pescaria (frequencia de atualizacao).",
         "precedencia": "Banco de Dados -> 4 (padrao no seed)",
     },
+    "otimizado_sigma_rendimento": {
+        "descricao": "Quantos sigmas sao usados como alvo para exigir rentabilidade acima do CDI no estagio Rendimento. Ex: 2.0 = exige PnL >= CDI×capital nos extremos de 2σ.",
+        "usado_em": "CalculadoraCaudaAssincrona.processar_otimizado() — filtro do estagio Rendimento.",
+        "precedencia": "Banco de Dados -> 2.0 (padrao)",
+    },
 }
 
 
@@ -633,7 +632,6 @@ class ParametrosWidget(QWidget):
         "SBTH",
         "VENDA_COBERTA",
         "SBTH_VENDIDA",
-        "COLLAR_CALENDARIO_CAUDA",
         "PERFORMANCE",
         "IMPORTACAO",
         "TELEGRAM",
@@ -719,7 +717,6 @@ class ParametrosWidget(QWidget):
             "SBTH": "\U0001F4C8",                     # 📈
             "VENDA_COBERTA": "\u25CF",                # ● (bullit color)
             "SBTH_VENDIDA": "\u25CF",
-            "COLLAR_CALENDARIO_CAUDA": "\U0001FAB6",  # 🪶
             "PERFORMANCE": "\u26A1",                  # ⚡
             "TELEGRAM": "\U0001F4F2",                 # 📲
             "SOM": "\U0001F514",                      # 🔔

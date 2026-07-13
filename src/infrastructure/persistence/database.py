@@ -234,14 +234,10 @@ def _seed_parametros_colar(conn):
         ("venda_coberta_dias_maximos", "30", "VENDA_COBERTA", "Dias maximos ate o vencimento para TAXA"),
         ("venda_coberta_dist_max_pct", "0.20", "VENDA_COBERTA", "Distancia maxima do strike abaixo do spot (%)"),
         ("sbth_vendida_dist_ativo", "1.20", "SBTH_VENDIDA", "Distancia minima strike/spot (x) para SBTH Vendida — filtro de entrada"),
-        ("calda_habilitado", "1", "COLLAR_CALENDARIO_CAUDA", "Habilitar variante Cauda Assincrona (0=desligado)"),
-        ("calda_premio_risco", "2.5", "COLLAR_CALENDARIO_CAUDA", "Multiplo do CDI para target de retorno da Cauda"),
-        ("calda_desvios_cauda", "3.0", "COLLAR_CALENDARIO_CAUDA", "N de desvios padrao para o breakeven superior"),
-        ("calda_ratio_max", "50.0", "COLLAR_CALENDARIO_CAUDA", "Percentual maximo extra de CALLs sobre o ativo (ex: 50 = +50% = ratio 1.5x)"),
-        ("calda_ratio_put_min", "0.3", "COLLAR_CALENDARIO_CAUDA", "Ratio minimo da PUT (ex: 0.3 = 30% da base)"),
-        ("calda_ratio_put_step", "0.01", "COLLAR_CALENDARIO_CAUDA", "Passo de incremento para varredura dos ratios"),
-        ("limite_min_put", "0.85", "COLLAR_CALENDARIO_CAUDA", "Ratio minimo da PUT para Otimizado (processar_otimizado)"),
-        ("limite_max_call", "1.40", "COLLAR_CALENDARIO_CAUDA", "Ratio maximo da CALL para Otimizado (processar_otimizado)"),
+        ("otimizado_desvios_sigma", "2.0", "COLLAR_CALENDARIO", "Desvios padrao para o range do otimizado"),
+        ("otimizado_ratio_max", "1.40", "COLLAR_CALENDARIO", "Ratio maximo CALL:ativo permitido"),
+        ("otimizado_ratio_put_min", "0.80", "COLLAR_CALENDARIO", "Ratio minimo da PUT permitido"),
+        ("otimizado_ratio_put_step", "0.10", "COLLAR_CALENDARIO", "Passo de varredura dos ratios (LOTE/qtd_acao)"),
     ]
     for p in params + mpp_params + perf_params:
         conn.execute(

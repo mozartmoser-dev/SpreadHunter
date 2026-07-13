@@ -2,11 +2,6 @@
 strike ao centro e puts à direita, agrupada por série (vencimento).
 
 Botão "Atualizar" à esquerda do header dispara a importação via importflash.
-
-Bandeirinhas desenhadas via QPixmap (sem dependências externas):
-  - CALL tipo A (Americana) → 🇺🇸 EUA
-  - CALL tipo E (Europeia)  → 🇪🇺 Europa
-  - PUT  (sempre E)         → 🇧🇷 Brasil (diferencia visualmente da CALL E)
 """
 from __future__ import annotations
 
@@ -18,16 +13,8 @@ import re
 from datetime import date
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt, QThread, Signal, QPointF
-from PySide6.QtGui import (
-    QColor,
-    QFont,
-    QIcon,
-    QPainter,
-    QPainterPath,
-    QPixmap,
-    QPolygonF,
-)
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -45,137 +32,11 @@ from PySide6.QtWidgets import (
 
 from src.domain.entities.instrumento_opcional import TipoOpcao
 from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
+from src.ui.desktop.flag_icons import flag_icon
 from src.ui.desktop.theme import Palette
 
 if TYPE_CHECKING:
     from datetime import date as _date
-
-
-# ── Bandeirinhas (geradas via QPainter, sem dependências externas) ───────
-
-def _hex(h: str) -> QColor:
-    return QColor(int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16))
-
-
-def _clip_rounded(p: QPainter, w: int, h: int, r: int):
-    """Ativa clip em retângulo arredondado w x h com raio r."""
-    path = QPainterPath()
-    path.addRoundedRect(0, 0, w, h, r, r)
-    p.setClipPath(path)
-
-
-def _pixmap_br(size: int = 18) -> QPixmap:
-    """Bandeirinha do Brasil — usada para PUT (Europeia, B3)."""
-    pm = QPixmap(size, size)
-    pm.fill(Qt.transparent)
-    p = QPainter(pm)
-    p.setRenderHint(QPainter.Antialiasing)
-
-    _clip_rounded(p, size, size, 2)
-
-    # Fundo verde
-    p.fillRect(0, 0, size, size, _hex("#009C3B"))
-    # Losango amarelo
-    pts = [
-        (size / 2, 1),
-        (size - 1, size / 2),
-        (size / 2, size - 1),
-        (1, size / 2),
-    ]
-    p.setBrush(_hex("#FFDF00"))
-    p.setPen(Qt.NoPen)
-    p.drawPolygon(QPolygonF([QPointF(x, y) for x, y in pts]))
-    # Disco azul central
-    p.setBrush(_hex("#002776"))
-    p.drawEllipse(QPointF(size / 2, size / 2), size * 0.18, size * 0.18)
-    # Faixa branca no disco (banda cruzada)
-    p.setPen(QPen(_hex("#FFFFFF"), max(1, size * 0.04)))
-    p.drawLine(QPointF(size * 0.32, size / 2), QPointF(size * 0.68, size / 2))
-    p.end()
-    return pm
-
-
-def _pixmap_us(size: int = 18) -> QPixmap:
-    """Bandeirinha dos EUA — usada para CALL tipo A (Americana)."""
-    pm = QPixmap(size, size)
-    pm.fill(Qt.transparent)
-    p = QPainter(pm)
-    p.setRenderHint(QPainter.Antialiasing)
-
-    _clip_rounded(p, size, size, 2)
-
-    # 13 listras vermelhas e brancas
-    stripe_h = size / 13.0
-    for i in range(13):
-        color = _hex("#B22234") if i % 2 == 0 else _hex("#FFFFFF")
-        p.fillRect(0, round(i * stripe_h), size, round(stripe_h) + 1, color)
-    # Cantinho azul
-    bl_w = size * 0.4
-    bl_h = size * 0.54
-    p.fillRect(0, 0, round(bl_w), round(bl_h), _hex("#3C3B6E"))
-    # Estrelas (apenas pontos brancos)
-    p.setBrush(_hex("#FFFFFF"))
-    p.setPen(Qt.NoPen)
-    rows, cols = 5, 6  # grade alternada
-    for r in range(rows):
-        for c in range(cols):
-            x = (c + 0.5) * (bl_w / cols)
-            y = (r + 0.5) * (bl_h / rows)
-            rad = size * 0.035
-            p.drawEllipse(QPointF(x, y), rad, rad)
-    p.end()
-    return pm
-
-
-def _pixmap_eu(size: int = 18) -> QPixmap:
-    """Bandeirinha da Europa — usada para CALL tipo E (Europeia)."""
-    pm = QPixmap(size, size)
-    pm.fill(Qt.transparent)
-    p = QPainter(pm)
-    p.setRenderHint(QPainter.Antialiasing)
-
-    _clip_rounded(p, size, size, 2)
-
-    # Fundo azul
-    p.fillRect(0, 0, size, size, _hex("#003399"))
-    # 12 estrelas douradas em anel (sentido horário, começa no topo)
-    p.setBrush(_hex("#FFCC00"))
-    p.setPen(Qt.NoPen)
-    cx, cy = size / 2, size / 2
-    radius = size * 0.34
-    star_r = size * 0.06
-    for i in range(12):
-        ang = math.pi / 2.0 - 2 * math.pi * i / 12.0  # 1º quadrante clockwise
-        sx = cx + radius * math.cos(ang)
-        sy = cy - radius * math.sin(ang)
-        p.drawEllipse(QPointF(sx, sy), star_r, star_r)
-    p.end()
-    return pm
-
-
-_CACHE_FLAGS = {}
-
-
-def _flag_icon(kind: str) -> QIcon:
-    """kind = 'CALL_A' | 'CALL_E' | 'PUT'.
-
-    Convenções de bandeirinha:
-      - CALL tipo A (Americana) → 🇺🇸 EUA
-      - CALL tipo E (Europeia)  → 🇪🇺 Europa (12 estrelas em anel)
-      - PUT  (sempre E)         → 🇪🇺 Europa (mesma bandeira — PUTs B3 são europeias)
-
-    A diferença visual entre CALL_E e PUT fica pela posição na grid (esquerda
-    vs direita) e pela coluna "Tipo" ficar na coluna 2 (CALL) e coluna 5 (PUT).
-    """
-    if kind in _CACHE_FLAGS:
-        return _CACHE_FLAGS[kind]
-    if kind == "CALL_A":
-        pm = _pixmap_us()
-    else:  # CALL_E ou PUT — ambos europeus
-        pm = _pixmap_eu()
-    icon = QIcon(pm)
-    _CACHE_FLAGS[kind] = icon
-    return icon
 
 
 _MESES_PT = {
@@ -540,35 +401,24 @@ class GradeOpcoesDialog(QDialog):
         return ult.astimezone(ZoneInfo("America/Sao_Paulo"))
 
     def _criar_linha(self, inst) -> QTreeWidgetItem:
-        """Cria um nó de strike com layout CALL | CALL tipo | Strike | PUT | PUT tipo.
-
-        Colunas:
-          0 = (vazio)
-          1 = código CALL
-          2 = bandeira CALL (🇺🇸 A / 🇪🇺 E)
-          3 = strike central
-          4 = código PUT
-          5 = bandeira PUT (sempre 🇧🇷 — diferencia da CALL Europeia)
-        """
+        """Cria um nó de strike com layout CALL | CALL tipo | Strike | PUT | PUT tipo."""
         strike_str = _fmt_strike(inst.strike)
-        flag_call_key = "CALL_A" if inst.tipo_opcao == TipoOpcao.AMERICANA else "CALL_E"
-        flag_put_key = "PUT"
 
         row = QTreeWidgetItem([
             "",
             inst.cod_call or "—",
-            "",  # ícone via QTreeWidgetItem.setIcon
+            "",
             strike_str,
             inst.cod_put or "—",
-            "",  # ícone via QTreeWidgetItem.setIcon
+            "",
         ])
         for col in [1, 2, 3, 4, 5]:
             row.setTextAlignment(col, Qt.AlignCenter)
 
         # Bandeirinhas (ícones) — tamanho consistente
         from PySide6.QtCore import QSize as _QSize
-        row.setIcon(2, _flag_icon(flag_call_key))
-        row.setIcon(5, _flag_icon(flag_put_key))
+        row.setIcon(2, flag_icon("A" if inst.tipo_opcao == TipoOpcao.AMERICANA else "E"))
+        row.setIcon(5, flag_icon("E"))
         row.setSizeHint(2, _QSize(22, 20))
         row.setSizeHint(5, _QSize(22, 20))
 
