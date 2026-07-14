@@ -3,7 +3,7 @@
   "parametros": [
     {
       "chave": "premio_risco_colar",
-      "valor": "1.0",
+      "valor": "0.95",
       "estrategia": "COLAR",
       "descricao": "Premio risco Colar (x CDI)"
     },
@@ -861,13 +861,13 @@
     },
     {
       "chave": "otimizado_ratio_put_min",
-      "valor": "0.7",
+      "valor": "0.8",
       "estrategia": "COLLAR_CALENDARIO",
       "descricao": "Migrated from limite_min_put"
     },
     {
       "chave": "otimizado_ratio_max",
-      "valor": "1.5",
+      "valor": "1.2",
       "estrategia": "COLLAR_CALENDARIO",
       "descricao": "Migrated from limite_max_call"
     },

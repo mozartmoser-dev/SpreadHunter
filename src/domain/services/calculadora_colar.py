@@ -62,6 +62,11 @@ class ResultadoColar:
     qtd_acao: int = 100
     qtd_call: int = 100
     qtd_put: int = 100
+    is_otimizado: bool = False
+    estagio_otimizado: str | None = None
+    ratio_call: float = 1.0
+    ratio_put: float = 1.0
+    id_chassi: str | None = None
 
 
 @dataclass(slots=True)

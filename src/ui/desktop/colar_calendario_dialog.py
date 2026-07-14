@@ -866,7 +866,11 @@ class ColarCalendarioDialog(QDialog):
         sep2.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
         form.addRow(sep2)
 
-        add_row("Vender CALL:", f"{r.cod_call} K={r.strike_call:.2f} — R$ {r.premio_call:.2f}")
+        qc = r.qtd_call
+        rc = getattr(r, 'ratio_call', 1.0) or 1.0
+        qc_real = int(qc * rc)
+        total_call = r.premio_call * qc_real
+        add_row("Vender CALL:", f"{r.cod_call} K={r.strike_call:.2f} — R$ {r.premio_call:.2f} × {qc_real//100} ctto = R$ {total_call:.2f}")
         add_row("Vencimento Call:", r.vencimento_call.strftime("%d/%m/%Y") if hasattr(r.vencimento_call, "strftime") else str(r.vencimento_call))
         add_row("DTE Call:", f"{r.dte_call} dias")
         add_row("IV Call:", f"{r.iv_call:.1f}%")
@@ -877,7 +881,11 @@ class ColarCalendarioDialog(QDialog):
         sep3.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
         form.addRow(sep3)
 
-        add_row("Comprar PUT:", f"{r.cod_put} K={r.strike_put:.2f} — R$ {r.premio_put:.2f}")
+        qp = r.qtd_put
+        rp = getattr(r, 'ratio_put', 1.0) or 1.0
+        qp_real = int(qp * rp)
+        total_put = r.premio_put * qp_real
+        add_row("Comprar PUT:", f"{r.cod_put} K={r.strike_put:.2f} — R$ {r.premio_put:.2f} × {qp_real//100} ctto = R$ {total_put:.2f}")
         add_row("Vencimento Put:", r.vencimento_put.strftime("%d/%m/%Y") if hasattr(r.vencimento_put, "strftime") else str(r.vencimento_put))
         add_row("DTE Put:", f"{r.dte_put} dias (+{r.dte_extra}d extra)")
         add_row("IV Put:", f"{r.iv_put:.1f}%")
@@ -1223,6 +1231,7 @@ class ColarCalendarioDialog(QDialog):
             from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
             from matplotlib.figure import Figure
 
+            qtd_a = r.qtd_acao
             S0 = r.preco_ativo
             Kc = r.strike_call
             Kp = r.strike_put
@@ -1259,7 +1268,7 @@ class ColarCalendarioDialog(QDialog):
             # fix: escala pelo ratio_put (m PUTs compradas, não necessariamente 1)
             put_pnl = ratio_put * put_val - ratio_put * Pp
 
-            pnl = stock_pnl + call_pnl + naked_pnl + put_pnl
+            pnl = (stock_pnl + call_pnl + naked_pnl + put_pnl) * qtd_a
 
             BG = '#0d0d0d'; TEXT = '#c0c0c0'; RED = '#ff3355'
             ACCENT = '#ffc107'; SIGMA_C = '#6c5ce7'
@@ -1410,9 +1419,9 @@ class ColarCalendarioDialog(QDialog):
             be_str = " | ".join(be_parts) if be_parts else ""
 
             footer = QLabel(
-                f"<b>Comprar Ativo:</b> {r.ativo} à vista — R$ {S0:.2f}<br>"
-                f"<b>Vender Call:</b> {r.cod_call} K={Kc:.2f} — +R$ {Pc:.2f} (venc. {r.vencimento_call.strftime('%d/%m')})<br>"
-                f"<b>Comprar Put:</b> {r.cod_put} K={Kp:.2f} — −R$ {Pp:.2f} (venc. {r.vencimento_put.strftime('%d/%m')})<br>"
+                f"<b>Comprar Ativo:</b> {r.ativo} — R$ {S0:.2f} × {qtd_a} un = R$ {S0 * qtd_a:.2f}<br>"
+                f"<b>Vender Call:</b> {r.cod_call} K={Kc:.2f} — +R$ {Pc:.2f} × {int(qtd_a / 100 * ratio)} ctto = R$ {Pc * ratio * qtd_a:.2f} (venc. {r.vencimento_call.strftime('%d/%m')})<br>"
+                f"<b>Comprar Put:</b> {r.cod_put} K={Kp:.2f} — −R$ {Pp:.2f} × {int(qtd_a / 100 * ratio_put)} ctto = R$ {Pp * ratio_put * qtd_a:.2f} (venc. {r.vencimento_put.strftime('%d/%m')})<br>"
                 f"<b>Capital:</b> R$ {S0 + Pp - Pc:.2f}  |  "
                 f"<b>PnL Proj:</b> R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI)"
                 f"{'  |  ' + be_str if be_str else ''}"

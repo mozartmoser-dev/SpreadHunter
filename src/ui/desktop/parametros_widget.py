@@ -36,6 +36,7 @@ ESTRATEGIA_LABELS = {
     "COLAR": "Colar Protetivo",
     "COLLAR_CALENDARIO": "Collar Calendário",
     "BOX_4P": "Box Spread 4 Pontas",
+    "MPP": "Motor de Priorização de Pescaria (MPP)",
     "VENDA_COBERTA": "Taxa",
     "SBTH_VENDIDA": "SBTH Vendida",
 }
@@ -51,6 +52,7 @@ ESTRATEGIA_COLORS = {
     "COLAR": "#1abc9c",
     "COLLAR_CALENDARIO": "#f39c12",
     "BOX_4P": "#e74c3c",
+    "MPP": "#9b59b6",
     "VENDA_COBERTA": "#2ecc71",
     "IMPORTACAO": "#8e44ad",
 }
@@ -66,6 +68,9 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("taxa_aluguel_habilitado", "Habilitar Coleta Taxa Aluguel"),
         ("investsite_timeout_ms", "Timeout InvestSite (ms)"),
         ("investsite_delay_ms", "Delay entre Requisições InvestSite (ms)"),
+        ("taxa_emolumento_pct", "Taxa de Emolumento B3 (% do financeiro)"),
+        ("taxa_liquidacao_pct", "Taxa de Liquidação B3 (% do financeiro)"),
+        ("taxa_ir_pct", "Alíquota de IR sobre lucro (15% swing trade)"),
     ],
     "BOX": [
         ("premio_risco_box", "Premio risco BOX (x CDI)"),
@@ -139,6 +144,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("colar_qul_min_put", "Qtd min negócios (QUL) da PUT"),
         ("colar_qul_min_call", "Qtd min negócios (QUL) da CALL"),
         ("white_list_colar", "Whitelist de ativos (separados por virgula)"),
+        ("colar_risco_baixo_vov_min", "VOV/VOC mínimo para risco baixo de despernamento"),
     ],
     "COLLAR_CALENDARIO": [
         ("calendario_strike_diff_max", "Max strikes de diferenca call-put"),
@@ -163,6 +169,14 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("ranking_peso_credito", "Peso crédito no Score Ranking"),
         ("ranking_peso_liquidez", "Peso liquidez no Score Ranking"),
         ("white_list_colar_calendario", "Whitelist de ativos (separados por virgula)"),
+        ("ranking_peso_iv_rank", "Peso IV Rank no Score IV (0-100)"),
+        ("ranking_peso_dist_strike", "Peso Dist Strike/Custo no Score IV"),
+        ("ranking_peso_theta_margin", "Peso Theta/Margin no Score IV"),
+        ("ranking_peso_vega", "Peso Vega líquido no Score IV"),
+        ("ranking_peso_liquidez_iv", "Peso Liquidez no Score IV"),
+        ("ranking_peso_risco_max", "Peso Risco Máx (invertido) no Score IV"),
+    ],
+    "RATIOS_OTIMIZADOS": [
         ("otimizado_desvios_sigma", "Desvios padrao para o range (3σ protecao)"),
         ("otimizado_sigma_rendimento", "Sigma alvo do Rendimento (CDI exigido)"),
         ("otimizado_ratio_max", "Ratio maximo CALL:ativo"),
@@ -174,8 +188,38 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("box_qtd_min", "Qtd min contratos por perna"),
         ("box_soh_europeia", "So aceitar opcoes europeias"),
         ("white_list_box4p", "Whitelist de ativos (separados por virgula)"),
+        ("box_scan_interval", "Ciclos entre varreduras de Box 4P"),
+    ],
+    "MPP": [
         ("mpp_habilitado", "Habilitar MPP (Priorizacao Pescaria)"),
         ("mpp_instantaneo_interval", "Ciclos entre calculos MPP (default 4)"),
+        ("mpp_peso_oi", "Peso concentracao OI no score estrutural"),
+        ("mpp_peso_volume", "Peso baixo volume no score estrutural"),
+        ("mpp_peso_curvatura_iv", "Peso curvatura IV no score estrutural"),
+        ("mpp_peso_paridade", "Peso erro de paridade no score instantaneo"),
+        ("mpp_peso_spread", "Peso spread medio no score instantaneo"),
+        ("mpp_peso_profundidade", "Peso profundidade no score instantaneo"),
+        ("mpp_peso_imbalance", "Peso book imbalance (descontinuado)"),
+        ("mpp_peso_spread_anomalia", "Peso anomalia de spread no score instantaneo"),
+        ("mpp_spread_history_len", "Tamanho deque historico de spread"),
+        ("mpp_spread_min_anomalia", "Spread minimo para considerar anomalia"),
+        ("mpp_curvatura_normalizador", "Denominador normalizacao curvatura IV"),
+        ("mpp_oi_peso_absoluto", "Peso do tamanho absoluto OI no score OI"),
+        ("mpp_oi_peso_concentracao", "Peso da concentracao relativa OI no score OI"),
+        ("mpp_oi_cap_absoluto", "Cap de OI absoluto para normalizacao"),
+        ("mpp_dte_fator_min", "Fator DTE minimo (vencimentos extremos)"),
+        ("mpp_dte_ideal_min", "DTE minimo da janela ideal"),
+        ("mpp_dte_ideal_max", "DTE maximo da janela ideal"),
+        ("mpp_persistencia_max_mult", "Multiplicador maximo da persistencia"),
+        ("mpp_persistencia_divisor", "Ciclos para atingir 1x bonus persistencia"),
+        ("mpp_paridade_normalizador", "Fator normalizacao erro paridade Box"),
+        ("mpp_erro_paridade_limiar", "Limiar erro paridade para acumular persistencia"),
+        ("mpp_peso_estrutural", "Peso score estrutural no score final"),
+        ("mpp_peso_instantaneo", "Peso score instantaneo no score final"),
+        ("mpp_bonus_max", "Bonus maximo historico"),
+        ("mpp_bonus_taxa", "Taxa conversao sucesso em bonus"),
+        ("mre_lote_base", "Lote base para cálculo de lote sugerido (MRE)"),
+        ("mre_profundidade_max_pct", "Máximo % da profundidade a consumir (MRE)"),
     ],
     "IMPORTACAO": [
         ("import_max_months", "Meses a frente para importar series"),
@@ -447,6 +491,11 @@ PARAMETROS_INFO = {
         "usado_em": "Calculadora de Custos B3 (BOX 4P, Colar, Collar Calendario).",
         "precedencia": "Banco de Dados -> 0.00025 (0.025%, padrao fixo B3)",
     },
+    "taxa_ir_pct": {
+        "descricao": "Aliquota de IR sobre lucro em operacoes de swing trade (15% padrao). Aplicada sobre o lucro bruto (premio menos custos B3).",
+        "usado_em": "Calculadora de Custos B3 (BOX 4P, Colar, Collar Calendario).",
+        "precedencia": "Banco de Dados -> 0.15 (15%, padrao fixo RFB)",
+    },
     "taxa_liquidacao_pct": {
         "descricao": "Taxa de liquidacao cobrada pela B3. Atualmente 0.0275% por perna. Somada aos emolumentos para calcular o custo total B3.",
         "usado_em": "Calculadora de Custos B3 (BOX 4P, Colar, Collar Calendario).",
@@ -506,6 +555,11 @@ PARAMETROS_INFO = {
         "descricao": "Quando ativado, aceita apenas opcoes europeias (sem risco de exercicio antecipado). Opcoes americanas podem ser exercidas a qualquer momento, o que quebra a estrategia.",
         "usado_em": "Monitor de Box 4P (filtro de tipo de opcao).",
         "precedencia": "Banco de Dados -> Ativado (padrao)",
+    },
+    "box_scan_interval": {
+        "descricao": "Numero de ciclos de varredura entre varreduras de Box 4P. A cada N ciclos (~2.5s cada), o monitor reavalia todas as combinacoes de Box 4P. Aumente para reduzir CPU, diminua para detectar oportunidades mais rapido.",
+        "usado_em": "MonitorWorker (ciclo de scan de Box 4P).",
+        "precedencia": "Banco de Dados -> 5 (padrao no seed)",
     },
     "colar_risco_baixo_vov_min": {
         "descricao": "Volume minimo no book de ofertas (VOV para PUT, VOC para CALL) para considerar o risco de despernamento como baixo. Acima deste valor, o book tem profundidade para executar a operacao inteira sem desequilibrar.",
@@ -592,6 +646,36 @@ PARAMETROS_INFO = {
         "usado_em": "Monitor de Collar Calendário (cálculo do Score).",
         "precedencia": "Banco de Dados -> 0.5 (padrão no seed)",
     },
+    "ranking_peso_iv_rank": {
+        "descricao": "Peso do IV Rank no Score IV do Collar Calendário. Mede quão favorável está a volatilidade implícita num percentil historico. Valores altos = IV cara para vender, valores baixos = IV barata para comprar.",
+        "usado_em": "Monitor de Collar Calendário (cálculo do Score IV, subscore do Score Geral).",
+        "precedencia": "Banco de Dados -> 25.0 (0-100, padrao no seed)",
+    },
+    "ranking_peso_dist_strike": {
+        "descricao": "Peso da Distancia Strike/Custo no Score IV do Collar Calendário. Mede a folga entre os strikes e o custo liquido da estrutura. Quanto maior a distancia relativa, mais seguro.",
+        "usado_em": "Monitor de Collar Calendário (cálculo do Score IV).",
+        "precedencia": "Banco de Dados -> 25.0 (0-100, padrao no seed)",
+    },
+    "ranking_peso_theta_margin": {
+        "descricao": "Peso do Theta/Margin no Score IV do Collar Calendário. Mede a eficiencia do decaimento temporal por unidade de margem. Theta = decaimento diario, Margin = capital exigido em garantia.",
+        "usado_em": "Monitor de Collar Calendário (cálculo do Score IV).",
+        "precedencia": "Banco de Dados -> 25.0 (0-100, padrao no seed)",
+    },
+    "ranking_peso_vega": {
+        "descricao": "Peso do Vega líquido no Score IV do Collar Calendário. Vega mede a sensibilidade à mudança na volatilidade implícita. Vega positivo = ganha com aumento de IV, negativo = perde.",
+        "usado_em": "Monitor de Collar Calendário (cálculo do Score IV).",
+        "precedencia": "Banco de Dados -> 10.0 (0-100, padrao no seed)",
+    },
+    "ranking_peso_liquidez_iv": {
+        "descricao": "Peso da Liquidez no Score IV do Collar Calendário. Mede a profundidade do book de ofertas. Quanto maior o VOV/VOC, mais liquida a opcao e menor o custo de execucao.",
+        "usado_em": "Monitor de Collar Calendário (cálculo do Score IV).",
+        "precedencia": "Banco de Dados -> 10.0 (0-100, padrao no seed)",
+    },
+    "ranking_peso_risco_max": {
+        "descricao": "Peso do Risco Máximo (invertido) no Score IV do Collar Calendário. Risco maximo = pior perda possivel no vencimento. Invertido porque menor risco = melhor score. Penaliza estruturas com alto downside.",
+        "usado_em": "Monitor de Collar Calendário (cálculo do Score IV).",
+        "precedencia": "Banco de Dados -> 5.0 (0-100, padrao no seed)",
+    },
     "mpp_habilitado": {
         "descricao": "Quando ativado, o Motor de Priorizacao de Pescaria (MPP) calcula o score instantaneo dos boxes periodicamente. Quando desativado, o MPP nao consome CPU e o ranking nao e atualizado automaticamente.",
         "usado_em": "Motor de Priorizacao de Pescaria (ciclo de varredura do worker).",
@@ -601,6 +685,16 @@ PARAMETROS_INFO = {
         "descricao": "Numero de ciclos de varredura entre cada calculo do score instantaneo MPP. Cada ciclo dura ~2.5s. Default 4 = ~10s. Aumente para reduzir consumo de CPU (ex: 24 = ~60s).",
         "usado_em": "Motor de Priorizacao de Pescaria (frequencia de atualizacao).",
         "precedencia": "Banco de Dados -> 4 (padrao no seed)",
+    },
+    "mre_lote_base": {
+        "descricao": "Lote base utilizado pelo Motor de Recomendacao de Execucao (MRE) para calcular o lote sugerido de cada perna. O lote final e ajustado pela profundidade disponivel no book.",
+        "usado_em": "MPP Use Case — calculo de lote sugerido do MRE.",
+        "precedencia": "Banco de Dados -> 100 (padrao no seed)",
+    },
+    "mre_profundidade_max_pct": {
+        "descricao": "Percentual maximo da profundidade do book que o MRE pode consumir em cada perna. Evita que a recomendacao de execucao ultrapasse a liquidez disponivel. Ex: 0.20 = consome no maximo 20% do VOV/VOC.",
+        "usado_em": "MPP Use Case — calculo de profundidade do MRE.",
+        "precedencia": "Banco de Dados -> 0.20 (20%, padrao no seed)",
     },
     "otimizado_sigma_rendimento": {
         "descricao": "Quantos sigmas sao usados como alvo para exigir rentabilidade acima do CDI no estagio Rendimento. Ex: 2.0 = exige PnL >= CDI×capital nos extremos de 2σ.",
@@ -626,9 +720,11 @@ class ParametrosWidget(QWidget):
         "GERAL",
         "COLAR",
         "COLLAR_CALENDARIO",
+        "RATIOS_OTIMIZADOS",
         "BOX",
         "BOX_SINTETICO",
         "BOX_4P",
+        "MPP",
         "SBTH",
         "VENDA_COBERTA",
         "SBTH_VENDIDA",
@@ -714,6 +810,7 @@ class ParametrosWidget(QWidget):
             "BOX": "\U0001F4E6",                      # 📦
             "BOX_SINTETICO": "\U0001F9FA",            # 🧺
             "BOX_4P": "\U0001F9EE",                   # 🧮
+            "MPP": "\U0001F41F",                      # 🐟
             "SBTH": "\U0001F4C8",                     # 📈
             "VENDA_COBERTA": "\u25CF",                # ● (bullit color)
             "SBTH_VENDIDA": "\u25CF",

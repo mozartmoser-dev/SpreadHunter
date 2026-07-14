@@ -15,6 +15,7 @@ from src.application.use_cases.monitor_venda_coberta import MonitorVendaCobertaU
 from src.application.use_cases.mpp_use_case import MPPUseCase
 from src.domain.services.pipeline_tracker import PipelineTracker
 from src.domain.services.calculadora_cauda_assincrona import CalculadoraCaudaAssincrona, ResultadoCaudaAssincrona
+from src.domain.services.calculadora_colar_calendario import ResultadoColarCalendario, TipoColarCalendario
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
 from src.domain.services.market_data_source import criar_data_source, MarketDataSource
 from src.application.dtos.dtos import EngineStatsDTO
@@ -106,10 +107,15 @@ class MonitorWorker(QThread):
                 rtd = criar_data_source("openfast", send_delay_ms=delay_ms)
             elif fonte == "mock":
                 rtd = criar_data_source("mock", db_path=self.db_path)
-                self._rtd_main = rtd
             else:
                 rtd = criar_data_source("profit")
+            self._rtd_main = rtd
         self._mercado_provider = MercadoDataProvider(self.db_path, rtd)
+        self._subscrever_futuros(rtd)
+        if not getattr(rtd, 'disponivel', False) and hasattr(rtd, 'reconectar'):
+            logger.info("MonitorWorker: tentativa rápida de reconexão...")
+            if rtd.reconectar(max_attempts=2, delay_s=1.0):
+                logger.info("MonitorWorker: fonte reconectada.")
         self.rtd_status.emit(getattr(rtd, 'disponivel', False))
 
         self._running = True
@@ -191,6 +197,12 @@ class MonitorWorker(QThread):
             pythoncom.CoUninitialize()
         logger.info("MonitorWorker: thread finalizada.")
 
+    @property
+    def market_data_source(self):
+        if self._mercado_provider and hasattr(self._mercado_provider, 'source'):
+            return self._mercado_provider.source
+        return None
+
     def pausar(self):
         self._paused = True
         logger.info("MonitorWorker: pausado.")
@@ -216,8 +228,20 @@ class MonitorWorker(QThread):
         self._mutex.lock()
         self._wait_condition.wakeAll()
         self._mutex.unlock()
-        self.wait(3000)
+        terminou = self.wait(6000)
+        if not terminou:
+            source = self._obter_source()
+            if source is not None and hasattr(source, 'desconectar'):
+                source.desconectar()
+                logger.info("MonitorWorker: forçou desconexão da fonte.")
         logger.info("MonitorWorker: parado.")
+
+    def _obter_source(self):
+        if self._rtd_main is not None:
+            return self._rtd_main
+        if self._mercado_provider is not None:
+            return getattr(self._mercado_provider, 'source', None)
+        return None
 
     def set_interval(self, ms: int):
         self._interval_ms = max(2000, ms)
@@ -383,6 +407,12 @@ class MonitorWorker(QThread):
                 return
             tracker = PipelineTracker()
             resultados = self._monitor_colares_uc.varrer(None, dados_mercado=dados_md, pipeline_tracker=tracker)
+            try:
+                otimizadas = self._processar_otimizado(resultados, tipo_estrategia="Protetivo")
+                if otimizadas:
+                    resultados.extend(otimizadas)
+            except Exception:
+                logger.exception("Erro pós-processamento otimizado colar")
             self.colares_atualizados.emit(resultados)
 
     def _processar_colar_calendario(self, rtd):
@@ -505,16 +535,16 @@ class MonitorWorker(QThread):
             cauda_results.append(novo)
         return cauda_results
 
-    def _processar_otimizado(self, resultados: list) -> list:
-        from src.domain.services.calculadora_colar_calendario import ResultadoColarCalendario
+    def _processar_otimizado(self, resultados: list, tipo_estrategia: str = "Calendario") -> list:
         from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
+        from src.domain.services.calculadora_colar import ResultadoColar, TipoColar
         ui_results: list = []
         repo = HistoricoSimulacoesRepository(self.db_path)
         taxa_cdi = self._ler_param_float("taxa_cdi", 0.145)
-        otimizado_desvios_sigma = self._ler_param_float("otimizado_desvios_sigma", 2.0)
+        otimizado_desvios_sigma = self._ler_param_float("otimizado_desvios_sigma", 2.2)
         otimizado_sigma_rendimento = self._ler_param_float("otimizado_sigma_rendimento", 2.0)
         otimizado_ratio_put_min = self._ler_param_float("otimizado_ratio_put_min", 0.80)
-        otimizado_ratio_max = self._ler_param_float("otimizado_ratio_max", 1.40)
+        otimizado_ratio_max = self._ler_param_float("otimizado_ratio_max", 1.30)
         otimizado_ratio_put_step = self._ler_param_float("otimizado_ratio_put_step", 0.10)
         emol = self._ler_param_float("taxa_emolumento_pct", 0.00025)
         liq = self._ler_param_float("taxa_liquidacao_pct", 0.000275)
@@ -524,17 +554,32 @@ class MonitorWorker(QThread):
         for r in resultados:
             if not r.viavel:
                 continue
+            if tipo_estrategia == "Calendario":
+                if r.tipo != TipoColarCalendario.NEUTRO:
+                    continue
+                dte_call = r.dte_call
+                dte_put = r.dte_put
+                pnl_base = r.pnl_projetado
+                cap_base = r.capital_empregado
+            else:
+                if r.tipo != TipoColar.TRADICIONAL:
+                    continue
+                dte_call = r.dias
+                dte_put = r.dias
+                pnl_base = r.preco_ativo * r.qtd_acao - r.custo_liquido
+                cap_base = r.preco_compra * r.qtd_acao
+
             variantes = CalculadoraCaudaAssincrona.processar_otimizado(
                 preco_ativo=r.preco_ativo,
                 strike_call=r.strike_call,
                 strike_put=r.strike_put,
                 premio_call=r.premio_call,
                 premio_put=r.premio_put,
-                dte_call=r.dte_call,
+                dte_call=dte_call,
                 ativo=r.ativo,
                 iv_call_pct=r.iv_call,
-                pnl_projetado_base=r.pnl_projetado,
-                capital_empregado_base=r.capital_empregado,
+                pnl_projetado_base=pnl_base,
+                capital_empregado_base=cap_base,
                 pct_cdi_base=r.pct_cdi,
                 taxa_cdi=taxa_cdi,
                 otimizado_ratio_put_min=otimizado_ratio_put_min,
@@ -545,13 +590,14 @@ class MonitorWorker(QThread):
                 custo_b3_base=r.custo_b3,
                 preco_compra=r.preco_compra,
                 iv_put_pct=r.iv_put,
-                dte_put=r.dte_put,
+                dte_put=dte_put,
                 qtd_acao=r.qtd_acao,
             )
             if not variantes:
                 continue
 
-            premio_risco = self._ler_param_float("premio_risco_colar_calendario", 0.9)
+            premio_risco_chave = "premio_risco_colar_calendario" if tipo_estrategia == "Calendario" else "premio_risco_colar"
+            premio_risco = self._ler_param_float(premio_risco_chave, 0.9)
             registros = []
             for v in variantes:
                 if v.estagio != "Base" and v.pct_cdi_com_ratio < max(r.pct_cdi, premio_risco):
@@ -584,52 +630,121 @@ class MonitorWorker(QThread):
                     "premio_call": r.premio_call,
                     "premio_put": r.premio_put,
                     "preco_compra": r.preco_compra or r.preco_ativo,
+                    "cod_call": getattr(r, 'cod_call', None) or getattr(r, 'codigo_call', None),
+                    "cod_put": getattr(r, 'cod_put', None) or getattr(r, 'codigo_put', None),
+                    "vencimento_call": (r.vencimento_call.isoformat() if hasattr(r, 'vencimento_call') and hasattr(r.vencimento_call, 'isoformat') else getattr(r, 'vencimento_call', None)),
+                    "vencimento_put": (r.vencimento_put.isoformat() if hasattr(r, 'vencimento_put') and hasattr(r.vencimento_put, 'isoformat') else getattr(r, 'vencimento_put', None)),
+                    "dte_put": getattr(r, 'dte_put', None),
+                    "dte_extra": getattr(r, 'dte_extra', None),
+                    "iv_put": getattr(r, 'iv_put', None),
+                    "iv_rank_call": getattr(r, 'iv_rank_call', None),
+                    "iv_rank_put": getattr(r, 'iv_rank_put', None),
+                    "net_credito": getattr(r, 'net_credito', None),
+                    "capital_empregado": getattr(r, 'capital_empregado', None),
+                    "pnl_projetado": getattr(r, 'pnl_projetado', None),
+                    "pct_retorno": getattr(r, 'pct_retorno', None),
+                    "pct_cdi_liquido": getattr(r, 'pct_cdi_liquido', None),
+                    "custo_b3": getattr(r, 'custo_b3', None),
+                    "custo_ir": getattr(r, 'custo_ir', None),
+                    "theta_liquido": getattr(r, 'theta_liquido', None),
+                    "delta_total": getattr(r, 'delta_total', None),
+                    "vega_liquido": getattr(r, 'vega_liquido', None),
+                    "valor_put_venc_call": getattr(r, 'valor_put_venc_call', None),
+                    "pop_upside": getattr(r, 'pop_upside', None),
+                    "pop_downside": getattr(r, 'pop_downside', None),
+                    "score": getattr(r, 'score', None),
+                    "score_iv": getattr(r, 'score_iv', None),
+                    "tipo_estrategia": tipo_estrategia,
                 })
 
-                novo = ResultadoColarCalendario(
-                    ativo=r.ativo,
-                    vencimento_call=r.vencimento_call,
-                    vencimento_put=r.vencimento_put,
-                    dte_call=r.dte_call,
-                    dte_put=r.dte_put,
-                    dte_extra=r.dte_extra,
-                    strike_call=r.strike_call,
-                    strike_put=r.strike_put,
-                    cod_call=r.cod_call,
-                    cod_put=r.cod_put,
-                    preco_ativo=r.preco_ativo,
-                    premio_call=r.premio_call,
-                    premio_put=r.premio_put,
-                    net_credito=round(r.premio_call - r.premio_put, 4),
-                    iv_call=r.iv_call,
-                    iv_put=r.iv_put,
-                    valor_put_venc_call=r.valor_put_venc_call,
-                    pnl_stock=r.pnl_stock,
-                    pnl_projetado=round(v.pnl_com_ratio, 4),
-                    capital_empregado=r.capital_empregado,
-                    pct_retorno=0.0,
-                    pct_cdi=v.pct_cdi_com_ratio,
-                    delta_total=r.delta_total,
-                    theta_call=r.theta_call,
-                    theta_put=r.theta_put,
-                    theta_liquido=r.theta_liquido,
-                    viavel=True,
-                    tipo=r.tipo,
-                    r=taxa_cdi,
-                    custo_b3=round(custo_b3_variante, 4),  # fix: custo real por ratio
-                    score=0.0,
-                    preco_compra=r.preco_compra,
-                    be_baixa=v.breakeven_esquerdo,
-                    be_alta=v.breakeven_direito,
-                    ratio_call=v.ratio_call,
-                    ratio_put=v.ratio_put,
-                    is_otimizado=True,
-                    estagio_otimizado=v.estagio,
-                    detectado_em=r.detectado_em,
-                    qtd_acao=r.qtd_acao,
-                    qtd_call=r.qtd_call,
-                    qtd_put=r.qtd_put,
-                )
+                if tipo_estrategia == "Calendario":
+                    novo = ResultadoColarCalendario(
+                        ativo=r.ativo,
+                        vencimento_call=r.vencimento_call,
+                        vencimento_put=r.vencimento_put,
+                        dte_call=r.dte_call,
+                        dte_put=r.dte_put,
+                        dte_extra=r.dte_extra,
+                        strike_call=r.strike_call,
+                        strike_put=r.strike_put,
+                        cod_call=r.cod_call,
+                        cod_put=r.cod_put,
+                        preco_ativo=r.preco_ativo,
+                        premio_call=r.premio_call,
+                        premio_put=r.premio_put,
+                        net_credito=round(r.premio_call - r.premio_put, 4),
+                        iv_call=r.iv_call,
+                        iv_put=r.iv_put,
+                        valor_put_venc_call=r.valor_put_venc_call,
+                        pnl_stock=r.pnl_stock,
+                        pnl_projetado=round(v.pnl_com_ratio, 4),
+                        capital_empregado=r.capital_empregado,
+                        pct_retorno=0.0,
+                        pct_cdi=v.pct_cdi_com_ratio,
+                        delta_total=r.delta_total,
+                        theta_call=r.theta_call,
+                        theta_put=r.theta_put,
+                        theta_liquido=r.theta_liquido,
+                        viavel=True,
+                        tipo=r.tipo,
+                        r=taxa_cdi,
+                        custo_b3=round(custo_b3_variante, 4),
+                        score=0.0,
+                        preco_compra=r.preco_compra,
+                        be_baixa=v.breakeven_esquerdo,
+                        be_alta=v.breakeven_direito,
+                        ratio_call=v.ratio_call,
+                        ratio_put=v.ratio_put,
+                        is_otimizado=True,
+                        estagio_otimizado=v.estagio,
+                        detectado_em=r.detectado_em,
+                        qtd_acao=r.qtd_acao,
+                        qtd_call=r.qtd_call,
+                        qtd_put=r.qtd_put,
+                    )
+                else:
+                    novo = ResultadoColar(
+                        ativo=r.ativo,
+                        vencimento=r.vencimento,
+                        dias=r.dias,
+                        strike_put=r.strike_put,
+                        strike_call=r.strike_call,
+                        cod_put=r.cod_put,
+                        cod_call=r.cod_call,
+                        preco_ativo=r.preco_ativo,
+                        premio_put=r.premio_put,
+                        premio_call=r.premio_call,
+                        custo_liquido=r.custo_liquido,
+                        pior_retorno=r.pior_retorno,
+                        melhor_retorno=r.melhor_retorno,
+                        pct_ganho=r.pct_ganho,
+                        pct_cdi=v.pct_cdi_com_ratio,
+                        pct_cdi_melhor=r.pct_cdi_melhor,
+                        tipo=r.tipo,
+                        risco_leilao=r.risco_leilao,
+                        viavel=True,
+                        em_leilao=r.em_leilao,
+                        custo_b3=round(custo_b3_variante, 4),
+                        custo_ir=r.custo_ir,
+                        custo_ir_melhor=r.custo_ir_melhor,
+                        pct_cdi_liquido=r.pct_cdi_liquido,
+                        pct_cdi_melhor_liquido=r.pct_cdi_melhor_liquido,
+                        preco_compra=r.preco_compra,
+                        iv_call=r.iv_call,
+                        iv_put=r.iv_put,
+                        pop_upside=r.pop_upside,
+                        pop_downside=r.pop_downside,
+                        score=0.0,
+                        detectado_em=r.detectado_em,
+                        qtd_acao=r.qtd_acao,
+                        qtd_call=r.qtd_call,
+                        qtd_put=r.qtd_put,
+                        is_otimizado=True,
+                        estagio_otimizado=v.estagio,
+                        ratio_call=v.ratio_call,
+                        ratio_put=v.ratio_put,
+                        id_chassi=v.id_chassi,
+                    )
                 ui_results.append(novo)
 
             if registros:
@@ -704,6 +819,24 @@ class MonitorWorker(QThread):
             return bool(param.valor) if param else False
         except Exception:
             return False
+
+    def _subscrever_futuros(self, rtd):
+        from datetime import date
+        from src.domain.services.market_data_source import FieldName
+        if not hasattr(rtd, 'registrar_topico'):
+            return
+        hoje = date.today()
+        a, m = hoje.year, hoje.month
+        _mc = {1:"F",2:"G",3:"H",4:"J",5:"K",6:"M",7:"N",8:"Q",9:"U",10:"V",11:"X",12:"Z"}
+        extras = ["IBOV", "PETR4"]
+        for pref in ("WIN","WDO","BCT","IOF"):
+            extras.append(pref.lower())
+            for am in ((a,m),(a+1 if m==12 else a,1 if m==12 else m+1)):
+                extras.append(f"{pref.lower()}{_mc[am[1]].lower()}{str(am[0])[-2:]}")
+        for cod in extras:
+            for f in (FieldName.LAST_PRICE, FieldName.BID, FieldName.ASK):
+                rtd.registrar_topico(cod, f)
+        logger.info("Subscrição futuros+IBOV+PETR4 enviada: %s", extras)
 
     def _processar_manutencao(self):
         self._manutencao_cycle += 1

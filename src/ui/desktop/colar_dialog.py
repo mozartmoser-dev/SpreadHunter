@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QLineEdit, QFormLayout, QFrame,
     QListWidget, QListWidgetItem, QWidget, QTextEdit, QSpinBox,
+    QComboBox,
 )
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, QStringListModel, Signal
@@ -79,6 +80,9 @@ class ColarTableModel(QAbstractTableModel):
         ("Pior Líq", "pior_liquido"),
         ("Risco Desp.", "risco_str"),
         ("Dias", "dias"),
+        ("R Call", "ratio_call"),
+        ("R Put", "ratio_put"),
+        ("Estágio", "estagio_str"),
         ("Detectado", "label_detectado"),
     ]
 
@@ -121,6 +125,9 @@ class ColarTableModel(QAbstractTableModel):
                     "pior_liquido": "Valor do pior resultado líquido (após B3 + IR)." + CUSTOS_DISCLOSURE,
                     "risco_str": "Nível de risco de leilão baseado no volume das opções.",
                     "dias": "Dias corridos até o vencimento.",
+                    "ratio_call": "Ratio da CALL (short). 1.0 = 1 contrato por 100 ações.",
+                    "ratio_put": "Ratio da PUT (long). 1.0 = 1 contrato por 100 ações.",
+                    "estagio_str": "Estágio da versão otimizada: Base, Rendimento, Proteção ou Platô.",
                     "label_detectado": "Data e hora (Brasília) em que o monitor detectou a oportunidade pelo RTD (DD/MM/YYYY HH:MM:SS).",
                 }
                 return tips.get(self.COLUMNS[section][1])
@@ -155,6 +162,10 @@ class ColarTableModel(QAbstractTableModel):
                     return str(val)
                 if col_key == "label_detectado":
                     return val or ""
+                if col_key in ("ratio_call", "ratio_put"):
+                    return f"{val:.2f}"
+                if col_key == "estagio_str":
+                    return val if val and val != "-" else "-"
             except Exception:
                 return str(val)
             return str(val)
@@ -194,7 +205,12 @@ class ColarTableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.BackgroundRole:
             if not item.get("viavel", False):
                 return QBrush(QColor(Palette.ROW_NOT_VIABLE))
+            if item.get("is_otimizado", False):
+                return QBrush(QColor("#1a0d30"))
             return None
+
+        if role == Qt.ItemDataRole.UserRole + 1:
+            return item.get("is_otimizado", False)
 
         return None
 
@@ -213,6 +229,7 @@ class ColarSortProxy(QSortFilterProxyModel):
         self._pop_downside_min = 0.0
         self._top_n = 0
         self._top_n_accept_set: set[int] | None = None
+        self._filtro_variante = "Todas"
 
     def set_filtro_ativo(self, texto: str):
         self._filtro_ativo = texto.strip().upper()
@@ -238,6 +255,11 @@ class ColarSortProxy(QSortFilterProxyModel):
 
     def set_top_n(self, n: int):
         self._top_n = n
+        self._top_n_accept_set = None
+        self.invalidate()
+
+    def set_filtro_variante(self, valor: str):
+        self._filtro_variante = valor
         self._top_n_accept_set = None
         self.invalidate()
 
@@ -307,6 +329,14 @@ class ColarSortProxy(QSortFilterProxyModel):
             if self._top_n_accept_set is None:
                 self._recompute_top_n()
             if row not in self._top_n_accept_set:
+                return False
+
+        if self._filtro_variante != "Todas":
+            idx0 = src.index(row, 0)
+            is_ot = src.data(idx0, Qt.ItemDataRole.UserRole + 1)
+            if self._filtro_variante == "Base" and is_ot:
+                return False
+            if self._filtro_variante == "Otimizada" and not is_ot:
                 return False
 
         return True
@@ -485,6 +515,30 @@ class ColarDialog(QDialog):
         topn_row.addStretch()
         left_panel.addLayout(topn_row)
 
+        sep_variante = QFrame()
+        sep_variante.setFrameShape(QFrame.HLine)
+        sep_variante.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
+        left_panel.addWidget(sep_variante)
+
+        lbl_variante = QLabel("Variante:")
+        lbl_variante.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold;".format(Palette.TEXT_MUTED))
+        left_panel.addWidget(lbl_variante)
+
+        self.cmb_variante = QComboBox()
+        self.cmb_variante.setStyleSheet("""
+            QComboBox {
+                background-color: #1e1e2f; color: #e0e0e0;
+                border: 1px solid #2d2d44; border-radius: 4px;
+                padding: 3px 6px; font-size: 9pt;
+            }
+            QComboBox:focus { border-color: #1abc9c; }
+            QComboBox::drop-down { border: none; }
+            QComboBox::down-arrow { image: none; border-left: 4px solid #e0e0e0; }
+        """)
+        self.cmb_variante.addItems(["Todas", "Base", "Otimizada"])
+        self.cmb_variante.currentIndexChanged.connect(self._on_filtro_variante_changed)
+        left_panel.addWidget(self.cmb_variante)
+
         self.txt_sel_atual = QTextEdit()
         self.txt_sel_atual.setReadOnly(True)
         self.txt_sel_atual.setFixedHeight(50)
@@ -656,6 +710,10 @@ class ColarDialog(QDialog):
     def _on_topn_changed(self, n: int):
         self.proxy.set_top_n(n)
         self._atualizar_status()
+
+    def _on_filtro_variante_changed(self, idx):
+        valor = self.cmb_variante.currentText()
+        self.proxy.set_filtro_variante(valor)
 
     def _on_search_ativos_debounced(self):
         texto = self.txt_filtro.text()
@@ -879,24 +937,34 @@ class ColarDialog(QDialog):
 
         lbl = QLabel("1. Comprar Ativo:")
         lbl.setStyleSheet(label_style)
+        qa = r.qtd_acao
         preco_compra_real = r.custo_liquido - r.premio_put + r.premio_call
-        val = QLabel(f"{r.ativo} à vista — R$ {preco_compra_real:.2f}")
+        preco_unit = preco_compra_real / qa if qa else 0
+        val = QLabel(f"{r.ativo} — R$ {preco_unit:.2f} × {qa} un = R$ {preco_compra_real:.2f}")
         val.setToolTip(
-            f"Preço de compra efetivo (oferta de venda / ask). "
-            f"Spot (último negócio): R$ {r.preco_ativo:.2f}"
+            f"Preço de compra efetivo (oferta de venda / ask): R$ {preco_unit:.2f} × {qa} = R$ {preco_compra_real:.2f}. "
+            f"Spot: R$ {r.preco_ativo:.2f}"
         )
         val.setStyleSheet(value_style)
         form.addRow(lbl, val)
 
         lbl = QLabel("2. Comprar PUT:")
         lbl.setStyleSheet(label_style)
-        val = QLabel(f"{r.cod_put} (K={r.strike_put:.2f}) — R$ {r.premio_put:.2f}")
+        qp = r.qtd_put
+        rp = getattr(r, 'ratio_put', 1.0) or 1.0
+        qp_real = int(qp * rp)
+        total_put = r.premio_put * qp_real
+        val = QLabel(f"{r.cod_put} (K={r.strike_put:.2f}) — R$ {r.premio_put:.2f} × {qp_real//100} ctto = R$ {total_put:.2f}")
         val.setStyleSheet(value_style)
         form.addRow(lbl, val)
 
         lbl = QLabel("3. Vender CALL:")
         lbl.setStyleSheet(label_style)
-        val = QLabel(f"{r.cod_call} (K={r.strike_call:.2f}) — R$ {r.premio_call:.2f}")
+        qc = r.qtd_call
+        rc = getattr(r, 'ratio_call', 1.0) or 1.0
+        qc_real = int(qc * rc)
+        total_call = r.premio_call * qc_real
+        val = QLabel(f"{r.cod_call} (K={r.strike_call:.2f}) — R$ {r.premio_call:.2f} × {qc_real//100} ctto = R$ {total_call:.2f}")
         val.setStyleSheet(value_style)
         form.addRow(lbl, val)
 
@@ -972,6 +1040,33 @@ class ColarDialog(QDialog):
         val = QLabel(txt)
         val.setStyleSheet(f"color: {cor}; font-size: 10pt; font-weight: bold;")
         form.addRow(lbl, val)
+
+        is_otimizado = getattr(r, 'is_otimizado', False)
+        if is_otimizado:
+            estagio = getattr(r, 'estagio_otimizado', '')
+            cores_estagio = {"Rendimento": "#2ecc71", "Proteção": "#e74c3c", "Platô": "#9b59b6", "Base": "#888888"}
+            lbl = QLabel("Estágio:")
+            lbl.setStyleSheet(label_style)
+            val = QLabel(estagio)
+            val.setStyleSheet(f"color: {cores_estagio.get(estagio, Palette.YELLOW)}; font-size: 10pt; font-weight: bold;")
+            form.addRow(lbl, val)
+            lbl = QLabel("Ratio Call:")
+            lbl.setStyleSheet(label_style)
+            rc = getattr(r, 'ratio_call', 1.0) or 1.0
+            val = QLabel(f"{rc:.2f}x  ({int(r.qtd_call * rc // 100)} ctto)")
+            val.setStyleSheet(value_style)
+            form.addRow(lbl, val)
+            lbl = QLabel("Ratio Put:")
+            lbl.setStyleSheet(label_style)
+            rp = getattr(r, 'ratio_put', 1.0) or 1.0
+            val = QLabel(f"{rp:.2f}x  ({int(r.qtd_put * rp // 100)} ctto)")
+            val.setStyleSheet(value_style)
+            form.addRow(lbl, val)
+            lbl = QLabel("Ações:")
+            lbl.setStyleSheet(label_style)
+            val = QLabel(f"{r.qtd_acao} ações")
+            val.setStyleSheet(value_style)
+            form.addRow(lbl, val)
 
         lbl = QLabel("Risco de Leilão:")
         lbl.setStyleSheet(label_style)
@@ -1196,8 +1291,8 @@ class ColarDialog(QDialog):
             "",
             "--- QUANTIDADES ---",
             f"qtd_acao:       {qtd_a}",
-            f"qtd_call:       {qtd_c}",
-            f"qtd_put:        {qtd_p}",
+            f"qtd_call:       {qtd_c} x ratio {getattr(r, 'ratio_call', 1.0):.2f} = {int(qtd_c * getattr(r, 'ratio_call', 1.0))} efetivos",
+            f"qtd_put:        {qtd_p} x ratio {getattr(r, 'ratio_put', 1.0):.2f} = {int(qtd_p * getattr(r, 'ratio_put', 1.0))} efetivos",
             "",
             "--- MONTAGEM ---",
             f"Custo liquido:      R$ {r.custo_liquido:.4f}",
@@ -2166,11 +2261,18 @@ class ColarDialog(QDialog):
             for r in resultados:
                 pior_b3 = r.pior_retorno - r.custo_b3
                 pior_liquido = pior_b3 - r.custo_ir
+                is_otimizado = getattr(r, 'is_otimizado', False)
+                is_cauda = getattr(r, 'is_cauda', False)
+                estagio = getattr(r, 'estagio_otimizado', None) if is_otimizado else None
                 items.append({
                     "ativo": r.ativo,
                     "score": r.score,
                     "vencimento": r.vencimento,
-                    "tipo_str": r.tipo.value,
+                    "tipo_str": (
+                        str(estagio) if is_otimizado and estagio
+                        else (r.tipo.value + " Cauda") if is_cauda
+                        else r.tipo.value
+                    ),
                     "strike_put": r.strike_put,
                     "strike_call": r.strike_call,
                     "cod_put": r.cod_put,
@@ -2191,6 +2293,11 @@ class ColarDialog(QDialog):
                     "pop_upside": r.pop_upside,
                     "pop_downside": r.pop_downside,
                     "label_detectado": _formatar_detectado(r.detectado_em),
+                    "ratio_call": getattr(r, 'ratio_call', 1.0),
+                    "ratio_put": getattr(r, 'ratio_put', 1.0),
+                    "estagio_str": str(estagio) if estagio else "-",
+                    "is_otimizado": is_otimizado,
+                    "is_cauda": is_cauda,
                 })
 
             self.model.atualizar(items)

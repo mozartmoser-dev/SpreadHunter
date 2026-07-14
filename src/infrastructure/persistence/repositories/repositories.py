@@ -997,15 +997,46 @@ class HistoricoSimulacoesRepository:
                 """INSERT INTO historico_simulacoes
                    (id_chassi, estagio, ativo, preco_ativo, strike_call, strike_put,
                     dte_original, iv_call, ratio_call, ratio_put,
-                    pnl_cauda_esq, pnl_cauda_dir, be_esq, be_dir, pct_cdi)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    pnl_cauda_esq, pnl_cauda_dir, be_esq, be_dir, pct_cdi,
+                    qtd_acao, premio_call, premio_put, preco_compra,
+                    cod_call, cod_put, vencimento_call, vencimento_put,
+                    dte_put, dte_extra, iv_put,
+                    iv_rank_call, iv_rank_put,
+                    net_credito, capital_empregado, pnl_projetado,
+                    pct_retorno, pct_cdi_liquido, custo_b3, custo_ir,
+                    theta_liquido, delta_total, vega_liquido,
+                    valor_put_venc_call, pop_upside, pop_downside,
+                    score, score_iv,
+                    tipo_estrategia)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                           ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                           ?, ?, ?, ?, ?, ?, ?,
+                           ?, ?, ?, ?,
+                           ?, ?, ?, ?,
+                           ?, ?, ?,
+                           ?, ?, ?,
+                           ?, ?,
+                           ?)""",
                 [
                     (r["id_chassi"], r["estagio"], r["ativo"],
                      r["preco_ativo"], r["strike_call"], r["strike_put"],
                      r["dte_original"], r["iv_call"],
                      r["ratio_call"], r["ratio_put"],
                      r["pnl_cauda_esq"], r["pnl_cauda_dir"],
-                     r.get("be_esq"), r.get("be_dir"), r["pct_cdi"])
+                     r.get("be_esq"), r.get("be_dir"), r["pct_cdi"],
+                     r.get("qtd_acao", 100),
+                     r.get("premio_call", 0), r.get("premio_put", 0),
+                     r.get("preco_compra", 0),
+                     r.get("cod_call"), r.get("cod_put"),
+                     r.get("vencimento_call"), r.get("vencimento_put"),
+                     r.get("dte_put"), r.get("dte_extra"), r.get("iv_put"),
+                     r.get("iv_rank_call"), r.get("iv_rank_put"),
+                     r.get("net_credito"), r.get("capital_empregado"), r.get("pnl_projetado"),
+                     r.get("pct_retorno"), r.get("pct_cdi_liquido"), r.get("custo_b3"), r.get("custo_ir"),
+                     r.get("theta_liquido"), r.get("delta_total"), r.get("vega_liquido"),
+                     r.get("valor_put_venc_call"), r.get("pop_upside"), r.get("pop_downside"),
+                     r.get("score"), r.get("score_iv"),
+                     r.get("tipo_estrategia", "Calendario"))
                     for r in registros
                 ]
             )

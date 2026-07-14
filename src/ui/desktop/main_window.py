@@ -27,6 +27,7 @@ from src.ui.desktop.monitor_worker import MonitorWorker
 from src.ui.desktop.export_dialog import ExportDialog
 from src.ui.desktop.parametros_widget import ParametrosWidget
 from src.ui.desktop.engine_dashboard import EngineDashboard
+from src.ui.desktop.sensibilidade_mercado_widget import SensibilidadeMercadoWidget
 from src.ui.desktop.colar_dialog import ColarDialog
 from src.ui.desktop.colar_calendario_dialog import ColarCalendarioDialog
 from src.ui.desktop.box_dialog import BoxDialog
@@ -168,6 +169,8 @@ class MainWindow(QMainWindow):
 
         self._setup_ui()
         self._setup_status_bar()
+
+        self._sensibilidade_mercado: SensibilidadeMercadoWidget | None = None
 
         QShortcut(QKeySequence("Ctrl+Shift+F"), self, self._abrir_pipeline)
 
@@ -1489,6 +1492,14 @@ class MainWindow(QMainWindow):
         self._update_rtd_indicator(connected)
         if self._colar_dialog and self._colar_dialog.isVisible():
             self._colar_dialog.set_rtd_status(connected)
+        if self._sensibilidade_mercado is None:
+            source = self._worker.market_data_source if hasattr(self._worker, 'market_data_source') else None
+            self._sensibilidade_mercado = SensibilidadeMercadoWidget(
+                db_path=self.db_path, source=source, parent=self
+            )
+            self._sensibilidade_mercado.show()
+        elif not self._sensibilidade_mercado.isVisible():
+            self._sensibilidade_mercado.show()
 
     def _on_oportunidades_atualizadas(self, resultados: list):
         self._resultados_brutos = resultados

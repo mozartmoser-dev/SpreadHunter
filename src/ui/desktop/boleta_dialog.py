@@ -268,9 +268,11 @@ class BoletaDialog(QDialog):
             prof_call = _int_param(self.repo, "colar_prof_call", -1)
             qtd_put = _int_param(self.repo, "colar_qtd_put", 100)
             prof_put = _int_param(self.repo, "colar_prof_put", -1)
+            ratio_call = getattr(r, 'ratio_call', 1.0) or 1.0
+            ratio_put = getattr(r, 'ratio_put', 1.0) or 1.0
             self._add_perna(getattr(r, "ativo", ""), "C", qtd_ativo, prof_ativo)
-            self._add_perna(getattr(r, "cod_call", ""), "V", qtd_call, prof_call)
-            self._add_perna(getattr(r, "cod_put", ""), "C", qtd_put, prof_put)
+            self._add_perna(getattr(r, "cod_call", ""), "V", int(qtd_call * ratio_call), prof_call)
+            self._add_perna(getattr(r, "cod_put", ""), "C", int(qtd_put * ratio_put), prof_put)
             unitario = getattr(r, 'preco_compra', 0) + getattr(r, 'premio_put', 0) - getattr(r, 'premio_call', 0)
             self.lbl_coeficiente.setText(f"R$ {fmt_br(unitario)}")
 
@@ -281,9 +283,11 @@ class BoletaDialog(QDialog):
             prof_call = _int_param(self.repo, "calendario_prof_call", -1)
             qtd_put = _int_param(self.repo, "calendario_qtd_put", 100)
             prof_put = _int_param(self.repo, "calendario_prof_put", -1)
+            ratio_call = getattr(r, 'ratio_call', 1.0) or 1.0
+            ratio_put = getattr(r, 'ratio_put', 1.0) or 1.0
             self._add_perna(getattr(r, "ativo", ""), "C", qtd_ativo, prof_ativo)
-            self._add_perna(getattr(r, "cod_call", ""), "V", qtd_call, prof_call)
-            self._add_perna(getattr(r, "cod_put", ""), "C", qtd_put, prof_put)
+            self._add_perna(getattr(r, "cod_call", ""), "V", int(qtd_call * ratio_call), prof_call)
+            self._add_perna(getattr(r, "cod_put", ""), "C", int(qtd_put * ratio_put), prof_put)
             unitario = getattr(r, 'preco_compra', 0) + getattr(r, 'premio_put', 0) - getattr(r, 'premio_call', 0)
             self.lbl_coeficiente.setText(f"R$ {fmt_br(unitario)}")
 

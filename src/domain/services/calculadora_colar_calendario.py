@@ -521,7 +521,7 @@ class CalculadoraColarCalendario:
                     s_pnl_u, c_pnl_u, p_pnl_u = (S_T - S0), Pc, (put_bs_u - Pp)
             # Scale by quantities
             s_pnl = s_pnl_u * qtd_acao
-            c_pnl = c_pnl_u * min(qtd_call_real, qtd_acao)  # calls cobertas
+            c_pnl = c_pnl_u * qtd_call_real  # calls cobertas + nuas (premio total)
             if naked_pnl > 0:
                 naked = -naked_pnl * max(0, S_T - Kc)  # perda em calls nuas
             else:

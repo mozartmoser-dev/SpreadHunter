@@ -44,6 +44,9 @@ class OpenFastSocketAdapter:
         self._PROF_LOG_INTERVAL = 30.0
         self._conectar()
 
+    def __del__(self):
+        self.desconectar()
+
     def set_send_delay(self, delay_ms: int):
         self._send_delay_s = max(0.0, delay_ms / 1000.0)
 
@@ -79,26 +82,38 @@ class OpenFastSocketAdapter:
                 except socket.timeout:
                     continue
             if not linha_version:
-                logger.warning("Open Fast: handshake sem version line (simulador?): %s", buffer[:200])
-            self._socket.settimeout(1.0)
-            self._conectado = True
-            self._ultimo_syn = time.time()
-            self._reader_thread = threading.Thread(
-                target=self._thread_leitora, daemon=True
-            )
-            self._reader_thread.start()
-            logger.info("Open Fast conectado em %s:%d — handshake: %s",
-                        self._host, self._port, buffer[:120].replace("\r\n", "; "))
+                erro_msg = buffer.strip()[:200]
+                logger.warning("Open Fast: handshake sem version line: %s", erro_msg)
+                if "mais de uma conex" in erro_msg.lower():
+                    logger.info("Open Fast: servidor ocupado (outro cliente conectado).")
+                    self._socket.close()
+                    self._socket = None
+                    self._conectado = False
+                    return
+            if self._socket is not None:
+                self._socket.settimeout(1.0)
+                self._conectado = True
+                self._ultimo_syn = time.time()
+                self._reader_thread = threading.Thread(
+                    target=self._thread_leitora, daemon=True
+                )
+                self._reader_thread.start()
+                logger.info("Open Fast conectado em %s:%d — handshake: %s",
+                            self._host, self._port, buffer[:120].replace("\r\n", "; "))
         except Exception as e:
             self._conectado = False
             logger.warning("Open Fast: falha na conexão: %s", e)
 
-    def reconectar(self) -> bool:
+    def reconectar(self, max_attempts: int = 5, delay_s: float = 3.0) -> bool:
         self.desconectar()
-        self._conectar()
-        if self._conectado:
-            self._re_registrar_pendentes()
-        return self._conectado
+        for tentativa in range(1, max_attempts + 1):
+            self._conectar()
+            if self._conectado:
+                self._re_registrar_pendentes()
+                return True
+            if tentativa < max_attempts:
+                time.sleep(delay_s * tentativa)
+        return False
 
     def _re_registrar_pendentes(self):
         for codigo, campo_str in self._subscriptions:
@@ -322,6 +337,7 @@ class OpenFastSocketAdapter:
 
     def desconectar(self):
         self._conectado = False
+        time.sleep(0.05)
         try:
             if self._socket:
                 self._socket.shutdown(socket.SHUT_RDWR)

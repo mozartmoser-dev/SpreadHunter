@@ -112,10 +112,38 @@ def _migrar_historico_simulacoes(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_historico_simulacoes_data ON historico_simulacoes(detectado_em)")
 
     # Migrações de colunas novas
-    for col, tipo in [("qtd_acao", "INTEGER NOT NULL DEFAULT 100"),
-                      ("premio_call", "REAL NOT NULL DEFAULT 0"),
-                      ("premio_put", "REAL NOT NULL DEFAULT 0"),
-                      ("preco_compra", "REAL NOT NULL DEFAULT 0")]:
+    novas_colunas = [
+        ("qtd_acao", "INTEGER NOT NULL DEFAULT 100"),
+        ("premio_call", "REAL NOT NULL DEFAULT 0"),
+        ("premio_put", "REAL NOT NULL DEFAULT 0"),
+        ("preco_compra", "REAL NOT NULL DEFAULT 0"),
+        ("tipo_estrategia", "TEXT NOT NULL DEFAULT 'Calendario'"),
+        ("cod_call", "TEXT"),
+        ("cod_put", "TEXT"),
+        ("vencimento_call", "TEXT"),
+        ("vencimento_put", "TEXT"),
+        ("dte_put", "INTEGER"),
+        ("dte_extra", "INTEGER"),
+        ("iv_put", "REAL"),
+        ("iv_rank_call", "REAL"),
+        ("iv_rank_put", "REAL"),
+        ("net_credito", "REAL"),
+        ("capital_empregado", "REAL"),
+        ("pnl_projetado", "REAL"),
+        ("pct_retorno", "REAL"),
+        ("pct_cdi_liquido", "REAL"),
+        ("custo_b3", "REAL"),
+        ("custo_ir", "REAL"),
+        ("theta_liquido", "REAL"),
+        ("delta_total", "REAL"),
+        ("vega_liquido", "REAL"),
+        ("valor_put_venc_call", "REAL"),
+        ("pop_upside", "REAL"),
+        ("pop_downside", "REAL"),
+        ("score", "REAL"),
+        ("score_iv", "REAL"),
+    ]
+    for col, tipo in novas_colunas:
         try:
             conn.execute(f"ALTER TABLE historico_simulacoes ADD COLUMN {col} {tipo}")
         except Exception:
@@ -248,10 +276,11 @@ def _seed_parametros_colar(conn):
         ("venda_coberta_dias_maximos", "30", "VENDA_COBERTA", "Dias maximos ate o vencimento para TAXA"),
         ("venda_coberta_dist_max_pct", "0.20", "VENDA_COBERTA", "Distancia maxima do strike abaixo do spot (%)"),
         ("sbth_vendida_dist_ativo", "1.20", "SBTH_VENDIDA", "Distancia minima strike/spot (x) para SBTH Vendida — filtro de entrada"),
-        ("otimizado_desvios_sigma", "2.0", "COLLAR_CALENDARIO", "Desvios padrao para o range do otimizado"),
-        ("otimizado_ratio_max", "1.40", "COLLAR_CALENDARIO", "Ratio maximo CALL:ativo permitido"),
-        ("otimizado_ratio_put_min", "0.80", "COLLAR_CALENDARIO", "Ratio minimo da PUT permitido"),
-        ("otimizado_ratio_put_step", "0.10", "COLLAR_CALENDARIO", "Passo de varredura dos ratios (LOTE/qtd_acao)"),
+        ("otimizado_desvios_sigma", "2.2", "RATIOS_OTIMIZADOS", "Desvios padrao para o range do otimizado"),
+        ("otimizado_ratio_max", "1.3", "RATIOS_OTIMIZADOS", "Ratio maximo CALL:ativo permitido"),
+        ("otimizado_ratio_put_min", "0.8", "RATIOS_OTIMIZADOS", "Ratio minimo da PUT permitido"),
+        ("otimizado_ratio_put_step", "0.10", "RATIOS_OTIMIZADOS", "Passo de varredura dos ratios (LOTE/qtd_acao)"),
+        ("otimizado_sigma_rendimento", "2.0", "RATIOS_OTIMIZADOS", "Sigma alvo de rendimento do otimizado"),
     ]
     for p in params + mpp_params + perf_params:
         conn.execute(
@@ -664,6 +693,31 @@ CREATE TABLE IF NOT EXISTS historico_simulacoes (
     premio_call REAL NOT NULL DEFAULT 0,
     premio_put REAL NOT NULL DEFAULT 0,
     preco_compra REAL NOT NULL DEFAULT 0,
+    cod_call TEXT,
+    cod_put TEXT,
+    vencimento_call TEXT,
+    vencimento_put TEXT,
+    dte_put INTEGER,
+    dte_extra INTEGER,
+    iv_put REAL,
+    iv_rank_call REAL,
+    iv_rank_put REAL,
+    net_credito REAL,
+    capital_empregado REAL,
+    pnl_projetado REAL,
+    pct_retorno REAL,
+    pct_cdi_liquido REAL,
+    custo_b3 REAL,
+    custo_ir REAL,
+    theta_liquido REAL,
+    delta_total REAL,
+    vega_liquido REAL,
+    valor_put_venc_call REAL,
+    pop_upside REAL,
+    pop_downside REAL,
+    score REAL,
+    score_iv REAL,
+    tipo_estrategia TEXT NOT NULL DEFAULT 'Calendario',
     detectado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

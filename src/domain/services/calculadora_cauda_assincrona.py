@@ -282,7 +282,7 @@ class CalculadoraCaudaAssincrona:
         pct_cdi_base: float,
         taxa_cdi: float = 0.1450,
         otimizado_ratio_put_min: float = 0.80,
-        otimizado_ratio_max: float = 1.40,
+        otimizado_ratio_max: float = 1.30,
         otimizado_desvios_sigma: float = 2.0,
         otimizado_sigma_rendimento: float = 2.0,
         otimizado_ratio_put_step: float = 0.10,
