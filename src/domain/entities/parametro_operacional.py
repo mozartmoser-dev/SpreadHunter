@@ -152,4 +152,5 @@ class ParametroOperacional:
         "calda_preco_min_opcao": {"valor": 0.01, "estrategia": "PROTECAO_CAUDA", "descricao": "Preco minimo (R$) da opcao de protecao"},
         "cab_minimo_protecao": {"valor": 1, "estrategia": "PROTECAO_CAUDA", "descricao": "CAB minimo / VOL_ASK minimo para strike candidato"},
         "n_sigma_protecao": {"valor": 2.0, "estrategia": "PROTECAO_CAUDA", "descricao": "Numero de sigmas para s_target da cauda"},
+        "fator_seguranca_liquidez": {"valor": 0.2, "estrategia": "PROTECAO_CAUDA", "descricao": "Volume diario minimo como multiplo da qtd comprada"},
     }

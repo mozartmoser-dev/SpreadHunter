@@ -234,6 +234,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("calda_preco_min_opcao", "Preco Minimo da Opcao (R$)"),
         ("cab_minimo_protecao", "CAB / Vol.Ask Minimo"),
         ("n_sigma_protecao", "Nº de Sigmas (s_target)"),
+        ("fator_seguranca_liquidez", "Fator Seguranca Liquidez (x qtd)"),
     ],
 }
 
@@ -731,6 +732,11 @@ PARAMETROS_INFO = {
         "usado_em": "CalculadoraProtecaoCauda — calculo de s_target para call e put.",
         "precedencia": "Banco de Dados -> 2.0 (padrao)",
     },
+    "fator_seguranca_liquidez": {
+        "descricao": "Multiplicador que define o volume diario minimo necessario em relacao a quantidade que sera comprada. Ex: 0.2 significa que o volume do dia (VOL_ASK e VOL_BID) precisa ser pelo menos 5× (1/0.2) a quantidade da ordem. Se a ordem for de 300 opcoes, o volume diario precisa ser >= 60 em cada lado. O piso absoluto e o cab_minimo_protecao.",
+        "usado_em": "CalculadoraProtecaoCauda — filtro de liquidez do strike candidato.",
+        "precedencia": "Banco de Dados -> 0.2 (padrao)",
+    },
 }
 
 
@@ -1087,6 +1093,12 @@ class ParametrosWidget(QWidget):
                         widget.setRange(0.5, 5.0)
                         widget.setDecimals(1)
                         widget.setSingleStep(0.1)
+                    elif chave == "fator_seguranca_liquidez":
+                        widget.setRange(0.01, 1.00)
+                        widget.setSuffix(" %")
+                        widget.setDecimals(2)
+                        widget.setSingleStep(0.05)
+                        self._pct_chaves.add(chave)
                     else:
                         widget.setRange(-100.0, 100000.0)
                         if "prof" in chave or "qtd" in chave or "meses" in chave or "inteligente" in chave or "interval" in chave or "dte" in chave:

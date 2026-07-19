@@ -29,28 +29,34 @@ def _chassi(**kwargs) -> ResultadoCaudaAssincrona:
 # ── Strikes candidatos que PASSAM nos filtros e na direção ──
 # s_target_call = 40.64 * (1 + 2 * 0.085) = 47.55  → strikes >= 47.55
 # s_target_put  = 40.64 * (1 - 2 * 0.085) = 33.73  → strikes <= 33.73
+#
+# Formato do dict: {strike, premio_ask, vol_ask, vol_bid}
+# vol_ask/vob_bid = volume diario. min(vol_ask, vol_bid) >= max(cab_minimo, qtd_lote * fator)
+# Para fator=0.2 e qtd_lote=200: limiar = max(1, 200*0.2) = 40
 
 STRIKES_CALL = [
-    {"strike": 41.00, "premio_bid": 0.30, "premio_ask": 0.35, "cab": 120, "voc": 500, "vov": 450},
-    {"strike": 42.00, "premio_bid": 0.18, "premio_ask": 0.22, "cab": 80, "voc": 300, "vov": 280},
-    {"strike": 43.00, "premio_bid": 0.10, "premio_ask": 0.13, "cab": 50, "voc": 200, "vov": 180},
-    {"strike": 44.00, "premio_bid": 0.05, "premio_ask": 0.07, "cab": 20, "voc": 100, "vov": 90},
-    {"strike": 45.00, "premio_bid": 0.02, "premio_ask": 0.03, "cab": 5, "voc": 50, "vov": 40},
-    {"strike": 48.00, "premio_bid": 0.01, "premio_ask": 0.02, "cab": 10, "voc": 80, "vov": 70},
+    {"strike": 41.00, "premio_ask": 0.35, "vol_ask": 450, "vol_bid": 500},
+    {"strike": 42.00, "premio_ask": 0.22, "vol_ask": 280, "vol_bid": 300},
+    {"strike": 43.00, "premio_ask": 0.13, "vol_ask": 180, "vol_bid": 200},
+    {"strike": 44.00, "premio_ask": 0.07, "vol_ask":  90, "vol_bid": 100},
+    {"strike": 45.00, "premio_ask": 0.03, "vol_ask":  40, "vol_bid":  50},
+    {"strike": 48.00, "premio_ask": 0.02, "vol_ask":  70, "vol_bid":  80},
 ]
 
 STRIKES_PUT = [
-    {"strike": 33.00, "premio_bid": 0.15, "premio_ask": 0.20, "cab": 40, "voc": 200, "vov": 180},
-    {"strike": 34.00, "premio_bid": 0.03, "premio_ask": 0.04, "cab": 10, "voc": 50, "vov": 40},
-    {"strike": 35.00, "premio_bid": 0.06, "premio_ask": 0.08, "cab": 30, "voc": 120, "vov": 100},
-    {"strike": 36.00, "premio_bid": 0.12, "premio_ask": 0.15, "cab": 60, "voc": 250, "vov": 230},
-    {"strike": 37.00, "premio_bid": 0.25, "premio_ask": 0.30, "cab": 100, "voc": 400, "vov": 380},
+    {"strike": 33.00, "premio_ask": 0.20, "vol_ask": 180, "vol_bid": 200},
+    {"strike": 34.00, "premio_ask": 0.04, "vol_ask":  40, "vol_bid":  50},
+    {"strike": 35.00, "premio_ask": 0.08, "vol_ask": 100, "vol_bid": 120},
+    {"strike": 36.00, "premio_ask": 0.15, "vol_ask": 230, "vol_bid": 250},
+    {"strike": 37.00, "premio_ask": 0.30, "vol_ask": 380, "vol_bid": 400},
 ]
 
 
-class TestExposicaoNula:
-    """Caso (a): sem naked exposure → retorna None."""
+# ═══════════════════════════════════════════════════════════════
+# Exposição nula
+# ═══════════════════════════════════════════════════════════════
 
+class TestExposicaoNula:
     def test_ratio_um_retorna_none(self):
         r = _chassi(ratio_call=1.0, ratio_put=1.0)
         assert CalculadoraProtecaoCauda.avaliar(r, strikes_call_candidatos=STRIKES_CALL) is None
@@ -60,9 +66,11 @@ class TestExposicaoNula:
         assert CalculadoraProtecaoCauda.avaliar(r, strikes_call_candidatos=STRIKES_CALL) is None
 
 
-class TestApenasCall:
-    """Caso (b): só naked_call_frac > piso."""
+# ═══════════════════════════════════════════════════════════════
+# Apenas call
+# ═══════════════════════════════════════════════════════════════
 
+class TestApenasCall:
     RESULT = _chassi(
         id_chassi="call_only",
         ratio_call=1.20, ratio_put=1.0,
@@ -71,48 +79,32 @@ class TestApenasCall:
     )
 
     def test_retorna_resultado(self):
-        r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000,
-        )
+        r = CalculadoraProtecaoCauda.avaliar(self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000)
         assert r is not None
         assert r.lado_protegido == "call"
 
     def test_naked_call_frac_correto(self):
-        r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000,
-        )
+        r = CalculadoraProtecaoCauda.avaliar(self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000)
         assert r.naked_call_frac == pytest.approx(0.20)
 
     def test_strike_escolhido_mais_proximo_acima_de_s_target(self):
-        r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000, n_sigma=2.0,
-        )
-        # s_target = 40.64 * (1 + 2*0.085) = 47.55
-        # strikes >= 47.55: 48.00 é o único
+        r = CalculadoraProtecaoCauda.avaliar(self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000, n_sigma=2.0)
         assert r.strike_protecao_call == 48.00
 
     def test_qtd_lote_b3(self):
-        r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000,
-        )
+        r = CalculadoraProtecaoCauda.avaliar(self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000)
         assert r.qtd_protecao_call == 200
 
     def test_custo_premio_ask(self):
-        r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000,
-        )
+        r = CalculadoraProtecaoCauda.avaliar(self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000)
         assert r.custo_protecao_call == 4.00  # 200 * 0.02
 
     def test_pnl_liquido_menor_que_sem_protecao(self):
-        r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000,
-        )
+        r = CalculadoraProtecaoCauda.avaliar(self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000)
         assert r.pnl_liquido_pos_protecao < r.pnl_sem_protecao
 
     def test_put_lado_zerado(self):
-        r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000,
-        )
+        r = CalculadoraProtecaoCauda.avaliar(self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000)
         assert r.qtd_protecao_put == 0
         assert r.custo_protecao_put == 0.0
         assert not r.viavel_put
@@ -120,9 +112,11 @@ class TestApenasCall:
         assert r.premio_ask_put is None
 
 
-class TestApenasPut:
-    """Caso (c): só naked_put_gap > piso."""
+# ═══════════════════════════════════════════════════════════════
+# Apenas put
+# ═══════════════════════════════════════════════════════════════
 
+class TestApenasPut:
     RESULT = _chassi(
         id_chassi="put_only",
         ratio_call=1.0, ratio_put=0.80,
@@ -131,42 +125,28 @@ class TestApenasPut:
     )
 
     def test_retorna_resultado_com_lado_put(self):
-        r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT, strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000,
-        )
+        r = CalculadoraProtecaoCauda.avaliar(self.RESULT, strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000)
         assert r is not None
         assert r.lado_protegido == "put"
 
     def test_naked_put_gap_correto(self):
-        r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT, strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000,
-        )
+        r = CalculadoraProtecaoCauda.avaliar(self.RESULT, strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000)
         assert r.naked_put_gap == pytest.approx(0.20)
 
     def test_strike_escolhido_mais_proximo_abaixo_de_s_target(self):
-        r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT, strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000, n_sigma=2.0,
-        )
-        # s_target = 40.64 * (1 - 2*0.085) = 33.73
-        # strikes <= 33.73: 33.00 é o único
+        r = CalculadoraProtecaoCauda.avaliar(self.RESULT, strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000, n_sigma=2.0)
         assert r.strike_protecao_put == 33.00
 
     def test_qtd_lote_b3(self):
-        r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT, strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000,
-        )
+        r = CalculadoraProtecaoCauda.avaliar(self.RESULT, strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000)
         assert r.qtd_protecao_put == 200
 
     def test_custo_premio_ask(self):
-        r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT, strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000,
-        )
+        r = CalculadoraProtecaoCauda.avaliar(self.RESULT, strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000)
         assert r.custo_protecao_put == 40.00  # 200 * 0.20
 
     def test_call_lado_zerado(self):
-        r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT, strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000,
-        )
+        r = CalculadoraProtecaoCauda.avaliar(self.RESULT, strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000)
         assert r.qtd_protecao_call == 0
         assert r.custo_protecao_call == 0.0
         assert not r.viavel_call
@@ -174,9 +154,11 @@ class TestApenasPut:
         assert r.premio_ask_call is None
 
 
-class TestAmbosLados:
-    """Caso (d): ambos os lados com exposição."""
+# ═══════════════════════════════════════════════════════════════
+# Ambos os lados
+# ═══════════════════════════════════════════════════════════════
 
+class TestAmbosLados:
     RESULT = _chassi(
         id_chassi="ambos",
         ratio_call=1.20, ratio_put=0.80,
@@ -186,20 +168,16 @@ class TestAmbosLados:
 
     def test_retorna_ambos(self):
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=STRIKES_CALL,
-            strikes_put_candidatos=STRIKES_PUT,
-            qtd_acao=1000,
+            self.RESULT, strikes_call_candidatos=STRIKES_CALL,
+            strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000,
         )
         assert r is not None
         assert r.lado_protegido == "ambos"
 
     def test_ambos_com_custo_positivo(self):
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=STRIKES_CALL,
-            strikes_put_candidatos=STRIKES_PUT,
-            qtd_acao=1000,
+            self.RESULT, strikes_call_candidatos=STRIKES_CALL,
+            strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000,
         )
         assert r.custo_protecao_call > 0
         assert r.custo_protecao_put > 0
@@ -207,35 +185,27 @@ class TestAmbosLados:
 
     def test_pnl_liquido_reduzido(self):
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=STRIKES_CALL,
-            strikes_put_candidatos=STRIKES_PUT,
-            qtd_acao=1000,
+            self.RESULT, strikes_call_candidatos=STRIKES_CALL,
+            strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000,
         )
         assert r.pnl_liquido_pos_protecao < r.pnl_sem_protecao
 
     def test_viavel_ambos_com_ganho_suficiente(self):
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=STRIKES_CALL,
-            strikes_put_candidatos=STRIKES_PUT,
-            qtd_acao=1000,
+            self.RESULT, strikes_call_candidatos=STRIKES_CALL,
+            strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000,
         )
-        # ganho_extra = 1700 - 1386.23 = 313.77, limite=0.35 → max_custo ≈ 109.82
-        # CALL: strike=48.00, premio_ask=0.02, qtd=200 → custo_call=4.00
-        # PUT:  strike=33.00, premio_ask=0.20, qtd=200 → custo_put=40.00
-        # total=44.00 < 109.82 → viavel
         assert r.viavel
         assert r.viavel_call
         assert r.viavel_put
 
 
-class TestSemLiquidez:
-    """Caso (e): strikes candidatos sem CAB nem preço → strike=None, custo=0, viavel=False."""
+# ═══════════════════════════════════════════════════════════════
+# Sem liquidez — 3 cenários exigidos
+# ═══════════════════════════════════════════════════════════════
 
-    STRIKES_SEM_BOOK = [
-        {"strike": 48.00, "premio_bid": 0.0, "premio_ask": 0.0, "cab": 0, "voc": 0, "vov": 0},
-    ]
+class TestSemLiquidez:
+    """Cenários (a)(b)(c): volume insuficiente ou unidirecional reprova."""
 
     RESULT = _chassi(
         id_chassi="sem_book",
@@ -244,34 +214,63 @@ class TestSemLiquidez:
         sigma_periodo=0.085, preco_ativo=40.64,
     )
 
-    def test_sem_liquidez_retorna_none_no_lado(self):
-        """Nenhum strike passa CAB>=1 nem premio_ask>=0.01 → viavel_call=False, tudo zerado."""
+    def test_volume_so_um_lado_reprova(self):
+        """(a) volume suficiente só de um lado → viavel_call=False."""
+        strikes = [{"strike": 48.00, "premio_ask": 0.02, "vol_ask": 500, "vol_bid": 0}]
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=self.STRIKES_SEM_BOOK,
-            qtd_acao=1000,
+            self.RESULT, strikes_call_candidatos=strikes, qtd_acao=1000,
+            fator_seguranca_liquidez=0.2,
         )
-        assert r is not None
         assert r.strike_protecao_call is None
-        assert r.premio_ask_call is None
-        assert r.qtd_protecao_call == 0
+        assert not r.viavel_call
+
+    def test_volume_dois_lados_mas_insuficiente_reprova(self):
+        """(b) volume nos dois lados, mas min < qtd_lote * fator → viavel=False."""
+        strikes = [{"strike": 48.00, "premio_ask": 0.02, "vol_ask": 10, "vol_bid": 10}]
+        r = CalculadoraProtecaoCauda.avaliar(
+            self.RESULT, strikes_call_candidatos=strikes, qtd_acao=1000,
+            fator_seguranca_liquidez=0.2,
+        )
+        # qtd_lote = 200, limiar = max(1, 200*0.2) = 40
+        # min(10,10) = 10 < 40 → reprova
+        assert r.strike_protecao_call is None
+        assert not r.viavel_call
+
+    def test_volume_dois_lados_suficiente_aprova(self):
+        """(c) volume nos dois lados >= qtd_lote * fator → viavel_call=True."""
+        strikes = [{"strike": 48.00, "premio_ask": 0.02, "vol_ask": 80, "vol_bid": 80}]
+        r = CalculadoraProtecaoCauda.avaliar(
+            self.RESULT, strikes_call_candidatos=strikes, qtd_acao=1000,
+            fator_seguranca_liquidez=0.2,
+        )
+        # min(80,80) = 80 >= 40 → aprova
+        assert r.viavel_call
+        assert r.custo_protecao_call == 4.00
+
+    def test_strike_com_volume_zerado_retorna_none_no_lado(self):
+        """Nenhum strike tem volume → viavel_call=False, tudo zerado."""
+        strikes = [{"strike": 48.00, "premio_ask": 0.00, "vol_ask": 0, "vol_bid": 0}]
+        r = CalculadoraProtecaoCauda.avaliar(
+            self.RESULT, strikes_call_candidatos=strikes, qtd_acao=1000,
+        )
+        assert r.strike_protecao_call is None
         assert r.custo_protecao_call == 0.0
         assert not r.viavel_call
         assert r.lado_protegido == "nenhum"
 
     def test_custo_zero_quando_inviavel(self):
-        """Quando viavel_call=False, custo deve ser 0.0, nunca o valor calculado."""
+        strikes = [{"strike": 48.00, "premio_ask": 0.00, "vol_ask": 0, "vol_bid": 0}]
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=self.STRIKES_SEM_BOOK,
-            qtd_acao=1000,
+            self.RESULT, strikes_call_candidatos=strikes, qtd_acao=1000,
         )
         assert r.custo_protecao_call == 0.0
 
 
-class TestLimiteCusto:
-    """Caso (f): custo da proteção excede o limite → viavel=False, custo=0."""
+# ═══════════════════════════════════════════════════════════════
+# Custo excede limite
+# ═══════════════════════════════════════════════════════════════
 
+class TestLimiteCusto:
     RESULT = _chassi(
         id_chassi="custo_alto",
         ratio_call=1.20, ratio_put=1.0,
@@ -280,37 +279,27 @@ class TestLimiteCusto:
     )
 
     def test_viavel_false_quando_custo_excede_limite(self):
-        strikes_caros = [
-            {"strike": 48.00, "premio_bid": 10.0, "premio_ask": 15.0, "cab": 100, "voc": 50, "vov": 50},
-        ]
+        strikes_caros = [{"strike": 48.00, "premio_ask": 15.0, "vol_ask": 100, "vol_bid": 100}]
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=strikes_caros,
-            qtd_acao=1000,
-            limite_protecao_pct=0.35,
+            self.RESULT, strikes_call_candidatos=strikes_caros,
+            qtd_acao=1000, limite_protecao_pct=0.35,
         )
-        # ganho_extra = 1400 - 1386.23 = 13.77
-        # max_custo = 13.77 * 0.35 = 4.82
-        # custo = 15.0 * 200 = 3000 >> 4.82 → viavel=False
         assert r is not None
         assert not r.viavel_call
 
     def test_custo_zero_quando_excede_limite(self):
-        """Custo só é > 0 quando viavel=True. Se inviável, custo=0."""
-        strikes_caros = [
-            {"strike": 48.00, "premio_bid": 10.0, "premio_ask": 15.0, "cab": 100, "voc": 50, "vov": 50},
-        ]
+        strikes_caros = [{"strike": 48.00, "premio_ask": 15.0, "vol_ask": 100, "vol_bid": 100}]
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=strikes_caros,
-            qtd_acao=1000,
+            self.RESULT, strikes_call_candidatos=strikes_caros, qtd_acao=1000,
         )
         assert r.custo_protecao_call == 0.0
 
 
-class TestParametros:
-    """Testa diferentes combinações de parâmetros."""
+# ═══════════════════════════════════════════════════════════════
+# Parâmetros — limite_protecao_pct, cab_minimo, fator_seguranca_liquidez
+# ═══════════════════════════════════════════════════════════════
 
+class TestParametros:
     RESULT = _chassi(
         id_chassi="params",
         ratio_call=1.20, ratio_put=1.0,
@@ -320,43 +309,59 @@ class TestParametros:
 
     def test_limite_protecao_baixo_torna_inviavel(self):
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=STRIKES_CALL,
-            qtd_acao=1000,
+            self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000,
             limite_protecao_pct=0.001,
         )
-        # max_custo = 213.77 * 0.001 = 0.21
-        # custo = 0.02 * 200 = 4.00 > 0.21 → inviavel
         assert r is not None
         assert not r.viavel_call
         assert r.custo_protecao_call == 0.0
 
     def test_limite_protecao_alto_torna_viavel(self):
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=STRIKES_CALL,
-            qtd_acao=1000,
+            self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000,
             limite_protecao_pct=0.99,
         )
         assert r is not None
         assert r.viavel_call
         assert r.custo_protecao_call > 0
 
-    def test_cab_minimo_exigente_exclui_strike(self):
-        """Strike com CAB abaixo do mínimo não passa filtro → strike=None, custo=0, viavel=False."""
-        strikes_cab_baixo = [
-            {"strike": 48.00, "premio_bid": 0.01, "premio_ask": 0.02, "cab": 1, "voc": 50, "vov": 40},
-        ]
+    def test_cab_minimo_alto_exclui_por_volume_insuficiente(self):
+        """cab_minimo=100 > min(vol_ask,vol_bid) de todos os strikes → viavel=False."""
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=strikes_cab_baixo,
-            qtd_acao=1000,
-            cab_minimo=10,
+            self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000,
+            cab_minimo=500,
         )
         assert r is not None
         assert r.strike_protecao_call is None
         assert r.custo_protecao_call == 0.0
         assert not r.viavel_call
+
+    def test_cab_minimo_baixo_permite_strike(self):
+        """cab_minimo=1 permite strikes com volume >= max(1, qtd_lote*fator)."""
+        r = CalculadoraProtecaoCauda.avaliar(
+            self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000,
+            cab_minimo=1,
+        )
+        assert r.viavel_call
+        assert r.custo_protecao_call > 0
+
+    def test_fator_seguranca_exigente_exclui_por_tamanho_ordem(self):
+        """fator=2.0 → limiar = max(1, 200*2.0) = 400 → nenhum strike tem min>=400 → reprova."""
+        r = CalculadoraProtecaoCauda.avaliar(
+            self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000,
+            fator_seguranca_liquidez=2.0,
+        )
+        assert r is not None
+        assert r.strike_protecao_call is None
+        assert not r.viavel_call
+
+    def test_fator_seguranca_baixo_permite(self):
+        """fator=0.01 → limiar = max(1, 200*0.01) = max(1,2) = 1 → passa."""
+        r = CalculadoraProtecaoCauda.avaliar(
+            self.RESULT, strikes_call_candidatos=STRIKES_CALL, qtd_acao=1000,
+            fator_seguranca_liquidez=0.01,
+        )
+        assert r.viavel_call
 
     def test_qtd_acao_diferente_escala_proporcional(self):
         r200 = CalculadoraProtecaoCauda.avaliar(
@@ -369,9 +374,11 @@ class TestParametros:
         assert r200.custo_protecao_call < r1000.custo_protecao_call
 
 
-class TestChassiReal028ac46c:
-    """Caso baseado no chassi real 028ac46c (PETR4)."""
+# ═══════════════════════════════════════════════════════════════
+# Chassi real 028ac46c (PETR4)
+# ═══════════════════════════════════════════════════════════════
 
+class TestChassiReal028ac46c:
     RESULT = _chassi(
         id_chassi="028ac46c",
         ativo="PETR4", preco_ativo=40.64, strike_call=40.36, strike_put=38.00,
@@ -384,10 +391,8 @@ class TestChassiReal028ac46c:
 
     def test_naked_exposicoes_corretas(self):
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=STRIKES_CALL,
-            strikes_put_candidatos=STRIKES_PUT,
-            qtd_acao=1000,
+            self.RESULT, strikes_call_candidatos=STRIKES_CALL,
+            strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000,
         )
         assert r.naked_call_frac == pytest.approx(0.20)
         assert r.naked_put_gap == pytest.approx(0.20)
@@ -395,34 +400,24 @@ class TestChassiReal028ac46c:
 
     def test_contratos_inteiros_b3(self):
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=STRIKES_CALL,
-            strikes_put_candidatos=STRIKES_PUT,
-            qtd_acao=1000,
+            self.RESULT, strikes_call_candidatos=STRIKES_CALL,
+            strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000,
         )
         assert r.qtd_protecao_call % 100 == 0
         assert r.qtd_protecao_put % 100 == 0
 
     def test_custo_usando_ask(self):
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=STRIKES_CALL,
-            strikes_put_candidatos=STRIKES_PUT,
-            qtd_acao=1000,
+            self.RESULT, strikes_call_candidatos=STRIKES_CALL,
+            strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000,
         )
-        # CALL: strike=48.00, ask=0.02, qtd=200 → 4.00
-        # PUT:  strike=33.00, ask=0.20, qtd=200 → 40.00
         assert r.custo_protecao_call == 4.00
         assert r.custo_protecao_put == 40.00
 
     def test_ganho_extra_supera_custo(self):
         r = CalculadoraProtecaoCauda.avaliar(
-            self.RESULT,
-            strikes_call_candidatos=STRIKES_CALL,
-            strikes_put_candidatos=STRIKES_PUT,
-            qtd_acao=1000,
+            self.RESULT, strikes_call_candidatos=STRIKES_CALL,
+            strikes_put_candidatos=STRIKES_PUT, qtd_acao=1000,
         )
-        # ganho_extra ≈ 323.77, limite=0.35 → max_custo ≈ 113.32
-        # custo total = 44.00 < 113.32 → viavel
         assert r.viavel
         assert r.pnl_liquido_pos_protecao > 0

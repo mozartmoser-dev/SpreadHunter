@@ -900,6 +900,12 @@
       "valor": "2.0",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Numero de sigmas para definir o strike-alvo da protecao de cauda"
+    },
+    {
+      "chave": "fator_seguranca_liquidez",
+      "valor": "0.2",
+      "estrategia": "PROTECAO_CAUDA",
+      "descricao": "Volume diario minimo como multiplo da qtd comprada (0.2 = volume >= 5x a ordem)"
     }
   ]
 }

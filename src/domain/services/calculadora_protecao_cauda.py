@@ -48,6 +48,7 @@ class CalculadoraProtecaoCauda:
         limite_protecao_pct: float = 0.35,
         calda_preco_min_opcao: float = 0.01,
         cab_minimo: int = 1,
+        fator_seguranca_liquidez: float = 0.2,
     ) -> ResultadoProtecaoCauda | None:
         naked_call_frac = max(0.0, resultado.ratio_call - 1.0)
         naked_put_gap = max(0.0, 1.0 - resultado.ratio_put)
@@ -74,6 +75,7 @@ class CalculadoraProtecaoCauda:
             limite_protecao_pct=limite_protecao_pct,
             calda_preco_min_opcao=calda_preco_min_opcao,
             cab_minimo=cab_minimo,
+            fator_seguranca_liquidez=fator_seguranca_liquidez,
         )
 
         info_put = CalculadoraProtecaoCauda._avaliar_lado(
@@ -87,6 +89,7 @@ class CalculadoraProtecaoCauda:
             limite_protecao_pct=limite_protecao_pct,
             calda_preco_min_opcao=calda_preco_min_opcao,
             cab_minimo=cab_minimo,
+            fator_seguranca_liquidez=fator_seguranca_liquidez,
         )
 
         custo_total = info_call["custo"] + info_put["custo"]
@@ -136,6 +139,7 @@ class CalculadoraProtecaoCauda:
         limite_protecao_pct: float,
         calda_preco_min_opcao: float,
         cab_minimo: int,
+        fator_seguranca_liquidez: float = 0.2,
     ) -> dict:
         if naked_frac < CalculadoraProtecaoCauda.NAKED_FRAC_MINIMO or not strikes_candidatos:
             return {
@@ -145,11 +149,13 @@ class CalculadoraProtecaoCauda:
         qtd_bruta = naked_frac * qtd_acao
         qtd_lote = max(1, int(qtd_bruta / _LOTE + 0.5)) * _LOTE
 
+        limite_liquidez = max(cab_minimo, qtd_lote * fator_seguranca_liquidez)
+
         filtrados = [
             s for s in strikes_candidatos
             if (
-                s.get("cab", 0) or 0
-            ) >= cab_minimo
+                min(s.get("vol_ask", 0) or 0, s.get("vol_bid", 0) or 0)
+            ) >= limite_liquidez
             and (s.get("premio_ask", 0) or 0) >= calda_preco_min_opcao
             and (s.get("strike") or 0) > 0
         ]

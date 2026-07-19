@@ -299,6 +299,7 @@ def _seed_parametros_colar(conn):
         ("calda_preco_min_opcao", "0.01", "PROTECAO_CAUDA", "Preco minimo (R$) da opcao de protecao"),
         ("cab_minimo_protecao", "1", "PROTECAO_CAUDA", "CAB minimo / VOL_ASK minimo para strike candidato"),
         ("n_sigma_protecao", "2.0", "PROTECAO_CAUDA", "Numero de sigmas para s_target da cauda"),
+        ("fator_seguranca_liquidez", "0.2", "PROTECAO_CAUDA", "Volume diario minimo como multiplo da qtd comprada"),
     ]
     for p in params + mpp_params + perf_params:
         conn.execute(

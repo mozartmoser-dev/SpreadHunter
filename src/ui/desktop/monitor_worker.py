@@ -556,6 +556,7 @@ class MonitorWorker(QThread):
         limite_protecao_pct = self._ler_param_float("limite_protecao_pct", 0.35)
         calda_preco_min_opcao = self._ler_param_float("calda_preco_min_opcao", 0.01)
         cab_minimo_protecao = int(self._ler_param_float("cab_minimo_protecao", 1))
+        fator_seguranca_liquidez = self._ler_param_float("fator_seguranca_liquidez", 0.2)
 
         for r in resultados:
             if not r.viavel:
@@ -622,6 +623,7 @@ class MonitorWorker(QThread):
                     limite_protecao_pct=limite_protecao_pct,
                     calda_preco_min_opcao=calda_preco_min_opcao,
                     cab_minimo=cab_minimo_protecao,
+                    fator_seguranca_liquidez=fator_seguranca_liquidez,
                 )
 
                 if protecao is None:
@@ -935,8 +937,9 @@ class MonitorWorker(QThread):
         """Resolve strikes OTM candidatos para protecao de cauda via cache RTD existente.
 
         Consulta instrumentos_opcionais pelos codigos OTM e le os dados de mercado
-        do cache RTD (sem disparar refresh). Retorna listas de dicts no formato
-        esperado por CalculadoraProtecaoCauda.avaliar().
+        do cache RTD (sem disparar refresh). Assina VOL_ASK e VOL_BID ad-hoc para
+        garantir que ambos os lados do book estejam disponiveis no cache.
+        Retorna listas de dicts no formato esperado por CalculadoraProtecaoCauda.avaliar().
         """
         s_target_call = resultado.preco_ativo * (1.0 + n_sigma * resultado.sigma_periodo)
         s_target_put = resultado.preco_ativo * (1.0 - n_sigma * resultado.sigma_periodo)
@@ -963,7 +966,15 @@ class MonitorWorker(QThread):
         source = self._mercado_provider.source if self._mercado_provider else None
         fonte = self._ler_param_str("fonte_market_data", "profit")
         eh_openfast = fonte == "openfast"
-        campos_leitura = [FieldName.ASK, FieldName.VOL_ASK, FieldName.BOOK_HEADER]
+        campos_leitura = [FieldName.ASK, FieldName.VOL_ASK, FieldName.VOL_BID, FieldName.BOOK_HEADER]
+
+        codigos_call = [c["cod_opcao"] for c in calls]
+        codigos_put = [p["cod_opcao"] for p in puts]
+
+        if source and source.disponivel:
+            for cod in codigos_call + codigos_put:
+                source.registrar_topico(cod, FieldName.VOL_ASK)
+                source.registrar_topico(cod, FieldName.VOL_BID)
 
         def montar_dict(rows: list) -> list[dict]:
             resultado_lista = []
@@ -978,13 +989,18 @@ class MonitorWorker(QThread):
                 ask = dados.get(FieldName.ASK) or 0.0
                 cab_raw = dados.get(FieldName.BOOK_HEADER) or 0
                 vol_ask = dados.get(FieldName.VOL_ASK) or 0
-                cab = vol_ask if eh_openfast else cab_raw
-                if ask <= 0 or cab < cab_minimo:
+                vol_bid = dados.get(FieldName.VOL_BID) or 0
+                if eh_openfast:
+                    cab = vol_ask
+                else:
+                    cab = cab_raw if cab_raw > 0 else max(vol_ask, 0)
+                if ask <= 0 or cab < cab_minimo or vol_ask <= 0 or vol_bid <= 0:
                     continue
                 resultado_lista.append({
                     "strike": row["strike"],
                     "premio_ask": ask,
-                    "cab": cab,
+                    "vol_ask": vol_ask,
+                    "vol_bid": vol_bid,
                 })
             return resultado_lista
 
