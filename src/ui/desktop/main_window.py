@@ -260,6 +260,9 @@ class MainWindow(QMainWindow):
         self.action_btn_feriados = add_item(
             "\U0001f5d3  Feriados", cor_fer, self._abrir_feriados,
         )
+        self.action_btn_estudos_cal = add_item(
+            "\U0001f4ca  Estudos Calendário", "#00bcd4", self._abrir_estudos_calendario,
+        )
         self.action_btn_taxa_aluguel = add_item(
             "\U0001f3e6  Taxa Aluguel", cor_tx, self._abrir_coletar_taxa_aluguel,
         )
@@ -275,6 +278,7 @@ class MainWindow(QMainWindow):
             (self.action_btn_dividendos, cor_prov),
             (self.action_btn_resultados, cor_res),
             (self.action_btn_feriados, cor_fer),
+            (self.action_btn_estudos_cal, "#00bcd4"),
             (self.action_btn_taxa_aluguel, cor_tx),
             (self.action_btn_atualizar_tudo, cor_atu),
         ):
@@ -285,7 +289,7 @@ class MainWindow(QMainWindow):
         btn.setText("\U0001fa9f  Painéis")
         btn.setToolTip(
             "Painéis: Grade de Opções · Histórico · Proventos · "
-            "Resultados · Feriados · Taxa Aluguel · Atualizar tudo"
+            "Resultados · Feriados · Estudos Calendário · Taxa Aluguel · Atualizar tudo"
         )
         btn.setPopupMode(QToolButton.InstantPopup)
         btn.setMenu(menu)
@@ -332,6 +336,7 @@ class MainWindow(QMainWindow):
         self.btn_dividendos = _BtnProxy(self.action_btn_dividendos, "💰 Prov.")
         self.btn_resultados = _BtnProxy(self.action_btn_resultados, "📊 Agenda de Balanços")
         self.btn_feriados = _BtnProxy(self.action_btn_feriados, "🗓 Fer.")
+        self.btn_estudos_cal = _BtnProxy(self.action_btn_estudos_cal, "📊 Estudos Cal.")
         self.btn_taxa_aluguel = _BtnProxy(self.action_btn_taxa_aluguel, "🏦 Tx Alug.")
         self.btn_atualizar_tudo = _BtnProxy(self.action_btn_atualizar_tudo, "🔄 Atualizar")
 
@@ -624,18 +629,6 @@ class MainWindow(QMainWindow):
             + "QPushButton:hover {{ background-color: #3d2a15; border-color: #e67e22; }}"
         )
         btn_layout.addWidget(self.btn_historico_sim)
-
-        self.btn_estudos_cal = QPushButton("\U0001f4ca  Estudos Calendário")
-        self.btn_estudos_cal.setAutoDefault(False)
-        self.btn_estudos_cal.clicked.connect(self._abrir_estudos_calendario)
-        self.btn_estudos_cal.setToolTip("Comparação Base vs Platô vs Proteção vs Rendimento (Collar Calendário)")
-        self.btn_estudos_cal.setStyleSheet(
-            _btn_base
-            + "QPushButton {{ color: #00bcd4; border-color: rgba(0,188,212,0.5); border-width: 1px; }}"
-            + _btn_hover
-            + "QPushButton:hover {{ background-color: #0a3a40; border-color: #00bcd4; }}"
-        )
-        btn_layout.addWidget(self.btn_estudos_cal)
 
         self.btn_paineis = self._criar_dropup_paineis(_btn_base, _btn_hover)
         btn_layout.addWidget(self.btn_paineis)

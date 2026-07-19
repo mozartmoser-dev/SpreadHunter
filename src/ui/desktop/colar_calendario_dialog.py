@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal
 from PySide6.QtGui import QFont, QColor, QBrush
 
+from src.domain.services.calendario_b3 import dc_to_du
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 from src.ui.desktop.column_utils import salvar_ordem_colunas, salvar_largura_colunas, limpar_e_restaurar_colunas
@@ -936,8 +937,8 @@ class ColarCalendarioDialog(QDialog):
             qtd_p = getattr(r, 'qtd_put', 100)
             rc = getattr(r, 'ratio_call', 1.0) or 1.0
             rp = getattr(r, 'ratio_put', 1.0) or 1.0
-            add_row("Ratio Call:", f"{rc:.2f}x  ({int(qtd_c * rc)} contratos)", cor=Palette.CYAN)
-            add_row("Ratio Put:", f"{rp:.2f}x  ({int(qtd_p * rp)} contratos)", cor=Palette.CYAN)
+            add_row("Ratio Call:", f"{rc:.2f}x  ({int(qtd_c * rc)} ações)", cor=Palette.CYAN)
+            add_row("Ratio Put:", f"{rp:.2f}x  ({int(qtd_p * rp)} ações)", cor=Palette.CYAN)
             add_row("Ação:", f"{qtd_a} ações", cor=Palette.TEXT_PRIMARY)
             be_esq = getattr(r, 'be_baixa', None)
             be_dir = getattr(r, 'be_alta', None)
@@ -1002,7 +1003,7 @@ class ColarCalendarioDialog(QDialog):
             }}
             QPushButton:hover {{ background-color: #3d3d55; }}
         """)
-        n_sig = max(5, r.dte_call)
+        n_sig = max(5, dc_to_du(None, None, r.dte_call))
         btn_grafico.clicked.connect(lambda: self._plot_historico(r.ativo, r.preco_ativo, r.strike_put, r.strike_call, n_sig, r.iv_call, r.iv_put))
         btn_row.addWidget(btn_grafico)
 
@@ -1239,8 +1240,8 @@ class ColarCalendarioDialog(QDialog):
             Pp = r.premio_put
             iv_c = r.iv_call / 100
             iv_p = r.iv_put / 100
-            T_call = r.dte_call / 365
-            T_rem = r.dte_extra / 365
+            T_call = dc_to_du(None, None, r.dte_call) / 252.0
+            T_rem = dc_to_du(None, None, r.dte_extra) / 252.0
 
             ratio = max(getattr(r, 'ratio_call', 1), 1)
             ratio_put = max(getattr(r, 'ratio_put', 1.0), 0.01)  # fix: escala m PUTs
@@ -1420,8 +1421,8 @@ class ColarCalendarioDialog(QDialog):
 
             footer = QLabel(
                 f"<b>Comprar Ativo:</b> {r.ativo} — R$ {S0:.2f} × {qtd_a} un = R$ {S0 * qtd_a:.2f}<br>"
-                f"<b>Vender Call:</b> {r.cod_call} K={Kc:.2f} — +R$ {Pc:.2f} × {int(qtd_a / 100 * ratio)} ctto = R$ {Pc * ratio * qtd_a:.2f} (venc. {r.vencimento_call.strftime('%d/%m')})<br>"
-                f"<b>Comprar Put:</b> {r.cod_put} K={Kp:.2f} — −R$ {Pp:.2f} × {int(qtd_a / 100 * ratio_put)} ctto = R$ {Pp * ratio_put * qtd_a:.2f} (venc. {r.vencimento_put.strftime('%d/%m')})<br>"
+                f"<b>Vender Call:</b> {r.cod_call} K={Kc:.2f} — +R$ {Pc:.2f} × {int(ratio * qtd_a)} ações = R$ {Pc * ratio * qtd_a:.2f} (venc. {r.vencimento_call.strftime('%d/%m')})<br>"
+                f"<b>Comprar Put:</b> {r.cod_put} K={Kp:.2f} — −R$ {Pp:.2f} × {int(ratio_put * qtd_a)} ações = R$ {Pp * ratio_put * qtd_a:.2f} (venc. {r.vencimento_put.strftime('%d/%m')})<br>"
                 f"<b>Capital:</b> R$ {S0 + Pp - Pc:.2f}  |  "
                 f"<b>PnL Proj:</b> R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI)"
                 f"{'  |  ' + be_str if be_str else ''}"
@@ -1552,8 +1553,8 @@ class ColarCalendarioDialog(QDialog):
         if len(closes) > 10 and preco_atual is not None and preco_atual > 0 and iv_call > 0 and iv_put > 0:
             from scipy.stats import norm
             prices_arr = np.array(closes)
-            iv_media = (iv_call + iv_put) / 2 / 100.0
-            sigma_diario = iv_media / np.sqrt(252)
+            iv_call_dec = iv_call / 100.0
+            sigma_diario = iv_call_dec / np.sqrt(252)
             sigma_periodo = sigma_diario * np.sqrt(n_sessoes)
             spot = preco_atual
             if sigma_periodo > 0:
@@ -1591,7 +1592,7 @@ class ColarCalendarioDialog(QDialog):
                 ax_inset.tick_params(colors=TEXT, labelsize=5)
                 for spine in ax_inset.spines.values():
                     spine.set_color('#333')
-                ax_inset.set_title(f'{n_sessoes} preg • IV {iv_media*100:.0f}%', color=TEXT, fontsize=6)
+                ax_inset.set_title(f'{n_sessoes} preg • IV {iv_call_dec*100:.0f}%', color=TEXT, fontsize=6)
                 ax_inset.set_ylabel('dens.', color=TEXT, fontsize=5)
         else:
             logger.warning("Faixas sigma não desenhadas — preco_atual/IV indisponíveis (fora de mercado? RTD sem dados?)")

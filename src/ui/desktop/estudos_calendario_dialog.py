@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QAbstractTableModel, QTimer
 from PySide6.QtGui import QFont, QColor
 
+from src.domain.services.calendario_b3 import dc_to_du
 from src.infrastructure.persistence.database import get_db_path
 from src.ui.desktop.column_utils import salvar_ordem_colunas, limpar_e_restaurar_colunas
 
@@ -40,8 +41,8 @@ COLUMNS = [
     ("DTE", 36, "Dias até o vencimento (Days To Expiry)"),
     ("rC", 36, "Ratio CALL: qtd calls vendidas por ação"),
     ("rP", 36, "Ratio PUT: qtd puts compradas por ação"),
-    ("Lotes C", 55, "Contratos de CALL (arredondado p/ lote B3)"),
-    ("Lotes P", 55, "Contratos de PUT (arredondado p/ lote B3)"),
+    ("Calls", 55, "Quantidade de CALLs em ações (ratio × qtd_acao)"),
+    ("Puts", 55, "Quantidade de PUTs em ações (ratio × qtd_acao)"),
     ("BE esq", 65, "Breakeven esquerdo: preço onde PnL=0 no lado inferior"),
     ("BE dir", 65, "Breakeven direito: preço onde PnL=0 no lado superior"),
     ("%CDI", 55, "Retorno percentual do CDI no período"),
@@ -188,6 +189,13 @@ class EstudosCalendarioDialog(QDialog):
         self.btn_recarregar = QPushButton("\U0001f504 Recarregar")
         self.btn_recarregar.clicked.connect(self._carregar)
         btn_layout.addWidget(self.btn_recarregar)
+        self.btn_limpar = QPushButton("\U0001f5d1  Limpar Estudos")
+        self.btn_limpar.setStyleSheet(
+            "QPushButton { color: #e74c3c; border-color: rgba(231,76,60,0.5); }"
+            "QPushButton:hover { background-color: #3d1515; border-color: #e74c3c; }"
+        )
+        self.btn_limpar.clicked.connect(self._limpar_estudos)
+        btn_layout.addWidget(self.btn_limpar)
         self.btn_fechar = QPushButton("Fechar")
         self.btn_fechar.clicked.connect(self.accept)
         btn_layout.addStretch()
@@ -208,38 +216,55 @@ class EstudosCalendarioDialog(QDialog):
             from scipy.stats import norm
             from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
             from matplotlib.figure import Figure
+            from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+            from src.infrastructure.persistence.database import get_db_path
 
-            # Extrair dados
+            db_path = get_db_path()
             S0 = r.get("preco_ativo", 0)
             Kc = r.get("strike_call", 0)
             Kp = r.get("strike_put", 0)
             Pc = r.get("premio_call", 0)
             Pp = r.get("premio_put", 0)
             iv_c = r.get("iv_call", 0) / 100.0
-            T_call = r.get("dte_original", 0) / 365.0
-            T_rem = 0  # sem segunda perna no historico_simulacoes
+            iv_p = r.get("iv_put", 0) / 100.0
+            dte_call = r.get("dte_original", 0)
+            dte_extra = r.get("dte_extra", 0) or 0
+            T_call = dc_to_du(None, None, dte_call) / 252.0
+            T_rem = dc_to_du(None, None, dte_extra) / 252.0 if dte_extra > 0 else 0
             n = r.get("ratio_call", 1)
             m = r.get("ratio_put", 1)
             S_custo = r.get("preco_compra", 0) or S0
+            qtd_a = r.get("qtd_acao", 100) or 100
+
+            repo = ParametroRepository(db_path)
+            param = repo.get_by_chave("taxa_cdi")
+            rf = param.valor if param else 0.1450
 
             if S0 <= 0 or Kc <= 0 or Kp <= 0:
                 QMessageBox.warning(self, "Grafico", "Dados insuficientes para gerar payoff.")
                 return
 
-            # Range de precos
             sigma_spot = S0 * iv_c * np.sqrt(T_call) if iv_c > 0 and T_call > 0 else S0 * 0.02
-            x_min = min(Kp, S0) * 0.92
-            x_max = max(Kc, S0) * 1.08
+            s3_l = S0 - 3 * sigma_spot
+            s3_r = S0 + 3 * sigma_spot
+            x_min = min(Kp, S0, s3_l) * (0.92 if n > 1 else 0.95)
+            x_max = max(Kc, S0, s3_r) * (1.08 if n > 1 else 1.05)
             x = np.linspace(x_min, x_max, 500)
 
-            # PnL: stock + calls + puts
             stock_pnl = np.minimum(x, Kc) - S_custo
             call_pnl = Pc * n
             naked_pnl = -(n - 1) * np.maximum(0, x - Kc)
-            put_pnl = m * np.maximum(Kp - x, 0) - m * Pp
-            pnl = stock_pnl + call_pnl + naked_pnl + put_pnl
 
-            # Cores
+            if T_rem > 0:
+                dp1 = (np.log(x / Kp) + (rf + 0.5 * iv_p ** 2) * T_rem) / (iv_p * np.sqrt(T_rem))
+                dp2 = dp1 - iv_p * np.sqrt(T_rem)
+                put_val = Kp * np.exp(-rf * T_rem) * norm.cdf(-dp2) - x * norm.cdf(-dp1)
+            else:
+                put_val = np.maximum(Kp - x, 0)
+            put_pnl = m * put_val - m * Pp
+
+            pnl = (stock_pnl + call_pnl + naked_pnl + put_pnl) * qtd_a
+
             BG = '#0d0d0d'; TEXT_C = '#c0c0c0'; RED = '#ff3355'
             ACCENT = '#ffc107'; GREEN = '#4caf50'; SPOT_CLR = '#42a5f5'
             SIGMA_C = '#6c5ce7'
@@ -254,12 +279,10 @@ class EstudosCalendarioDialog(QDialog):
 
             ax.axhline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5)
 
-            # Spot
             ax.axvline(S0, color=SPOT_CLR, linewidth=1.2, linestyle='--', alpha=0.6)
             ax.text(S0, ax.get_ylim()[0] + (ax.get_ylim()[1] - ax.get_ylim()[0]) * 0.02,
                     f'Spot={S0:.2f}', color=SPOT_CLR, fontsize=7, ha='center', alpha=0.7)
 
-            # Breakevens
             be_esq = r.get("be_esq")
             be_dir = r.get("be_dir")
             if be_esq is not None:
@@ -271,7 +294,6 @@ class EstudosCalendarioDialog(QDialog):
                 ax.text(be_dir, ax.get_ylim()[1] * 0.9, f'BEdir={be_dir:.2f}',
                         color=SIGMA_C, fontsize=6.5, ha='center', rotation=90, alpha=0.7)
 
-            # Strikes
             for strike, nome, cor_s in [(Kp, 'Kp', RED), (Kc, 'Kc', GREEN)]:
                 ax.axvline(strike, color=cor_s, linewidth=0.6, linestyle='--', alpha=0.3)
                 ax.text(strike, ax.get_ylim()[0], f'{nome}={strike:.2f}',
@@ -288,14 +310,57 @@ class EstudosCalendarioDialog(QDialog):
 
             fig.tight_layout()
 
-            from PySide6.QtWidgets import QDialog, QVBoxLayout
+            from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel
+            from src.ui.desktop.theme import Palette
+
             dlg = QDialog(self)
             dlg.setWindowTitle(f"Payoff - {r.get('id_chassi','')} / {r.get('estagio','')}")
-            dlg.resize(800, 500)
+            dlg.setMinimumSize(920, 600)
             dlg.setStyleSheet("background-color: #0d0d0d;")
-            lay = QVBoxLayout(dlg)
+            layout = QVBoxLayout(dlg)
+            layout.setContentsMargins(8, 8, 8, 8)
             canvas = FigureCanvas(fig)
-            lay.addWidget(canvas)
+            layout.addWidget(canvas, stretch=1)
+
+            cod_c = r.get("cod_call", "")
+            cod_p = r.get("cod_put", "")
+            cap_txt = f"Capital: R$ {r.get('capital_empregado', 0):.2f}" if r.get("capital_empregado") else ""
+            pnl_proj = r.get("pnl_projetado", 0)
+            pct_ret = r.get("pct_retorno", 0)
+            pct_cdi_v = r.get("pct_cdi", 0)
+            be_parts = []
+            if be_esq is not None:
+                be_parts.append(f"BE Esq: R$ {be_esq:.2f}")
+            if be_dir is not None:
+                be_parts.append(f"BE Dir: R$ {be_dir:.2f}")
+            be_str = " | ".join(be_parts)
+
+            footer = QLabel(
+                f"<b>Comprar Ativo:</b> R$ {S_custo:.2f} × {qtd_a} un = R$ {S_custo * qtd_a:.2f}<br>"
+                f"<b>Vender Call:</b> {cod_c} K={Kc:.2f} — +R$ {Pc:.2f} × {int(n * qtd_a)} ações = R$ {Pc * n * qtd_a:.2f}<br>"
+                f"<b>Comprar Put:</b> {cod_p} K={Kp:.2f} — −R$ {Pp:.2f} × {int(m * qtd_a)} ações = R$ {Pp * m * qtd_a:.2f}<br>"
+                f"<b>{cap_txt}</b>  |  "
+                f"<b>PnL Proj:</b> R$ {pnl_proj:.2f} ({pct_ret:.2f}% / {pct_cdi_v:.2f}x CDI)"
+                f"{'  |  ' + be_str if be_str else ''}"
+            )
+            footer.setStyleSheet(f"""
+                QLabel {{ color: {Palette.TEXT_SECONDARY}; font-size: 8pt; font-family: Consolas; padding: 4px 0; }}
+            """)
+            footer.setTextFormat(Qt.RichText)
+            layout.addWidget(footer)
+
+            from src.ui.desktop.copy_utils import salvar_figura_arquivo
+            btn_row = QHBoxLayout()
+            btn_salvar = QPushButton("💾 Salvar PNG")
+            btn_salvar.setAutoDefault(False)
+            btn_salvar.clicked.connect(lambda: salvar_figura_arquivo(fig, self))
+            btn_row.addWidget(btn_salvar)
+            btn_row.addStretch()
+            btn_fechar = QPushButton("Fechar")
+            btn_fechar.setAutoDefault(False)
+            btn_fechar.clicked.connect(dlg.close)
+            btn_row.addWidget(btn_fechar)
+            layout.addLayout(btn_row)
             dlg.exec_()
 
         except Exception as e:
@@ -327,8 +392,8 @@ class EstudosCalendarioDialog(QDialog):
 
                 # Quantities (lots) from actual qtd_acao
                 qtd_acao = r["qtd_acao"] if r["qtd_acao"] else 100
-                d["qtd_calls"] = max(1, int(r["ratio_call"] * qtd_acao / 100 + 0.5))
-                d["qtd_puts"] = max(0, int(r["ratio_put"] * qtd_acao / 100 + 0.5))
+                d["qtd_calls"] = max(100, int(r["ratio_call"] * qtd_acao + 0.5))
+                d["qtd_puts"] = max(0, int(r["ratio_put"] * qtd_acao + 0.5))
 
                 # Sigmas nominais
                 iv_dec = r["iv_call"] / 100.0
@@ -356,8 +421,9 @@ class EstudosCalendarioDialog(QDialog):
                     d["sigma_monet_dir_str"] = "INF"
 
                 # Piso 2σ (minimum PnL at ±2σ)
-                s2_l = r["preco_ativo"] * (1 - 2 * iv_dec * sqrt(T / 252 * 365))
-                s2_r = r["preco_ativo"] * (1 + 2 * iv_dec * sqrt(T / 252 * 365))
+                du_orig = dc_to_du(None, None, r["dte_original"])
+                s2_l = r["preco_ativo"] * (1 - 2 * iv_dec * sqrt(du_orig / 252.0))
+                s2_r = r["preco_ativo"] * (1 + 2 * iv_dec * sqrt(du_orig / 252.0))
                 pnl_2l = r["pnl_cauda_esq"] if r["pnl_cauda_esq"] is not None else 0
                 pnl_2r = r["pnl_cauda_dir"] if r["pnl_cauda_dir"] is not None else 0
                 piso = min(pnl_2l, pnl_2r)
@@ -370,3 +436,21 @@ class EstudosCalendarioDialog(QDialog):
             self.setWindowTitle(f"Estudos Calendário — {len(items)} registros ({len(set(i['id_chassi'] for i in items))} chassis)")
         except Exception as e:
             QMessageBox.critical(self, "Erro", f"Falha ao carregar dados:\n{e}")
+
+    def _limpar_estudos(self):
+        reply = QMessageBox.question(
+            self, "Confirmar",
+            "Tem certeza que deseja apagar TODOS os estudos?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        try:
+            db_path = get_db_path()
+            conn = sqlite3.connect(str(db_path))
+            conn.execute("DELETE FROM historico_simulacoes")
+            conn.commit()
+            conn.close()
+            self._carregar()
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Falha ao limpar estudos:\n{e}")

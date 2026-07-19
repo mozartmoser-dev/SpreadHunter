@@ -127,7 +127,7 @@ class CalculadoraCaudaAssincrona:
         target_pnl = capital_empregado_base * cdi_periodo * calda_premio_risco
         gap = target_pnl - pnl_projetado_base
 
-        sigma_p = iv * math.sqrt(dte_call / 252.0)
+        sigma_p = iv * math.sqrt(du_total / 252.0)
 
         s_end_l = preco_ativo * (1 - calda_desvios_cauda * sigma_p)
         s_end_r = preco_ativo * (1 + calda_desvios_cauda * sigma_p)
@@ -171,7 +171,7 @@ class CalculadoraCaudaAssincrona:
                 continue
 
             for m in m_vals:
-                pnl_spot = pnl_projetado_base + (n - 1) * extra_call_pnl - (1 - m) * custo_put
+                pnl_spot = pnl_projetado_base + (n - 1) * extra_call_pnl * qtd_acao - (1 - m) * custo_put * qtd_acao
                 if pnl_spot <= 0:
                     continue
 
@@ -210,7 +210,7 @@ class CalculadoraCaudaAssincrona:
             snap_puts = max(0, int(melhor_m * qtd_acao / _LOTE + 0.5))
             melhor_n = snap_calls * _LOTE / qtd_acao
             melhor_m = snap_puts * _LOTE / qtd_acao
-            pnl_spot = pnl_projetado_base + (melhor_n - 1) * extra_call_pnl - (1 - melhor_m) * custo_put
+            pnl_spot = pnl_projetado_base + (melhor_n - 1) * extra_call_pnl * qtd_acao - (1 - melhor_m) * custo_put * qtd_acao
             if pnl_spot <= 0:
                 _diag(f"Snap lote B3: n={melhor_n:.2f} m={melhor_m:.2f} pnl={pnl_spot:.4f} — descartado")
                 return None
@@ -305,7 +305,7 @@ class CalculadoraCaudaAssincrona:
         if cap_abs <= 0:
             return []
 
-        sigma_p = iv * math.sqrt(dte_call / 252.0)
+        sigma_p = iv * math.sqrt(du_total / 252.0)
 
         s_end_l = preco_ativo * (1 - otimizado_desvios_sigma * sigma_p)
         s_end_r = preco_ativo * (1 + otimizado_desvios_sigma * sigma_p)
@@ -363,7 +363,7 @@ class CalculadoraCaudaAssincrona:
 
         for n in n_vals:
             for m in m_vals:
-                pnl_spot = pnl_projetado_base + (n - 1) * extra_call_pnl - (1 - m) * custo_put
+                pnl_spot = pnl_projetado_base + (n - 1) * extra_call_pnl * qtd_acao - (1 - m) * custo_put * qtd_acao
                 if pnl_spot <= 0:
                     continue
 
@@ -417,7 +417,7 @@ class CalculadoraCaudaAssincrona:
             snap_puts = max(0, int(m * qtd_acao / _LOTE + 0.5))
             n2 = snap_calls * _LOTE / qtd_acao
             m2 = snap_puts * _LOTE / qtd_acao
-            pnl = pnl_projetado_base + (n2 - 1) * extra_call_pnl - (1 - m2) * custo_put
+            pnl = pnl_projetado_base + (n2 - 1) * extra_call_pnl * qtd_acao - (1 - m2) * custo_put * qtd_acao
             if pnl <= 0:
                 return (n2, m2, 0.0, 0.0, 0.0, 0.0)
             dl = CalculadoraCaudaAssincrona._delta_pnl(

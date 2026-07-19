@@ -17,6 +17,7 @@ from src.ui.desktop.column_utils import (
 from src.ui.desktop.copy_utils import copiar_texto_formatado, copiar_figura_clipboard, salvar_figura_arquivo
 from src.ui.desktop.theme import Palette
 from src.ui.desktop.constants import SELETOR_TODOS
+from src.domain.services.calendario_b3 import dc_to_du
 
 CUSTOS_DISCLOSURE = (
     "\n\n* Custos já incluem taxa B3 (emolumento 0,025% + liquidação 0,0275% por perna) "
@@ -125,8 +126,8 @@ class ColarTableModel(QAbstractTableModel):
                     "pior_liquido": "Valor do pior resultado líquido (após B3 + IR)." + CUSTOS_DISCLOSURE,
                     "risco_str": "Nível de risco de leilão baseado no volume das opções.",
                     "dias": "Dias corridos até o vencimento.",
-                    "ratio_call": "Ratio da CALL (short). 1.0 = 1 contrato por 100 ações.",
-                    "ratio_put": "Ratio da PUT (long). 1.0 = 1 contrato por 100 ações.",
+                    "ratio_call": "Ratio da CALL (short). Ex: 1.1 × 1000 ações = 1100 calls.",
+                    "ratio_put": "Ratio da PUT (long). Ex: 1.0 × 1000 ações = 1000 puts.",
                     "estagio_str": "Estágio da versão otimizada: Base, Rendimento, Proteção ou Platô.",
                     "label_detectado": "Data e hora (Brasília) em que o monitor detectou a oportunidade pelo RTD (DD/MM/YYYY HH:MM:SS).",
                 }
@@ -954,7 +955,7 @@ class ColarDialog(QDialog):
         rp = getattr(r, 'ratio_put', 1.0) or 1.0
         qp_real = int(qp * rp)
         total_put = r.premio_put * qp_real
-        val = QLabel(f"{r.cod_put} (K={r.strike_put:.2f}) — R$ {r.premio_put:.2f} × {qp_real//100} ctto = R$ {total_put:.2f}")
+        val = QLabel(f"{r.cod_put} (K={r.strike_put:.2f}) — R$ {r.premio_put:.2f} × {qp_real} ações = R$ {total_put:.2f}")
         val.setStyleSheet(value_style)
         form.addRow(lbl, val)
 
@@ -964,7 +965,7 @@ class ColarDialog(QDialog):
         rc = getattr(r, 'ratio_call', 1.0) or 1.0
         qc_real = int(qc * rc)
         total_call = r.premio_call * qc_real
-        val = QLabel(f"{r.cod_call} (K={r.strike_call:.2f}) — R$ {r.premio_call:.2f} × {qc_real//100} ctto = R$ {total_call:.2f}")
+        val = QLabel(f"{r.cod_call} (K={r.strike_call:.2f}) — R$ {r.premio_call:.2f} × {qc_real} ações = R$ {total_call:.2f}")
         val.setStyleSheet(value_style)
         form.addRow(lbl, val)
 
@@ -1053,13 +1054,13 @@ class ColarDialog(QDialog):
             lbl = QLabel("Ratio Call:")
             lbl.setStyleSheet(label_style)
             rc = getattr(r, 'ratio_call', 1.0) or 1.0
-            val = QLabel(f"{rc:.2f}x  ({int(r.qtd_call * rc // 100)} ctto)")
+            val = QLabel(f"{rc:.2f}x  ({int(r.qtd_call * rc)} ações)")
             val.setStyleSheet(value_style)
             form.addRow(lbl, val)
             lbl = QLabel("Ratio Put:")
             lbl.setStyleSheet(label_style)
             rp = getattr(r, 'ratio_put', 1.0) or 1.0
-            val = QLabel(f"{rp:.2f}x  ({int(r.qtd_put * rp // 100)} ctto)")
+            val = QLabel(f"{rp:.2f}x  ({int(r.qtd_put * rp)} ações)")
             val.setStyleSheet(value_style)
             form.addRow(lbl, val)
             lbl = QLabel("Ações:")
@@ -1117,7 +1118,7 @@ class ColarDialog(QDialog):
             }}
             QPushButton:hover {{ background-color: #3d3d55; }}
         """)
-        n_sig = max(5, int(r.dias * 5 / 7))
+        n_sig = max(5, dc_to_du(None, None, r.dias))
         btn_grafico.clicked.connect(lambda: self._plot_historico(r.ativo, r.preco_ativo, r.strike_put, r.strike_call, n_sig, r.iv_call, r.iv_put))
         btn_row.addWidget(btn_grafico)
 
@@ -1846,8 +1847,8 @@ class ColarDialog(QDialog):
         if len(closes) > 10 and preco_atual is not None and preco_atual > 0 and iv_call > 0 and iv_put > 0:
             from scipy.stats import norm
             prices_arr = np.array(closes)
-            iv_media = (iv_call + iv_put) / 2 / 100.0
-            sigma_diario = iv_media / np.sqrt(252)
+            iv_call_dec = iv_call / 100.0
+            sigma_diario = iv_call_dec / np.sqrt(252)
             sigma_periodo = sigma_diario * np.sqrt(n_sessoes)
             spot = preco_atual
             if sigma_periodo > 0:
@@ -1886,7 +1887,7 @@ class ColarDialog(QDialog):
                 ax_inset.tick_params(colors=TEXT, labelsize=5)
                 for spine in ax_inset.spines.values():
                     spine.set_color('#333')
-                ax_inset.set_title(f'{n_sessoes} preg • IV {iv_media*100:.0f}%', color=TEXT, fontsize=6)
+                ax_inset.set_title(f'{n_sessoes} preg • IV {iv_call_dec*100:.0f}%', color=TEXT, fontsize=6)
                 ax_inset.set_ylabel('dens.', color=TEXT, fontsize=5)
         else:
             logger.warning("Faixas sigma não desenhadas — preco_atual/IV indisponíveis (fora de mercado? RTD sem dados?)")

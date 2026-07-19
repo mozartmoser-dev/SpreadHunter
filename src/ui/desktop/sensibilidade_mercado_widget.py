@@ -47,8 +47,8 @@ FUTUROS_FIXOS: list[tuple[str, str, date]] = [
 ]
 
 FUTUROS_NOMINAIS: list[tuple[str, str]] = [
-    ("BRENT", "BRENT"),
-    ("SGX", "SGX"),
+    ("BRENT-CFD", "BRENT-CFD"),
+    ("EWZS-FMV", "EWZS-FMV"),
 ]
 
 
@@ -386,7 +386,7 @@ class SensibilidadeMercadoWidget(QWidget):
                 "_tem_var": True,
             })
 
-        # Nominal reference contracts (BRENT, SGX)
+        # Nominal reference contracts (BRENT-CFD, EWZS-FMV)
         for cod, label in FUTUROS_NOMINAIS:
             self._rows_fut.append({
                 "label": _limpar_nome_ativo(label), "cod": cod,
@@ -493,8 +493,8 @@ class SensibilidadeMercadoWidget(QWidget):
         wdo_var = self._extrair_var("WDO")
         di1f33_var = self._extrair_var_cod("DI1F33")
         di1f33_pontos = self._extrair_pontos("DI1F33")
-        brent_var = self._extrair_var_cod("BRENT")
-        sgx_var = self._extrair_var_cod("SGX")
+        brent_var = self._extrair_var_cod("BRENT-CFD")
+        sgx_var = self._extrair_var_cod("EWZS-FMV")
 
         curva, seta, curva_cor = MarketAnalyzer.analisar_curva_di(di1f33_pontos)
         vetor = MarketAnalyzer.analisar_vetor(

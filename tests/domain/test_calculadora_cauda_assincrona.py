@@ -3,6 +3,7 @@
 import math
 import pytest
 
+from src.domain.services.calendario_b3 import dc_to_du
 from src.domain.services.calculadora_cauda_assincrona import (
     CalculadoraCaudaAssincrona,
     ResultadoCaudaAssincrona,
@@ -297,3 +298,131 @@ class TestLoteB3:
         r = CalculadoraCaudaAssincrona.calcular(**base)
         if r is not None:
             assert r.pnl_projetado > 0
+
+
+class TestSigmaConsistencia:
+    """Sigma period must use dc_to_du/252 convention (not dte/252).
+
+    All sigma calculations across the codebase must converge:
+      σ = IV · √(du / 252)   where du = dc_to_du(dte_calendar)
+    This matches the payoff-graph convention (dte/365) within ~1%.
+    """
+
+    @pytest.mark.parametrize("dte_call,iv_call_pct", [
+        (37, 35.27),
+        (40, 50.0),
+        (5, 15.0),
+        (63, 28.5),
+        (1, 100.0),
+    ])
+    def test_calcular_sigma_usa_du_total(self, dte_call, iv_call_pct):
+        du = dc_to_du(None, None, dte_call)
+        iv = iv_call_pct / 100.0
+        expected_sigma = iv * math.sqrt(du / 252.0)
+        r = CalculadoraCaudaAssincrona.calcular(
+            preco_ativo=25.0,
+            strike_call=27.50,
+            strike_put=22.50,
+            premio_call=1.00,
+            premio_put=0.20,
+            dte_call=dte_call,
+            ativo="PETR4",
+            iv_call_pct=iv_call_pct,
+            pnl_projetado_base=0.90,
+            capital_empregado_base=24.20,
+            pct_cdi_base=2.5,
+            calda_ratio_max=300,
+            calda_ratio_put_min=0.3,
+            calda_ratio_put_step=0.05,
+            calda_desvios_cauda=0.5,
+        )
+        if r is not None:
+            assert r.sigma_periodo == pytest.approx(expected_sigma, abs=1e-4)
+
+    @pytest.mark.parametrize("dte_call,iv_call_pct,dte_put,iv_put_pct", [
+        (37, 35.27, 156, 43.12),
+        (40, 50.0, 40, 50.0),
+        (5, 15.0, 5, 15.0),
+    ])
+    def test_processar_otimizado_sigma_usa_du_total(self, dte_call, iv_call_pct, dte_put, iv_put_pct):
+        du = dc_to_du(None, None, dte_call)
+        iv = iv_call_pct / 100.0
+        expected_sigma = iv * math.sqrt(du / 252.0)
+        resultados = CalculadoraCaudaAssincrona.processar_otimizado(
+            preco_ativo=100.0,
+            strike_call=105.0,
+            strike_put=100.0,
+            premio_call=4.0,
+            premio_put=3.0,
+            dte_call=dte_call,
+            ativo="PETR4",
+            iv_call_pct=iv_call_pct,
+            pnl_projetado_base=1.0,
+            capital_empregado_base=100.0,
+            pct_cdi_base=3.0,
+            dte_put=dte_put,
+            iv_put_pct=iv_put_pct,
+            otimizado_ratio_put_step=0.05,
+            otimizado_ratio_put_min=0.80,
+            otimizado_ratio_max=1.30,
+        )
+        for r in resultados:
+            assert r.sigma_periodo == pytest.approx(expected_sigma, abs=1e-4)
+
+    @pytest.mark.parametrize("dte_call", [20, 37, 63, 252])
+    def test_du_aproximado_consistente_com_365(self, dte_call):
+        """dc_to_du/252 ≈ dte/365 within 1% (DTE>=20 to avoid rounding noise in dc_to_du)."""
+        du = dc_to_du(None, None, dte_call)
+        t_biz = du / 252.0
+        t_cal = dte_call / 365.0
+        ratio = math.sqrt(t_biz / t_cal)
+        assert 0.99 <= ratio <= 1.01, (
+            f"dte={dte_call}: sqrt(du/252) / sqrt(dte/365) = {ratio:.4f}"
+        )
+
+    def test_sigma_calcular_e_processar_concordam(self):
+        """calcular() and processar_otimizado() produce same sigma for same dte/iv."""
+        dte_call = 40
+        iv_call_pct = 50.0
+        du = dc_to_du(None, None, dte_call)
+        expected = (iv_call_pct / 100.0) * math.sqrt(du / 252.0)
+
+        r = CalculadoraCaudaAssincrona.calcular(
+            preco_ativo=25.00,
+            strike_call=27.50,
+            strike_put=22.50,
+            premio_call=1.00,
+            premio_put=0.20,
+            dte_call=dte_call,
+            ativo="PETR4",
+            iv_call_pct=iv_call_pct,
+            pnl_projetado_base=0.90,
+            capital_empregado_base=24.20,
+            pct_cdi_base=2.5,
+            calda_ratio_max=300,
+            calda_ratio_put_min=0.3,
+            calda_ratio_put_step=0.05,
+            calda_desvios_cauda=0.5,
+        )
+        resultados = CalculadoraCaudaAssincrona.processar_otimizado(
+            preco_ativo=100.0,
+            strike_call=105.0,
+            strike_put=100.0,
+            premio_call=4.0,
+            premio_put=3.0,
+            dte_call=dte_call,
+            ativo="PETR4",
+            iv_call_pct=iv_call_pct,
+            pnl_projetado_base=1.0,
+            capital_empregado_base=100.0,
+            pct_cdi_base=3.0,
+            dte_put=dte_call,
+            iv_put_pct=iv_call_pct,
+            otimizado_ratio_put_step=0.05,
+            otimizado_ratio_put_min=0.80,
+            otimizado_ratio_max=1.30,
+        )
+        assert r is not None, "calcular() returned None — check inputs"
+        assert r.sigma_periodo == pytest.approx(expected, abs=1e-4)
+        for res in resultados:
+            assert res.sigma_periodo == pytest.approx(expected, abs=1e-4)

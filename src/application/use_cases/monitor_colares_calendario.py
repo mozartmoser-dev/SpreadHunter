@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import date, datetime
 from typing import Optional
 
+from src.domain.services.calendario_b3 import dc_to_du
 from src.domain.services.calculadora_colar_calendario import (
     CalculadoraColarCalendario,
     ResultadoColarCalendario,
@@ -425,8 +426,8 @@ class MonitorColaresCalendarioUseCase:
             if r.iv_call <= 0 or r.iv_put <= 0 or r.dte_call <= 0 or r.preco_ativo <= 0:
                 return 0.0
             iv_media = (r.iv_call + r.iv_put) / 2 / 100
-            sigma_diario = iv_media / math.sqrt(252)
-            sigma_periodo = sigma_diario * math.sqrt(r.dte_call)
+            du = dc_to_du(None, None, r.dte_call)
+            sigma_periodo = iv_media * math.sqrt(du / 252.0)
             if sigma_periodo <= 0:
                 return 0.0
             folga = min(abs(r.preco_ativo - r.strike_call), abs(r.preco_ativo - r.strike_put))

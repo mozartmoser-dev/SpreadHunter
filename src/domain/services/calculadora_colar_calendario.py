@@ -372,12 +372,10 @@ class CalculadoraColarCalendario:
         custo_ir = self.custos_b3.ajustar_ir(ganho_base)
         pnl_projetado_ir = pnl_projetado_liquido - custo_ir
 
-        pct_retorno = pnl_projetado_liquido / capital_base
-        pct_retorno_bruto = pnl_projetado / capital_base
-        pct_cdi_bruto = pct_retorno_bruto / cdi_periodo if cdi_periodo > 0 else 0
+        pct_retorno = pnl_projetado / capital_base if capital_base > 0 else 0
         pct_cdi = pct_retorno / cdi_periodo if cdi_periodo > 0 else 0
         pct_cdi_liquido = (pnl_projetado_ir / capital_base) / cdi_periodo if cdi_periodo > 0 else 0.0
-        viavel = pct_cdi_bruto >= self.premio_risco
+        viavel = pct_cdi >= self.premio_risco
 
         be_baixa, be_alta = self._calcular_breakevens(
             preco_ativo, strike_call, strike_put,
@@ -472,9 +470,9 @@ class CalculadoraColarCalendario:
         net = Pc * qtd_call_real - Pp * qtd_put_real
 
         # Calcula o desvio padrao (sigma) do periodo a partir do IV medio
-        iv_medio = ((r.iv_call / 100) + (r.iv_put / 100)) / 2
+        iv_call_dec = r.iv_call / 100.0
         T_call_ano = dc_to_du(None, None, r.dte_call) / 252.0
-        sigma_pct = iv_medio * np.sqrt(T_call_ano) if iv_medio > 1e-10 else 0.0
+        sigma_pct = iv_call_dec * np.sqrt(T_call_ano) if iv_call_dec > 1e-10 else 0.0
 
         # 9 cenarios: 3 sigma downs, -5%, 0, +5%, 3 sigma ups
         if sigma_pct > 0.001:
@@ -558,7 +556,7 @@ class CalculadoraColarCalendario:
             call_premio_txt = "(prêmio inteiramente extrínseco)"
 
         if sigma_pct > 0.001:
-            nota_sigma = f" (1σ = {sigma_pct*100:.1f}%, IV médio {iv_medio*100:.0f}%, {r.dte_call} DTE)"
+            nota_sigma = f" (1σ = {sigma_pct*100:.1f}%, IV call {iv_call_dec*100:.0f}%, {r.dte_call} DTE)"
         else:
             nota_sigma = ""
         lines = [

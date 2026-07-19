@@ -97,7 +97,7 @@ class HistoricoSimulacoesDialog(QDialog):
 
     def _setup_style(self):
         self.setStyleSheet(f"""
-            QDialog {{ background-color: {Palette.BG_PRIMARY}; color: {Palette.TEXT_PRIMARY}; }}
+            QDialog {{ background-color: {Palette.BG_BASE}; color: {Palette.TEXT_PRIMARY}; }}
             QTableView {{
                 background-color: {Palette.TABLE_BG}; color: {Palette.TEXT_PRIMARY};
                 border: 1px solid {Palette.BORDER}; gridline-color: {Palette.BORDER};
