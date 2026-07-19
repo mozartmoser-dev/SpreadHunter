@@ -39,6 +39,8 @@ ESTRATEGIA_LABELS = {
     "MPP": "Motor de Priorização de Pescaria (MPP)",
     "VENDA_COBERTA": "Taxa",
     "SBTH_VENDIDA": "SBTH Vendida",
+    "RATIOS_OTIMIZADOS": "Ratios Otimizados",
+    "PROTECAO_CAUDA": "Protecao de Cauda (BWB)",
 }
 
 ESTRATEGIA_COLORS = {
@@ -55,6 +57,8 @@ ESTRATEGIA_COLORS = {
     "MPP": "#9b59b6",
     "VENDA_COBERTA": "#2ecc71",
     "IMPORTACAO": "#8e44ad",
+    "RATIOS_OTIMIZADOS": "#e67e22",
+    "PROTECAO_CAUDA": "#c0392b",
 }
 
 PARAMETROS_POR_ESTRATEGIA = {
@@ -224,6 +228,12 @@ PARAMETROS_POR_ESTRATEGIA = {
     "IMPORTACAO": [
         ("import_max_months", "Meses a frente para importar series"),
         ("black_list_import", "Blacklist de ativos (separados por virgula)"),
+    ],
+    "PROTECAO_CAUDA": [
+        ("limite_protecao_pct", "Limite de Custo (% do ganho extra)"),
+        ("calda_preco_min_opcao", "Preco Minimo da Opcao (R$)"),
+        ("cab_minimo_protecao", "CAB / Vol.Ask Minimo"),
+        ("n_sigma_protecao", "Nº de Sigmas (s_target)"),
     ],
 }
 
@@ -701,6 +711,26 @@ PARAMETROS_INFO = {
         "usado_em": "CalculadoraCaudaAssincrona.processar_otimizado() — filtro do estagio Rendimento.",
         "precedencia": "Banco de Dados -> 2.0 (padrao)",
     },
+    "limite_protecao_pct": {
+        "descricao": "Fracao maxima do ganho extra (pnl_com_ratio − pnl_base) que a protecao de cauda pode consumir. Ex: 0.35 = ate 35% do ganho extra e usado para pagar as opcoes de protecao. Se o custo das opcoes ultrapassar este limite, a protecao e considerada inviavel.",
+        "usado_em": "CalculadoraProtecaoCauda — filtro de viabilidade da protecao de cauda.",
+        "precedencia": "Banco de Dados -> 0.35 (35%, padrao)",
+    },
+    "calda_preco_min_opcao": {
+        "descricao": "Preco minimo (ask, em R$) para uma opcao de protecao ser considerada. Filtra strikes onde o premio e muito baixo, indicando liquidez insuficiente ou opcoes muito longe do dinheiro.",
+        "usado_em": "CalculadoraProtecaoCauda — filtro de strikes candidatos.",
+        "precedencia": "Banco de Dados -> 0.01 (R$ 0,01, padrao)",
+    },
+    "cab_minimo_protecao": {
+        "descricao": "CAB minimo (Profit RTD) ou VOL_ASK minimo (OpenFast) para considerar o strike como candidato valido. Garante profundidade minima de mercado. No Profit RTD, CAB = Cabecario do book de ofertas com melhor preco de compra/venda. No OpenFast, usa-se o volume ask como proxy.",
+        "usado_em": "CalculadoraProtecaoCauda — filtro de strikes candidatos.",
+        "precedencia": "Banco de Dados -> 1 (padrao)",
+    },
+    "n_sigma_protecao": {
+        "descricao": "Numero de desvios-padrao (sigma) usado para definir o strike-alvo da protecao de cauda. O strike-alvo e calculado como: preco_ativo × (1 ± n_sigma × sigma_periodo). Ex: com preco=100, sigma=5% e n=2, o strike-alvo da call sera 110 (10% acima).",
+        "usado_em": "CalculadoraProtecaoCauda — calculo de s_target para call e put.",
+        "precedencia": "Banco de Dados -> 2.0 (padrao)",
+    },
 }
 
 
@@ -721,6 +751,7 @@ class ParametrosWidget(QWidget):
         "COLAR",
         "COLLAR_CALENDARIO",
         "RATIOS_OTIMIZADOS",
+        "PROTECAO_CAUDA",
         "BOX",
         "BOX_SINTETICO",
         "BOX_4P",
@@ -1037,6 +1068,25 @@ class ParametrosWidget(QWidget):
                         widget.setDecimals(2)
                         widget.setSingleStep(0.5)
                         self._pct_chaves.add(chave)
+                    elif chave == "limite_protecao_pct":
+                        widget.setRange(0.01, 0.99)
+                        widget.setSuffix(" %")
+                        widget.setDecimals(2)
+                        widget.setSingleStep(0.01)
+                        self._pct_chaves.add(chave)
+                    elif chave == "calda_preco_min_opcao":
+                        widget.setRange(0.00, 5.00)
+                        widget.setPrefix("R$ ")
+                        widget.setDecimals(2)
+                        widget.setSingleStep(0.01)
+                    elif chave == "cab_minimo_protecao":
+                        widget.setRange(0, 100)
+                        widget.setDecimals(0)
+                        widget.setSingleStep(1)
+                    elif chave == "n_sigma_protecao":
+                        widget.setRange(0.5, 5.0)
+                        widget.setDecimals(1)
+                        widget.setSingleStep(0.1)
                     else:
                         widget.setRange(-100.0, 100000.0)
                         if "prof" in chave or "qtd" in chave or "meses" in chave or "inteligente" in chave or "interval" in chave or "dte" in chave:

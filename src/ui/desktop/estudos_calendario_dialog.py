@@ -186,6 +186,10 @@ class EstudosCalendarioDialog(QDialog):
         layout.addWidget(self.table_view, stretch=1)
 
         btn_layout = QHBoxLayout()
+        self.btn_comparar = QPushButton("\u2696  Comparar Est\u00e1gios")
+        self.btn_comparar.setToolTip("Compara todos os est\u00e1gios do mesmo chassi lado a lado")
+        self.btn_comparar.clicked.connect(self._comparar_estagios_chassi)
+        btn_layout.addWidget(self.btn_comparar)
         self.btn_recarregar = QPushButton("\U0001f504 Recarregar")
         self.btn_recarregar.clicked.connect(self._carregar)
         btn_layout.addWidget(self.btn_recarregar)
@@ -208,6 +212,144 @@ class EstudosCalendarioDialog(QDialog):
         item = self.model._items[index.row()]
         self._plot_payoff(item)
 
+    def _comparar_estagios_chassi(self):
+        index = self.table_view.currentIndex()
+        if not index.isValid():
+            QMessageBox.information(self, "Comparar", "Selecione uma linha na tabela primeiro.")
+            return
+        item = self.model._items[index.row()]
+        id_chassi = item.get("id_chassi", "")
+        ativo = item.get("ativo", "")
+
+        db_path = get_db_path()
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT * FROM historico_simulacoes WHERE id_chassi = ? ORDER BY estagio",
+            (id_chassi,)
+        ).fetchall()
+        conn.close()
+
+        if not rows:
+            QMessageBox.information(self, "Comparar", "Nenhum registro encontrado para este chassi.")
+            return
+
+        from PySide6.QtWidgets import QTableWidget, QTableWidgetItem, QDialog, QVBoxLayout, QLabel
+        from src.ui.desktop.theme import Palette
+
+        estagios_order = ["Base", "Neutro", "Platô", "Rendimento"]
+        records = {r["estagio"]: dict(r) for r in rows}
+        base = records.get("Base", {})
+
+        METRICS = [
+            ("Ratio Call", "ratio_call", ".2f", False),
+            ("Ratio Put", "ratio_put", ".2f", False),
+            ("PnL (R$)", "pnl_projetado", ".2f", True),
+            ("% CDI", "pct_cdi", ".2f", True),
+            ("BE Esq", "be_esq", ".2f", False),
+            ("BE Dir", "be_dir", ".2f", False),
+            ("PnL −3σ", "pnl_cauda_esq", ".2f", True),
+            ("PnL +3σ", "pnl_cauda_dir", ".2f", True),
+            ("σ Esq", "sigma_esq_str", "s", False),
+            ("σ Dir", "sigma_dir_str", "s", False),
+            ("Proteção", "lado_protegido", "s", False),
+            ("Custo Prot.", "custo_protecao_total", ".2f", False),
+            ("PnL Pós-Prot.", "pnl_liquido_pos_protecao", ".2f", True),
+        ]
+
+        table = QTableWidget(len(METRICS), len(estagios_order) + 1)
+        table.setHorizontalHeaderLabels(["Métrica"] + estagios_order)
+        table.verticalHeader().hide()
+        table.setEditTriggers(QTableWidget.NoEditTriggers)
+        table.setAlternatingRowColors(True)
+
+        for row_idx, (metric_name, key, fmt, higher_is_better) in enumerate(METRICS):
+            table.setItem(row_idx, 0, QTableWidgetItem(metric_name))
+
+            values = []
+            for e_idx, estagio in enumerate(estagios_order):
+                rec = records.get(estagio, {})
+                nonlocal_key = "pnl_liquido_pos_protecao" if key == "pnl_liquido_pos_protecao" else key
+
+                if fmt == "s":
+                    val = rec.get(key, "-") or "-"
+                else:
+                    val = rec.get(key)
+                    if val is None:
+                        display = "-"
+                    else:
+                        try:
+                            display = f"{float(val):{fmt}}"
+                        except (ValueError, TypeError):
+                            display = str(val)
+                    values.append(float(val) if val is not None else None)
+                    val = display
+
+                item_w = QTableWidgetItem(str(val))
+                item_w.setTextAlignment(Qt.AlignCenter)
+                table.setItem(row_idx, e_idx + 1, item_w)
+
+            numeric_vals = [(i, v) for i, v in enumerate(values) if v is not None]
+            if len(numeric_vals) >= 2:
+                if higher_is_better:
+                    best_idx = max(numeric_vals, key=lambda x: x[1])[0]
+                    worst_idx = min(numeric_vals, key=lambda x: x[1])[0]
+                else:
+                    best_idx = min(numeric_vals, key=lambda x: x[1])[0]
+                    worst_idx = max(numeric_vals, key=lambda x: x[1])[0]
+                for col in range(1, len(estagios_order) + 1):
+                    if col - 1 == best_idx:
+                        table.item(row_idx, col).setBackground(QColor(C_GREEN))
+                        table.item(row_idx, col).setForeground(QColor("#ffffff"))
+                    elif col - 1 == worst_idx:
+                        table.item(row_idx, col).setBackground(QColor(C_RED))
+                        table.item(row_idx, col).setForeground(QColor("#ffffff"))
+
+        delta_row = len(METRICS)
+        table.setRowCount(delta_row + 1)
+        table.setItem(delta_row, 0, QTableWidgetItem("Δ PnL vs Base"))
+        base_pnl = base.get("pnl_projetado", 0) or 0
+        for e_idx, estagio in enumerate(estagios_order):
+            rec = records.get(estagio, {})
+            pnl = rec.get("pnl_projetado", 0) or 0
+            delta = pnl - base_pnl if estagio != "Base" and pnl else 0
+            color = C_GREEN if delta > 0 else C_RED if delta < 0 else C_TEXT
+            item_d = QTableWidgetItem(f"{delta:+.2f}" if estagio != "Base" else "—")
+            item_d.setTextAlignment(Qt.AlignCenter)
+            if estagio != "Base":
+                item_d.setBackground(QColor(color))
+                item_d.setForeground(QColor("#ffffff"))
+            table.setItem(delta_row, e_idx + 1, item_d)
+
+        table.resizeColumnsToContents()
+        table.resizeRowsToContents()
+        table.setMinimumWidth(800)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Comparação de Estágios — {ativo} | {id_chassi}")
+        dlg.setMinimumSize(900, 500)
+        dlg.setStyleSheet(f"background-color: {C_BG}; color: {C_TEXT};")
+        layout = QVBoxLayout(dlg)
+
+        header = QLabel(f"<b>Chassi:</b> {id_chassi} &nbsp;|&nbsp; "
+                        f"<b>Ativo:</b> {ativo} &nbsp;|&nbsp; "
+                        f"<b>Spot:</b> R$ {base.get('preco_ativo', 0):.2f} &nbsp;|&nbsp; "
+                        f"<b>Kc:</b> {base.get('strike_call', 0):.2f} &nbsp;|&nbsp; "
+                        f"<b>Kp:</b> {base.get('strike_put', 0):.2f}")
+        header.setStyleSheet("font-size: 10pt; padding: 4px;")
+        layout.addWidget(header)
+        layout.addWidget(table)
+
+        from src.ui.desktop.copy_utils import copiar_figura_clipboard
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_close = QPushButton("Fechar")
+        btn_close.clicked.connect(dlg.accept)
+        btn_layout.addWidget(btn_close)
+        layout.addLayout(btn_layout)
+
+        dlg.exec_()
+
     def _plot_payoff(self, r):
         from PySide6.QtWidgets import QMessageBox
         import traceback
@@ -226,13 +368,14 @@ class EstudosCalendarioDialog(QDialog):
             Pc = r.get("premio_call", 0)
             Pp = r.get("premio_put", 0)
             iv_c = r.get("iv_call", 0) / 100.0
-            iv_p = r.get("iv_put", 0) / 100.0
+            iv_p_raw = r.get("iv_put", 0) or 0
+            iv_p = (iv_p_raw / 100.0) if iv_p_raw > 0 else iv_c
             dte_call = r.get("dte_original", 0)
             dte_extra = r.get("dte_extra", 0) or 0
             T_call = dc_to_du(None, None, dte_call) / 252.0
             T_rem = dc_to_du(None, None, dte_extra) / 252.0 if dte_extra > 0 else 0
-            n = r.get("ratio_call", 1)
-            m = r.get("ratio_put", 1)
+            n = max(r.get("ratio_call", 1), 1)
+            m = max(r.get("ratio_put", 1), 0.01)
             S_custo = r.get("preco_compra", 0) or S0
             qtd_a = r.get("qtd_acao", 100) or 100
 

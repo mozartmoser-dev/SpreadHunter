@@ -1007,7 +1007,13 @@ class HistoricoSimulacoesRepository:
                     theta_liquido, delta_total, vega_liquido,
                     valor_put_venc_call, pop_upside, pop_downside,
                     score, score_iv,
-                    tipo_estrategia)
+                    tipo_estrategia,
+                    lado_protegido, naked_call_frac, naked_put_gap,
+                    strike_protecao_call, strike_protecao_put,
+                    premio_ask_protecao_call, premio_ask_protecao_put,
+                    qtd_protecao_call, qtd_protecao_put,
+                    custo_protecao_call, custo_protecao_put,
+                    custo_protecao_total, pnl_liquido_pos_protecao, viavel)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                             ?, ?, ?, ?, ?, ?, ?, ?, ?,
                             ?, ?, ?, ?, ?, ?, ?,
@@ -1015,8 +1021,13 @@ class HistoricoSimulacoesRepository:
                             ?, ?, ?, ?,
                             ?, ?, ?,
                             ?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?,
                             ?, ?,
-                            ?)""",
+                            ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?, ?)""",
                 [
                     (r["id_chassi"], r["estagio"], r["ativo"],
                      r["preco_ativo"], r["strike_call"], r["strike_put"],
@@ -1036,7 +1047,14 @@ class HistoricoSimulacoesRepository:
                      r.get("theta_liquido"), r.get("delta_total"), r.get("vega_liquido"),
                      r.get("valor_put_venc_call"), r.get("pop_upside"), r.get("pop_downside"),
                      r.get("score"), r.get("score_iv"),
-                     r.get("tipo_estrategia", "Calendario"))
+                     r.get("tipo_estrategia", "Calendario"),
+                     r.get("lado_protegido"), r.get("naked_call_frac"), r.get("naked_put_gap"),
+                     r.get("strike_protecao_call"), r.get("strike_protecao_put"),
+                     r.get("premio_ask_protecao_call"), r.get("premio_ask_protecao_put"),
+                     r.get("qtd_protecao_call", 0), r.get("qtd_protecao_put", 0),
+                     r.get("custo_protecao_call", 0.0), r.get("custo_protecao_put", 0.0),
+                     r.get("custo_protecao_total", 0.0), r.get("pnl_liquido_pos_protecao", 0.0),
+                     r.get("viavel", 0))
                     for r in registros
                 ]
             )

@@ -15,6 +15,7 @@ from src.application.use_cases.monitor_venda_coberta import MonitorVendaCobertaU
 from src.application.use_cases.mpp_use_case import MPPUseCase
 from src.domain.services.pipeline_tracker import PipelineTracker
 from src.domain.services.calculadora_cauda_assincrona import CalculadoraCaudaAssincrona, ResultadoCaudaAssincrona
+from src.domain.services.calculadora_protecao_cauda import CalculadoraProtecaoCauda
 from src.domain.services.calculadora_colar_calendario import ResultadoColarCalendario, TipoColarCalendario
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
 from src.domain.services.market_data_source import criar_data_source, MarketDataSource
@@ -551,6 +552,11 @@ class MonitorWorker(QThread):
         ir = self._ler_param_float("taxa_ir_pct", 0.15)
         custos_b3_calc = CalculadoraCustosB3(emol, liq, ir)
 
+        n_sigma_protecao = self._ler_param_float("n_sigma_protecao", 2.0)
+        limite_protecao_pct = self._ler_param_float("limite_protecao_pct", 0.35)
+        calda_preco_min_opcao = self._ler_param_float("calda_preco_min_opcao", 0.01)
+        cab_minimo_protecao = int(self._ler_param_float("cab_minimo_protecao", 1))
+
         for r in resultados:
             if not r.viavel:
                 continue
@@ -602,6 +608,57 @@ class MonitorWorker(QThread):
             for v in variantes:
                 if v.estagio != "Base" and v.pct_cdi_com_ratio < max(r.pct_cdi, premio_risco):
                     continue
+
+                candidatos_call, candidatos_put = self._resolver_strikes_protecao(
+                    v, n_sigma_protecao, cab_minimo_protecao
+                )
+
+                protecao = CalculadoraProtecaoCauda.avaliar(
+                    resultado=v,
+                    strikes_call_candidatos=candidatos_call,
+                    strikes_put_candidatos=candidatos_put,
+                    qtd_acao=r.qtd_acao,
+                    n_sigma=n_sigma_protecao,
+                    limite_protecao_pct=limite_protecao_pct,
+                    calda_preco_min_opcao=calda_preco_min_opcao,
+                    cab_minimo=cab_minimo_protecao,
+                )
+
+                if protecao is None:
+                    protecao_campos = {
+                        "lado_protegido": "nenhum",
+                        "naked_call_frac": 0.0,
+                        "naked_put_gap": 0.0,
+                        "strike_protecao_call": None,
+                        "strike_protecao_put": None,
+                        "premio_ask_protecao_call": None,
+                        "premio_ask_protecao_put": None,
+                        "qtd_protecao_call": 0,
+                        "qtd_protecao_put": 0,
+                        "custo_protecao_call": 0.0,
+                        "custo_protecao_put": 0.0,
+                        "custo_protecao_total": 0.0,
+                        "pnl_liquido_pos_protecao": v.pnl_com_ratio,
+                        "viavel": 0,
+                    }
+                else:
+                    protecao_campos = {
+                        "lado_protegido": protecao.lado_protegido,
+                        "naked_call_frac": protecao.naked_call_frac,
+                        "naked_put_gap": protecao.naked_put_gap,
+                        "strike_protecao_call": protecao.strike_protecao_call,
+                        "strike_protecao_put": protecao.strike_protecao_put,
+                        "premio_ask_protecao_call": protecao.premio_ask_call,
+                        "premio_ask_protecao_put": protecao.premio_ask_put,
+                        "qtd_protecao_call": protecao.qtd_protecao_call,
+                        "qtd_protecao_put": protecao.qtd_protecao_put,
+                        "custo_protecao_call": protecao.custo_protecao_call,
+                        "custo_protecao_put": protecao.custo_protecao_put,
+                        "custo_protecao_total": protecao.custo_protecao_total,
+                        "pnl_liquido_pos_protecao": protecao.pnl_liquido_pos_protecao,
+                        "viavel": 1 if protecao.viavel else 0,
+                    }
+
                 n = v.ratio_call
                 m = v.ratio_put
                 custo_b3_variante = (
@@ -655,6 +712,7 @@ class MonitorWorker(QThread):
                     "score": getattr(r, 'score', None),
                     "score_iv": getattr(r, 'score_iv', None),
                     "tipo_estrategia": tipo_estrategia,
+                    **protecao_campos,
                 })
 
                 if tipo_estrategia == "Calendario":
@@ -871,6 +929,66 @@ class MonitorWorker(QThread):
             self.mre_atualizados.emit(recomendacoes)
         except Exception as e:
             logger.error(f"Erro no MPP: {e}")
+
+    def _resolver_strikes_protecao(self, resultado: ResultadoCaudaAssincrona, n_sigma: float,
+                                     cab_minimo: int) -> tuple[list[dict], list[dict]]:
+        """Resolve strikes OTM candidatos para protecao de cauda via cache RTD existente.
+
+        Consulta instrumentos_opcionais pelos codigos OTM e le os dados de mercado
+        do cache RTD (sem disparar refresh). Retorna listas de dicts no formato
+        esperado por CalculadoraProtecaoCauda.avaliar().
+        """
+        s_target_call = resultado.preco_ativo * (1.0 + n_sigma * resultado.sigma_periodo)
+        s_target_put = resultado.preco_ativo * (1.0 - n_sigma * resultado.sigma_periodo)
+
+        from src.infrastructure.persistence.database import get_connection
+        from src.domain.services.market_data_source import FieldName
+
+        conn = get_connection(self.db_path)
+        try:
+            calls = conn.execute("""
+                SELECT cod_opcao, strike FROM instrumentos_opcionais
+                WHERE ativo = ? AND tipo = 'CALL' AND strike >= ?
+                ORDER BY strike ASC LIMIT 5
+            """, (resultado.ativo, s_target_call)).fetchall()
+
+            puts = conn.execute("""
+                SELECT cod_opcao, strike FROM instrumentos_opcionais
+                WHERE ativo = ? AND tipo = 'PUT' AND strike <= ?
+                ORDER BY strike DESC LIMIT 5
+            """, (resultado.ativo, s_target_put)).fetchall()
+        finally:
+            conn.close()
+
+        source = self._mercado_provider.source if self._mercado_provider else None
+        fonte = self._ler_param_str("fonte_market_data", "profit")
+        eh_openfast = fonte == "openfast"
+        campos_leitura = [FieldName.ASK, FieldName.VOL_ASK, FieldName.BOOK_HEADER]
+
+        def montar_dict(rows: list) -> list[dict]:
+            resultado_lista = []
+            for row in rows:
+                cod = row["cod_opcao"]
+                dados = {}
+                if source and source.disponivel and hasattr(source, "ler_campos"):
+                    try:
+                        dados = source.ler_campos(cod, *campos_leitura) or {}
+                    except Exception:
+                        pass
+                ask = dados.get(FieldName.ASK) or 0.0
+                cab_raw = dados.get(FieldName.BOOK_HEADER) or 0
+                vol_ask = dados.get(FieldName.VOL_ASK) or 0
+                cab = vol_ask if eh_openfast else cab_raw
+                if ask <= 0 or cab < cab_minimo:
+                    continue
+                resultado_lista.append({
+                    "strike": row["strike"],
+                    "premio_ask": ask,
+                    "cab": cab,
+                })
+            return resultado_lista
+
+        return montar_dict(calls), montar_dict(puts)
 
     @property
     def _mpp_interval(self) -> int:

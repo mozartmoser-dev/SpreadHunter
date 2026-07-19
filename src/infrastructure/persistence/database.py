@@ -142,6 +142,20 @@ def _migrar_historico_simulacoes(conn):
         ("pop_downside", "REAL"),
         ("score", "REAL"),
         ("score_iv", "REAL"),
+        ("lado_protegido", "TEXT"),
+        ("naked_call_frac", "REAL"),
+        ("naked_put_gap", "REAL"),
+        ("strike_protecao_call", "REAL"),
+        ("strike_protecao_put", "REAL"),
+        ("premio_ask_protecao_call", "REAL"),
+        ("premio_ask_protecao_put", "REAL"),
+        ("qtd_protecao_call", "INTEGER"),
+        ("qtd_protecao_put", "INTEGER"),
+        ("custo_protecao_call", "REAL"),
+        ("custo_protecao_put", "REAL"),
+        ("custo_protecao_total", "REAL"),
+        ("pnl_liquido_pos_protecao", "REAL"),
+        ("viavel", "INTEGER"),
     ]
     for col, tipo in novas_colunas:
         try:
@@ -281,6 +295,10 @@ def _seed_parametros_colar(conn):
         ("otimizado_ratio_put_min", "0.8", "RATIOS_OTIMIZADOS", "Ratio minimo da PUT permitido"),
         ("otimizado_ratio_put_step", "0.10", "RATIOS_OTIMIZADOS", "Passo de varredura dos ratios (LOTE/qtd_acao)"),
         ("otimizado_sigma_rendimento", "2.0", "RATIOS_OTIMIZADOS", "Sigma alvo de rendimento do otimizado"),
+        ("limite_protecao_pct", "0.35", "PROTECAO_CAUDA", "Fracao maxima do ganho extra consumida pela protecao"),
+        ("calda_preco_min_opcao", "0.01", "PROTECAO_CAUDA", "Preco minimo (R$) da opcao de protecao"),
+        ("cab_minimo_protecao", "1", "PROTECAO_CAUDA", "CAB minimo / VOL_ASK minimo para strike candidato"),
+        ("n_sigma_protecao", "2.0", "PROTECAO_CAUDA", "Numero de sigmas para s_target da cauda"),
     ]
     for p in params + mpp_params + perf_params:
         conn.execute(

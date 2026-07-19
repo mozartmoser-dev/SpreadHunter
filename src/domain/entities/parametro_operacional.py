@@ -148,4 +148,8 @@ class ParametroOperacional:
         "otimizado_ratio_max": {"valor": 1.3, "estrategia": "RATIOS_OTIMIZADOS", "descricao": "Ratio maximo CALL:ativo permitido"},
         "otimizado_ratio_put_min": {"valor": 0.8, "estrategia": "RATIOS_OTIMIZADOS", "descricao": "Ratio minimo da PUT permitido"},
         "otimizado_ratio_put_step": {"valor": 0.10, "estrategia": "RATIOS_OTIMIZADOS", "descricao": "Passo de varredura dos ratios (LOTE/qtd_acao)"},
+        "limite_protecao_pct": {"valor": 0.35, "estrategia": "PROTECAO_CAUDA", "descricao": "Fracao maxima do ganho extra consumida pela protecao"},
+        "calda_preco_min_opcao": {"valor": 0.01, "estrategia": "PROTECAO_CAUDA", "descricao": "Preco minimo (R$) da opcao de protecao"},
+        "cab_minimo_protecao": {"valor": 1, "estrategia": "PROTECAO_CAUDA", "descricao": "CAB minimo / VOL_ASK minimo para strike candidato"},
+        "n_sigma_protecao": {"valor": 2.0, "estrategia": "PROTECAO_CAUDA", "descricao": "Numero de sigmas para s_target da cauda"},
     }
