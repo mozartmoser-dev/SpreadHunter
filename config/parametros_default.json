@@ -849,7 +849,7 @@
     },
     {
       "chave": "otimizado_desvios_sigma",
-      "valor": "2.2",
+      "valor": "1.5",
       "estrategia": "COLLAR_CALENDARIO",
       "descricao": "Migrated from calda_desvios_cauda"
     },
