@@ -97,7 +97,20 @@ class EstudosCalendarioTableModel(QAbstractTableModel):
             if col == 19: return item.get("sigma_monet_dir_str", "-")
             if col == 20: return item.get("piso_2s_str", "-")
             if col == 21: return str(item.get("n_ciclos", ""))
-            if col == 22: return str(item.get("detectado_em", ""))[:19] if item.get("detectado_em") else "-"
+            if col == 22:
+                det = item.get("detectado_em")
+                if det:
+                    try:
+                        from datetime import datetime
+                        from zoneinfo import ZoneInfo
+                        dt = datetime.fromisoformat(str(det))
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+                        local = dt.astimezone(ZoneInfo("America/Sao_Paulo"))
+                        return local.strftime("%d/%m/%Y %H:%M:%S")
+                    except Exception:
+                        return str(det)[:19] if det else "-"
+                return "-"
         if role == Qt.BackgroundRole:
             estagio = item.get("estagio", "")
             if estagio == "Base":
@@ -188,6 +201,10 @@ class EstudosCalendarioDialog(QDialog):
         layout.addWidget(self.table_view, stretch=1)
 
         btn_layout = QHBoxLayout()
+        self.btn_explicar = QPushButton("\U0001f4d6 Explicar")
+        self.btn_explicar.setToolTip("An\u00e1lise detalhada da estrat\u00e9gia, MOD, BWB e breakevens")
+        self.btn_explicar.clicked.connect(self._explicar_selecionado)
+        btn_layout.addWidget(self.btn_explicar)
         self.btn_comparar = QPushButton("\u2696  Comparar Otimiza\u00e7\u00f5es")
         self.btn_comparar.setToolTip("Compara todos os est\u00e1gios do mesmo chassi lado a lado")
         self.btn_comparar.clicked.connect(self._comparar_estagios_chassi)
@@ -213,6 +230,107 @@ class EstudosCalendarioDialog(QDialog):
             return
         item = self.model._items[index.row()]
         self._plot_payoff(item)
+
+    def _explicar_selecionado(self):
+        index = self.table_view.currentIndex()
+        if not index.isValid():
+            QMessageBox.information(self, "Explicar", "Selecione uma linha na tabela primeiro.")
+            return
+        item = self.model._items[index.row()]
+        try:
+            from src.domain.services.calculadora_colar_calendario import (
+                CalculadoraColarCalendario, ResultadoColarCalendario, TipoColarCalendario,
+            )
+            from datetime import date
+            r = ResultadoColarCalendario(
+                ativo=item.get("ativo", ""),
+                vencimento_call=date.today(),
+                vencimento_put=date.today(),
+                dte_call=item.get("dte_original", 0),
+                dte_put=item.get("dte_put", 0) or item.get("dte_original", 0),
+                dte_extra=item.get("dte_extra", 0) or 0,
+                strike_call=item.get("strike_call", 0),
+                strike_put=item.get("strike_put", 0),
+                cod_call=item.get("cod_call", ""),
+                cod_put=item.get("cod_put", ""),
+                preco_ativo=item.get("preco_ativo", 0),
+                premio_call=item.get("premio_call", 0),
+                premio_put=item.get("premio_put", 0),
+                net_credito=item.get("net_credito", 0) or 0,
+                iv_call=item.get("iv_call", 0),
+                iv_put=item.get("iv_put", 0) or item.get("iv_call", 0),
+                valor_put_venc_call=item.get("valor_put_venc_call", 0) or 0,
+                pnl_stock=0.0,
+                pnl_projetado=item.get("pnl_projetado", 0) or 0,
+                capital_empregado=item.get("capital_empregado", 0) or 0,
+                pct_retorno=item.get("pct_retorno", 0) or 0,
+                pct_cdi=item.get("pct_cdi", 0),
+                delta_total=item.get("delta_total", 0) or 0,
+                theta_call=item.get("theta_call", 0) or 0,
+                theta_put=item.get("theta_put", 0) or 0,
+                theta_liquido=item.get("theta_liquido", 0) or 0,
+                viavel=bool(item.get("viavel", 1)),
+                tipo=TipoColarCalendario.NEUTRO,
+                r=0.1425,
+                custo_b3=item.get("custo_b3", 0) or 0,
+                custo_ir=item.get("custo_ir", 0) or 0,
+                pct_cdi_liquido=item.get("pct_cdi_liquido", 0) or 0,
+                score=item.get("score", 0) or 0,
+                risco_max=item.get("risco_max", 0) or 0,
+                iv_rank=item.get("iv_rank", 0) or 0,
+                iv_rank_call=item.get("iv_rank_call", 0) or 0,
+                iv_rank_put=item.get("iv_rank_put", 0) or 0,
+                vega_call=item.get("vega_call", 0) or 0,
+                vega_put=item.get("vega_put", 0) or 0,
+                vega_liquido=item.get("vega_liquido", 0) or 0,
+                gamma_call=item.get("gamma_call", 0) or 0,
+                gamma_put=item.get("gamma_put", 0) or 0,
+                score_iv=item.get("score_iv", 0) or 0,
+                preco_compra=item.get("preco_compra", 0) or 0,
+                be_baixa=item.get("be_esq"),
+                be_alta=item.get("be_dir"),
+                be_baixa_intrinseco=None,
+                be_alta_intrinseco=None,
+                ratio_call=item.get("ratio_call", 1.0),
+                ratio_put=item.get("ratio_put", 1.0),
+                is_otimizado=True,
+                estagio_otimizado=item.get("estagio", ""),
+                qtd_acao=item.get("qtd_acao", 100),
+                qtd_call=item.get("qtd_acao", 100),
+                qtd_put=item.get("qtd_acao", 100),
+                lado_protegido=item.get("lado_protegido"),
+                custo_protecao_total=item.get("custo_protecao_total", 0) or 0,
+                pnl_liquido_pos_protecao=item.get("pnl_liquido_pos_protecao", 0) or 0,
+                strike_protecao_call=item.get("strike_protecao_call"),
+                strike_protecao_put=item.get("strike_protecao_put"),
+                qtd_protecao_call=item.get("qtd_protecao_call", 0) or 0,
+                qtd_protecao_put=item.get("qtd_protecao_put", 0) or 0,
+                custo_protecao_call=item.get("custo_protecao_call", 0) or 0,
+                custo_protecao_put=item.get("custo_protecao_put", 0) or 0,
+                viavel_protecao=bool(item.get("viavel", 0)),
+            )
+            html = CalculadoraColarCalendario.gerar_explicacao(r)
+            from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f"Explicação — {r.ativo} | {r.estagio_otimizado}")
+            dialog.setMinimumSize(700, 500)
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(16, 16, 16, 16)
+            texto = QTextEdit()
+            texto.setReadOnly(True)
+            texto.setHtml(html)
+            texto.setStyleSheet("background-color: #15152a; color: #e0e0e0; border: 1px solid #333; border-radius: 4px; font-size: 10pt; padding: 12px;")
+            layout.addWidget(texto, stretch=1)
+            btn_row = QHBoxLayout()
+            btn_row.addStretch()
+            btn_close = QPushButton("Fechar")
+            btn_close.clicked.connect(dialog.close)
+            btn_row.addWidget(btn_close)
+            layout.addLayout(btn_row)
+            dialog.exec_()
+        except Exception as e:
+            import traceback
+            QMessageBox.critical(self, "Erro", f"Falha ao gerar explicação:\n{e}\n\n{traceback.format_exc()}")
 
     def _comparar_estagios_chassi(self):
         index = self.table_view.currentIndex()
@@ -254,9 +372,13 @@ class EstudosCalendarioDialog(QDialog):
             ("PnL +3σ", "pnl_cauda_dir", ".2f", True),
             ("σ Esq", "sigma_esq_str", "s", False),
             ("σ Dir", "sigma_dir_str", "s", False),
-            ("Proteção", "lado_protegido", "s", False),
-            ("Custo Prot.", "custo_protecao_total", ".2f", False),
-            ("PnL Pós-Prot.", "pnl_liquido_pos_protecao", ".2f", True),
+            ("BWB", "lado_protegido", "s", False),
+            ("K BWB C", "strike_protecao_call", ".2f", False),
+            ("K BWB P", "strike_protecao_put", ".2f", False),
+            ("Qtd BWB C", "qtd_protecao_call", ".0f", False),
+            ("Qtd BWB P", "qtd_protecao_put", ".0f", False),
+            ("Custo BWB", "custo_protecao_total", ".2f", False),
+            ("PnL Pós-BWB", "pnl_liquido_pos_protecao", ".2f", True),
         ]
 
         table = QTableWidget(len(METRICS), len(estagios_order) + 1)
@@ -534,7 +656,7 @@ class EstudosCalendarioDialog(QDialog):
 
             rows = conn.execute("""
                 SELECT * FROM historico_simulacoes
-                ORDER BY id_chassi, estagio
+                ORDER BY detectado_em DESC, estagio
             """).fetchall()
 
             # For each chassi, compute derived fields per row

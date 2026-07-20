@@ -654,7 +654,7 @@ class MonitorWorker(QThread):
                         "custo_protecao_call": 0.0,
                         "custo_protecao_put": 0.0,
                         "custo_protecao_total": 0.0,
-                        "pnl_liquido_pos_protecao": v.pnl_com_ratio,
+                        "pnl_liquido_pos_protecao": 0.0,
                         "viavel": 0,
                     }
                 else:
@@ -671,7 +671,7 @@ class MonitorWorker(QThread):
                         "custo_protecao_call": protecao.custo_protecao_call,
                         "custo_protecao_put": protecao.custo_protecao_put,
                         "custo_protecao_total": protecao.custo_protecao_total,
-                        "pnl_liquido_pos_protecao": protecao.pnl_liquido_pos_protecao,
+                        "pnl_liquido_pos_protecao": protecao.pnl_liquido_pos_protecao if protecao.lado_protegido != "nenhum" else 0.0,
                         "viavel": 1 if protecao.viavel else 0,
                     }
 
@@ -714,7 +714,7 @@ class MonitorWorker(QThread):
                     "iv_rank_put": getattr(r, 'iv_rank_put', None),
                     "net_credito": getattr(r, 'net_credito', None),
                     "capital_empregado": getattr(r, 'capital_empregado', None),
-                    "pnl_projetado": getattr(r, 'pnl_projetado', None),
+                    "pnl_projetado": v.pnl_com_ratio,
                     "pct_retorno": getattr(r, 'pct_retorno', None),
                     "pct_cdi_liquido": getattr(r, 'pct_cdi_liquido', None),
                     "custo_b3": getattr(r, 'custo_b3', None),
@@ -775,6 +775,16 @@ class MonitorWorker(QThread):
                         qtd_acao=r.qtd_acao,
                         qtd_call=r.qtd_call,
                         qtd_put=r.qtd_put,
+                        lado_protegido=protecao_campos.get("lado_protegido"),
+                        custo_protecao_total=protecao_campos.get("custo_protecao_total", 0.0),
+                        pnl_liquido_pos_protecao=protecao_campos.get("pnl_liquido_pos_protecao", 0.0),
+                        strike_protecao_call=protecao_campos.get("strike_protecao_call"),
+                        strike_protecao_put=protecao_campos.get("strike_protecao_put"),
+                        qtd_protecao_call=protecao_campos.get("qtd_protecao_call", 0),
+                        qtd_protecao_put=protecao_campos.get("qtd_protecao_put", 0),
+                        custo_protecao_call=protecao_campos.get("custo_protecao_call", 0.0),
+                        custo_protecao_put=protecao_campos.get("custo_protecao_put", 0.0),
+                        viavel_protecao=bool(protecao_campos.get("viavel", 0)),
                     )
                 else:
                     novo = ResultadoColar(

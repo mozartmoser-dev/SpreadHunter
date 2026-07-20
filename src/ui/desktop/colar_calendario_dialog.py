@@ -81,6 +81,13 @@ class ColarCalTableModel(QAbstractTableModel):
         ("Viés", "tipo_str"),
         ("R Call", "ratio_call"),
         ("R Put", "ratio_put"),
+        ("BWB", "lado_protegido_str"),
+        ("Custo BWB", "custo_protecao_total"),
+        ("PnL Pós-BWB", "pnl_liquido_pos_protecao"),
+        ("K BWB C", "strike_protecao_call"),
+        ("K BWB P", "strike_protecao_put"),
+        ("Qtd BWB C", "qtd_protecao_call"),
+        ("Qtd BWB P", "qtd_protecao_put"),
         ("Detectado", "label_detectado"),
     ]
 
@@ -1253,7 +1260,22 @@ class ColarCalendarioDialog(QDialog):
             # fix: escala pelo ratio_put (m PUTs compradas, não necessariamente 1)
             put_pnl = ratio_put * put_val - ratio_put * Pp
 
-            pnl = (stock_pnl + call_pnl + naked_pnl + put_pnl) * qtd_a
+            # ── Pernas BWB ──
+            k_bwb_c = getattr(r, 'strike_protecao_call', None)
+            k_bwb_p = getattr(r, 'strike_protecao_put', None)
+            q_bwb_c = getattr(r, 'qtd_protecao_call', 0) or 0
+            q_bwb_p = getattr(r, 'qtd_protecao_put', 0) or 0
+            c_bwb_c = getattr(r, 'custo_protecao_call', 0.0) or 0.0
+            c_bwb_p = getattr(r, 'custo_protecao_put', 0.0) or 0.0
+            lado_bwb = getattr(r, 'lado_protegido', None)
+            bwb_call_pnl = np.zeros_like(x)
+            bwb_put_pnl = np.zeros_like(x)
+            if k_bwb_c and q_bwb_c > 0:
+                bwb_call_pnl = (np.maximum(0, x - k_bwb_c) - (c_bwb_c / q_bwb_c)) * q_bwb_c
+            if k_bwb_p and q_bwb_p > 0:
+                bwb_put_pnl = (np.maximum(0, k_bwb_p - x) - (c_bwb_p / q_bwb_p)) * q_bwb_p
+
+            pnl = (stock_pnl + call_pnl + naked_pnl + put_pnl) * qtd_a + bwb_call_pnl + bwb_put_pnl
 
             BG = '#0d0d0d'; TEXT = '#c0c0c0'; RED = '#ff3355'
             ACCENT = '#ffc107'; SIGMA_C = '#6c5ce7'
@@ -1323,6 +1345,19 @@ class ColarCalendarioDialog(QDialog):
                     ax.text(px, ax.get_ylim()[0], f'{n:+d}σ\n{px:.2f}',
                             color=SIGMA_C, fontsize=6, ha='center', va='bottom')
 
+            # ── Marcadores BWB ──
+            BWB_CLR = '#e67e22'
+            if k_bwb_c and q_bwb_c > 0 and x_min <= k_bwb_c <= x_max:
+                ax.axvline(k_bwb_c, color=BWB_CLR, linewidth=0.8, linestyle='-.', alpha=0.9)
+                ax.text(k_bwb_c, ax.get_ylim()[1] * 0.92, f'BWB C\n{k_bwb_c:.2f}',
+                        color=BWB_CLR, fontsize=6, ha='center', va='top',
+                        bbox=dict(boxstyle='round,pad=0.1', facecolor='#1a1a1a', edgecolor=BWB_CLR, alpha=0.8))
+            if k_bwb_p and q_bwb_p > 0 and x_min <= k_bwb_p <= x_max:
+                ax.axvline(k_bwb_p, color=BWB_CLR, linewidth=0.8, linestyle='-.', alpha=0.9)
+                ax.text(k_bwb_p, ax.get_ylim()[1] * 0.82, f'BWB P\n{k_bwb_p:.2f}',
+                        color=BWB_CLR, fontsize=6, ha='center', va='top',
+                        bbox=dict(boxstyle='round,pad=0.1', facecolor='#1a1a1a', edgecolor=BWB_CLR, alpha=0.8))
+
             # Breakevens
             be_color_bs = '#6c5ce7'
             be_color_int = '#fd79a8'
@@ -1366,7 +1401,15 @@ class ColarCalendarioDialog(QDialog):
 
             ax.set_xlabel('Preço do Ativo no Vencimento da Call (R$)', color=TEXT, fontsize=9)
             ax.set_ylabel('Lucro / Prejuízo (R$)', color=TEXT, fontsize=9)
-            ax.set_title(f'Payoff Collar Calendário (Coberto) — {r.ativo}', color='#e0e0e0', fontsize=11, fontweight='bold')
+            titulo = f'Payoff Collar Calendário'
+            if lado_bwb and lado_bwb not in ("nenhum", None) and (q_bwb_c > 0 or q_bwb_p > 0):
+                titulo += ' + BWB'
+            if is_otimizado := getattr(r, 'is_otimizado', False):
+                est = getattr(r, 'estagio_otimizado', '')
+                titulo += f' Otimizado ({est})' if est else ' Otimizado'
+            else:
+                titulo += ' (Coberto)'
+            ax.set_title(f'{titulo} — {r.ativo}', color='#e0e0e0', fontsize=11, fontweight='bold')
 
             ax.tick_params(colors=TEXT, labelsize=8)
             for spine in ax.spines.values():
@@ -1406,10 +1449,13 @@ class ColarCalendarioDialog(QDialog):
             footer = QLabel(
                 f"<b>Comprar Ativo:</b> {r.ativo} — R$ {S0:.2f} × {qtd_a} un = R$ {S0 * qtd_a:.2f}<br>"
                 f"<b>Vender Call:</b> {r.cod_call} K={Kc:.2f} — +R$ {Pc:.2f} × {int(ratio * qtd_a)} ações = R$ {Pc * ratio * qtd_a:.2f} (venc. {r.vencimento_call.strftime('%d/%m')})<br>"
-                f"<b>Comprar Put:</b> {r.cod_put} K={Kp:.2f} — −R$ {Pp:.2f} × {int(ratio_put * qtd_a)} ações = R$ {Pp * ratio_put * qtd_a:.2f} (venc. {r.vencimento_put.strftime('%d/%m')})<br>"
-                f"<b>Capital:</b> R$ {S0 + Pp - Pc:.2f}  |  "
+                f"<b>Comprar Put:</b> {r.cod_put} K={Kp:.2f} — −R$ {Pp:.2f} × {int(ratio_put * qtd_a)} ações = R$ {Pp * ratio_put * qtd_a:.2f} (venc. {r.vencimento_put.strftime('%d/%m')})"
+                + (f"<br><b>🛡 BWB Call:</b> K={k_bwb_c:.2f} × {q_bwb_c} — −R$ {c_bwb_c:.2f}" if k_bwb_c and q_bwb_c > 0 else "")
+                + (f"<br><b>🛡 BWB Put:</b> K={k_bwb_p:.2f} × {q_bwb_p} — −R$ {c_bwb_p:.2f}" if k_bwb_p and q_bwb_p > 0 else "")
+                + f"<br><b>Capital:</b> R$ {S0 + Pp - Pc:.2f}  |  "
                 f"<b>PnL Proj:</b> R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI)"
-                f"{'  |  ' + be_str if be_str else ''}"
+                + (f"  |  <b>PnL Pós-BWB:</b> R$ {getattr(r, 'pnl_liquido_pos_protecao', 0) or 0:.2f}" if lado_bwb and lado_bwb not in ("nenhum", None) and (q_bwb_c > 0 or q_bwb_p > 0) else "")
+                + (f"  |  {be_str}" if be_str else "")
             )
             footer.setStyleSheet(f"""
                 QLabel {{
@@ -2036,6 +2082,13 @@ class ColarCalendarioDialog(QDialog):
                     "viavel": r.viavel,
                     "ratio_call": r.ratio_call,
                     "ratio_put": r.ratio_put,
+                    "lado_protegido_str": (getattr(r, 'lado_protegido', None) or "nenhum" or "nenhum"),
+                    "custo_protecao_total": getattr(r, 'custo_protecao_total', 0.0) or 0.0,
+                    "pnl_liquido_pos_protecao": getattr(r, 'pnl_liquido_pos_protecao', 0.0) or 0.0,
+                    "strike_protecao_call": getattr(r, 'strike_protecao_call', None),
+                    "strike_protecao_put": getattr(r, 'strike_protecao_put', None),
+                    "qtd_protecao_call": getattr(r, 'qtd_protecao_call', 0) or 0,
+                    "qtd_protecao_put": getattr(r, 'qtd_protecao_put', 0) or 0,
                     "is_cauda": getattr(r, 'is_cauda', False),
                     "is_otimizado": getattr(r, 'is_otimizado', False),
                     "label_detectado": _formatar_detectado(getattr(r, 'detectado_em', None)),

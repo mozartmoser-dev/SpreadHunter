@@ -77,6 +77,16 @@ class ResultadoColarCalendario:
     qtd_acao: int = 100
     qtd_call: int = 100
     qtd_put: int = 100
+    lado_protegido: str | None = None
+    custo_protecao_total: float = 0.0
+    pnl_liquido_pos_protecao: float = 0.0
+    strike_protecao_call: float | None = None
+    strike_protecao_put: float | None = None
+    qtd_protecao_call: int = 0
+    qtd_protecao_put: int = 0
+    custo_protecao_call: float = 0.0
+    custo_protecao_put: float = 0.0
+    viavel_protecao: bool = False
 
 
 class CalculadoraColarCalendario:
@@ -439,6 +449,7 @@ class CalculadoraColarCalendario:
         )
 
     @staticmethod
+    @staticmethod
     def gerar_explicacao(r: 'ResultadoColarCalendario', taxa_cdi: float = 0.1450) -> str:
         import numpy as np
         from scipy.stats import norm
@@ -448,8 +459,43 @@ class CalculadoraColarCalendario:
         Pc, Pp = r.premio_call, r.premio_put
         T_rem = r.dte_extra / 365
         iv_p = r.iv_put / 100
-
+        iv_call_dec = r.iv_call / 100.0
         rf = getattr(r, 'r', 0.1450)
+
+        is_otimizado = getattr(r, 'is_otimizado', False)
+        estagio = getattr(r, 'estagio_otimizado', None)
+        ratio_call = getattr(r, 'ratio_call', 1.0)
+        ratio_put = getattr(r, 'ratio_put', 1.0)
+        be_baixa = getattr(r, 'be_baixa', None)
+        be_alta = getattr(r, 'be_alta', None)
+
+        qtd_acao = r.qtd_acao
+        _LOTE = 100
+        raw_call = r.qtd_call * ratio_call
+        raw_put = r.qtd_put * ratio_put
+        qtd_call_real = max(1, int(raw_call / _LOTE + 0.5)) * _LOTE if qtd_acao > 0 else raw_call
+        qtd_put_real = max(0, int(raw_put / _LOTE + 0.5)) * _LOTE if qtd_acao > 0 else raw_put
+
+        cap = S0 * qtd_acao + Pp * qtd_put_real - Pc * qtd_call_real
+        net = Pc * qtd_call_real - Pp * qtd_put_real
+
+        # ── MOD (tipo_opcao) da CALL via DB ──
+        mod_call = None
+        try:
+            from src.infrastructure.persistence.database import get_connection
+            conn = get_connection()
+            try:
+                row = conn.execute(
+                    "SELECT tipo_opcao FROM instrumentos_base WHERE ativo = ? AND cod_put = ?",
+                    (r.ativo, r.cod_put)
+                ).fetchone()
+                if row:
+                    mod_call_db = row["tipo_opcao"]
+                    mod_call = "AMERICANA" if mod_call_db in ("AMERICANA", "A") else "EUROPEIA"
+            finally:
+                conn.close()
+        except Exception:
+            pass
 
         def bs_put(S, K, T, sigma):
             if T <= 0 or sigma <= 0:
@@ -458,32 +504,19 @@ class CalculadoraColarCalendario:
             d2 = d1 - sigma * np.sqrt(T)
             return K * np.exp(-rf * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
 
-        # Scaling factors: qtd * ratio (snapped to B3 lot of 100 shares)
-        qtd_acao = r.qtd_acao
-        _LOTE = 100
-        raw_call = r.qtd_call * getattr(r, 'ratio_call', 1.0)
-        raw_put = r.qtd_put * getattr(r, 'ratio_put', 1.0)
-        qtd_call_real = max(1, int(raw_call / _LOTE + 0.5)) * _LOTE if qtd_acao > 0 else raw_call
-        qtd_put_real = max(0, int(raw_put / _LOTE + 0.5)) * _LOTE if qtd_acao > 0 else raw_put
-
-        cap = S0 * qtd_acao + Pp * qtd_put_real - Pc * qtd_call_real
-        net = Pc * qtd_call_real - Pp * qtd_put_real
-
-        # Calcula o desvio padrao (sigma) do periodo a partir do IV medio
-        iv_call_dec = r.iv_call / 100.0
+        # ── Cenários ──
         T_call_ano = dc_to_du(None, None, r.dte_call) / 252.0
         sigma_pct = iv_call_dec * np.sqrt(T_call_ano) if iv_call_dec > 1e-10 else 0.0
 
-        # 9 cenarios: 3 sigma downs, -5%, 0, +5%, 3 sigma ups
         if sigma_pct > 0.001:
             pares_cenarios = [
                 (-3.0, f"\u22123\u03c3 (\u2212{3*sigma_pct*100:.1f}%)",  S0 * (1 - 3*sigma_pct)),
                 (-2.0, f"\u22122\u03c3 (\u2212{2*sigma_pct*100:.1f}%)",  S0 * (1 - 2*sigma_pct)),
-                (-1.0, f"\u22121\u03c3 (\u2212{1*sigma_pct*100:.1f}%)",  S0 * (1 - 1*sigma_pct)),
-                (-0.5, f"\u22125% (\u2212{5/abs(sigma_pct)/100:.1f}\u03c3)", S0 * 0.95),
+                (-1.0, f"\u22121\u03c3 (\u2212{sigma_pct*100:.1f}%)",  S0 * (1 - sigma_pct)),
+                (-0.5, f"\u22125%", S0 * 0.95),
                 (0.0,  f"0\u03c3 \u2014 Est\u00e1vel",                    S0),
-                (0.5,  f"+5% (+{5/abs(sigma_pct)/100:.1f}\u03c3)",       S0 * 1.05),
-                (1.0,  f"+1\u03c3 (+{1*sigma_pct*100:.1f}%)",            S0 * (1 + 1*sigma_pct)),
+                (0.5,  f"+5%",       S0 * 1.05),
+                (1.0,  f"+1\u03c3 (+{sigma_pct*100:.1f}%)",            S0 * (1 + sigma_pct)),
                 (2.0,  f"+2\u03c3 (+{2*sigma_pct*100:.1f}%)",            S0 * (1 + 2*sigma_pct)),
                 (3.0,  f"+3\u03c3 (+{3*sigma_pct*100:.1f}%)",            S0 * (1 + 3*sigma_pct)),
             ]
@@ -501,90 +534,94 @@ class CalculadoraColarCalendario:
             ]
 
         pdf_peak = norm.pdf(0.0, 0.0, 1.0)
-        cenarios = []
-        naked_pnl = max(0, qtd_call_real - qtd_acao)  # CALLs extras descobertas, se houver
-        for n_sigma, label, S_T in pares_cenarios:
-            if S_T > Kc:
-                s_pnl_u = Kc - S0
-                c_pnl_u = Pc
-                put_bs_u = bs_put(S_T, Kp, T_rem, iv_p)
-                p_pnl_u = put_bs_u - Pp
-            else:
-                put_bs_u = bs_put(S_T, Kp, T_rem, iv_p)
-                pnl_no_ex = (S_T - S0) + Pc + (put_bs_u - Pp)
-                pnl_ex = (Kp - S0) + Pc - Pp
-                if pnl_ex > pnl_no_ex:
-                    s_pnl_u, c_pnl_u, p_pnl_u = (Kp - S0), Pc, -Pp
-                else:
-                    s_pnl_u, c_pnl_u, p_pnl_u = (S_T - S0), Pc, (put_bs_u - Pp)
-            # Scale by quantities
-            s_pnl = s_pnl_u * qtd_acao
-            c_pnl = c_pnl_u * qtd_call_real  # calls cobertas + nuas (premio total)
-            if naked_pnl > 0:
-                naked = -naked_pnl * max(0, S_T - Kc)  # perda em calls nuas
-            else:
-                naked = 0.0
-            p_pnl = p_pnl_u * qtd_put_real
-            total = s_pnl + c_pnl + naked + p_pnl
-            put_intrin = max(Kp - S_T, 0) * qtd_put_real
-            put_extrin = (put_bs_u - max(Kp - S_T, 0)) * qtd_put_real
+        naked_call = max(0, qtd_call_real - qtd_acao)
 
-            # % Retorno e x CDI
-            pct_ret = (total / cap) * 100 if cap > 0 else 0.0
-            du_total = dc_to_du(None, None, r.dte_call)
-            cdi_periodo = (1 + rf) ** (du_total / 252) - 1
-            x_cdi = (total / cap) / cdi_periodo if cdi_periodo > 0 else 0.0
-
-            # Líquido por cenário (B3 fixo + IR variável)
-            pnl_pos_b3 = total - r.custo_b3
-            ir_cenario = pnl_pos_b3 * 0.15 if pnl_pos_b3 > 0 else 0.0
-            pnl_liquido_cenario = pnl_pos_b3 - ir_cenario
-            x_cdi_liquido = (pnl_liquido_cenario / cap) / cdi_periodo if cdi_periodo > 0 else 0.0
-
-            # Largura da barra da gaussiana (PDF normalizado)
-            pdf = norm.pdf(n_sigma, 0.0, 1.0)
-            bar_pct = max(4, int(28 * pdf / pdf_peak))
-            put_bs_total = put_bs_u * qtd_put_real
-            cenarios.append((n_sigma, label, S_T, s_pnl, c_pnl, put_bs_total, put_intrin, put_extrin, p_pnl, total, pct_ret, x_cdi, pnl_liquido_cenario, x_cdi_liquido, bar_pct))
-
-        call_Itm = S0 > Kc
-        call_intrin = max(S0 - Kc, 0) if call_Itm else 0
-        call_extrin = Pc - call_intrin
-        if call_Itm:
-            call_premio_txt = f"(intrínseco R$ {call_intrin:.2f} + extrínseco R$ {call_extrin:.2f})"
-        else:
-            call_premio_txt = "(prêmio inteiramente extrínseco)"
-
-        if sigma_pct > 0.001:
-            nota_sigma = f" (1σ = {sigma_pct*100:.1f}%, IV call {iv_call_dec*100:.0f}%, {r.dte_call} DTE)"
-        else:
-            nota_sigma = ""
+        # ── Título ──
+        titulo = f"Collar Calendário Otimizado — {estagio}" if (is_otimizado and estagio) else "Collar Calendário Coberto"
         lines = [
-            "<h3>📖 Explicação — Collar Calendário Coberto</h3>",
+            f"<h3>\U0001f4d6 Explica\u00e7\u00e3o \u2014 {titulo}</h3>",
             f"<p><b>{r.ativo}</b> &mdash; {r.tipo.value}</p>",
             "<hr>",
-            "<p><b>O que é esta estratégia?</b><br>",
-            "Você compra a ação, vende uma CALL de curto prazo e compra uma PUT de prazo maior. ",
-            "O lucro vem da diferença de decaimento temporal: a CALL perde valor mais rápido que a PUT ",
-            f"nos primeiros {r.dte_call} dias, enquanto a PUT ainda tem {r.dte_extra}d de vida útil.</p>",
-            "<hr>",
-            "<p><b>Montagem:</b></p>",
-            "<ul>",
-            f"<li>Comprar ação ({qtd_acao}x): <b>−R$ {S0 * qtd_acao:.2f}</b></li>",
-            f"<li>Vender CALL {r.cod_call} K={Kc:.2f} ({int(qtd_call_real)}x): <b>+R$ {Pc * qtd_call_real:.2f}</b> {call_premio_txt}</li>",
-            f"<li>Comprar PUT {r.cod_put} K={Kp:.2f} ({int(qtd_put_real)}x): <b>−R$ {Pp * qtd_put_real:.2f}</b></li>",
-            f"<li><b>Capital empregado = R$ {cap:.2f}</b> ({S0 * qtd_acao:.2f} + {Pp * qtd_put_real:.2f} − {Pc * qtd_call_real:.2f})</li>",
-            f"<li>Débito/Crédito líquido: <b>R$ {net:.2f}</b></li>",
-            "</ul>",
-            "<hr>",
-            f"<p><b>Cenários no vencimento da CALL ({r.dte_call}d):</b>{nota_sigma}</p>",
-            "<table border='1' cellpadding='4' cellspacing='0' style='border-collapse:collapse; font-size:9pt;'>",
-            "<tr style='background:#2d2d44;'>"
-            "<th style='width:30px;'></th><th>Cenário</th><th>S_T</th><th>Ação</th><th>CALL</th>"
-            "<th>PUT (BS)</th><th>Intrín</th><th>Extrín</th>"
-             "<th>PnL Total</th><th>% Retorno</th><th>× CDI Bruto</th><th>× CDI Líq.</th></tr>",
         ]
-        for n_sigma, label, S_T, s_pnl, c_pnl, put_bs, pint, pext, p_pnl, total, pct_ret, x_cdi, pnl_liq, x_cdi_liq, bar_pct in cenarios:
+
+        # ── Estratégia ──
+        if is_otimizado:
+            lines.append("<p><b>Estrat\u00e9gia otimizada:</b><br>")
+            if ratio_call > 1.0:
+                lines.append(
+                    f"<b>{ratio_call:.2f}\u00d7 CALLs</b> vendidas por a\u00e7\u00e3o "
+                    f"(+{qtd_call_real - qtd_acao} CALLs extras vs base 1:1). "
+                    f"Isso aumenta o pr\u00eamio recebido, mas cria exposi\u00e7\u00e3o naked no upside.<br>"
+                )
+            if ratio_put < 1.0:
+                lines.append(
+                    f"<b>{ratio_put:.2f}\u00d7 PUTs</b> compradas por a\u00e7\u00e3o "
+                    f"(\u2212{int(qtd_acao - qtd_put_real)} PUTs vs base 1:1). "
+                    f"Menos prote\u00e7\u00e3o na cauda, mas reduz o custo.<br>"
+                )
+            lines.append(
+                "Validado por stress-test: PnL > 0 nos extremos de \u00b12.2\u03c3.</p>"
+            )
+        else:
+            lines.append(
+                "<p><b>O que \u00e9 esta estrat\u00e9gia?</b><br>"
+                "Compra a\u00e7\u00e3o, vende CALL curta e compra PUT longa. "
+                "Lucro vem do decaimento temporal diferencial: CALL perde valor mais r\u00e1pido "
+                f"nos primeiros {r.dte_call}d, enquanto PUT ainda tem {r.dte_extra}d de vida.</p>"
+            )
+        lines.append("<hr>")
+
+        # ── Montagem ──
+        lines.append("<p><b>Montagem:</b></p><ul>")
+        lines.append(f"<li>A\u00e7\u00e3o ({qtd_acao}x): <b>\u2212R$ {S0 * qtd_acao:.2f}</b></li>")
+        lines.append(
+            f"<li>Vender CALL {r.cod_call} K={Kc:.2f} "
+            f"({int(qtd_call_real)}x, ratio {ratio_call:.2f}): <b>+R$ {Pc * qtd_call_real:.2f}</b></li>"
+        )
+        lines.append(
+            f"<li>Comprar PUT {r.cod_put} K={Kp:.2f} "
+            f"({int(qtd_put_real)}x, ratio {ratio_put:.2f}): <b>\u2212R$ {Pp * qtd_put_real:.2f}</b></li>"
+        )
+        lines.append(
+            f"<li><b>Capital = R$ {cap:.2f}</b></li>"
+            f"<li>D\u00e9bito/Cr\u00e9dito: <b>R$ {net:.2f}</b></li>"
+        )
+        lines.append("</ul><hr>")
+
+        # ── Cenários ──
+        du_total = dc_to_du(None, None, r.dte_call)
+        cdi_periodo = (1 + rf) ** (du_total / 252) - 1
+        nota_sigma = f" (1\u03c3={sigma_pct*100:.1f}%, IV call {iv_call_dec*100:.0f}%, {r.dte_call}d)" if sigma_pct > 0.001 else ""
+
+        lines.append(
+            f"<p><b>Cen\u00e1rios no vencimento da CALL ({r.dte_call}d):</b>{nota_sigma}</p>"
+            "<table border='1' cellpadding='4' cellspacing='0' style='border-collapse:collapse; font-size:9pt;'>"
+            "<tr style='background:#2d2d44;'>"
+            "<th></th><th>Cen\u00e1rio</th><th>S_T</th><th>A\u00e7\u00e3o</th><th>CALL</th>"
+            "<th>PUT (BS)</th><th>PnL Total</th><th>% Ret</th><th>\u00d7 CDI</th></tr>"
+        )
+
+        cenarios = []
+        for n_sigma, label, S_T in pares_cenarios:
+            s_pnl_u = S_T - S0
+            c_pnl_u = Pc - max(0, S_T - Kc)
+            put_bs_u = bs_put(S_T, Kp, T_rem, iv_p)
+            p_pnl_u = put_bs_u - Pp
+
+            s_pnl = s_pnl_u * qtd_acao
+            c_pnl = c_pnl_u * qtd_call_real
+            p_pnl = p_pnl_u * qtd_put_real
+            naked = -naked_call * max(0, S_T - Kc) if naked_call > 0 else 0.0
+
+            total = s_pnl + c_pnl + naked + p_pnl
+            pct_ret = (total / cap) * 100 if cap > 0 else 0.0
+            x_cdi = (total / cap) / cdi_periodo if cdi_periodo > 0 and cap > 0 else 0.0
+
+            pdf = norm.pdf(n_sigma, 0.0, 1.0)
+            bar_pct = max(4, int(28 * pdf / pdf_peak))
+            cenarios.append((n_sigma, label, S_T, s_pnl, c_pnl, put_bs_u * qtd_put_real, total, pct_ret, x_cdi, bar_pct))
+
+        for n_sigma, label, S_T, s_pnl, c_pnl, put_bs, total, pct_ret, x_cdi, bar_pct in cenarios:
             cor = "#2ecc71" if total > 0 else "#e74c3c"
             svg_bar = (
                 f'<svg width="28" height="18" viewBox="0 0 28 18">'
@@ -596,184 +633,128 @@ class CalculadoraColarCalendario:
                 f"<td style='text-align:center;'>{svg_bar}</td>"
                 f"<td>{label}</td><td>R$ {S_T:.2f}</td><td>R$ {s_pnl:.2f}</td>"
                 f"<td>R$ {c_pnl:.2f}</td><td>R$ {put_bs:.2f}</td>"
-                f"<td>R$ {pint:.2f}</td><td>R$ {pext:.2f}</td>"
                 f"<td style='color:{cor};font-weight:bold;'>R$ {total:.2f}</td>"
-                f"<td>{pct_ret:.2f}%</td><td>{x_cdi:.2f}x</td><td>{x_cdi_liq:.2f}x</td></tr>"
+                f"<td>{pct_ret:.2f}%</td><td>{x_cdi:.2f}x</td></tr>"
             )
         lines.append("</table>")
 
-        # Resumo estatístico dos cenários
-        pnls = [c[9] for c in cenarios]
-        rets = [c[10] for c in cenarios]
-        cdi_vals = [c[11] for c in cenarios]
-        cdi_liq_vals = [c[13] for c in cenarios]
-        pior_pnl = min(pnls)
-        melhor_pnl = max(pnls)
-        lucros = sum(1 for v in pnls if v > 0)
-        idx_pior = pnls.index(pior_pnl)
-        idx_melhor = pnls.index(melhor_pnl)
+        pnls = [c[6] for c in cenarios]
+        cdi_vals = [c[8] for c in cenarios]
         lines.append(
-            f"<p><b>Resumo dos cenários:</b><br>"
-            f"Pior PnL: {cenarios[idx_pior][1]} → <b>R$ {pior_pnl:.2f}</b> ({cenarios[idx_pior][10]:.2f}%, {cenarios[idx_pior][11]:.2f}x CDI Bruto / {cenarios[idx_pior][13]:.2f}x CDI Líq.)<br>"
-            f"Melhor PnL: {cenarios[idx_melhor][1]} → <b>R$ {melhor_pnl:.2f}</b> ({cenarios[idx_melhor][10]:.2f}%, {cenarios[idx_melhor][11]:.2f}x CDI Bruto / {cenarios[idx_melhor][13]:.2f}x CDI Líq.)<br>"
-            f"Faixa de ×CDI Bruto: {min(cdi_vals):.2f}x a {max(cdi_vals):.2f}x  |  "
-            f"Faixa de ×CDI Líq.: {min(cdi_liq_vals):.2f}x a {max(cdi_liq_vals):.2f}x<br>"
-            f"Cenários com lucro: <b>{lucros}/{len(cenarios)}</b> ({lucros/len(cenarios)*100:.0f}%)"
-            f"</p>"
-        )
-        lines.append("<hr>")
-
-        c_baixa = cenarios[0]
-        c_baixa_label = c_baixa[1]
-        tot_baixa = c_baixa[9]
-        sinal_b = "lucro" if tot_baixa >= 0 else "prejuízo"
-        lines.append(
-            f"<p><b>Se o ativo cai para R$ {c_baixa[2]:.2f} ({c_baixa_label}):</b><br>"
-            f"A CALL expira OTM → fica com +R$ {c_baixa[4]:.2f}.<br>"
-            f"A PUT vale R$ {c_baixa[5]:.2f} pelo modelo BS "
-            f"(intrínseco=R$ {c_baixa[6]:.2f}, extrínseco=R$ {c_baixa[7]:.2f}).<br>"
-            f"<b>Resultado: R$ {tot_baixa:.2f} ({sinal_b})</b> "
-            f"({c_baixa[10]:.2f}% / {c_baixa[11]:.2f}x CDI Bruto / {c_baixa[13]:.2f}x CDI Líq.) neste cenário.</p>"
+            f"<p><b>Resumo:</b> \u00d7CDI de {min(cdi_vals):.2f}x a {max(cdi_vals):.2f}x | "
+            f"Lucro em {sum(1 for v in pnls if v > 0)}/{len(pnls)} cen\u00e1rios</p><hr>"
         )
 
-        c_proj = cenarios[4]
-        call_itm_proj = S0 > Kc  # call esta ITM no spot atual?
-        if call_itm_proj:
-            call_texto = f"A CALL está ITM → ação vendida a R$ {Kc:.2f}, perda de R$ {c_proj[3]:.2f} na ação"
+        # ── Breakevens ──
+        if be_baixa is not None or be_alta is not None:
+            lines.append("<p><b>Breakevens (PnL = 0):</b><br>")
+            if be_baixa is not None:
+                lines.append(f"BE Baixa = R$ {be_baixa:.2f}<br>")
+            if be_alta is not None:
+                lines.append(f"BE Alta = R$ {be_alta:.2f}<br>")
+            lines.append("</p><hr>")
+
+        # ── BWB ──
+        lado_protegido = getattr(r, 'lado_protegido', None)
+        custo_prot = getattr(r, 'custo_protecao_total', 0.0) or 0.0
+        pnl_pos_bwb = getattr(r, 'pnl_liquido_pos_protecao', 0.0) or 0.0
+        pnl_atual = r.pnl_projetado
+
+        if lado_protegido and lado_protegido not in ("nenhum", None) and custo_prot > 0:
+            lines.append("<p><b>\U0001f6e1 Prote\u00e7\u00e3o BWB (Broken Wing Butterfly):</b></p><ul>")
+            lines.append(f"<li>Lado protegido: <b>{lado_protegido}</b></li>")
+            lines.append(f"<li>PnL antes da prote\u00e7\u00e3o: <b>R$ {pnl_atual:.2f}</b></li>")
+            lines.append(f"<li>Custo da prote\u00e7\u00e3o: <b>\u2212R$ {custo_prot:.2f}</b></li>")
+            lines.append(f"<li><b>PnL L\u00edquido P\u00f3s-BWB: R$ {pnl_pos_bwb:.2f}</b></li>")
+
+            k_bwb_c = getattr(r, 'strike_protecao_call', None)
+            k_bwb_p = getattr(r, 'strike_protecao_put', None)
+            q_bwb_c = getattr(r, 'qtd_protecao_call', 0) or 0
+            q_bwb_p = getattr(r, 'qtd_protecao_put', 0) or 0
+
+            if k_bwb_c and q_bwb_c > 0:
+                lines.append(f"<li>Compra CALL K={k_bwb_c:.2f} ({q_bwb_c}x) \u2014 prote\u00e7\u00e3o cauda direita</li>")
+            if k_bwb_p and q_bwb_p > 0:
+                lines.append(f"<li>Compra PUT K={k_bwb_p:.2f} ({q_bwb_p}x) \u2014 prote\u00e7\u00e3o cauda esquerda</li>")
+
+            pct_cdi_antes = (pnl_atual / cap) / cdi_periodo if cdi_periodo > 0 and cap > 0 else 0.0
+            pct_cdi_depois = (pnl_pos_bwb / cap) / cdi_periodo if cdi_periodo > 0 and cap > 0 else 0.0
+            lines.append(f"<li>\u00d7 CDI: {pct_cdi_antes:.2f}x \u2192 <b>{pct_cdi_depois:.2f}x</b> (ap\u00f3s BWB)</li>")
+            lines.append("</ul><hr>")
+
+        # ── MOD / Risco de Exercício ──
+        lines.append("<p><b>\u26a0\ufe0f An\u00e1lise MOD (Risco de Exerc\u00edcio):</b></p><ul>")
+        if mod_call:
+            call_label = "Americana (A)" if mod_call == "AMERICANA" else "Europeia (E)"
+            lines.append(f"<li>CALL {r.cod_call}: <b>{call_label}</b> \u2014 Voc\u00ea est\u00e1 <b>VENDIDO</b></li>")
         else:
-            call_texto = f"A CALL expira OTM → fica com +R$ {c_proj[4]:.2f}"
+            lines.append(f"<li>CALL {r.cod_call}: MOD n\u00e3o dispon\u00edvel (verificar cadastro)</li>")
+        lines.append(f"<li>PUT {r.cod_put}: <b>Europeia (E)</b> \u2014 Voc\u00ea est\u00e1 <b>COMPRADO</b></li>")
+
+        if mod_call == "AMERICANA":
+            lines.append(
+                "<li style='color:#e74c3c;'><b>\u26a0\ufe0f RISCO:</b> CALL Americana vendida "
+                "pode ser exercida a qualquer momento. Se o ativo subir e a CALL ficar deep ITM, "
+                "voc\u00ea pode ser for\u00e7ado a entregar as a\u00e7\u00f5es antes do vencimento.</li>"
+                "<li style='color:#f39c12;'>Mitiga\u00e7\u00e3o: Dividendos s\u00e3o o principal gatilho "
+                "de exerc\u00edcio antecipado em CALLs. Monitore a data-ex.</li>"
+            )
+        elif mod_call == "EUROPEIA":
+            lines.append(
+                "<li style='color:#2ecc71;'><b>\u2705 SEM RISCO</b> de exerc\u00edcio antecipado: "
+                "CALL Europeia s\u00f3 exerce no vencimento.</li>"
+                "<li><b>Ambas Europeias:</b> Se liquidez sumir, exerc\u00edcio no vencimento "
+                "\u00e9 autom\u00e1tico e garantido pelo MOD.</li>"
+            )
+
         lines.append(
-            f"<p><b>Se o ativo mantém R$ {c_proj[2]:.2f} (cenário projetado):</b><br>"
-            f"{call_texto}.<br>"
-            f"A PUT ainda tem {r.dte_extra}d de vida, valendo R$ {c_proj[5]:.2f} "
-            f"(intrínseco=R$ {c_proj[6]:.2f} + extrínseco=R$ {c_proj[7]:.2f}).<br>"
-            f"<b>PnL = R$ {c_proj[9]:.2f}</b> ({c_proj[10]:.2f}% / {c_proj[11]:.2f}x CDI Bruto / {c_proj[13]:.2f}x CDI Líq.)</p>"
+            "<li style='color:#2ecc71;'><b>\u2705 PUT Europeia comprada:</b> Voc\u00ea controla o exerc\u00edcio. "
+            "Sem risco de ser exercido contra voc\u00ea.</li>"
         )
+        lines.append("</ul><hr>")
 
-        for idx, rotulo in [(8, "sobe para"), (5, "sobe levemente para")]:
-            c_alta = cenarios[idx]
-            c_alta_label = c_alta[1]
-            tot_alta = c_alta[9]
-            sinal_a = "lucro" if tot_alta >= 0 else "prejuízo"
-            put_bs_a = c_alta[5]
-            if put_bs_a < 0.01:
-                put_texto = f"A PUT fica OTM → praticamente sem valor (BS=R$ {put_bs_a:.2f})"
-            else:
-                put_texto = f"A PUT fica OTM, mas ainda vale R$ {put_bs_a:.2f} (BS, {r.dte_extra}d restantes)"
-            lines.append(
-                f"<p><b>Se o ativo {rotulo} R$ {c_alta[2]:.2f} ({c_alta_label}):</b><br>"
-                f"A CALL está ITM → ação é vendida a R$ {Kc:.2f}, "
-                f"{'lucro' if c_alta[3] >= 0 else 'perda'} de R$ {c_alta[3]:.2f} na ação.<br>"
-                f"{put_texto}<br>"
-                f"<b>Resultado: R$ {tot_alta:.2f} ({sinal_a}).</b> "
-                f"({c_alta[10]:.2f}% / {c_alta[11]:.2f}x CDI Bruto / {c_alta[13]:.2f}x CDI Líq.)</p>"
-            )
-
-        # Breakevens
-        if r.be_baixa is not None or r.be_alta is not None:
-            lines.append("<p><b>Breakevens B&S (com valor extrínseco da PUT):</b><br>")
-            if r.be_baixa is not None:
-                lines.append(f"BE Baixa: R$ {r.be_baixa:.2f}<br>")
-            if r.be_alta is not None:
-                lines.append(f"BE Alta: R$ {r.be_alta:.2f}<br>")
-            if r.be_baixa is not None and r.be_alta is not None:
-                lines.append("Considera o valor extrínseco residual da PUT no vencimento da CALL.</p>")
-            else:
-                lines.append("</p>")
-        if r.be_baixa_intrinseco is not None or r.be_alta_intrinseco is not None:
-            lines.append("<p><b>Breakevens Intrínseco (só valor intrínseco da PUT):</b><br>")
-            if r.be_baixa_intrinseco is not None:
-                lines.append(f"BE Baixa: R$ {r.be_baixa_intrinseco:.2f}<br>")
-            if r.be_alta_intrinseco is not None:
-                lines.append(f"BE Alta: R$ {r.be_alta_intrinseco:.2f}<br>")
-            if r.be_baixa_intrinseco is not None and r.be_alta_intrinseco is not None:
-                lines.append("Ignora valor extrínseco — cenário conservador (PUT vale só intrínseco).</p>")
-            else:
-                lines.append("</p>")
-        if r.be_baixa is not None or r.be_alta is not None or r.be_baixa_intrinseco is not None or r.be_alta_intrinseco is not None:
-            lines.append("<hr>")
-
-        if sigma_pct > 0.001:
-            p1s = [c for c in cenarios if abs(c[0]) <= 1.0]
-            p2s = [c for c in cenarios if abs(c[0]) <= 2.0]
-            p3s = [c for c in cenarios if abs(c[0]) <= 3.0]
-            pnl_1s = [c[9] for c in p1s]
-            pnl_2s = [c[9] for c in p2s]
-            pnl_3s = [c[9] for c in p3s]
-            lines.append(
-                f"<p><b>Distribuição normal (σ = {sigma_pct*100:.1f}%):</b><br>"
-                f"±1σ (~68% dos casos): PnL de R$ {min(pnl_1s):.2f} a R$ {max(pnl_1s):.2f}, "
-                f"{len([c for c in p1s if c[9] > 0])}/{len(p1s)} positivos<br>"
-                f"±2σ (~95% dos casos): PnL de R$ {min(pnl_2s):.2f} a R$ {max(pnl_2s):.2f}, "
-                f"{len([c for c in p2s if c[9] > 0])}/{len(p2s)} positivos<br>"
-                f"±3σ (~99,7% dos casos): PnL de R$ {min(pnl_3s):.2f} a R$ {max(pnl_3s):.2f}, "
-                f"{len([c for c in p3s if c[9] > 0])}/{len(p3s)} positivos"
-                f"</p>"
-            )
-            lines.append("<hr>")
-
-        pnl_b3 = r.pnl_projetado - r.custo_b3
+        # ── Custos ──
+        pnl_b3 = pnl_atual - r.custo_b3
         pnl_liquido = pnl_b3 - r.custo_ir
-        resumo_pnl = "lucro" if r.pnl_projetado >= 0 else "prejuízo"
-        ext = abs(r.pnl_projetado)
-        if call_Itm:
-            lines.append(
-                f"<p><b>Resumo:</b><br>"
-                f"A CALL está ITM (acima do strike). O prêmio de R$ {Pc:.2f} "
-                f"cobre a perda de R$ {S0 - Kc:.2f} na venda da ação. "
-                f"O {resumo_pnl} bruto de R$ {ext:.2f} "
-                f"({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI Bruto) é o "
-                f"extrínseco da CALL menos o custo líquido da PUT.</p>"
-            )
-        else:
-            lines.append(
-                f"<p><b>Resumo:</b><br>"
-                f"Esta estratégia aposta que o ativo estará <b>próximo de R$ {Kc:.2f}</b> "
-                f"no vencimento da CALL. O {resumo_pnl} bruto de R$ {ext:.2f} "
-                f"({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI Bruto) vem do "
-                f"valor extrínseco residual da PUT. O resultado real "
-                f"depende de onde o ativo estará naquele dia.</p>"
-            )
-
         lines.append(
-            "<p><b>Custos aplicados:</b><br>"
-            f"PnL Bruto: <b>R$ {r.pnl_projetado:.2f}</b><br>"
-            f"− Custos B3 (emol+liq+reg+ISS): <b>−R$ {r.custo_b3:.2f}</b><br>"
-            f"= PnL pós-B3: <b>R$ {pnl_b3:.2f}</b><br>"
-            f"− IR (15%): <b>−R$ {r.custo_ir:.2f}</b><br>"
-            f"<b>= PnL Líquido: R$ {pnl_liquido:.2f}</b><br>"
-            f"× CDI Bruto: {r.pct_cdi:.2f}x  |  × CDI Líquido: {r.pct_cdi_liquido:.2f}x"
-            "</p>"
+            "<p><b>Custos:</b><br>"
+            f"PnL com ratio: <b>R$ {pnl_atual:.2f}</b><br>"
+            f"\u2212 Custos B3: <b>\u2212R$ {r.custo_b3:.2f}</b><br>"
+            f"= PnL p\u00f3s-B3: <b>R$ {pnl_b3:.2f}</b><br>"
+            f"\u2212 IR (15%): <b>\u2212R$ {r.custo_ir:.2f}</b><br>"
+            f"<b>= PnL L\u00edquido: R$ {pnl_liquido:.2f}</b><br>"
+            f"\u00d7 CDI: {r.pct_cdi:.2f}x"
         )
+        if is_otimizado and lado_protegido and lado_protegido != "nenhum" and custo_prot > 0:
+            x_cdi_pos_bwb = (pnl_pos_bwb / cap) / cdi_periodo if cdi_periodo > 0 and cap > 0 else 0.0
+            lines.append(f"  |  \u00d7 CDI P\u00f3s-BWB: {x_cdi_pos_bwb:.2f}x")
+        lines.append("</p><hr>")
 
-        lines.append("<hr>")
-        lines.append("<p><b>▸ Manejos Possíveis no vencimento da CALL:</b></p><ul>")
-
+        # ── Manejos ──
+        call_Itm = S0 > Kc
+        lines.append("<p><b>\u25b8 Manejos no vencimento da CALL:</b></p><ul>")
         if call_Itm:
             lines.append(
-                f"<li><b>Exercício automático:</b> A CALL está ITM → a ação é vendida a "
-                f"<b>R$ {Kc:.2f}</b>. Você recebe R$ {Pc:.2f} de prêmio e "
-                f"a PUT residual ({r.dte_extra}d) vira proteção gratuita ou pode "
-                f"ser vendida para realizar lucro extra.</li>"
-                f"<li><b>Rolar para Bear Collar:</b> Se ainda quer exposição, recompre "
-                f"a CALL (valor intrínseco ~R$ {S0 - Kc:.2f}) e venda uma CALL mais OTM "
-                f"com o mesmo vencimento. A PUT existente vira a proteção do Bear Collar.</li>"
+                f"<li><b>Exerc\u00edcio autom\u00e1tico:</b> CALL ITM \u2192 a\u00e7\u00e3o vendida a R$ {Kc:.2f}. "
+                f"PUT residual ({r.dte_extra}d) vira prote\u00e7\u00e3o gratuita.</li>"
             )
         else:
             lines.append(
-                f"<li><b>CALL OTM:</b> CALL expira sem valor. A ação fica livre — "
-                f"você pode vendê-la no mercado e manter a PUT como seguro, ou "
-                f"recomprar a PUT e encerrar tudo com lucro de R$ {Pc:.2f} (prêmio da CALL).</li>"
-                f"<li><b>Rolar a CALL:</b> Vender outra CALL com mais DTE para coletar "
-                f"mais prêmio, mantendo a PUT como proteção de longo prazo.</li>"
+                f"<li><b>CALL OTM:</b> Expira sem valor. A\u00e7\u00e3o fica livre.</li>"
             )
-
+        if naked_call > 0:
+            lines.append(
+                f"<li style='color:#e74c3c;'><b>Aten\u00e7\u00e3o:</b> {int(naked_call)} CALLs nuas. "
+                f"Se S &gt; Kc=R$ {Kc:.2f}, recompre antes do vencimento para evitar perda ilimitada.</li>"
+            )
+        if mod_call == "AMERICANA":
+            lines.append(
+                "<li style='color:#f39c12;'><b>CALL Americana:</b> Risco de exerc\u00edcio antecipado. "
+                "Monitore eventos corporativos (dividendos, JCP).</li>"
+            )
         lines.append(
-            f"<li><b>Fechamento antecipado:</b> Recompre a CALL e venda a PUT — "
-            f"o lucro/prejuízo depende do valor de mercado no momento. "
-            f"Use o gráfico de payoff para simular cenários.</li>"
-            f"<li><b>Manutenção:</b> Se a PUT residual tem valor extrínseco significativo, "
-            f"espere até o vencimento dela para maximizar o decaimento temporal.</li>"
+            f"<li><b>Fechamento antecipado:</b> Recompre CALL e venda PUT.</li>"
+            f"<li><b>Manuten\u00e7\u00e3o:</b> Se PUT tem valor extr\u00ednseco, aguarde decaimento.</li>"
         )
         lines.append("</ul>")
 
