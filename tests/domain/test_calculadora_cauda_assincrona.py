@@ -426,3 +426,65 @@ class TestSigmaConsistencia:
         assert r.sigma_periodo == pytest.approx(expected, abs=1e-4)
         for res in resultados:
             assert res.sigma_periodo == pytest.approx(expected, abs=1e-4)
+
+
+class TestVencimentoPropagation:
+    """Verifica que vencimento_call/vencimento_put são propagados corretamente."""
+
+    def test_processar_otimizado_propaga_vencimentos_diferentes(self):
+        """Vencimentos diferentes entre call e put devem aparecer corretos em cada variante."""
+        resultados = CalculadoraCaudaAssincrona.processar_otimizado(
+            preco_ativo=100.0,
+            strike_call=105.0,
+            strike_put=100.0,
+            premio_call=4.0,
+            premio_put=3.0,
+            dte_call=30,
+            ativo="PETR4",
+            iv_call_pct=30.0,
+            pnl_projetado_base=1.0,
+            capital_empregado_base=100.0,
+            pct_cdi_base=3.0,
+            dte_put=30,
+            iv_put_pct=30.0,
+            otimizado_ratio_put_step=0.05,
+            otimizado_ratio_put_min=0.80,
+            otimizado_ratio_max=1.30,
+            vencimento_call="2026-08-21",
+            vencimento_put="2026-11-20",
+        )
+        assert len(resultados) >= 1, "Deveria gerar pelo menos a variante Base"
+        for r in resultados:
+            assert r.vencimento_call == "2026-08-21", (
+                f"{r.estagio}: vencimento_call deveria ser '2026-08-21', "
+                f"mas veio {r.vencimento_call}"
+            )
+            assert r.vencimento_put == "2026-11-20", (
+                f"{r.estagio}: vencimento_put deveria ser '2026-11-20', "
+                f"mas veio {r.vencimento_put}"
+            )
+
+    def test_processar_otimizado_sem_vencimento_nao_quebra(self):
+        """Sem vencimentos (default None), o comportamento antigo deve ser preservado."""
+        resultados = CalculadoraCaudaAssincrona.processar_otimizado(
+            preco_ativo=100.0,
+            strike_call=105.0,
+            strike_put=100.0,
+            premio_call=4.0,
+            premio_put=3.0,
+            dte_call=30,
+            ativo="PETR4",
+            iv_call_pct=30.0,
+            pnl_projetado_base=1.0,
+            capital_empregado_base=100.0,
+            pct_cdi_base=3.0,
+            dte_put=30,
+            iv_put_pct=30.0,
+            otimizado_ratio_put_step=0.05,
+            otimizado_ratio_put_min=0.80,
+            otimizado_ratio_max=1.30,
+        )
+        assert len(resultados) >= 1
+        for r in resultados:
+            assert r.vencimento_call is None
+            assert r.vencimento_put is None

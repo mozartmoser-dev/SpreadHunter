@@ -421,3 +421,51 @@ class TestChassiReal028ac46c:
         )
         assert r.viavel
         assert r.pnl_liquido_pos_protecao > 0
+
+
+class TestDiagnosticLogs:
+    """Verifica as 4 mensagens de log DEBUG de _avaliar_lado em cada ponto de rejeição."""
+
+    RESULT = _chassi(
+        ratio_call=1.25, ratio_put=1.0,
+        pnl_com_ratio=1700.0, pnl_base=1386.23,
+        pnl_projetado=1700.0,
+        sigma_periodo=0.085, preco_ativo=40.64,
+    )
+
+    STRIKE_OK = {"strike": 46.00, "premio_ask": 0.15, "vol_ask": 500, "vol_bid": 400}
+    STRIKE_SEM_LIQ = {"strike": 46.00, "premio_ask": 0.15, "vol_ask": 0, "vol_bid": 0}
+    STRIKE_LADO_ERRADO = {"strike": 38.00, "premio_ask": 0.15, "vol_ask": 500, "vol_bid": 400}
+    STRIKE_CARO = {"strike": 48.00, "premio_ask": 50.00, "vol_ask": 500, "vol_bid": 400}
+
+    def test_log_zero_strikes_na_entrada(self, caplog):
+        """Lista vazia → '0 strikes na entrada'."""
+        caplog.set_level("DEBUG")
+        CalculadoraProtecaoCauda.avaliar(
+            self.RESULT, strikes_call_candidatos=[], qtd_acao=1000,
+        )
+        assert "0 strikes na entrada" in caplog.text
+
+    def test_log_zero_pos_liquidez(self, caplog):
+        """Candidato sem liquidez → '0 passaram liquidez'."""
+        caplog.set_level("DEBUG")
+        CalculadoraProtecaoCauda.avaliar(
+            self.RESULT, strikes_call_candidatos=[self.STRIKE_SEM_LIQ], qtd_acao=1000,
+        )
+        assert "0 passaram liquidez" in caplog.text
+
+    def test_log_zero_pos_direcao(self, caplog):
+        """Candidato com liquidez mas strike do lado errado → '0 passaram direcao'."""
+        caplog.set_level("DEBUG")
+        CalculadoraProtecaoCauda.avaliar(
+            self.RESULT, strikes_call_candidatos=[self.STRIKE_LADO_ERRADO], qtd_acao=1000,
+        )
+        assert "0 passaram direcao" in caplog.text
+
+    def test_log_reprovado_por_custo(self, caplog):
+        """Candidato válido mas custo acima do limite → 'reprovado'."""
+        caplog.set_level("DEBUG")
+        CalculadoraProtecaoCauda.avaliar(
+            self.RESULT, strikes_call_candidatos=[self.STRIKE_CARO], qtd_acao=1000,
+        )
+        assert "reprovado" in caplog.text
