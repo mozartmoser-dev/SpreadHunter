@@ -54,6 +54,7 @@ COLUMNS = [
     ("\u03c3$ dir", 65, "Distância em R$ do spot até o BE direito"),
     ("Piso 2\u03c3", 65, "Menor PnL dentro de ±2σ (R$); negativo=risco)"),
     ("# ciclos", 55, "Quantas vezes este chassi foi registrado"),
+    ("Detectado", 130, "Data/hora (Brasília) da detecção pelo monitor"),
 ]
 
 
@@ -96,6 +97,7 @@ class EstudosCalendarioTableModel(QAbstractTableModel):
             if col == 19: return item.get("sigma_monet_dir_str", "-")
             if col == 20: return item.get("piso_2s_str", "-")
             if col == 21: return str(item.get("n_ciclos", ""))
+            if col == 22: return str(item.get("detectado_em", ""))[:19] if item.get("detectado_em") else "-"
         if role == Qt.BackgroundRole:
             estagio = item.get("estagio", "")
             if estagio == "Base":
@@ -112,7 +114,7 @@ class EstudosCalendarioTableModel(QAbstractTableModel):
                 pal = {"Base": C_YELLOW, "Rendimento": C_ORANGE, "Plat\u00f4": C_BLUE, "Prote\u00e7\u00e3o": C_GREEN}
                 return QColor(pal.get(estagio, C_TEXT))
         if role == Qt.TextAlignmentRole:
-            return Qt.AlignCenter if col < 3 else Qt.AlignRight if col >= 3 else Qt.AlignLeft
+            return Qt.AlignCenter if col < 3 or col == 6 or col == 22 else Qt.AlignRight if col >= 3 else Qt.AlignLeft
         return None
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
@@ -186,7 +188,7 @@ class EstudosCalendarioDialog(QDialog):
         layout.addWidget(self.table_view, stretch=1)
 
         btn_layout = QHBoxLayout()
-        self.btn_comparar = QPushButton("\u2696  Comparar Est\u00e1gios")
+        self.btn_comparar = QPushButton("\u2696  Comparar Otimiza\u00e7\u00f5es")
         self.btn_comparar.setToolTip("Compara todos os est\u00e1gios do mesmo chassi lado a lado")
         self.btn_comparar.clicked.connect(self._comparar_estagios_chassi)
         btn_layout.addWidget(self.btn_comparar)
@@ -237,7 +239,7 @@ class EstudosCalendarioDialog(QDialog):
         from PySide6.QtWidgets import QTableWidget, QTableWidgetItem, QDialog, QVBoxLayout, QLabel
         from src.ui.desktop.theme import Palette
 
-        estagios_order = ["Base", "Neutro", "Platô", "Rendimento"]
+        estagios_order = ["Base", "Platô", "Proteção", "Rendimento"]
         records = {r["estagio"]: dict(r) for r in rows}
         base = records.get("Base", {})
 
@@ -271,7 +273,22 @@ class EstudosCalendarioDialog(QDialog):
                 rec = records.get(estagio, {})
                 nonlocal_key = "pnl_liquido_pos_protecao" if key == "pnl_liquido_pos_protecao" else key
 
-                if fmt == "s":
+                if key in ("sigma_esq_str", "sigma_dir_str"):
+                    be_key = "be_esq" if key == "sigma_esq_str" else "be_dir"
+                    be_val = rec.get(be_key)
+                    preco = rec.get("preco_ativo", 0) or 0
+                    iv = rec.get("iv_call", 0) or 0
+                    dte = rec.get("dte_original", 0) or 0
+                    if be_val is not None and preco > 0 and iv > 0 and dte > 0:
+                        iv_dec = iv / 100.0
+                        one_sigma = preco * iv_dec * sqrt(dte / 365.0)
+                        if one_sigma > 0:
+                            val = f"{(be_val - preco) / one_sigma:+.2f}"
+                        else:
+                            val = "-"
+                    else:
+                        val = "-"
+                elif fmt == "s":
                     val = rec.get(key, "-") or "-"
                 else:
                     val = rec.get(key)

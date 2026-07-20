@@ -10,7 +10,7 @@ Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, 
 
 ```powershell
 python -m pytest tests/ -x -q --tb=short            # todos
-python -m pytest tests/test_calculadora_cauda_assincrona.py -q
+python -m pytest tests/domain/test_calculadora_cauda_assincrona.py -q
 python -m pytest tests/test_fase3.py::TestX::test_y -q
 python main.py                                       # dev
 python -m pip install -r requirements.txt            # instalar dependências

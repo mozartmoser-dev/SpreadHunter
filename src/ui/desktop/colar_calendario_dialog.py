@@ -1156,31 +1156,15 @@ class ColarCalendarioDialog(QDialog):
                                 "Cole (Ctrl+V) aqui no chat.")
 
     def _exportar_csv(self):
-        from PySide6.QtWidgets import QApplication, QMessageBox
-        import csv, io
-        if not self._resultados:
-            QMessageBox.information(self, "Export CSV", "Nenhum resultado para exportar.")
-            return
-        cols = [c[1] for c in self._model.COLUMNS]
-        saida = io.StringIO()
-        w = csv.writer(saida, delimiter=",", quoting=csv.QUOTE_MINIMAL)
-        w.writerow(cols)
-        for r in self._resultados:
-            row = []
-            for k in cols:
-                v = getattr(r, k, None)
-                if v is None:
-                    row.append("-")
-                elif isinstance(v, float):
-                    row.append(f"{v:.4f}")
-                else:
-                    row.append(str(v))
-            w.writerow(row)
-        texto = saida.getvalue()
-        QApplication.clipboard().setText(texto)
-        QMessageBox.information(self, "CSV Exportado",
-                                f"{len(self._resultados)} linhas exportadas para a área de transferência.\n"
-                                "Cole (Ctrl+V) aqui no chat.")
+        from src.ui.desktop.copy_utils import exportar_monitor_csv
+        from src.ui.desktop.colar_calendario_dialog import ColarCalTableModel
+        exportar_monitor_csv(
+            resultados=self._resultados,
+            colunas=ColarCalTableModel.COLUMNS,
+            table_view=self.table_view,
+            parent=self,
+            titulo_janela="Export CSV - Collar Calendário",
+        )
 
     def _explicar_estrategia(self, r):
         from src.domain.services.calculadora_colar_calendario import CalculadoraColarCalendario

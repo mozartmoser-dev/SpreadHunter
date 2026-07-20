@@ -435,7 +435,7 @@ class MonitorWorker(QThread):
             resultados = self._monitor_colares_cal_uc.varrer(rtd, dados_md, params, ativos, pipeline_tracker=tracker)
             try:
                 if resultados:
-                    otimizadas = self._processar_otimizado(resultados)
+                    otimizadas = self._processar_otimizado(resultados, pipeline_tracker=tracker)
                 else:
                     otimizadas = []
                 if otimizadas:
@@ -536,7 +536,7 @@ class MonitorWorker(QThread):
             cauda_results.append(novo)
         return cauda_results
 
-    def _processar_otimizado(self, resultados: list, tipo_estrategia: str = "Calendario") -> list:
+    def _processar_otimizado(self, resultados: list, tipo_estrategia: str = "Calendario", pipeline_tracker: PipelineTracker | None = None) -> list:
         from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
         from src.domain.services.calculadora_colar import ResultadoColar, TipoColar
         ui_results: list = []
@@ -558,11 +558,22 @@ class MonitorWorker(QThread):
         cab_minimo_protecao = int(self._ler_param_float("cab_minimo_protecao", 1))
         fator_seguranca_liquidez = self._ler_param_float("fator_seguranca_liquidez", 0.2)
 
+        c_entrada = len(resultados)
+        c_nao_viavel = 0
+        c_tipo_nao_neutro = 0
+        c_sem_variantes = 0
+        c_variantes_geradas = 0
+        c_filtro_cdi = 0
+        c_montadas = 0
+        fator_seguranca_liquidez = self._ler_param_float("fator_seguranca_liquidez", 0.2)
+
         for r in resultados:
             if not r.viavel:
+                c_nao_viavel += 1
                 continue
             if tipo_estrategia == "Calendario":
                 if r.tipo != TipoColarCalendario.NEUTRO:
+                    c_tipo_nao_neutro += 1
                     continue
                 dte_call = r.dte_call
                 dte_put = r.dte_put
@@ -601,13 +612,16 @@ class MonitorWorker(QThread):
                 qtd_acao=r.qtd_acao,
             )
             if not variantes:
+                c_sem_variantes += 1
                 continue
 
             premio_risco_chave = "premio_risco_colar_calendario" if tipo_estrategia == "Calendario" else "premio_risco_colar"
             premio_risco = self._ler_param_float(premio_risco_chave, 0.9)
             registros = []
+            c_variantes_geradas += len(variantes)
             for v in variantes:
                 if v.estagio != "Base" and v.pct_cdi_com_ratio < max(r.pct_cdi, premio_risco):
+                    c_filtro_cdi += 1
                     continue
 
                 candidatos_call, candidatos_put = self._resolver_strikes_protecao(
@@ -806,9 +820,39 @@ class MonitorWorker(QThread):
                         id_chassi=v.id_chassi,
                     )
                 ui_results.append(novo)
+                c_montadas += 1
 
             if registros:
                 repo.salvar_lote(registros)
+
+        if pipeline_tracker is not None:
+            pipeline_tracker.add_stage(
+                "14a. Entrada (viáveis do varrer)",
+                c_entrada, c_entrada - c_nao_viavel,
+                f"{c_nao_viavel} já marcadas como inviáveis"
+            )
+            pipeline_tracker.add_stage(
+                "14b. Viés NEUTRO (collares elegíveis)",
+                c_entrada - c_nao_viavel, c_entrada - c_nao_viavel - c_tipo_nao_neutro,
+                f"{c_tipo_nao_neutro} com viés ALTA/BAIXA (só NEUTRO segue para otimização)"
+            )
+            entrou_otim = c_entrada - c_nao_viavel - c_tipo_nao_neutro
+            msg_stress = "ok" if c_sem_variantes == 0 else f"{c_sem_variantes} reprovadas: PnL negativo a ±{otimizado_desvios_sigma}σ"
+            pipeline_tracker.add_stage(
+                "14c. Stress ±2.2σ (PnL > 0 nos extremos)",
+                entrou_otim, entrou_otim - c_sem_variantes,
+                msg_stress
+            )
+            pipeline_tracker.add_stage(
+                "14d. Piso de CDI (variantes não-Base)",
+                c_variantes_geradas, c_variantes_geradas - c_filtro_cdi,
+                f"{c_filtro_cdi} descartadas: %CDI abaixo do mínimo exigido" if c_filtro_cdi else "todas passaram"
+            )
+            pipeline_tracker.add_stage(
+                "14e. Montagem final (→ tabela)",
+                c_variantes_geradas - c_filtro_cdi, c_montadas,
+                f"{c_montadas} variantes emitidas" if c_montadas else "nenhuma montada"
+            )
 
         return ui_results
 
@@ -934,77 +978,82 @@ class MonitorWorker(QThread):
 
     def _resolver_strikes_protecao(self, resultado: ResultadoCaudaAssincrona, n_sigma: float,
                                      cab_minimo: int) -> tuple[list[dict], list[dict]]:
-        """Resolve strikes OTM candidatos para protecao de cauda via cache RTD existente.
-
-        Consulta instrumentos_opcionais pelos codigos OTM e le os dados de mercado
-        do cache RTD (sem disparar refresh). Assina VOL_ASK e VOL_BID ad-hoc para
-        garantir que ambos os lados do book estejam disponiveis no cache.
-        Retorna listas de dicts no formato esperado por CalculadoraProtecaoCauda.avaliar().
-        """
         s_target_call = resultado.preco_ativo * (1.0 + n_sigma * resultado.sigma_periodo)
         s_target_put = resultado.preco_ativo * (1.0 - n_sigma * resultado.sigma_periodo)
 
-        from src.infrastructure.persistence.database import get_connection
         from src.domain.services.market_data_source import FieldName
-
-        conn = get_connection(self.db_path)
-        try:
-            calls = conn.execute("""
-                SELECT cod_opcao, strike FROM instrumentos_opcionais
-                WHERE ativo = ? AND tipo = 'CALL' AND strike >= ?
-                ORDER BY strike ASC LIMIT 5
-            """, (resultado.ativo, s_target_call)).fetchall()
-
-            puts = conn.execute("""
-                SELECT cod_opcao, strike FROM instrumentos_opcionais
-                WHERE ativo = ? AND tipo = 'PUT' AND strike <= ?
-                ORDER BY strike DESC LIMIT 5
-            """, (resultado.ativo, s_target_put)).fetchall()
-        finally:
-            conn.close()
+        from src.infrastructure.persistence.database import get_connection
 
         source = self._mercado_provider.source if self._mercado_provider else None
         fonte = self._ler_param_str("fonte_market_data", "profit")
         eh_openfast = fonte == "openfast"
-        campos_leitura = [FieldName.ASK, FieldName.VOL_ASK, FieldName.VOL_BID, FieldName.BOOK_HEADER]
 
-        codigos_call = [c["cod_opcao"] for c in calls]
-        codigos_put = [p["cod_opcao"] for p in puts]
+        conn = get_connection(self.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT cod_put, cod_call FROM instrumentos_base WHERE ativo = ?",
+                (resultado.ativo,)
+            ).fetchall()
+        finally:
+            conn.close()
+
+        codigos_call = set()
+        codigos_put = set()
+        for row in rows:
+            if row["cod_call"]:
+                codigos_call.add(row["cod_call"])
+            if row["cod_put"]:
+                codigos_put.add(row["cod_put"])
 
         if source and source.disponivel:
-            for cod in codigos_call + codigos_put:
+            for cod in codigos_call | codigos_put:
                 source.registrar_topico(cod, FieldName.VOL_ASK)
                 source.registrar_topico(cod, FieldName.VOL_BID)
 
-        def montar_dict(rows: list) -> list[dict]:
-            resultado_lista = []
-            for row in rows:
-                cod = row["cod_opcao"]
-                dados = {}
+        def _coletar_lado(codigos: set[str], strike_filtro, campos_dados, eh_call: bool) -> list[dict]:
+            candidatos = []
+            for cod in sorted(codigos):
+                strike = 0.0
+                ask = 0.0
+                vol_ask = 0
+                vol_bid = 0
                 if source and source.disponivel and hasattr(source, "ler_campos"):
                     try:
-                        dados = source.ler_campos(cod, *campos_leitura) or {}
+                        dados = source.ler_campos(cod, FieldName.STRIKE, FieldName.ASK,
+                                                  FieldName.VOL_ASK, FieldName.VOL_BID,
+                                                  FieldName.BOOK_HEADER) or {}
                     except Exception:
-                        pass
-                ask = dados.get(FieldName.ASK) or 0.0
-                cab_raw = dados.get(FieldName.BOOK_HEADER) or 0
-                vol_ask = dados.get(FieldName.VOL_ASK) or 0
-                vol_bid = dados.get(FieldName.VOL_BID) or 0
+                        dados = {}
+                    strike = dados.get(FieldName.STRIKE) or 0.0
+                    ask = dados.get(FieldName.ASK) or 0.0
+                    vol_ask = dados.get(FieldName.VOL_ASK) or 0
+                    vol_bid = dados.get(FieldName.VOL_BID) or 0
+                if not strike or strike <= 0 or ask <= 0:
+                    continue
+                if eh_call and strike < s_target_call:
+                    continue
+                if not eh_call and strike > s_target_put:
+                    continue
                 if eh_openfast:
                     cab = vol_ask
                 else:
-                    cab = cab_raw if cab_raw > 0 else max(vol_ask, 0)
-                if ask <= 0 or cab < cab_minimo or vol_ask <= 0 or vol_bid <= 0:
+                    cab = max(vol_ask, 0)
+                if cab < cab_minimo or vol_ask <= 0 or vol_bid <= 0:
                     continue
-                resultado_lista.append({
-                    "strike": row["strike"],
+                candidatos.append({
+                    "strike": strike,
                     "premio_ask": ask,
                     "vol_ask": vol_ask,
                     "vol_bid": vol_bid,
                 })
-            return resultado_lista
+            return candidatos
 
-        return montar_dict(calls), montar_dict(puts)
+        calls = _coletar_lado(codigos_call, s_target_call, {}, True)
+        calls.sort(key=lambda x: x["strike"])
+        puts = _coletar_lado(codigos_put, s_target_put, {}, False)
+        puts.sort(key=lambda x: x["strike"], reverse=True)
+
+        return calls[:5], puts[:5]
 
     @property
     def _mpp_interval(self) -> int:
