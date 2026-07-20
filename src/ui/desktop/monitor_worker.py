@@ -187,7 +187,7 @@ class MonitorWorker(QThread):
                 self._emitir_estatisticas_engine(t_start_cycle)
 
             except Exception as e:
-                logger.error("MonitorWorker: erro na varredura: %s", e)
+                logger.exception("MonitorWorker: erro na varredura: %s", e)
                 self.status_message.emit("Erro na varredura: {}".format(str(e)))
 
             self.msleep(self._interval_ms)

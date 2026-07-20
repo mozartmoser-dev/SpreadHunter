@@ -58,6 +58,7 @@ class MonitorVendaCobertaUseCase:
         chaves_com_strike = 0
         n_cond = 0
         resultados: list[OportunidadeVendaCoberta] = []
+        preco_ativo = 0.0
 
         for key, mercado in dados_mercado.items():
             if "|" not in key:
