@@ -1,6 +1,9 @@
 from dataclasses import dataclass
+import logging
 
 from src.domain.services.calculadora_cauda_assincrona import ResultadoCaudaAssincrona
+
+logger = logging.getLogger(__name__)
 
 
 _LOTE = 100
@@ -141,7 +144,10 @@ class CalculadoraProtecaoCauda:
         cab_minimo: int,
         fator_seguranca_liquidez: float = 0.2,
     ) -> dict:
+        n_entrada = len(strikes_candidatos) if strikes_candidatos else 0
         if naked_frac < CalculadoraProtecaoCauda.NAKED_FRAC_MINIMO or not strikes_candidatos:
+            if n_entrada == 0:
+                logger.debug("BWB _avaliar_lado [%s]: 0 strikes na entrada — sem candidatos", lado)
             return {
                 "strike": None, "premio_ask": None, "qtd": 0, "custo": 0.0, "viavel": False,
             }
@@ -159,26 +165,53 @@ class CalculadoraProtecaoCauda:
             and (s.get("premio_ask", 0) or 0) >= calda_preco_min_opcao
             and (s.get("strike") or 0) > 0
         ]
+        n_pos_liquidez = len(filtrados)
+
+        if n_pos_liquidez == 0:
+            logger.debug(
+                "BWB _avaliar_lado [%s]: %d candidatos na entrada, 0 passaram liquidez "
+                "(limite=%.0f, preco_min=%.4f)",
+                lado, n_entrada, limite_liquidez, calda_preco_min_opcao,
+            )
+            return {
+                "strike": None, "premio_ask": None, "qtd": 0, "custo": 0.0, "viavel": False,
+            }
 
         if acima_do_target:
             filtrados = [s for s in filtrados if s["strike"] >= s_target]
-            if not filtrados:
-                return {
-                    "strike": None, "premio_ask": None, "qtd": 0, "custo": 0.0, "viavel": False,
-                }
-            escolha = min(filtrados, key=lambda s: abs(s["strike"] - s_target))
         else:
             filtrados = [s for s in filtrados if s["strike"] <= s_target]
-            if not filtrados:
-                return {
-                    "strike": None, "premio_ask": None, "qtd": 0, "custo": 0.0, "viavel": False,
-                }
+        n_pos_direcao = len(filtrados)
+
+        if n_pos_direcao == 0:
+            logger.debug(
+                "BWB _avaliar_lado [%s]: %d passaram liquidez, 0 passaram direcao "
+                "(target=%.2f, %s)",
+                lado, n_pos_liquidez, s_target,
+                "strike >= target" if acima_do_target else "strike <= target",
+            )
+            return {
+                "strike": None, "premio_ask": None, "qtd": 0, "custo": 0.0, "viavel": False,
+            }
+
+        if acima_do_target:
+            escolha = min(filtrados, key=lambda s: abs(s["strike"] - s_target))
+        else:
             escolha = min(filtrados, key=lambda s: abs(s["strike"] - s_target))
 
         premio_ask = escolha.get("premio_ask", 0) or 0
         custo = premio_ask * qtd_lote
 
         viavel = ganho_extra_ratio > 0 and custo <= ganho_extra_ratio * limite_protecao_pct
+
+        if not viavel:
+            logger.debug(
+                "BWB _avaliar_lado [%s]: strike K=%.2f escolhido, custo=%.2f > limite=%.2f "
+                "(ganho_extra=%.2f * %.0f%%), reprovado",
+                lado, escolha["strike"], custo,
+                ganho_extra_ratio * limite_protecao_pct,
+                ganho_extra_ratio, limite_protecao_pct * 100,
+            )
 
         return {
             "strike": escolha["strike"] if viavel else None,

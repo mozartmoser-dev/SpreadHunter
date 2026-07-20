@@ -38,6 +38,8 @@ class ResultadoCaudaAssincrona:
     score_cauda: float = 0.0
     estagio: str = "Base"
     id_chassi: str | None = None
+    vencimento_call: str | None = None
+    vencimento_put: str | None = None
 
 
 class CalculadoraCaudaAssincrona:
@@ -108,6 +110,8 @@ class CalculadoraCaudaAssincrona:
         dte_put: int = 0,
         diagnostico: list | None = None,
         qtd_acao: int = 100,
+        vencimento_call: str | None = None,
+        vencimento_put: str | None = None,
     ) -> ResultadoCaudaAssincrona | None:
         def _diag(msg: str) -> None:
             if diagnostico is not None:
@@ -264,6 +268,8 @@ class CalculadoraCaudaAssincrona:
             viavel=True,
             custo_b3_base=custo_b3_base,
             score_cauda=round(pct_cdi_final / max(calda_premio_risco, 0.01), 4),
+            vencimento_call=vencimento_call,
+            vencimento_put=vencimento_put,
         )
 
     @staticmethod
@@ -291,6 +297,8 @@ class CalculadoraCaudaAssincrona:
         iv_put_pct: float | None = None,
         dte_put: int = 0,
         qtd_acao: int = 100,
+        vencimento_call: str | None = None,
+        vencimento_put: str | None = None,
     ) -> list:
         iv = iv_call_pct / 100.0
         if iv <= 0 or dte_call <= 0 or preco_ativo <= 0:
@@ -453,6 +461,8 @@ class CalculadoraCaudaAssincrona:
                 breakeven_direito=round(c["be_dir"], 2) if c["be_dir"] is not None else None,
                 viavel=True, custo_b3_base=custo_b3_base,
                 score_cauda=0.0, estagio=estagio, id_chassi=id_chassi,
+                vencimento_call=vencimento_call,
+                vencimento_put=vencimento_put,
             )
 
         resultados: list[ResultadoCaudaAssincrona] = []

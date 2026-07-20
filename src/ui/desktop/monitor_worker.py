@@ -610,6 +610,8 @@ class MonitorWorker(QThread):
                 iv_put_pct=r.iv_put,
                 dte_put=dte_put,
                 qtd_acao=r.qtd_acao,
+                vencimento_call=r.vencimento_call.isoformat() if getattr(r, 'vencimento_call', None) else None,
+                vencimento_put=r.vencimento_put.isoformat() if getattr(r, 'vencimento_put', None) else None,
             )
             if not variantes:
                 c_sem_variantes += 1
@@ -1000,18 +1002,39 @@ class MonitorWorker(QThread):
 
         conn = get_connection(self.db_path)
         try:
-            rows = conn.execute(
-                "SELECT cod_put, cod_call FROM instrumentos_base WHERE ativo = ?",
-                (resultado.ativo,)
-            ).fetchall()
+            venc_call = getattr(resultado, 'vencimento_call', None)
+            venc_put = getattr(resultado, 'vencimento_put', None)
+
+            if venc_call:
+                rows_call = conn.execute(
+                    "SELECT cod_call FROM instrumentos_base WHERE ativo = ? AND vencimento = ?",
+                    (resultado.ativo, venc_call)
+                ).fetchall()
+            else:
+                rows_call = conn.execute(
+                    "SELECT cod_call FROM instrumentos_base WHERE ativo = ?",
+                    (resultado.ativo,)
+                ).fetchall()
+
+            if venc_put:
+                rows_put = conn.execute(
+                    "SELECT cod_put FROM instrumentos_base WHERE ativo = ? AND vencimento = ?",
+                    (resultado.ativo, venc_put)
+                ).fetchall()
+            else:
+                rows_put = conn.execute(
+                    "SELECT cod_put FROM instrumentos_base WHERE ativo = ?",
+                    (resultado.ativo,)
+                ).fetchall()
         finally:
             conn.close()
 
         codigos_call = set()
         codigos_put = set()
-        for row in rows:
+        for row in rows_call:
             if row["cod_call"]:
                 codigos_call.add(row["cod_call"])
+        for row in rows_put:
             if row["cod_put"]:
                 codigos_put.add(row["cod_put"])
 
