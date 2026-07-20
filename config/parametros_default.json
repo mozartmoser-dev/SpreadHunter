@@ -33,13 +33,13 @@
     },
     {
       "chave": "taxa_emolumento_pct",
-      "valor": "0.00025",
+      "valor": "0.0003",
       "estrategia": "GERAL",
       "descricao": "Taxa de emolumento B3 (% do financeiro)"
     },
     {
       "chave": "taxa_liquidacao_pct",
-      "valor": "0.000275",
+      "valor": "0.0003",
       "estrategia": "GERAL",
       "descricao": "Taxa de liquidacao B3 (% do financeiro)"
     },
@@ -399,7 +399,7 @@
     },
     {
       "chave": "mpp_peso_profundidade",
-      "valor": "0.1",
+      "valor": "0.0",
       "estrategia": "MPP",
       "descricao": "Peso profundidade no score instantaneo"
     },
@@ -453,7 +453,7 @@
     },
     {
       "chave": "mpp_dte_fator_min",
-      "valor": "0.6",
+      "valor": "1.0",
       "estrategia": "MPP",
       "descricao": "Fator DTE minimo (para vencimentos extremos)"
     },
@@ -537,7 +537,7 @@
     },
     {
       "chave": "mre_profundidade_max_pct",
-      "valor": "0.2",
+      "valor": "0.0",
       "estrategia": "MRE",
       "descricao": "Maximo %% da profundidade a consumir"
     },
@@ -861,13 +861,13 @@
     },
     {
       "chave": "otimizado_ratio_put_min",
-      "valor": "0.8",
+      "valor": "0.7",
       "estrategia": "COLLAR_CALENDARIO",
       "descricao": "Migrated from limite_min_put"
     },
     {
       "chave": "otimizado_ratio_max",
-      "valor": "1.2",
+      "valor": "1.3",
       "estrategia": "COLLAR_CALENDARIO",
       "descricao": "Migrated from limite_max_call"
     },
@@ -879,7 +879,7 @@
     },
     {
       "chave": "limite_protecao_pct",
-      "valor": "0.35",
+      "valor": "0.0099",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Fracao maxima do ganho extra consumida pela protecao (0.35 = 35%)"
     },
@@ -891,7 +891,7 @@
     },
     {
       "chave": "cab_minimo_protecao",
-      "valor": "1",
+      "valor": "1.0",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "CAB minimo (RTD) / VOL_ASK minimo (OpenFast) para strike candidato"
     },
@@ -903,7 +903,7 @@
     },
     {
       "chave": "fator_seguranca_liquidez",
-      "valor": "0.2",
+      "valor": "0.01",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Volume diario minimo como multiplo da qtd comprada (0.2 = volume >= 5x a ordem)"
     }
