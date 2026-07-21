@@ -433,6 +433,21 @@ class MonitorWorker(QThread):
             dados_md = getattr(self, '_ultimo_dados_mercado', None)
             tracker = PipelineTracker()
             resultados = self._monitor_colares_cal_uc.varrer(rtd, dados_md, params, ativos, pipeline_tracker=tracker)
+
+            cauda_results: list = []
+            try:
+                if resultados:
+                    cauda_results = self._processar_cauda(resultados)
+                    if cauda_results:
+                        tracker.add_stage(
+                            "14. Cauda (razão ótima ±3σ)",
+                            len(resultados), len(cauda_results),
+                            f"{len(cauda_results)} variantes de cauda geradas"
+                        )
+            except Exception:
+                logger.exception("Erro ao processar Cauda")
+                tracker.add_stage("14. Cauda (razão ótima ±3σ)", 0, 0, "ERRO")
+
             try:
                 if resultados:
                     otimizadas = self._processar_otimizado(resultados, pipeline_tracker=tracker)
@@ -441,14 +456,16 @@ class MonitorWorker(QThread):
                 if otimizadas:
                     resultados.extend(otimizadas)
                     tracker.add_stage(
-                        "14. Pós-processamento (Otimizado)",
+                        "15. Pós-processamento (Otimizado)",
                         len(resultados), len(otimizadas),
                         f"{len(otimizadas)} variantes otimizadas adicionadas"
                     )
             except Exception:
                 logger.exception("Erro ao processar Otimizado")
-                tracker.add_stage("14. Pós-processamento (Otimizado)", 0, 0, "ERRO")
+                tracker.add_stage("15. Pós-processamento (Otimizado)", 0, 0, "ERRO")
 
+            if cauda_results:
+                resultados.extend(cauda_results)
             self.colares_calendario_atualizados.emit(resultados)
 
     def _processar_cauda(self, resultados: list) -> list:
@@ -460,6 +477,11 @@ class MonitorWorker(QThread):
         calda_ratio_max = self._ler_param_int("calda_ratio_max", 50)
         calda_ratio_put_min = self._ler_param_float("calda_ratio_put_min", 0.3)
         calda_ratio_put_step = self._ler_param_float("calda_ratio_put_step", 0.01)
+        n_sigma_protecao = self._ler_param_float("n_sigma_protecao", 2.0)
+        limite_protecao_pct = self._ler_param_float("limite_protecao_pct", 0.35)
+        calda_preco_min_opcao = self._ler_param_float("calda_preco_min_opcao", 0.01)
+        cab_minimo_protecao = int(self._ler_param_float("cab_minimo_protecao", 1))
+        fator_seguranca_liquidez = self._ler_param_float("fator_seguranca_liquidez", 0.2)
 
         for r in resultados:
             if not r.viavel:
@@ -522,17 +544,62 @@ class MonitorWorker(QThread):
                 tipo=r.tipo,
                 r=taxa_cdi,
                 custo_b3=cauda.custo_b3_base,
+                custo_ir=r.custo_ir,
+                pct_cdi_liquido=r.pct_cdi_liquido,
                 score=round(cauda.score_cauda, 4),
+                risco_max=r.risco_max,
+                iv_rank=r.iv_rank,
+                iv_rank_call=r.iv_rank_call,
+                iv_rank_put=r.iv_rank_put,
+                vega_call=r.vega_call,
+                vega_put=r.vega_put,
+                vega_liquido=r.vega_liquido,
+                gamma_call=r.gamma_call,
+                gamma_put=r.gamma_put,
+                score_iv=r.score_iv,
                 preco_compra=r.preco_compra,
                 be_baixa=r.be_baixa,
                 be_alta=cauda.breakeven_direito,
+                be_baixa_intrinseco=r.be_baixa_intrinseco,
+                be_alta_intrinseco=r.be_alta_intrinseco,
                 ratio_call=cauda.ratio_call,
                 ratio_put=cauda.ratio_put,
                 is_cauda=True,
+                detectado_em=r.detectado_em,
                 qtd_acao=r.qtd_acao,
                 qtd_call=r.qtd_call,
                 qtd_put=r.qtd_put,
             )
+
+            candidatos_call, candidatos_put = self._resolver_strikes_protecao(
+                cauda, n_sigma_protecao, cab_minimo_protecao
+            )
+            protecao = CalculadoraProtecaoCauda.avaliar(
+                resultado=cauda,
+                strikes_call_candidatos=candidatos_call,
+                strikes_put_candidatos=candidatos_put,
+                qtd_acao=r.qtd_acao,
+                n_sigma=n_sigma_protecao,
+                limite_protecao_pct=limite_protecao_pct,
+                calda_preco_min_opcao=calda_preco_min_opcao,
+                cab_minimo=cab_minimo_protecao,
+                fator_seguranca_liquidez=0.0,
+            )
+            if protecao and protecao.viavel:
+                novo.lado_protegido = protecao.lado_protegido
+                novo.custo_protecao_total = protecao.custo_protecao_total
+                novo.pnl_liquido_pos_protecao = protecao.pnl_liquido_pos_protecao
+                novo.strike_protecao_call = protecao.strike_protecao_call
+                novo.strike_protecao_put = protecao.strike_protecao_put
+                novo.qtd_protecao_call = protecao.qtd_protecao_call
+                novo.qtd_protecao_put = protecao.qtd_protecao_put
+                novo.custo_protecao_call = protecao.custo_protecao_call
+                novo.custo_protecao_put = protecao.custo_protecao_put
+                novo.viavel_protecao = protecao.viavel
+            else:
+                novo.lado_protegido = "nenhum"
+                novo.viavel_protecao = False
+
             cauda_results.append(novo)
         return cauda_results
 
@@ -557,6 +624,7 @@ class MonitorWorker(QThread):
         calda_preco_min_opcao = self._ler_param_float("calda_preco_min_opcao", 0.01)
         cab_minimo_protecao = int(self._ler_param_float("cab_minimo_protecao", 1))
         fator_seguranca_liquidez = self._ler_param_float("fator_seguranca_liquidez", 0.2)
+        bwb_modo = self._ler_param_str("bwb_modo", "simples")
 
         c_entrada = len(resultados)
         c_nao_viavel = 0
@@ -640,6 +708,8 @@ class MonitorWorker(QThread):
                     calda_preco_min_opcao=calda_preco_min_opcao,
                     cab_minimo=cab_minimo_protecao,
                     fator_seguranca_liquidez=fator_seguranca_liquidez,
+                    pipeline_tracker=pipeline_tracker,
+                    bwb_modo=bwb_modo,
                 )
 
                 if protecao is None:
@@ -658,6 +728,14 @@ class MonitorWorker(QThread):
                         "custo_protecao_total": 0.0,
                         "pnl_liquido_pos_protecao": 0.0,
                         "viavel": 0,
+                        "strikes_bwb_call": None,
+                        "strikes_bwb_put": None,
+                        "premios_bwb_call": None,
+                        "premios_bwb_put": None,
+                        "custo_borboleta_call": 0.0,
+                        "custo_borboleta_put": 0.0,
+                        "lotes_bwb_call": 0,
+                        "lotes_bwb_put": 0,
                     }
                 else:
                     protecao_campos = {
@@ -675,6 +753,14 @@ class MonitorWorker(QThread):
                         "custo_protecao_total": protecao.custo_protecao_total,
                         "pnl_liquido_pos_protecao": protecao.pnl_liquido_pos_protecao if protecao.lado_protegido != "nenhum" else 0.0,
                         "viavel": 1 if protecao.viavel else 0,
+                        "strikes_bwb_call": protecao.strikes_bwb_call,
+                        "strikes_bwb_put": protecao.strikes_bwb_put,
+                        "premios_bwb_call": protecao.premios_bwb_call,
+                        "premios_bwb_put": protecao.premios_bwb_put,
+                        "custo_borboleta_call": protecao.custo_borboleta_call,
+                        "custo_borboleta_put": protecao.custo_borboleta_put,
+                        "lotes_bwb_call": protecao.lotes_bwb_call,
+                        "lotes_bwb_put": protecao.lotes_bwb_put,
                     }
 
                 n = v.ratio_call
@@ -765,10 +851,24 @@ class MonitorWorker(QThread):
                         tipo=r.tipo,
                         r=taxa_cdi,
                         custo_b3=round(custo_b3_variante, 4),
-                        score=0.0,
+                        custo_ir=r.custo_ir,
+                        pct_cdi_liquido=r.pct_cdi_liquido,
+                        score=round(r.score, 4),
+                        risco_max=r.risco_max,
+                        iv_rank=r.iv_rank,
+                        iv_rank_call=r.iv_rank_call,
+                        iv_rank_put=r.iv_rank_put,
+                        vega_call=r.vega_call,
+                        vega_put=r.vega_put,
+                        vega_liquido=r.vega_liquido,
+                        gamma_call=r.gamma_call,
+                        gamma_put=r.gamma_put,
+                        score_iv=r.score_iv,
                         preco_compra=r.preco_compra,
                         be_baixa=v.breakeven_esquerdo,
                         be_alta=v.breakeven_direito,
+                        be_baixa_intrinseco=r.be_baixa_intrinseco,
+                        be_alta_intrinseco=r.be_alta_intrinseco,
                         ratio_call=v.ratio_call,
                         ratio_put=v.ratio_put,
                         is_otimizado=True,
@@ -787,6 +887,14 @@ class MonitorWorker(QThread):
                         custo_protecao_call=protecao_campos.get("custo_protecao_call", 0.0),
                         custo_protecao_put=protecao_campos.get("custo_protecao_put", 0.0),
                         viavel_protecao=bool(protecao_campos.get("viavel", 0)),
+                        strikes_bwb_call=protecao_campos.get("strikes_bwb_call"),
+                        strikes_bwb_put=protecao_campos.get("strikes_bwb_put"),
+                        premios_bwb_call=protecao_campos.get("premios_bwb_call"),
+                        premios_bwb_put=protecao_campos.get("premios_bwb_put"),
+                        custo_borboleta_call=protecao_campos.get("custo_borboleta_call", 0.0),
+                        custo_borboleta_put=protecao_campos.get("custo_borboleta_put", 0.0),
+                        lotes_bwb_call=protecao_campos.get("lotes_bwb_call", 0),
+                        lotes_bwb_put=protecao_campos.get("lotes_bwb_put", 0),
                     )
                 else:
                     novo = ResultadoColar(
@@ -1040,10 +1148,39 @@ class MonitorWorker(QThread):
 
         if source and source.disponivel:
             for cod in codigos_call | codigos_put:
+                source.registrar_topico(cod, FieldName.STRIKE)
+                source.registrar_topico(cod, FieldName.ASK)
                 source.registrar_topico(cod, FieldName.VOL_ASK)
                 source.registrar_topico(cod, FieldName.VOL_BID)
+            if eh_openfast:
+                bwb_key = (resultado.ativo, getattr(resultado, 'vencimento_call', ''))
+                if not hasattr(self, '_bwb_pre_registered'):
+                    self._bwb_pre_registered: set[tuple] = set()
+                if bwb_key not in self._bwb_pre_registered:
+                    logger.info("BWB: %d call + %d put codes registrados, aguardando push...",
+                                len(codigos_call), len(codigos_put))
+                    time.sleep(2.0)
+                    self._bwb_pre_registered.add(bwb_key)
+                com_strike = com_ask = com_vol = 0
+                total = len(codigos_call) + len(codigos_put)
+                for cod in codigos_call | codigos_put:
+                    s = source.ler_campo_cache(cod, FieldName.STRIKE)
+                    a = source.ler_campo_cache(cod, FieldName.ASK)
+                    va = source.ler_campo_cache(cod, FieldName.VOL_ASK)
+                    if s and s > 0:
+                        com_strike += 1
+                    if a and a > 0:
+                        com_ask += 1
+                    if va and va > 0:
+                        com_vol += 1
+                logger.info("BWB: strike=%d/%d ask=%d/%d vol=%d/%d apos espera",
+                            com_strike, total, com_ask, total, com_vol, total)
 
         def _coletar_lado(codigos: set[str], strike_filtro, campos_dados, eh_call: bool) -> list[dict]:
+            lado = "call" if eh_call else "put"
+            n_total = len(codigos)
+            n_com_strike_ask = 0
+            n_na_direcao = 0
             candidatos = []
             for cod in sorted(codigos):
                 strike = 0.0
@@ -1063,15 +1200,22 @@ class MonitorWorker(QThread):
                     vol_bid = dados.get(FieldName.VOL_BID) or 0
                 if not strike or strike <= 0 or ask <= 0:
                     continue
+                n_com_strike_ask += 1
                 if eh_call and strike < s_target_call:
                     continue
                 if not eh_call and strike > s_target_put:
                     continue
+                n_na_direcao += 1
                 if eh_openfast:
+                    if vol_ask <= 0 and vol_bid <= 0:
+                        vol_ask = 1
+                        vol_bid = 1
                     cab = vol_ask
                 else:
                     cab = max(vol_ask, 0)
-                if cab < cab_minimo or vol_ask <= 0 or vol_bid <= 0:
+                if cab < cab_minimo:
+                    logger.debug("BWB _coletar [%s]: %s K=%.2f descartado cab=%d < min=%d [va=%d vb=%d]",
+                                 lado, cod, strike, cab, cab_minimo, vol_ask, vol_bid)
                     continue
                 candidatos.append({
                     "strike": strike,
@@ -1079,6 +1223,9 @@ class MonitorWorker(QThread):
                     "vol_ask": vol_ask,
                     "vol_bid": vol_bid,
                 })
+            logger.info("BWB _coletar [%s]: total=%d strike+ask=%d direcao=%d final=%d target=%.2f",
+                        lado, n_total, n_com_strike_ask, n_na_direcao, len(candidatos),
+                        s_target_call if eh_call else s_target_put)
             return candidatos
 
         calls = _coletar_lado(codigos_call, s_target_call, {}, True)
@@ -1086,7 +1233,7 @@ class MonitorWorker(QThread):
         puts = _coletar_lado(codigos_put, s_target_put, {}, False)
         puts.sort(key=lambda x: x["strike"], reverse=True)
 
-        return calls[:5], puts[:5]
+        return calls[:15], puts[:15]
 
     @property
     def _mpp_interval(self) -> int:

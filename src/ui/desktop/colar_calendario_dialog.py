@@ -1268,11 +1268,41 @@ class ColarCalendarioDialog(QDialog):
             c_bwb_c = getattr(r, 'custo_protecao_call', 0.0) or 0.0
             c_bwb_p = getattr(r, 'custo_protecao_put', 0.0) or 0.0
             lado_bwb = getattr(r, 'lado_protegido', None)
+            strikes_call_str = getattr(r, 'strikes_bwb_call', None)
+            strikes_put_str = getattr(r, 'strikes_bwb_put', None)
+            custo_b_call = getattr(r, 'custo_borboleta_call', 0.0) or 0.0
+            custo_b_put = getattr(r, 'custo_borboleta_put', 0.0) or 0.0
+            lotes_b_call = getattr(r, 'lotes_bwb_call', 0) or 0
+            lotes_b_put = getattr(r, 'lotes_bwb_put', 0) or 0
             bwb_call_pnl = np.zeros_like(x)
             bwb_put_pnl = np.zeros_like(x)
-            if k_bwb_c and q_bwb_c > 0:
+            # Butterfly: se tem 3 strikes, monta +1xW1 -2xCorpo +1xW2
+            if strikes_call_str and lotes_b_call > 0:
+                try:
+                    w1c, k_body_c, w2c = map(float, strikes_call_str.split(","))
+                    bwb_call_pnl = (
+                        +1 * np.maximum(0, x - w1c) * 100
+                        - 2 * np.maximum(0, x - k_body_c) * 100
+                        + 1 * np.maximum(0, x - w2c) * 100
+                    ) * lotes_b_call - custo_b_call
+                except Exception:
+                    if k_bwb_c and q_bwb_c > 0:
+                        bwb_call_pnl = (np.maximum(0, x - k_bwb_c) - (c_bwb_c / q_bwb_c)) * q_bwb_c
+            elif k_bwb_c and q_bwb_c > 0:
                 bwb_call_pnl = (np.maximum(0, x - k_bwb_c) - (c_bwb_c / q_bwb_c)) * q_bwb_c
-            if k_bwb_p and q_bwb_p > 0:
+
+            if strikes_put_str and lotes_b_put > 0:
+                try:
+                    w1p, k_body_p, w2p = map(float, strikes_put_str.split(","))
+                    bwb_put_pnl = (
+                        +1 * np.maximum(0, w1p - x) * 100
+                        - 2 * np.maximum(0, k_body_p - x) * 100
+                        + 1 * np.maximum(0, w2p - x) * 100
+                    ) * lotes_b_put - custo_b_put
+                except Exception:
+                    if k_bwb_p and q_bwb_p > 0:
+                        bwb_put_pnl = (np.maximum(0, k_bwb_p - x) - (c_bwb_p / q_bwb_p)) * q_bwb_p
+            elif k_bwb_p and q_bwb_p > 0:
                 bwb_put_pnl = (np.maximum(0, k_bwb_p - x) - (c_bwb_p / q_bwb_p)) * q_bwb_p
 
             pnl = (stock_pnl + call_pnl + naked_pnl + put_pnl) * qtd_a + bwb_call_pnl + bwb_put_pnl
@@ -1347,12 +1377,38 @@ class ColarCalendarioDialog(QDialog):
 
             # ── Marcadores BWB ──
             BWB_CLR = '#e67e22'
-            if k_bwb_c and q_bwb_c > 0 and x_min <= k_bwb_c <= x_max:
+            # Borboleta: 3 strikes por lado
+            if strikes_call_str and lotes_b_call > 0:
+                try:
+                    w1c, k_body_c, w2c = map(float, strikes_call_str.split(","))
+                    for ks, lbl in [(w1c, 'BWB W1'), (k_body_c, 'BWB Corpo'), (w2c, 'BWB W2')]:
+                        if x_min <= ks <= x_max:
+                            ax.axvline(ks, color=BWB_CLR, linewidth=0.8, linestyle='-.', alpha=0.9)
+                            ax.text(ks, ax.get_ylim()[1] * 0.92, f'{lbl}\n{ks:.2f}',
+                                    color=BWB_CLR, fontsize=6, ha='center', va='top',
+                                    bbox=dict(boxstyle='round,pad=0.1', facecolor='#1a1a1a',
+                                              edgecolor=BWB_CLR, alpha=0.8))
+                except Exception:
+                    pass
+            elif k_bwb_c and q_bwb_c > 0 and x_min <= k_bwb_c <= x_max:
                 ax.axvline(k_bwb_c, color=BWB_CLR, linewidth=0.8, linestyle='-.', alpha=0.9)
                 ax.text(k_bwb_c, ax.get_ylim()[1] * 0.92, f'BWB C\n{k_bwb_c:.2f}',
                         color=BWB_CLR, fontsize=6, ha='center', va='top',
                         bbox=dict(boxstyle='round,pad=0.1', facecolor='#1a1a1a', edgecolor=BWB_CLR, alpha=0.8))
-            if k_bwb_p and q_bwb_p > 0 and x_min <= k_bwb_p <= x_max:
+
+            if strikes_put_str and lotes_b_put > 0:
+                try:
+                    w1p, k_body_p, w2p = map(float, strikes_put_str.split(","))
+                    for ks, lbl in [(w1p, 'BWB W1'), (k_body_p, 'BWB Corpo'), (w2p, 'BWB W2')]:
+                        if x_min <= ks <= x_max:
+                            ax.axvline(ks, color=BWB_CLR, linewidth=0.8, linestyle='-.', alpha=0.9)
+                            ax.text(ks, ax.get_ylim()[1] * 0.84, f'{lbl}\n{ks:.2f}',
+                                    color=BWB_CLR, fontsize=6, ha='center', va='top',
+                                    bbox=dict(boxstyle='round,pad=0.1', facecolor='#1a1a1a',
+                                              edgecolor=BWB_CLR, alpha=0.8))
+                except Exception:
+                    pass
+            elif k_bwb_p and q_bwb_p > 0 and x_min <= k_bwb_p <= x_max:
                 ax.axvline(k_bwb_p, color=BWB_CLR, linewidth=0.8, linestyle='-.', alpha=0.9)
                 ax.text(k_bwb_p, ax.get_ylim()[1] * 0.82, f'BWB P\n{k_bwb_p:.2f}',
                         color=BWB_CLR, fontsize=6, ha='center', va='top',
@@ -1446,12 +1502,21 @@ class ColarCalendarioDialog(QDialog):
                 be_parts.append(f"BE Alta Intr: R$ {r.be_alta_intrinseco:.2f}")
             be_str = " | ".join(be_parts) if be_parts else ""
 
+            bwb_extra = ""
+            if strikes_call_str and lotes_b_call > 0:
+                bwb_extra += f"<br><b>BWB Call:</b> {strikes_call_str} x{lotes_b_call} lotes — R$ {custo_b_call:.2f}"
+            elif k_bwb_c and q_bwb_c > 0:
+                bwb_extra += f"<br><b>BWB Call:</b> K={k_bwb_c:.2f} x {q_bwb_c} — R$ {c_bwb_c:.2f}"
+            if strikes_put_str and lotes_b_put > 0:
+                bwb_extra += f"<br><b>BWB Put:</b> {strikes_put_str} x{lotes_b_put} lotes — R$ {custo_b_put:.2f}"
+            elif k_bwb_p and q_bwb_p > 0:
+                bwb_extra += f"<br><b>BWB Put:</b> K={k_bwb_p:.2f} x {q_bwb_p} — R$ {c_bwb_p:.2f}"
+
             footer = QLabel(
                 f"<b>Comprar Ativo:</b> {r.ativo} — R$ {S0:.2f} × {qtd_a} un = R$ {S0 * qtd_a:.2f}<br>"
                 f"<b>Vender Call:</b> {r.cod_call} K={Kc:.2f} — +R$ {Pc:.2f} × {int(ratio * qtd_a)} ações = R$ {Pc * ratio * qtd_a:.2f} (venc. {r.vencimento_call.strftime('%d/%m')})<br>"
                 f"<b>Comprar Put:</b> {r.cod_put} K={Kp:.2f} — −R$ {Pp:.2f} × {int(ratio_put * qtd_a)} ações = R$ {Pp * ratio_put * qtd_a:.2f} (venc. {r.vencimento_put.strftime('%d/%m')})"
-                + (f"<br><b>🛡 BWB Call:</b> K={k_bwb_c:.2f} × {q_bwb_c} — −R$ {c_bwb_c:.2f}" if k_bwb_c and q_bwb_c > 0 else "")
-                + (f"<br><b>🛡 BWB Put:</b> K={k_bwb_p:.2f} × {q_bwb_p} — −R$ {c_bwb_p:.2f}" if k_bwb_p and q_bwb_p > 0 else "")
+                + bwb_extra
                 + f"<br><b>Capital:</b> R$ {S0 + Pp - Pc:.2f}  |  "
                 f"<b>PnL Proj:</b> R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI)"
                 + (f"  |  <b>PnL Pós-BWB:</b> R$ {getattr(r, 'pnl_liquido_pos_protecao', 0) or 0:.2f}" if lado_bwb and lado_bwb not in ("nenhum", None) and (q_bwb_c > 0 or q_bwb_p > 0) else "")

@@ -156,6 +156,14 @@ def _migrar_historico_simulacoes(conn):
         ("custo_protecao_total", "REAL"),
         ("pnl_liquido_pos_protecao", "REAL"),
         ("viavel", "INTEGER"),
+        ("strikes_bwb_call", "TEXT"),
+        ("strikes_bwb_put", "TEXT"),
+        ("premios_bwb_call", "TEXT"),
+        ("premios_bwb_put", "TEXT"),
+        ("custo_borboleta_call", "REAL DEFAULT 0.0"),
+        ("custo_borboleta_put", "REAL DEFAULT 0.0"),
+        ("lotes_bwb_call", "INTEGER DEFAULT 0"),
+        ("lotes_bwb_put", "INTEGER DEFAULT 0"),
     ]
     for col, tipo in novas_colunas:
         try:
@@ -300,6 +308,7 @@ def _seed_parametros_colar(conn):
         ("cab_minimo_protecao", "1", "PROTECAO_CAUDA", "CAB minimo / VOL_ASK minimo para strike candidato"),
         ("n_sigma_protecao", "2.0", "PROTECAO_CAUDA", "Numero de sigmas para s_target da cauda"),
         ("fator_seguranca_liquidez", "0.2", "PROTECAO_CAUDA", "Volume diario minimo como multiplo da qtd comprada"),
+        ("bwb_modo", "simples", "PROTECAO_CAUDA", "Modo BWB: 'simples' (1 opcao/legado) ou 'borboleta' (3 strikes)"),
     ]
     for p in params + mpp_params + perf_params:
         conn.execute(

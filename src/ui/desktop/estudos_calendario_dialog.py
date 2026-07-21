@@ -547,6 +547,37 @@ class EstudosCalendarioDialog(QDialog):
 
             pnl = (stock_pnl + call_pnl + naked_pnl + put_pnl) * qtd_a
 
+            # ── BWB historico ──
+            strikes_call_str = r.get("strikes_bwb_call")
+            strikes_put_str = r.get("strikes_bwb_put")
+            lotes_b_call = r.get("lotes_bwb_call", 0) or 0
+            lotes_b_put = r.get("lotes_bwb_put", 0) or 0
+            custo_b_call = r.get("custo_borboleta_call", 0.0) or 0.0
+            custo_b_put = r.get("custo_borboleta_put", 0.0) or 0.0
+            bwb_call_pnl = np.zeros_like(x)
+            bwb_put_pnl = np.zeros_like(x)
+            if strikes_call_str and lotes_b_call > 0:
+                try:
+                    w1c, k_body_c, w2c = map(float, strikes_call_str.split(","))
+                    bwb_call_pnl = (
+                        +1 * np.maximum(0, x - w1c) * 100
+                        - 2 * np.maximum(0, x - k_body_c) * 100
+                        + 1 * np.maximum(0, x - w2c) * 100
+                    ) * lotes_b_call - custo_b_call
+                except Exception:
+                    pass
+            if strikes_put_str and lotes_b_put > 0:
+                try:
+                    w1p, k_body_p, w2p = map(float, strikes_put_str.split(","))
+                    bwb_put_pnl = (
+                        +1 * np.maximum(0, w1p - x) * 100
+                        - 2 * np.maximum(0, k_body_p - x) * 100
+                        + 1 * np.maximum(0, w2p - x) * 100
+                    ) * lotes_b_put - custo_b_put
+                except Exception:
+                    pass
+            pnl = pnl + bwb_call_pnl + bwb_put_pnl
+
             BG = '#0d0d0d'; TEXT_C = '#c0c0c0'; RED = '#ff3355'
             ACCENT = '#ffc107'; GREEN = '#4caf50'; SPOT_CLR = '#42a5f5'
             SIGMA_C = '#6c5ce7'
@@ -581,6 +612,22 @@ class EstudosCalendarioDialog(QDialog):
                 ax.text(strike, ax.get_ylim()[0], f'{nome}={strike:.2f}',
                         color=cor_s, fontsize=6, ha='center', alpha=0.5)
 
+            BWB_CLR = '#e67e22'
+            if strikes_call_str and lotes_b_call > 0:
+                try:
+                    w1c, k_body_c, w2c = map(float, strikes_call_str.split(","))
+                    for ks in [w1c, k_body_c, w2c]:
+                        ax.axvline(ks, color=BWB_CLR, linewidth=0.5, linestyle='-.', alpha=0.5)
+                except Exception:
+                    pass
+            if strikes_put_str and lotes_b_put > 0:
+                try:
+                    w1p, k_body_p, w2p = map(float, strikes_put_str.split(","))
+                    for ks in [w1p, k_body_p, w2p]:
+                        ax.axvline(ks, color=BWB_CLR, linewidth=0.5, linestyle='-.', alpha=0.5)
+                except Exception:
+                    pass
+
             ax.set_xlabel('Preço do Ativo (R$)', color=TEXT_C, fontsize=8)
             ax.set_ylabel('PnL (R$)', color=TEXT_C, fontsize=8)
             ax.tick_params(colors=TEXT_C, labelsize=7)
@@ -588,6 +635,9 @@ class EstudosCalendarioDialog(QDialog):
                 spine.set_color('#2d2d44')
 
             titulo = f'{r.get("ativo","")} | {r.get("estagio","")} | rC={n:.2f} rP={m:.2f}'
+            lado_bwb = r.get("lado_protegido")
+            if lado_bwb and lado_bwb not in ("nenhum", None):
+                titulo += " + BWB"
             ax.set_title(titulo, color=ACCENT, fontsize=9, fontweight='bold')
 
             fig.tight_layout()
@@ -617,11 +667,18 @@ class EstudosCalendarioDialog(QDialog):
                 be_parts.append(f"BE Dir: R$ {be_dir:.2f}")
             be_str = " | ".join(be_parts)
 
+            bwb_txt = ""
+            if strikes_call_str and lotes_b_call > 0:
+                bwb_txt += f"<br><b>BWB Call:</b> {strikes_call_str} x{lotes_b_call} lotes — R$ {custo_b_call:.2f}"
+            if strikes_put_str and lotes_b_put > 0:
+                bwb_txt += f"<br><b>BWB Put:</b> {strikes_put_str} x{lotes_b_put} lotes — R$ {custo_b_put:.2f}"
+
             footer = QLabel(
                 f"<b>Comprar Ativo:</b> R$ {S_custo:.2f} × {qtd_a} un = R$ {S_custo * qtd_a:.2f}<br>"
                 f"<b>Vender Call:</b> {cod_c} K={Kc:.2f} — +R$ {Pc:.2f} × {int(n * qtd_a)} ações = R$ {Pc * n * qtd_a:.2f}<br>"
-                f"<b>Comprar Put:</b> {cod_p} K={Kp:.2f} — −R$ {Pp:.2f} × {int(m * qtd_a)} ações = R$ {Pp * m * qtd_a:.2f}<br>"
-                f"<b>{cap_txt}</b>  |  "
+                f"<b>Comprar Put:</b> {cod_p} K={Kp:.2f} — −R$ {Pp:.2f} × {int(m * qtd_a)} ações = R$ {Pp * m * qtd_a:.2f}"
+                + bwb_txt
+                + f"<br><b>{cap_txt}</b>  |  "
                 f"<b>PnL Proj:</b> R$ {pnl_proj:.2f} ({pct_ret:.2f}% / {pct_cdi_v:.2f}x CDI)"
                 f"{'  |  ' + be_str if be_str else ''}"
             )

@@ -879,9 +879,9 @@
     },
     {
       "chave": "limite_protecao_pct",
-      "valor": "0.0099",
+      "valor": "0.40",
       "estrategia": "PROTECAO_CAUDA",
-      "descricao": "Fracao maxima do ganho extra consumida pela protecao (0.35 = 35%)"
+      "descricao": "Fracao maxima do ganho extra consumida pela protecao (0.40 = 40%)"
     },
     {
       "chave": "calda_preco_min_opcao",
@@ -903,9 +903,15 @@
     },
     {
       "chave": "fator_seguranca_liquidez",
-      "valor": "0.01",
+      "valor": "0.2",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Volume diario minimo como multiplo da qtd comprada (0.2 = volume >= 5x a ordem)"
+    },
+    {
+      "chave": "bwb_modo",
+      "valor": "simples",
+      "estrategia": "PROTECAO_CAUDA",
+      "descricao": "Modo BWB: 'simples' (1 opcao OTM/legado) ou 'borboleta' (3 strikes autofinanciada)"
     }
   ]
 }

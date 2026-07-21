@@ -18,14 +18,14 @@ python -m PyInstaller --clean --distpath "$env:USERPROFILE\Desktop\dist" `
   --workpath "$env:USERPROFILE\Desktop\build_pyi" spreadhunter.spec
 ```
 
-Stack: Python 3.13.14, PySide6 6.11.1, sqlite3 (stdlib), scipy, numpy, matplotlib, pywin32, pillow, opencv-python, requests, python-dotenv, pyautogui, psutil, pytest. `pyproject.toml` seta `pythonpath = ["."]` (imports from root). `requirements.txt` pinado. Pinos detalhados em `.opencode/skills/spreadhunter/SKILL.md` (carregue `skill spreadhunter`).
+Stack: Python 3.13.14, PySide6 6.11.1, sqlite3 (stdlib), scipy, numpy, matplotlib, pywin32, pillow, opencv-python, requests, python-dotenv, pyautogui, psutil, pytest, yfinance. `pyproject.toml` seta `pythonpath = ["."]` (imports from root). `requirements.txt` pinado. Pinos detalhados em `.opencode/skills/spreadhunter/SKILL.md` (carregue `skill spreadhunter`).
 
 ## Arquitetura não-óbvia
 
 - `monitor_worker.py` em `src/ui/desktop/` (QThread que coordena use cases via sinais PySide6)
 - Bootstrap: `src/infrastructure/persistence/bootstrap.py` → `main.py`
 - `_ImportThread` em `grade_opcoes_dialog.py` (não em `main_window.py`)
-- Fonte alternativa de dados: `openfast_socket_adapter.py` (socket TCP, sem COM) — config `fonte_market_data=openfast` no banco
+- Fonte alternativa de dados: `src/infrastructure/providers/openfast_socket_adapter.py` (socket TCP, sem COM) — config `fonte_market_data=openfast` no banco
 - `.env` contém credenciais opcoes.net.br — `.gitignore` já exclui, nunca commitar
 - DB em `%APPDATA%/Spreadhunter/spreadhunter.db` via `get_db_path()` — nunca hardcoded
 
@@ -40,6 +40,7 @@ Stack: Python 3.13.14, PySide6 6.11.1, sqlite3 (stdlib), scipy, numpy, matplotli
 7. **Box 4P** (`calculadora_box.py`): `lucro = clr - distancia` — short box, não inverter.
 8. **Blacklist** (`black_list_import`): 53 ativos removidos na importação, sem preservação.
 9. **Importador único:** `scripts/validar_opcoes/importflash.py` (⚡ Importar). API `OptionsChain` para todas as séries (mensais + W1-W4).
+10. **BWB (Broken Wing Butterfly):** proteção de cauda do Collar Calendário com custo próximo de zero. Estrutura: corpo (2 vendidas no meio do strike) financia asas (1 comprada em cada ponta). **Alvo = breakeven da estrutura com ratio** (NUNCA 2σ fixo). Se custo da BWB > 40% do ganho extra do collar → inviável, não forçar. Detalhes: `pendenciascalendario.md`.
 
 ## Operação B3
 
@@ -64,7 +65,7 @@ Mercado B3: seg-sex **10:00–17:00** (horário de Brasília). Fora disso RTD do
 
 `monitor_worker.py` ciclo principal: 1. Geral → 2. Colar → 3. Collar Calendário → 4. Box 4P → 5. Manutenção → 6. Reconexão → 7. MPP. Onda 2: `_processar_otimizado()` → `CalculadoraCaudaAssincrona.processar_otimizado()` → persiste em `historico_simulacoes`.
 
-**`_flush_buffer` (crítico):** sempre que mexer em `_registrar_batch_inteligente()` ou `capturar_dados_mercado()`, TODOS os branches devem chamar `self._flush_buffer()`. Esquecer → opções nunca assinadas → book=0 mesmo com FAST conectado.
+**`_flush_buffer` (crítico):** em `mercado_data_provider.py` — sempre que mexer em `_registrar_batch_inteligente()` ou `capturar_dados_mercado()`, TODOS os branches devem chamar `self._flush_buffer()`. Esquecer → opções nunca assinadas → book=0 mesmo com FAST conectado.
 
 **Performance:** `threading.local` pool SQLite (key = `hashlib.md5(path)`); PRAGMAs: `synchronous=NORMAL`, `cache_size=-8000`, `temp_store=MEMORY`, `journal_mode=WAL`, `foreign_keys=ON`. Book scan não remove de `_chaves_com_book` se RTD não chegou. `recarregar_parametros()` limpa todos os caches. Manutenção ~5s (%2), batch 500. `mpp_habilitado` default 0. CAB skip se não mudou → reusa `_dados_cache`.
 
@@ -79,4 +80,6 @@ Mercado B3: seg-sex **10:00–17:00** (horário de Brasília). Fora disso RTD do
 - `.opencode/skills/spreadhunter/SKILL.md` — use `skill spreadhunter` para regras completas + histórico
 - `.opencode/plugins/graphify.js` — knowledge graph em `graphify-out/`; use skill graphify em vez de grep crus
 - `docs/DISTRIBUICAO.md`, `docs/pnt_importacao.md` — deploy/PNT
+- `pendenciascalendario.md` — diagnóstico BWB + simulações
+- `planoprotecaocauda.md` — planejamento de proteção de cauda
 - `INSTRUCOES_AMIGO.txt` — diagnóstico .exe

@@ -87,6 +87,14 @@ class ResultadoColarCalendario:
     custo_protecao_call: float = 0.0
     custo_protecao_put: float = 0.0
     viavel_protecao: bool = False
+    strikes_bwb_call: str | None = None
+    strikes_bwb_put: str | None = None
+    premios_bwb_call: str | None = None
+    premios_bwb_put: str | None = None
+    custo_borboleta_call: float = 0.0
+    custo_borboleta_put: float = 0.0
+    lotes_bwb_call: int = 0
+    lotes_bwb_put: int = 0
 
 
 class CalculadoraColarCalendario:
