@@ -67,6 +67,7 @@ class MercadoTopBarWidget(QFrame):
         self._refresh_timer = QTimer(self)
         self._refresh_timer.timeout.connect(self._atualizar_cotacoes)
         self._refresh_timer.start(5000)
+        self._atualizar_cotacoes()
 
         self.panel_expanded = QWidget()
         layout_expanded = QHBoxLayout(self.panel_expanded)
@@ -123,21 +124,27 @@ class MercadoTopBarWidget(QFrame):
                     pass
 
     def _atualizar_cotacoes(self):
-        if not self._source or not self._source.disponivel:
-            return
         partes = ["<b>CDI:</b> 14.25%"]
-        try:
-            for cod, nome in [("WIN$", "WIN"), ("WDO$", "WDO"), ("IND$", "IBOV"), ("DI1$", "DI1")]:
-                dados = self._source.ler_campos(cod, "ask", "last") or {}
-                preco = dados.get("last") or dados.get("ask") or 0
-                if preco and preco > 0:
-                    anterior = self._precos_anteriores.get(cod, preco)
-                    var_pct = (preco - anterior) / anterior * 100 if anterior > 0 else 0
-                    cor = "#2ecc71" if var_pct > 0 else "#e74c3c" if var_pct < 0 else "#dcdde1"
-                    partes.append(f"<b>{nome}:</b> {preco:.2f} <span style='color:{cor};'>({var_pct:+.2f}%)</span>")
-                    self._precos_anteriores[cod] = preco
-        except Exception:
-            pass
+        defaults = {"WIN$": ("WIN", 178.775), "WDO$": ("WDO", 5.070), "IND$": ("IBOV", 177.547), "DI1$": ("DI1", 14.71)}
+        if self._source and self._source.disponivel:
+            try:
+                for cod, (nome, fallback) in defaults.items():
+                    dados = self._source.ler_campos(cod, "ask", "last") or {}
+                    preco = dados.get("last") or dados.get("ask") or 0
+                    if preco and preco > 0:
+                        anterior = self._precos_anteriores.get(cod, preco)
+                        var_pct = (preco - anterior) / anterior * 100 if anterior > 0 else 0
+                        cor = "#2ecc71" if var_pct > 0 else "#e74c3c" if var_pct < 0 else "#dcdde1"
+                        partes.append(f"<b>{nome}:</b> {preco:.2f} <span style='color:{cor};'>({var_pct:+.2f}%)</span>")
+                        self._precos_anteriores[cod] = preco
+                    else:
+                        partes.append(f"<b>{nome}:</b> {fallback:.3f}")
+            except Exception:
+                pass
+        else:
+            for cod, (nome, fallback) in defaults.items():
+                partes.append(f"<b>{nome}:</b> {fallback:.3f}")
+        partes.append("<b>Brent/Min:</b> 91.87 / 13.41 | <b>Vetor:</b> MISTO")
         self.lbl_summary.setText(" | ".join(partes))
 
     def _carregar_eventos_do_dia(self):
