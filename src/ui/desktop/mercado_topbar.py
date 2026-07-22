@@ -24,7 +24,7 @@ class MercadoTopBarWidget(QFrame):
             .ItemTexto { color: #dfe4ea; font-size: 10.5px; }
         """)
         self.height_compact = 58
-        self.height_expanded = 240
+        self.height_expanded = 270
         self.setFixedHeight(self.height_compact)
 
         self.main_layout = QVBoxLayout(self)
@@ -34,19 +34,31 @@ class MercadoTopBarWidget(QFrame):
         self.bar_compact = QWidget()
         layout_compact = QHBoxLayout(self.bar_compact)
         layout_compact.setContentsMargins(0, 0, 0, 0)
-        self.lbl_summary = QLabel(
-            "<b>CDI:</b> 14.25% | "
-            "<b>IBOV:</b> 177.547 | "
-            "<b>WIN:</b> 178.775 <span style='color:#fdcb6e;'>(+120p)</span> | "
-            "<b>WDO:</b> 5.070 <span style='color:#fdcb6e;'>(-15p)</span> | "
-            "<b>IVIX:</b> 21.40 pts | "
-            "<b>DI1:</b> 14.71 | "
-            "<b>Brent/Min:</b> 91.87 / 13.41 | "
-            "<b>Vetor:</b> MISTO"
-        )
+        from PySide6.QtWidgets import QProgressBar
+
+        self.lbl_summary = QLabel()
         self.lbl_summary.setProperty("class", "BadgeCompacto")
         layout_compact.addWidget(self.lbl_summary)
         layout_compact.addStretch()
+
+        self.term_ibov = QProgressBar()
+        self.term_ibov.setRange(0, 100)
+        self.term_ibov.setValue(50)
+        self.term_ibov.setFixedSize(80, 14)
+        self.term_ibov.setFormat("IBOV")
+        self.term_ibov.setStyleSheet("""
+            QProgressBar {
+                background-color: #2d2d2d; border: 1px solid #444;
+                border-radius: 4px; text-align: center; color: #fff; font-size: 8px;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #e74c3c, stop:0.5 #f1c40f, stop:1 #2ecc71);
+                border-radius: 3px;
+            }
+        """)
+        layout_compact.addWidget(self.term_ibov)
+
         self.lbl_hint = QLabel("[Hover para Acoes & ADRs]")
         self.lbl_hint.setStyleSheet("color: #747d8c; font-size: 9.5px; font-style: italic;")
         layout_compact.addWidget(self.lbl_hint)
@@ -80,17 +92,39 @@ class MercadoTopBarWidget(QFrame):
         lbl_br.setProperty("class", "TituloColuna")
         col_br.addWidget(lbl_br)
         grid_br = QGridLayout()
-        grid_br.setSpacing(4)
+        grid_br.setSpacing(3)
         for i, (ativo, peso, preco) in enumerate([
             ("VALE3", "13.76%", "R$ 75,54"), ("ITUB4", "8.42%", "R$ 42,90"),
             ("PETR4", "5.80%", "R$ 42,67"), ("BBDC4", "3.98%", "R$ 18,99"),
-            ("SBSP3", "3.54%", "R$ 29,44"), ("WEGE3", "3.19%", "R$ 46,70"),
+            ("SBSP3", "3.54%", "R$ 29,44"), ("BPAC11", "3.20%", "R$ 35,10"),
+            ("WEGE3", "3.19%", "R$ 46,70"), ("B3SA3", "2.95%", "R$ 15,75"),
         ]):
             grid_br.addWidget(self._lbl(ativo, bold=True), i, 0)
             grid_br.addWidget(self._lbl(peso), i, 1)
             grid_br.addWidget(self._lbl(preco, cor="#2ed573"), i, 2)
         col_br.addLayout(grid_br)
         col_br.addStretch()
+
+        col_fut = QVBoxLayout()
+        col_fut.setSpacing(3)
+        lbl_fut = QLabel("Futuros & DI (Vencimentos)")
+        lbl_fut.setProperty("class", "TituloColuna")
+        col_fut.addWidget(lbl_fut)
+        grid_fut = QGridLayout()
+        grid_fut.setSpacing(3)
+        for i, (ativo, info, preco) in enumerate([
+            ("WIN$ (Ago24)", "Mini Ibov", "178.775"),
+            ("WDO$ (Ago24)", "Mini Dolar", "5.070"),
+            ("DI1F27", "Jan/27", "13.95"),
+            ("DI1F33", "Jan/33", "14.71"),
+            ("IND$ (Ago24)", "Ibov Cheio", "177.547"),
+            ("DOL$ (Ago24)", "Dolar Cheio", "5.068"),
+        ]):
+            grid_fut.addWidget(self._lbl(ativo, bold=True), i, 0)
+            grid_fut.addWidget(self._lbl(info, cor="#a4b0be"), i, 1)
+            grid_fut.addWidget(self._lbl(preco, cor="#fdcb6e"), i, 2)
+        col_fut.addLayout(grid_fut)
+        col_fut.addStretch()
 
         col_adr = QVBoxLayout()
         col_adr.setSpacing(3)
@@ -109,6 +143,7 @@ class MercadoTopBarWidget(QFrame):
         col_adr.addStretch()
 
         layout_expanded.addLayout(col_br, stretch=1)
+        layout_expanded.addLayout(col_fut, stretch=1)
         layout_expanded.addLayout(col_adr, stretch=1)
         self.main_layout.addWidget(self.panel_expanded)
         self.panel_expanded.hide()
@@ -137,6 +172,9 @@ class MercadoTopBarWidget(QFrame):
                         cor = "#2ecc71" if var_pct > 0 else "#e74c3c" if var_pct < 0 else "#dcdde1"
                         partes.append(f"<b>{nome}:</b> {preco:.2f} <span style='color:{cor};'>({var_pct:+.2f}%)</span>")
                         self._precos_anteriores[cod] = preco
+                        if cod == "IND$":
+                            self.term_ibov.setValue(int(min(max((preco - 170000) / 20000 * 100, 0), 100)))
+                            self.term_ibov.setFormat(f"IBOV {preco:.0f}")
                     else:
                         partes.append(f"<b>{nome}:</b> {fallback:.3f}")
             except Exception:
@@ -145,7 +183,24 @@ class MercadoTopBarWidget(QFrame):
             for cod, (nome, fallback) in defaults.items():
                 partes.append(f"<b>{nome}:</b> {fallback:.3f}")
         partes.append("<b>Brent/Min:</b> 91.87 / 13.41 | <b>Vetor:</b> MISTO")
+
+        vix_str = self._buscar_vix()
+        if vix_str:
+            partes.append(vix_str)
+
         self.lbl_summary.setText(" | ".join(partes))
+
+    def _buscar_vix(self):
+        try:
+            import yfinance as yf
+            t = yf.Ticker("^VIX")
+            info = t.fast_info
+            preco = getattr(info, 'last_price', None) or getattr(info, 'regular_market_previous_close', None)
+            if preco and preco > 0:
+                return f"<b>VIX:</b> {preco:.2f}"
+        except Exception:
+            pass
+        return None
 
     def _carregar_eventos_do_dia(self):
         hoje = date.today().isoformat()
