@@ -209,6 +209,10 @@ class EstudosCalendarioDialog(QDialog):
         self.btn_comparar.setToolTip("Compara todos os est\u00e1gios do mesmo chassi lado a lado")
         self.btn_comparar.clicked.connect(self._comparar_estagios_chassi)
         btn_layout.addWidget(self.btn_comparar)
+        self.btn_dashboard = QPushButton("\U0001f4ca Dashboard")
+        self.btn_dashboard.setToolTip("Graficos comparativos de CDI, PnL e protecao entre estagios do chassi selecionado")
+        self.btn_dashboard.clicked.connect(self._abrir_dashboard_selecionado)
+        btn_layout.addWidget(self.btn_dashboard)
         self.btn_recarregar = QPushButton("\U0001f504 Recarregar")
         self.btn_recarregar.clicked.connect(self._carregar)
         btn_layout.addWidget(self.btn_recarregar)
@@ -481,12 +485,224 @@ class EstudosCalendarioDialog(QDialog):
 
         from src.ui.desktop.copy_utils import copiar_figura_clipboard
         btn_layout = QHBoxLayout()
+        btn_visualizar = QPushButton("\U0001f4ca Visualizar Dashboard")
+        btn_visualizar.setToolTip("Graficos comparativos de CDI, PnL e protecao entre estagios")
+        btn_visualizar.clicked.connect(lambda: self._abrir_dashboard(ativo, id_chassi, records, estagios_order))
+        btn_layout.addWidget(btn_visualizar)
         btn_layout.addStretch()
         btn_close = QPushButton("Fechar")
         btn_close.clicked.connect(dlg.accept)
         btn_layout.addWidget(btn_close)
         layout.addLayout(btn_layout)
 
+        dlg.exec_()
+
+    def _abrir_dashboard_selecionado(self):
+        idx = self.table_view.currentIndex()
+        if not idx.isValid():
+            return
+        row = idx.row()
+        id_chassi = self.model._items[row].get("id_chassi", "")
+        ativo = self.model._items[row].get("ativo", "")
+        if not id_chassi:
+            return
+        records = {}
+        conn = sqlite3.connect(get_db_path())
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                "SELECT * FROM historico_simulacoes WHERE id_chassi = ? ORDER BY estagio",
+                (id_chassi,)
+            ).fetchall()
+            for r in rows:
+                records[r["estagio"]] = dict(r)
+        finally:
+            conn.close()
+        estagios_order = ["Base", "Platô", "Platô +Tail", "Proteção", "Proteção +Tail",
+                          "Rendimento", "Rendimento +Tail"]
+        self._abrir_dashboard(ativo, id_chassi, records, estagios_order)
+
+    def _abrir_dashboard(self, ativo, id_chassi, records, estagios_order):
+        import numpy as np
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+        from matplotlib.figure import Figure
+        from matplotlib.gridspec import GridSpec
+
+        estagios = [e for e in estagios_order if e in records]
+        if len(estagios) < 2:
+            return
+
+        pnl_vals = [records[e].get("pnl_liquido_pos_protecao", 0) or records[e].get("pnl_projetado", 0) or 0 for e in estagios]
+        cdi_vals = [records[e].get("pct_cdi", 0) or 0 for e in estagios]
+        be_esq = [records[e].get("be_esq") or 0 for e in estagios]
+        be_dir = [records[e].get("be_dir") or 0 for e in estagios]
+        pnl_cauda_esq = [records[e].get("pnl_cauda_esq", 0) or 0 for e in estagios]
+        pnl_cauda_dir = [records[e].get("pnl_cauda_dir", 0) or 0 for e in estagios]
+        custo_prot = [records[e].get("custo_protecao_total", 0) or 0 for e in estagios]
+        spot = records.get("Base", {}).get("preco_ativo", 0) or 0
+
+        # Ler sigma e CDI usados na otimizacao
+        try:
+            conn_p = sqlite3.connect(get_db_path())
+            row = conn_p.execute(
+                "SELECT valor FROM parametros_operacionais WHERE chave = 'otimizado_desvios_sigma'"
+            ).fetchone()
+            n_sigma = float(row[0]) if row else 2.2
+            conn_p.close()
+        except Exception:
+            n_sigma = 2.2
+
+        pnl_pos_prot = [records[e].get("pnl_liquido_pos_protecao", 0) or records[e].get("pnl_projetado", 0) or 0 for e in estagios]
+        base_pnl = records.get("Base", {}).get("pnl_projetado", 0) or 0
+        delta_pnl_base = [(records[e].get("pnl_liquido_pos_protecao", 0) or records[e].get("pnl_projetado", 0) or 0) - base_pnl for e in estagios]
+
+        cores = {"Base": "#576574", "Platô": "#e1b12c", "Proteção": "#0984e3", "Rendimento": "#20bf6b"}
+        cores_tail = {"Platô +Tail": "#b8860b", "Proteção +Tail": "#0652a3", "Rendimento +Tail": "#168a4a"}
+        cores.update(cores_tail)
+        bar_colors = [cores.get(e, "#576574") for e in estagios]
+
+        fig = Figure(figsize=(15, 11), facecolor="#121212")
+        gs = GridSpec(3, 2, figure=fig, hspace=0.45, wspace=0.24,
+                      left=0.06, right=0.96, top=0.92, bottom=0.08)
+
+        # 1. CDI Líquido
+        ax1 = fig.add_subplot(gs[0, 0], facecolor="#1e1e1e")
+        bars1 = ax1.barh(estagios, cdi_vals, color=bar_colors, alpha=0.9, height=0.5)
+        ax1.set_title("Retorno (% CDI)", color="#f1f2f6", fontsize=10, fontweight="bold")
+        ax1.tick_params(colors="#f1f2f6", labelsize=8)
+        ax1.xaxis.grid(True, linestyle="--", alpha=0.2, color="#ffffff")
+        for bar in bars1:
+            w = bar.get_width()
+            ax1.text(w + 0.05, bar.get_y() + bar.get_height()/2, f"{w:.2f}x",
+                     va="center", color="#fff", fontsize=8.5, fontweight="bold")
+        ax1.set_xlim(0, max(cdi_vals) * 1.25 if cdi_vals and max(cdi_vals) > 0 else 5)
+
+        # 2. PnL Líquido
+        ax2 = fig.add_subplot(gs[0, 1], facecolor="#1e1e1e")
+        bars2 = ax2.barh(estagios, pnl_vals, color=bar_colors, alpha=0.9, height=0.5)
+        ax2.set_title("PnL Líquido (R$)", color="#f1f2f6", fontsize=10, fontweight="bold")
+        ax2.tick_params(colors="#f1f2f6", labelsize=8)
+        ax2.xaxis.grid(True, linestyle="--", alpha=0.2, color="#ffffff")
+        ax2.set_xlabel("R$", color="#a4b0be", fontsize=7)
+        for bar in bars2:
+            w = bar.get_width()
+            ax2.text(w + max(pnl_vals)*0.015 if max(pnl_vals) > 0 else 10,
+                     bar.get_y() + bar.get_height()/2, f"R$ {w:,.0f}",
+                     va="center", color="#fff", fontsize=8.5, fontweight="bold")
+        ax2.set_xlim(0, max(pnl_vals) * 1.18 if pnl_vals and max(pnl_vals) > 0 else 1000)
+
+        # 3. Amplitude de Breakeven
+        ax3 = fig.add_subplot(gs[1, 0], facecolor="#1e1e1e")
+        y_pos = np.arange(len(estagios))
+        be_widths = [max(0, float(b) - float(a)) if a and b else 0 for a, b in zip(be_esq, be_dir)]
+        ax3.barh(y_pos, be_widths, left=be_esq, color='#2c3e50', alpha=0.55, height=0.45, edgecolor='#34495e')
+        if spot > 0:
+            ax3.axvline(spot, color='#42a5f5', linewidth=0.8, linestyle=':', alpha=0.7)
+            ax3.text(spot, max(y_pos) + 0.5, f'Spot R$ {spot:.2f}', color='#42a5f5', fontsize=7.5, ha='center', va='bottom')
+        ax3.set_title("Amplitude de Breakeven (BE Esq → BE Dir)", color="#f1f2f6", fontsize=10, fontweight="bold")
+        ax3.set_xlabel("R$", color="#a4b0be", fontsize=7)
+        ax3.tick_params(colors="#f1f2f6", labelsize=8)
+        ax3.set_yticks(y_pos)
+        ax3.set_yticklabels(estagios, fontsize=8)
+        ax3.xaxis.grid(True, linestyle="--", alpha=0.2, color="#ffffff")
+        for i, (esq, dr) in enumerate(zip(be_esq, be_dir)):
+            if esq and esq > 0:
+                ax3.text(esq, i - 0.25, f"{esq:.2f}", va="bottom", ha="center", color="#e74c3c", fontsize=7, fontweight="bold")
+            if dr and dr > 0:
+                ax3.text(dr, i - 0.25, f"{dr:.2f}", va="bottom", ha="center", color="#2ecc71", fontsize=7, fontweight="bold")
+
+        # 4. Risco de Cauda
+        ax4 = fig.add_subplot(gs[1, 1], facecolor="#1e1e1e")
+        x_idx = np.arange(len(estagios))
+        w_bar = 0.35
+        ax4.bar(x_idx - w_bar/2, pnl_cauda_esq, w_bar, label=f'Cauda Esq (-{n_sigma}σ)', color='#e74c3c', alpha=0.8)
+        ax4.bar(x_idx + w_bar/2, pnl_cauda_dir, w_bar, label=f'Cauda Dir (+{n_sigma}σ)', color='#2ecc71', alpha=0.8)
+        ax4.axhline(0, color='#888', linewidth=0.5, linestyle='-')
+        ax4.set_title(f"Stress-Test de Cauda (±{n_sigma}σ)", color="#f1f2f6", fontsize=10, fontweight="bold")
+        ax4.set_ylabel("R$", color="#a4b0be", fontsize=7)
+        ax4.tick_params(colors="#f1f2f6", labelsize=8)
+        ax4.yaxis.grid(True, linestyle="--", alpha=0.2, color="#ffffff")
+        ax4.set_xticks(x_idx)
+        ax4.set_xticklabels(estagios, rotation=20, fontsize=7.5)
+        ax4.legend(facecolor="#1e1e1e", edgecolor="none", labelcolor="#f1f2f6", fontsize=7, loc='upper left')
+
+        # 5. Radar: Perfil Comparativo entre Estágios
+        ax5 = fig.add_subplot(gs[2, 0], facecolor="#1e1e1e", projection='polar')
+        ax5.set_facecolor("#1e1e1e")
+
+        categorias = ['Retorno\n(%CDI)', 'PnL\nLíquido', 'Cobertura\nCauda Dir', 'Estreito\nBE', 'Baixo\nCusto']
+        N = len(categorias)
+        angles = [n / float(N) * 2 * np.pi for n in range(N)]
+        angles += angles[:1]
+
+        # Normalizar métricas 0-1 para o radar
+        def _norm(vals, invert=False):
+            arr = np.array([max(v, 0) for v in vals], dtype=float)
+            if arr.max() > 0:
+                arr = arr / arr.max()
+            if invert:
+                arr = 1.0 - arr
+            return arr
+
+        cdi_norm = _norm(cdi_vals)
+        pnl_norm = _norm(pnl_vals)
+        cauda_norm = _norm(pnl_cauda_dir)
+        be_width_arr = np.array([max(0, float(b) - float(a)) if a and b else 1 for a, b in zip(be_esq, be_dir)])
+        be_norm = 1.0 - (be_width_arr / be_width_arr.max() if be_width_arr.max() > 0 else 1)
+        custo_norm = 1.0 - _norm(custo_prot)
+
+        estagios_radar = ["Base", "Platô", "Platô +Tail", "Proteção", "Proteção +Tail", "Rendimento", "Rendimento +Tail"]
+        estagios_radar = [e for e in estagios_radar if e in estagios]
+
+        for e in estagios_radar:
+            try:
+                i = estagios.index(e)
+            except ValueError:
+                continue
+            vals = [cdi_norm[i], pnl_norm[i], cauda_norm[i], be_norm[i], custo_norm[i]]
+            vals += vals[:1]
+            cor = cores.get(e, "#576574")
+            ax5.plot(angles, vals, linewidth=1.5, linestyle='-', label=e, color=cor)
+            ax5.fill(angles, vals, color=cor, alpha=0.08)
+
+        ax5.set_xticks(angles[:-1])
+        ax5.set_xticklabels(categorias, color="#f1f2f6", size=7.5)
+        ax5.tick_params(colors="#a4b0be", labelsize=0)
+        ax5.set_ylim(0, 1.1)
+        ax5.grid(color="#ffffff", alpha=0.15)
+        ax5.set_title("Perfil Comparativo (Radar)", color="#f1f2f6", fontsize=10, fontweight="bold", pad=18)
+        ax5.legend(facecolor="#1e1e1e", edgecolor="none", labelcolor="#f1f2f6", fontsize=6,
+                   loc='upper right', bbox_to_anchor=(1.35, 1.1))
+
+        # 6. Delta PnL vs Base
+        ax6 = fig.add_subplot(gs[2, 1], facecolor="#1e1e1e")
+        bars6 = ax6.barh(estagios, delta_pnl_base, color=bar_colors, alpha=0.85, height=0.5)
+        ax6.set_title("Δ PnL vs Base (R$)", color="#f1f2f6", fontsize=10, fontweight="bold")
+        ax6.set_xlabel("R$", color="#a4b0be", fontsize=7)
+        ax6.tick_params(colors="#f1f2f6", labelsize=8)
+        ax6.xaxis.grid(True, linestyle="--", alpha=0.2, color="#ffffff")
+        for bar in bars6:
+            w = bar.get_width()
+            offset = 8 if w >= 0 else -35
+            ax6.text(w + offset, bar.get_y() + bar.get_height()/2,
+                     f"R$ {w:+,.0f}", va="center", color="#fff", fontsize=8, fontweight="bold")
+
+        fig.suptitle(f"{ativo} — Dashboard Mestre de Otimização Tática (Chassi: {id_chassi})",
+                     color="#f1f2f6", fontsize=12, fontweight="bold")
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Dashboard Integral — {ativo}")
+        dlg.setMinimumSize(1100, 750)
+        dlg.setStyleSheet("background-color: #121212;")
+        layout = QVBoxLayout(dlg)
+        canvas = FigureCanvasQTAgg(fig)
+        layout.addWidget(canvas)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.clicked.connect(dlg.close)
+        btn_row.addWidget(btn_fechar)
+        layout.addLayout(btn_row)
         dlg.exec_()
 
     def _plot_payoff(self, r):

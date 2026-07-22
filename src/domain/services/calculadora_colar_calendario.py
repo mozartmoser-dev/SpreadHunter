@@ -95,6 +95,10 @@ class ResultadoColarCalendario:
     custo_borboleta_put: float = 0.0
     lotes_bwb_call: int = 0
     lotes_bwb_put: int = 0
+    cod_prot_call: str | None = None
+    cod_prot_put: str | None = None
+    premio_book_call: float = 0.0
+    premio_book_put: float = 0.0
 
 
 class CalculadoraColarCalendario:
@@ -215,7 +219,7 @@ class CalculadoraColarCalendario:
         Pc: float, Pp: float, dte_extra: int, rf: float, iv_p: float,
     ) -> tuple[float | None, float | None]:
         from scipy.optimize import brentq
-        T_rem = dte_extra / 365 if dte_extra > 0 else 0
+        T_rem = dc_to_du(None, None, dte_extra) / 252.0 if dte_extra > 0 else 0
         def _f(S):
             return self._pnl_at_call_expiry(S, S0, Kc, Kp, Pc, Pp, T_rem, rf, iv_p)
         x_min = min(Kp, S0) * (1 - self.be_range_mult)
@@ -397,7 +401,7 @@ class CalculadoraColarCalendario:
 
         be_baixa, be_alta = self._calcular_breakevens(
             preco_ativo, strike_call, strike_put,
-            premio_call, premio_put, dte_extra, r, iv_put,
+            premio_call, premio_put, dte_extra, r_cont, iv_put,
         )
         be_baixa_int, be_alta_int = self._calcular_breakevens_intrinseco(
             preco_ativo, strike_call, strike_put,
@@ -465,10 +469,10 @@ class CalculadoraColarCalendario:
         S0 = r.preco_ativo
         Kc, Kp = r.strike_call, r.strike_put
         Pc, Pp = r.premio_call, r.premio_put
-        T_rem = r.dte_extra / 365
+        T_rem = dc_to_du(None, None, r.dte_extra) / 252.0 if r.dte_extra > 0 else 0.0
         iv_p = r.iv_put / 100
         iv_call_dec = r.iv_call / 100.0
-        rf = getattr(r, 'r', 0.1450)
+        rf = np.log(1 + getattr(r, 'r', 0.1450))
 
         is_otimizado = getattr(r, 'is_otimizado', False)
         estagio = getattr(r, 'estagio_otimizado', None)
@@ -517,16 +521,17 @@ class CalculadoraColarCalendario:
         sigma_pct = iv_call_dec * np.sqrt(T_call_ano) if iv_call_dec > 1e-10 else 0.0
 
         if sigma_pct > 0.001:
+            drift = (rf - 0.5 * iv_call_dec ** 2) * T_call_ano
             pares_cenarios = [
-                (-3.0, f"\u22123\u03c3 (\u2212{3*sigma_pct*100:.1f}%)",  S0 * (1 - 3*sigma_pct)),
-                (-2.0, f"\u22122\u03c3 (\u2212{2*sigma_pct*100:.1f}%)",  S0 * (1 - 2*sigma_pct)),
-                (-1.0, f"\u22121\u03c3 (\u2212{sigma_pct*100:.1f}%)",  S0 * (1 - sigma_pct)),
-                (-0.5, f"\u22125%", S0 * 0.95),
-                (0.0,  f"0\u03c3 \u2014 Est\u00e1vel",                    S0),
-                (0.5,  f"+5%",       S0 * 1.05),
-                (1.0,  f"+1\u03c3 (+{sigma_pct*100:.1f}%)",            S0 * (1 + sigma_pct)),
-                (2.0,  f"+2\u03c3 (+{2*sigma_pct*100:.1f}%)",            S0 * (1 + 2*sigma_pct)),
-                (3.0,  f"+3\u03c3 (+{3*sigma_pct*100:.1f}%)",            S0 * (1 + 3*sigma_pct)),
+                (-3.0, f"\u22123\u03c3 (\u2212{3*sigma_pct*100:.1f}%)",  S0 * np.exp(drift - 3*sigma_pct)),
+                (-2.0, f"\u22122\u03c3 (\u2212{2*sigma_pct*100:.1f}%)",  S0 * np.exp(drift - 2*sigma_pct)),
+                (-1.0, f"\u22121\u03c3 (\u2212{sigma_pct*100:.1f}%)",  S0 * np.exp(drift - sigma_pct)),
+                (-0.5, f"\u22125%", S0 * np.exp(drift - 0.5*sigma_pct)),
+                (0.0,  f"0\u03c3 \u2014 Est\u00e1vel",                    S0 * np.exp(drift)),
+                (0.5,  f"+5%",       S0 * np.exp(drift + 0.5*sigma_pct)),
+                (1.0,  f"+1\u03c3 (+{sigma_pct*100:.1f}%)",            S0 * np.exp(drift + sigma_pct)),
+                (2.0,  f"+2\u03c3 (+{2*sigma_pct*100:.1f}%)",            S0 * np.exp(drift + 2*sigma_pct)),
+                (3.0,  f"+3\u03c3 (+{3*sigma_pct*100:.1f}%)",            S0 * np.exp(drift + 3*sigma_pct)),
             ]
         else:
             pares_cenarios = [
@@ -598,15 +603,22 @@ class CalculadoraColarCalendario:
 
         # ── Cenários ──
         du_total = dc_to_du(None, None, r.dte_call)
-        cdi_periodo = (1 + rf) ** (du_total / 252) - 1
+        cdi_periodo = np.exp(rf * du_total / 252) - 1
         nota_sigma = f" (1\u03c3={sigma_pct*100:.1f}%, IV call {iv_call_dec*100:.0f}%, {r.dte_call}d)" if sigma_pct > 0.001 else ""
+
+        k_tail_c = getattr(r, 'strike_protecao_call', None)
+        k_tail_p = getattr(r, 'strike_protecao_put', None)
+        q_tc = getattr(r, 'qtd_protecao_call', 0) or 0
+        q_tp = getattr(r, 'qtd_protecao_put', 0) or 0
+        tem_tail = (k_tail_c and q_tc > 0) or (k_tail_p and q_tp > 0)
 
         lines.append(
             f"<p><b>Cen\u00e1rios no vencimento da CALL ({r.dte_call}d):</b>{nota_sigma}</p>"
             "<table border='1' cellpadding='4' cellspacing='0' style='border-collapse:collapse; font-size:9pt;'>"
             "<tr style='background:#2d2d44;'>"
             "<th></th><th>Cen\u00e1rio</th><th>S_T</th><th>A\u00e7\u00e3o</th><th>CALL</th>"
-            "<th>PUT (BS)</th><th>PnL Total</th><th>% Ret</th><th>\u00d7 CDI</th></tr>"
+            "<th>PUT (BS)</th><th>PnL Total</th><th>% Ret</th><th>\u00d7 CDI</th>"
+            + ("<th>\U0001f6e1 PnL Tail</th><th>\u00d7 CDI Tail</th></tr>" if tem_tail else "</tr>")
         )
 
         cenarios = []
@@ -625,25 +637,42 @@ class CalculadoraColarCalendario:
             pct_ret = (total / cap) * 100 if cap > 0 else 0.0
             x_cdi = (total / cap) / cdi_periodo if cdi_periodo > 0 and cap > 0 else 0.0
 
+            # ── Tail Protect scenario ──
+            tail_payoff = 0.0
+            c_tc = getattr(r, 'custo_protecao_call', 0.0) or 0.0
+            c_tp = getattr(r, 'custo_protecao_put', 0.0) or 0.0
+            if k_tail_c and q_tc > 0:
+                tail_payoff += (max(0, S_T - k_tail_c) - (c_tc / max(q_tc, 1))) * q_tc
+            if k_tail_p and q_tp > 0:
+                tail_payoff += (max(0, k_tail_p - S_T) - (c_tp / max(q_tp, 1))) * q_tp
+            total_tail = total + tail_payoff
+            x_cdi_tail = (total_tail / cap) / cdi_periodo if cdi_periodo > 0 and cap > 0 else 0.0
+
             pdf = norm.pdf(n_sigma, 0.0, 1.0)
             bar_pct = max(4, int(28 * pdf / pdf_peak))
-            cenarios.append((n_sigma, label, S_T, s_pnl, c_pnl, put_bs_u * qtd_put_real, total, pct_ret, x_cdi, bar_pct))
+            cenarios.append((n_sigma, label, S_T, s_pnl, c_pnl, put_bs_u * qtd_put_real, total, pct_ret, x_cdi, bar_pct, tem_tail, total_tail, x_cdi_tail))
 
-        for n_sigma, label, S_T, s_pnl, c_pnl, put_bs, total, pct_ret, x_cdi, bar_pct in cenarios:
+        for n_sigma, label, S_T, s_pnl, c_pnl, put_bs, total, pct_ret, x_cdi, bar_pct, __, total_tail, x_cdi_tail in cenarios:
             cor = "#2ecc71" if total > 0 else "#e74c3c"
             svg_bar = (
                 f'<svg width="28" height="18" viewBox="0 0 28 18">'
                 f'<rect x="{(28-bar_pct)/2:.1f}" y="3" width="{bar_pct}" height="12" '
                 f'fill="rgba(255,255,255,0.10)" rx="2"/></svg>'
             )
-            lines.append(
+            row = (
                 f"<tr>"
                 f"<td style='text-align:center;'>{svg_bar}</td>"
                 f"<td>{label}</td><td>R$ {S_T:.2f}</td><td>R$ {s_pnl:.2f}</td>"
                 f"<td>R$ {c_pnl:.2f}</td><td>R$ {put_bs:.2f}</td>"
                 f"<td style='color:{cor};font-weight:bold;'>R$ {total:.2f}</td>"
-                f"<td>{pct_ret:.2f}%</td><td>{x_cdi:.2f}x</td></tr>"
+                f"<td>{pct_ret:.2f}%</td><td>{x_cdi:.2f}x</td>"
             )
+            if tem_tail:
+                cor_tail = "#2ecc71" if total_tail > 0 else "#e74c3c"
+                row += (f"<td style='color:{cor_tail};font-weight:bold;'>R$ {total_tail:.2f}</td>"
+                        f"<td>{x_cdi_tail:.2f}x</td>")
+            row += "</tr>"
+            lines.append(row)
         lines.append("</table>")
 
         pnls = [c[6] for c in cenarios]
@@ -688,6 +717,27 @@ class CalculadoraColarCalendario:
             pct_cdi_antes = (pnl_atual / cap) / cdi_periodo if cdi_periodo > 0 and cap > 0 else 0.0
             pct_cdi_depois = (pnl_pos_bwb / cap) / cdi_periodo if cdi_periodo > 0 and cap > 0 else 0.0
             lines.append(f"<li>\u00d7 CDI: {pct_cdi_antes:.2f}x \u2192 <b>{pct_cdi_depois:.2f}x</b> (ap\u00f3s BWB)</li>")
+            lines.append("</ul><hr>")
+
+        # ── Tail Protect ──
+        cod_tail_c = getattr(r, 'cod_prot_call', None)
+        cod_tail_p = getattr(r, 'cod_prot_put', None)
+        k_tail_c = getattr(r, 'strike_protecao_call', None)
+        k_tail_p = getattr(r, 'strike_protecao_put', None)
+        custo_tail = getattr(r, 'custo_protecao_total', 0.0) or 0.0
+        pnl_tail = getattr(r, 'pnl_liquido_pos_protecao', 0.0) or 0.0
+        if (cod_tail_c or cod_tail_p) and custo_tail > 0:
+            lines.append("<p><b>\U0001f6e1 Tail Protect (Prote\u00e7\u00e3o Simples):</b></p><ul>")
+            if cod_tail_c and k_tail_c:
+                premio_tc = getattr(r, 'premio_book_call', 0.0) or getattr(r, 'premio_ask_protecao_call', 0.0) or 0.0
+                lines.append(f"<li>Compra CALL {cod_tail_c} K={k_tail_c:.2f} \u2014 ask R$ {premio_tc:.4f}/a\u00e7\u00e3o</li>")
+            if cod_tail_p and k_tail_p:
+                premio_tp = getattr(r, 'premio_book_put', 0.0) or getattr(r, 'premio_ask_protecao_put', 0.0) or 0.0
+                lines.append(f"<li>Compra PUT {cod_tail_p} K={k_tail_p:.2f} \u2014 ask R$ {premio_tp:.4f}/a\u00e7\u00e3o</li>")
+            lines.append(f"<li>Custo total: <b>R$ {custo_tail:.2f}</b></li>")
+            lines.append(f"<li>PnL p\u00f3s-prote\u00e7\u00e3o: <b>R$ {pnl_tail:.2f}</b></li>")
+            pct_cdi_tail = (pnl_tail / cap) / cdi_periodo if cdi_periodo > 0 and cap > 0 else 0.0
+            lines.append(f"<li>\u00d7 CDI p\u00f3s-Tail: <b>{pct_cdi_tail:.2f}x</b></li>")
             lines.append("</ul><hr>")
 
         # ── MOD / Risco de Exercício ──

@@ -1,5 +1,6 @@
 import logging
 import time
+import math
 import os
 import psutil
 
@@ -19,6 +20,7 @@ from src.domain.services.calculadora_protecao_cauda import CalculadoraProtecaoCa
 from src.domain.services.calculadora_colar_calendario import ResultadoColarCalendario, TipoColarCalendario
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
 from src.domain.services.market_data_source import criar_data_source, MarketDataSource
+from src.domain.services.calendario_b3 import dc_to_du
 from src.application.dtos.dtos import EngineStatsDTO
 from src.infrastructure.persistence.repositories.repositories import HistoricoSimulacoesRepository
 
@@ -434,20 +436,6 @@ class MonitorWorker(QThread):
             tracker = PipelineTracker()
             resultados = self._monitor_colares_cal_uc.varrer(rtd, dados_md, params, ativos, pipeline_tracker=tracker)
 
-            cauda_results: list = []
-            try:
-                if resultados:
-                    cauda_results = self._processar_cauda(resultados)
-                    if cauda_results:
-                        tracker.add_stage(
-                            "14. Cauda (razão ótima ±3σ)",
-                            len(resultados), len(cauda_results),
-                            f"{len(cauda_results)} variantes de cauda geradas"
-                        )
-            except Exception:
-                logger.exception("Erro ao processar Cauda")
-                tracker.add_stage("14. Cauda (razão ótima ±3σ)", 0, 0, "ERRO")
-
             try:
                 if resultados:
                     otimizadas = self._processar_otimizado(resultados, pipeline_tracker=tracker)
@@ -456,152 +444,15 @@ class MonitorWorker(QThread):
                 if otimizadas:
                     resultados.extend(otimizadas)
                     tracker.add_stage(
-                        "15. Pós-processamento (Otimizado)",
+                        "14. Pós-processamento (Otimizado)",
                         len(resultados), len(otimizadas),
                         f"{len(otimizadas)} variantes otimizadas adicionadas"
                     )
             except Exception:
                 logger.exception("Erro ao processar Otimizado")
-                tracker.add_stage("15. Pós-processamento (Otimizado)", 0, 0, "ERRO")
+                tracker.add_stage("14. Pós-processamento (Otimizado)", 0, 0, "ERRO")
 
-            if cauda_results:
-                resultados.extend(cauda_results)
             self.colares_calendario_atualizados.emit(resultados)
-
-    def _processar_cauda(self, resultados: list) -> list:
-        from src.domain.services.calculadora_colar_calendario import ResultadoColarCalendario
-        cauda_results: list = []
-        taxa_cdi = self._ler_param_float("taxa_cdi", 0.145)
-        calda_premio_risco = self._ler_param_float("calda_premio_risco", 2.5)
-        calda_desvios_cauda = self._ler_param_float("calda_desvios_cauda", 3.0)
-        calda_ratio_max = self._ler_param_int("calda_ratio_max", 50)
-        calda_ratio_put_min = self._ler_param_float("calda_ratio_put_min", 0.3)
-        calda_ratio_put_step = self._ler_param_float("calda_ratio_put_step", 0.01)
-        n_sigma_protecao = self._ler_param_float("n_sigma_protecao", 2.0)
-        limite_protecao_pct = self._ler_param_float("limite_protecao_pct", 0.35)
-        calda_preco_min_opcao = self._ler_param_float("calda_preco_min_opcao", 0.01)
-        cab_minimo_protecao = int(self._ler_param_float("cab_minimo_protecao", 1))
-        fator_seguranca_liquidez = self._ler_param_float("fator_seguranca_liquidez", 0.2)
-
-        for r in resultados:
-            if not r.viavel:
-                continue
-            cauda = CalculadoraCaudaAssincrona.calcular(
-                preco_ativo=r.preco_ativo,
-                strike_call=r.strike_call,
-                strike_put=r.strike_put,
-                premio_call=r.premio_call,
-                premio_put=r.premio_put,
-                dte_call=r.dte_call,
-                ativo=r.ativo,
-                iv_call_pct=r.iv_call,
-                pnl_projetado_base=r.pnl_projetado,
-                capital_empregado_base=r.capital_empregado,
-                pct_cdi_base=r.pct_cdi,
-                taxa_cdi=taxa_cdi,
-                calda_premio_risco=calda_premio_risco,
-                calda_desvios_cauda=calda_desvios_cauda,
-                calda_ratio_max=calda_ratio_max,
-                calda_ratio_put_min=calda_ratio_put_min,
-                calda_ratio_put_step=calda_ratio_put_step,
-                custo_b3_base=r.custo_b3,
-                preco_compra=r.preco_compra,
-                iv_put_pct=r.iv_put,
-                dte_put=r.dte_put,
-                qtd_acao=r.qtd_acao,
-            )
-            if cauda is None:
-                continue
-
-            novo = ResultadoColarCalendario(
-                ativo=r.ativo,
-                vencimento_call=r.vencimento_call,
-                vencimento_put=r.vencimento_put,
-                dte_call=r.dte_call,
-                dte_put=r.dte_put,
-                dte_extra=r.dte_extra,
-                strike_call=r.strike_call,
-                strike_put=r.strike_put,
-                cod_call=r.cod_call,
-                cod_put=r.cod_put,
-                preco_ativo=r.preco_ativo,
-                premio_call=r.premio_call,
-                premio_put=r.premio_put,
-                net_credito=round(r.premio_call - r.premio_put, 4),
-                iv_call=r.iv_call,
-                iv_put=r.iv_put,
-                valor_put_venc_call=r.valor_put_venc_call,
-                pnl_stock=r.pnl_stock,
-                pnl_projetado=cauda.pnl_projetado,
-                capital_empregado=r.capital_empregado,
-                pct_retorno=0.0,
-                pct_cdi=cauda.pct_cdi_com_ratio,
-                delta_total=r.delta_total,
-                theta_call=r.theta_call,
-                theta_put=r.theta_put,
-                theta_liquido=r.theta_liquido,
-                viavel=True,
-                tipo=r.tipo,
-                r=taxa_cdi,
-                custo_b3=cauda.custo_b3_base,
-                custo_ir=r.custo_ir,
-                pct_cdi_liquido=r.pct_cdi_liquido,
-                score=round(cauda.score_cauda, 4),
-                risco_max=r.risco_max,
-                iv_rank=r.iv_rank,
-                iv_rank_call=r.iv_rank_call,
-                iv_rank_put=r.iv_rank_put,
-                vega_call=r.vega_call,
-                vega_put=r.vega_put,
-                vega_liquido=r.vega_liquido,
-                gamma_call=r.gamma_call,
-                gamma_put=r.gamma_put,
-                score_iv=r.score_iv,
-                preco_compra=r.preco_compra,
-                be_baixa=r.be_baixa,
-                be_alta=cauda.breakeven_direito,
-                be_baixa_intrinseco=r.be_baixa_intrinseco,
-                be_alta_intrinseco=r.be_alta_intrinseco,
-                ratio_call=cauda.ratio_call,
-                ratio_put=cauda.ratio_put,
-                is_cauda=True,
-                detectado_em=r.detectado_em,
-                qtd_acao=r.qtd_acao,
-                qtd_call=r.qtd_call,
-                qtd_put=r.qtd_put,
-            )
-
-            candidatos_call, candidatos_put = self._resolver_strikes_protecao(
-                cauda, n_sigma_protecao, cab_minimo_protecao
-            )
-            protecao = CalculadoraProtecaoCauda.avaliar(
-                resultado=cauda,
-                strikes_call_candidatos=candidatos_call,
-                strikes_put_candidatos=candidatos_put,
-                qtd_acao=r.qtd_acao,
-                n_sigma=n_sigma_protecao,
-                limite_protecao_pct=limite_protecao_pct,
-                calda_preco_min_opcao=calda_preco_min_opcao,
-                cab_minimo=cab_minimo_protecao,
-                fator_seguranca_liquidez=0.0,
-            )
-            if protecao and protecao.viavel:
-                novo.lado_protegido = protecao.lado_protegido
-                novo.custo_protecao_total = protecao.custo_protecao_total
-                novo.pnl_liquido_pos_protecao = protecao.pnl_liquido_pos_protecao
-                novo.strike_protecao_call = protecao.strike_protecao_call
-                novo.strike_protecao_put = protecao.strike_protecao_put
-                novo.qtd_protecao_call = protecao.qtd_protecao_call
-                novo.qtd_protecao_put = protecao.qtd_protecao_put
-                novo.custo_protecao_call = protecao.custo_protecao_call
-                novo.custo_protecao_put = protecao.custo_protecao_put
-                novo.viavel_protecao = protecao.viavel
-            else:
-                novo.lado_protegido = "nenhum"
-                novo.viavel_protecao = False
-
-            cauda_results.append(novo)
-        return cauda_results
 
     def _processar_otimizado(self, resultados: list, tipo_estrategia: str = "Calendario", pipeline_tracker: PipelineTracker | None = None) -> list:
         from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
@@ -628,7 +479,6 @@ class MonitorWorker(QThread):
 
         c_entrada = len(resultados)
         c_nao_viavel = 0
-        c_tipo_nao_neutro = 0
         c_sem_variantes = 0
         c_variantes_geradas = 0
         c_filtro_cdi = 0
@@ -641,7 +491,6 @@ class MonitorWorker(QThread):
                 continue
             if tipo_estrategia == "Calendario":
                 if r.tipo != TipoColarCalendario.NEUTRO:
-                    c_tipo_nao_neutro += 1
                     continue
                 dte_call = r.dte_call
                 dte_put = r.dte_put
@@ -942,6 +791,183 @@ class MonitorWorker(QThread):
                 ui_results.append(novo)
                 c_montadas += 1
 
+                if v.estagio != "Base" and tipo_estrategia == "Calendario":
+                    tail = None
+                    try:
+                        tail = self._selecionar_tail_protect(
+                            ativo=r.ativo,
+                            vencimento_call=r.vencimento_call.isoformat() if getattr(r, 'vencimento_call', None) else None,
+                            vencimento_put=r.vencimento_put.isoformat() if getattr(r, 'vencimento_put', None) else None,
+                            preco_ativo=r.preco_ativo,
+                            iv_call=r.iv_call / 100.0 if r.iv_call and r.iv_call > 1 else r.iv_call,
+                            iv_put=r.iv_put / 100.0 if r.iv_put and r.iv_put > 1 else r.iv_put,
+                            ratio_call=v.ratio_call,
+                            ratio_put=v.ratio_put,
+                            premio_call=r.premio_call,
+                            premio_put=r.premio_put,
+                            qtd_acao=r.qtd_acao,
+                            estagio=v.estagio,
+                            dte_call=r.dte_call,
+                            dte_put=r.dte_put if hasattr(r, 'dte_put') else r.dte_call + (r.dte_extra if hasattr(r, 'dte_extra') else 0),
+                            r_cont=math.log(1 + taxa_cdi),
+                        )
+                    except Exception:
+                        logger.debug("Tail protect fallback falhou para %s", r.ativo, exc_info=True)
+
+                    if tail and (tail.get("call") or tail.get("put")):
+                        custo_tail = (tail.get("call") or {}).get("custo_total", 0) + \
+                                     (tail.get("put") or {}).get("custo_total", 0)
+                        pnl_tail = v.pnl_com_ratio - custo_tail
+                        cdi_per_tail = (1 + taxa_cdi) ** (dc_to_du(None, None, r.dte_call) / 252) - 1
+                        cap_tail = abs(r.preco_ativo * r.qtd_acao + r.premio_put * r.qtd_acao * v.ratio_put - r.premio_call * r.qtd_acao * v.ratio_call)
+                        cdi_tail = (pnl_tail / cap_tail) / cdi_per_tail if cdi_per_tail > 0 and cap_tail > 0 else 0.0
+
+                        tail_call = tail.get("call") or {}
+                        tail_put = tail.get("put") or {}
+
+                        # Registro no banco
+                        reg_tail = {
+                            "id_chassi": v.id_chassi,
+                            "estagio": v.estagio + " +Tail",
+                            "ativo": v.ativo,
+                            "preco_ativo": v.preco_ativo,
+                            "strike_call": v.strike_call,
+                            "strike_put": v.strike_put,
+                            "dte_original": v.dte_call,
+                            "iv_call": v.iv_call,
+                            "ratio_call": v.ratio_call,
+                            "ratio_put": v.ratio_put,
+                            "pnl_cauda_esq": v.pnl_na_cauda_esquerda,
+                            "pnl_cauda_dir": v.pnl_na_cauda_direita,
+                            "be_esq": v.breakeven_esquerdo,
+                            "be_dir": v.breakeven_direito,
+                            "pct_cdi": cdi_tail,
+                            "qtd_acao": r.qtd_acao,
+                            "premio_call": r.premio_call,
+                            "premio_put": r.premio_put,
+                            "preco_compra": r.preco_compra or r.preco_ativo,
+                            "cod_call": getattr(r, 'cod_call', None),
+                            "cod_put": getattr(r, 'cod_put', None),
+                            "vencimento_call": str(r.vencimento_call) if getattr(r, 'vencimento_call', None) else None,
+                            "vencimento_put": str(r.vencimento_put) if getattr(r, 'vencimento_put', None) else None,
+                            "dte_put": getattr(r, 'dte_put', None),
+                            "dte_extra": getattr(r, 'dte_extra', None),
+                            "iv_put": getattr(r, 'iv_put', None),
+                            "iv_rank_call": getattr(r, 'iv_rank_call', None),
+                            "iv_rank_put": getattr(r, 'iv_rank_put', None),
+                            "net_credito": getattr(r, 'net_credito', None),
+                            "capital_empregado": cap_tail,
+                            "pnl_projetado": pnl_tail,
+                            "pct_retorno": getattr(r, 'pct_retorno', None),
+                            "pct_cdi_liquido": getattr(r, 'pct_cdi_liquido', None),
+                            "custo_b3": getattr(r, 'custo_b3', None),
+                            "custo_ir": getattr(r, 'custo_ir', None),
+                            "theta_liquido": getattr(r, 'theta_liquido', None),
+                            "delta_total": getattr(r, 'delta_total', None),
+                            "vega_liquido": getattr(r, 'vega_liquido', None),
+                            "valor_put_venc_call": getattr(r, 'valor_put_venc_call', None),
+                            "pop_upside": getattr(r, 'pop_upside', None),
+                            "pop_downside": getattr(r, 'pop_downside', None),
+                            "score": getattr(r, 'score', None),
+                            "score_iv": getattr(r, 'score_iv', None),
+                            "tipo_estrategia": tipo_estrategia,
+                            "lado_protegido": "call" if tail_call else ("put" if tail_put else "nenhum"),
+                            "naked_call_frac": max(0.0, v.ratio_call - 1.0),
+                            "naked_put_gap": max(0.0, 1.0 - v.ratio_put),
+                            "strike_protecao_call": tail_call.get("strike"),
+                            "strike_protecao_put": tail_put.get("strike"),
+                            "premio_ask_protecao_call": tail_call.get("premio_book"),
+                            "premio_ask_protecao_put": tail_put.get("premio_book"),
+                            "qtd_protecao_call": r.qtd_acao,
+                            "qtd_protecao_put": r.qtd_acao,
+                            "custo_protecao_call": tail_call.get("custo_total", 0.0),
+                            "custo_protecao_put": tail_put.get("custo_total", 0.0),
+                            "custo_protecao_total": custo_tail,
+                            "pnl_liquido_pos_protecao": pnl_tail,
+                            "viavel": 1,
+                            "cod_prot_call": tail_call.get("codigo"),
+                            "cod_prot_put": tail_put.get("codigo"),
+                            "premio_book_call": tail_call.get("premio_book", 0.0),
+                            "premio_book_put": tail_put.get("premio_book", 0.0),
+                        }
+                        registros.append(reg_tail)
+
+                        # Variante na UI
+                        novo_tail = ResultadoColarCalendario(
+                            ativo=r.ativo,
+                            vencimento_call=r.vencimento_call,
+                            vencimento_put=r.vencimento_put,
+                            dte_call=r.dte_call,
+                            dte_put=r.dte_put,
+                            dte_extra=r.dte_extra,
+                            strike_call=r.strike_call,
+                            strike_put=r.strike_put,
+                            cod_call=r.cod_call,
+                            cod_put=r.cod_put,
+                            preco_ativo=r.preco_ativo,
+                            premio_call=r.premio_call,
+                            premio_put=r.premio_put,
+                            net_credito=round(r.premio_call - r.premio_put, 4),
+                            iv_call=r.iv_call,
+                            iv_put=r.iv_put,
+                            valor_put_venc_call=r.valor_put_venc_call,
+                            pnl_stock=r.pnl_stock,
+                            pnl_projetado=round(pnl_tail, 4),
+                            capital_empregado=cap_tail,
+                            pct_retorno=0.0,
+                            pct_cdi=cdi_tail,
+                            delta_total=r.delta_total,
+                            theta_call=r.theta_call,
+                            theta_put=r.theta_put,
+                            theta_liquido=r.theta_liquido,
+                            viavel=True,
+                            tipo=r.tipo,
+                            r=taxa_cdi,
+                            custo_b3=round(custo_b3_variante, 4),
+                            custo_ir=r.custo_ir,
+                            pct_cdi_liquido=r.pct_cdi_liquido,
+                            score=round(r.score, 4),
+                            risco_max=r.risco_max,
+                            iv_rank=r.iv_rank,
+                            iv_rank_call=r.iv_rank_call,
+                            iv_rank_put=r.iv_rank_put,
+                            vega_call=r.vega_call,
+                            vega_put=r.vega_put,
+                            vega_liquido=r.vega_liquido,
+                            gamma_call=r.gamma_call,
+                            gamma_put=r.gamma_put,
+                            score_iv=r.score_iv,
+                            preco_compra=r.preco_compra,
+                            be_baixa=r.be_baixa,
+                            be_alta=r.be_alta,
+                            be_baixa_intrinseco=r.be_baixa_intrinseco,
+                            be_alta_intrinseco=r.be_alta_intrinseco,
+                            ratio_call=v.ratio_call,
+                            ratio_put=v.ratio_put,
+                            is_otimizado=True,
+                            estagio_otimizado=v.estagio + " +Tail",
+                            detectado_em=r.detectado_em,
+                            qtd_acao=r.qtd_acao,
+                            qtd_call=r.qtd_call,
+                            qtd_put=r.qtd_put,
+                            cod_prot_call=tail_call.get("codigo"),
+                            cod_prot_put=tail_put.get("codigo"),
+                            premio_book_call=tail_call.get("premio_book", 0.0),
+                            premio_book_put=tail_put.get("premio_book", 0.0),
+                            strike_protecao_call=tail_call.get("strike"),
+                            strike_protecao_put=tail_put.get("strike"),
+                            custo_protecao_call=tail_call.get("custo_total", 0.0),
+                            custo_protecao_put=tail_put.get("custo_total", 0.0),
+                            custo_protecao_total=custo_tail,
+                            pnl_liquido_pos_protecao=pnl_tail,
+                            lado_protegido="call" if tail_call else ("put" if tail_put else "nenhum"),
+                            viavel_protecao=True,
+                            qtd_protecao_call=r.qtd_acao if tail_call else 0,
+                            qtd_protecao_put=r.qtd_acao if tail_put else 0,
+                        )
+                        ui_results.append(novo_tail)
+                        c_montadas += 1
+
             if registros:
                 repo.salvar_lote(registros)
 
@@ -951,12 +977,12 @@ class MonitorWorker(QThread):
                 c_entrada, c_entrada - c_nao_viavel,
                 f"{c_nao_viavel} já marcadas como inviáveis"
             )
+            entrou_otim = c_entrada - c_nao_viavel
             pipeline_tracker.add_stage(
-                "14b. Viés NEUTRO (collares elegíveis)",
-                c_entrada - c_nao_viavel, c_entrada - c_nao_viavel - c_tipo_nao_neutro,
-                f"{c_tipo_nao_neutro} com viés ALTA/BAIXA (só NEUTRO segue para otimização)"
+                "14b. Entrada otimização (todos os viáveis)",
+                c_entrada, entrou_otim,
+                f"{entrou_otim} collares elegíveis"
             )
-            entrou_otim = c_entrada - c_nao_viavel - c_tipo_nao_neutro
             msg_stress = "ok" if c_sem_variantes == 0 else f"{c_sem_variantes} reprovadas: PnL negativo a ±{otimizado_desvios_sigma}σ"
             pipeline_tracker.add_stage(
                 "14c. Stress ±2.2σ (PnL > 0 nos extremos)",
@@ -1234,6 +1260,127 @@ class MonitorWorker(QThread):
         puts.sort(key=lambda x: x["strike"], reverse=True)
 
         return calls[:15], puts[:15]
+
+    def _selecionar_tail_protect(self, ativo: str, vencimento_call: str, vencimento_put: str,
+                                  preco_ativo: float, iv_call: float, iv_put: float,
+                                  ratio_call: float, ratio_put: float,
+                                  premio_call: float, premio_put: float,
+                                  qtd_acao: int, estagio: str,
+                                  dte_call: int, dte_put: int,
+                                  r_cont: float) -> dict:
+        resultado = {"call": None, "put": None}
+
+        if ratio_call <= 1.0 and ratio_put >= 1.0:
+            return resultado
+
+        extra = (ratio_call - 1.0) * qtd_acao * premio_call if ratio_call > 1.0 else 0.0
+        extra_put = (1.0 - ratio_put) * qtd_acao * premio_put if ratio_put < 1.0 else 0.0
+
+        pcts = {"Platô": 0.15, "Proteção": 0.35, "Rendimento": 0.40}
+        pct = pcts.get(estagio, 0.35)
+        orcamento = extra * pct
+        orcamento_put = extra_put * pct
+
+        from src.domain.services.market_data_source import FieldName
+        from src.infrastructure.persistence.database import get_connection
+
+        source = self._mercado_provider.source if self._mercado_provider else None
+        if not source or not source.disponivel:
+            return resultado
+
+        conn = get_connection(self.db_path)
+        try:
+            rows_call = conn.execute(
+                "SELECT cod_call FROM instrumentos_base WHERE ativo = ? AND vencimento = ?",
+                (ativo, vencimento_call)
+            ).fetchall() if vencimento_call and ratio_call > 1.0 else []
+            rows_put = conn.execute(
+                "SELECT cod_put FROM instrumentos_base WHERE ativo = ? AND vencimento = ?",
+                (ativo, vencimento_put)
+            ).fetchall() if vencimento_put and ratio_put < 1.0 else []
+        finally:
+            conn.close()
+
+        todos_codigos = set()
+        for row in rows_call:
+            if row["cod_call"]:
+                todos_codigos.add(row["cod_call"])
+        for row in rows_put:
+            if row["cod_put"]:
+                todos_codigos.add(row["cod_put"])
+
+        if not todos_codigos:
+            return resultado
+
+        for cod in todos_codigos:
+            source.registrar_topico(cod, FieldName.STRIKE)
+            source.registrar_topico(cod, FieldName.ASK)
+            source.registrar_topico(cod, FieldName.VOL_ASK)
+            source.registrar_topico(cod, FieldName.VOL_BID)
+
+        fonte = self._ler_param_str("fonte_market_data", "profit")
+        if fonte == "openfast":
+            import time
+            time.sleep(2.0)
+
+        source.refresh(3000)
+
+        for codigo, eh_call, orc, iv, dte, rows in [
+            ("call", True, orcamento, iv_call, dte_call, rows_call),
+            ("put", False, orcamento_put, iv_put, dte_put, rows_put),
+        ]:
+            if orc <= 0:
+                continue
+
+            candidatos = []
+            for row in rows:
+                cod = row["cod_call"] if eh_call else row["cod_put"]
+                if not cod:
+                    continue
+                try:
+                    dados = source.ler_campos(cod, FieldName.STRIKE, FieldName.ASK) or {}
+                except Exception:
+                    continue
+                strike = dados.get(FieldName.STRIKE) or 0.0
+                ask = dados.get(FieldName.ASK) or 0.0
+                if not strike or strike <= 0 or ask <= 0:
+                    continue
+                if eh_call and strike <= preco_ativo:
+                    continue
+                if not eh_call and strike >= preco_ativo:
+                    continue
+                if ask * qtd_acao > orc * 1.5:
+                    continue
+                s_tail = preco_ativo * (1.30 if eh_call else 0.70)
+                payoff = max(s_tail - strike, 0) if eh_call else max(strike - s_tail, 0)
+                candidatos.append({
+                    "codigo": cod, "strike": strike, "ask": ask,
+                    "custo_total": ask * qtd_acao,
+                    "payoff": payoff,
+                    "score": payoff / ask if ask > 0 else 0,
+                })
+
+            if not candidatos:
+                continue
+
+            if estagio == "Platô":
+                melhor = min(candidatos, key=lambda c: c["ask"])
+            elif estagio == "Proteção":
+                melhor = min(candidatos, key=lambda c: abs(c["strike"] - preco_ativo))
+            else:
+                melhor = max(candidatos, key=lambda c: c["score"])
+
+            label = "call" if eh_call else "put"
+            resultado[label] = {
+                "codigo": melhor["codigo"],
+                "strike": round(melhor["strike"], 2),
+                "premio_book": round(melhor["ask"], 4),
+                "custo_total": round(melhor["custo_total"], 2),
+                "score": round(melhor["score"], 2),
+                "payoff": round(melhor["payoff"], 4),
+            }
+
+        return resultado
 
     @property
     def _mpp_interval(self) -> int:

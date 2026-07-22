@@ -878,7 +878,9 @@ class ColarCalendarioDialog(QDialog):
         rc = getattr(r, 'ratio_call', 1.0) or 1.0
         qc_real = int(qc * rc)
         total_call = r.premio_call * qc_real
-        add_row("Vender CALL:", f"{r.cod_call} K={r.strike_call:.2f} — R$ {r.premio_call:.2f} × {qc_real//100} ctto = R$ {total_call:.2f}")
+        qc_str = f"{qc} ações" if rc == 1.0 else f"{qc} ações × ratio {rc:.2f}x = {qc_real} ações"
+        add_row("Vender CALL:", f"{r.cod_call} K={r.strike_call:.2f} — R$ {r.premio_call:.2f}/ação × {qc_real} = R$ {total_call:.2f}")
+        add_row("Qtd CALL:", qc_str)
         add_row("Vencimento Call:", r.vencimento_call.strftime("%d/%m/%Y") if hasattr(r.vencimento_call, "strftime") else str(r.vencimento_call))
         add_row("DTE Call:", f"{r.dte_call} dias")
         add_row("IV Call:", f"{r.iv_call:.1f}%")
@@ -893,7 +895,9 @@ class ColarCalendarioDialog(QDialog):
         rp = getattr(r, 'ratio_put', 1.0) or 1.0
         qp_real = int(qp * rp)
         total_put = r.premio_put * qp_real
-        add_row("Comprar PUT:", f"{r.cod_put} K={r.strike_put:.2f} — R$ {r.premio_put:.2f} × {qp_real//100} ctto = R$ {total_put:.2f}")
+        qp_str = f"{qp} ações" if rp == 1.0 else f"{qp} ações × ratio {rp:.2f}x = {qp_real} ações"
+        add_row("Comprar PUT:", f"{r.cod_put} K={r.strike_put:.2f} — R$ {r.premio_put:.2f}/ação × {qp_real} = R$ {total_put:.2f}")
+        add_row("Qtd PUT:", qp_str)
         add_row("Vencimento Put:", r.vencimento_put.strftime("%d/%m/%Y") if hasattr(r.vencimento_put, "strftime") else str(r.vencimento_put))
         add_row("DTE Put:", f"{r.dte_put} dias (+{r.dte_extra}d extra)")
         add_row("IV Put:", f"{r.iv_put:.1f}%")
@@ -911,8 +915,10 @@ class ColarCalendarioDialog(QDialog):
                 tooltip="Decaimento temporal líquido por dia. Positivo = o tempo corre a seu favor." + CUSTOS_DISCLOSURE)
         add_row("Valor Put no VC Call:", f"R$ {r.valor_put_venc_call:.2f}", cor=Palette.CYAN,
                 tooltip="Valor da PUT no vencimento da CALL, projetado pelo modelo Black-Scholes.")
-        add_row("Custo Montagem:", f"R$ {r.capital_empregado:.2f}",
-                tooltip="Capital total empregado na operação (ação + prêmios líquidos)." + CUSTOS_DISCLOSURE)
+        custo_tail = getattr(r, 'custo_protecao_total', 0.0) or 0.0
+        cap_com_tail = r.capital_empregado + custo_tail if custo_tail > 0 else r.capital_empregado
+        add_row("Custo Montagem:", f"R$ {cap_com_tail:.2f}",
+                tooltip="Capital total empregado na operação (ação + prêmios líquidos + proteção)." + CUSTOS_DISCLOSURE)
         pnl_b3 = r.pnl_projetado - r.custo_b3
         pnl_liquido = pnl_b3 - r.custo_ir
         add_row("PnL Bruto:", f"R$ {r.pnl_projetado:.2f}",
@@ -920,6 +926,10 @@ class ColarCalendarioDialog(QDialog):
         add_row("− Custos B3:", f"−R$ {r.custo_b3:.2f}",
                 cor=Palette.ORANGE,
                 tooltip="Emolumento + liquidação + registro + ISS." + CUSTOS_DISCLOSURE)
+        if custo_tail > 0:
+            add_row("− Tail Protect:", f"−R$ {custo_tail:.2f}",
+                    cor=Palette.ORANGE,
+                    tooltip="Custo da call/put comprada para proteção de cauda.")
         add_row("= PnL pós-B3:", f"R$ {pnl_b3:.2f}",
                 cor=Palette.GREEN if pnl_b3 > 0 else Palette.RED,
                 tooltip="Lucro/prejuízo após deduzir taxas B3." + CUSTOS_DISCLOSURE)
@@ -967,6 +977,31 @@ class ColarCalendarioDialog(QDialog):
             add_row("BE Baixa (Intrínseco):", f"R$ {r.be_baixa_intrinseco:.2f}", cor=Palette.GREEN)
         if r.be_alta_intrinseco is not None:
             add_row("BE Alta (Intrínseco):", f"R$ {r.be_alta_intrinseco:.2f}", cor=Palette.RED)
+
+        # ── Tail Protect ──
+        cod_prot_c = getattr(r, 'cod_prot_call', None)
+        cod_prot_p = getattr(r, 'cod_prot_put', None)
+        if cod_prot_c or cod_prot_p:
+            sep_tail = QFrame()
+            sep_tail.setFrameShape(QFrame.HLine)
+            sep_tail.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
+            form.addRow(sep_tail)
+            if cod_prot_c:
+                kc = getattr(r, 'strike_protecao_call', None)
+                pc = getattr(r, 'premio_book_call', 0.0) or getattr(r, 'premio_ask_protecao_call', 0.0) or 0.0
+                qtc = getattr(r, 'qtd_protecao_call', 0) or 0
+                ctc = getattr(r, 'custo_protecao_call', 0.0) or 0.0
+                add_row("🛡️ Tail CALL:", f"{cod_prot_c} K={kc:.2f} — R$ {pc:.4f}/ação × {qtc} = R$ {ctc:.2f}", cor=Palette.GREEN)
+            if cod_prot_p:
+                kp = getattr(r, 'strike_protecao_put', None)
+                pp = getattr(r, 'premio_book_put', 0.0) or getattr(r, 'premio_ask_protecao_put', 0.0) or 0.0
+                qtp = getattr(r, 'qtd_protecao_put', 0) or 0
+                ctp = getattr(r, 'custo_protecao_put', 0.0) or 0.0
+                add_row("🛡️ Tail PUT:", f"{cod_prot_p} K={kp:.2f} — R$ {pp:.4f}/ação × {qtp} = R$ {ctp:.2f}", cor=Palette.GREEN)
+            pnl_tail = getattr(r, 'pnl_liquido_pos_protecao', 0.0) or 0.0
+            if pnl_tail > 0:
+                add_row("PnL Pós-Tail:", f"R$ {pnl_tail:.2f}", cor=Palette.GREEN,
+                        tooltip="PnL líquido após deduzir o custo da proteção Tail.")
 
         layout.addLayout(form)
         layout.addStretch()
@@ -1027,6 +1062,19 @@ class ColarCalendarioDialog(QDialog):
         btn_explicar.clicked.connect(lambda: self._explicar_estrategia(r))
         btn_row.addWidget(btn_explicar)
 
+        btn_simulador = QPushButton("🧪 Simulador")
+        btn_simulador.setAutoDefault(False)
+        btn_simulador.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #1a472a; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid #2ecc71; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #1f5c34; }}
+        """)
+        btn_simulador.clicked.connect(lambda: self._abrir_simulador(r))
+        btn_row.addWidget(btn_simulador)
+
         btn_pnt = QPushButton("📋 Basket PNT")
         btn_pnt.setAutoDefault(False)
         btn_pnt.setStyleSheet(f"""
@@ -1062,6 +1110,21 @@ class ColarCalendarioDialog(QDialog):
 
         layout.addLayout(btn_row)
         dialog.exec_()
+
+    def _abrir_simulador(self, r):
+        from src.application.services.simulador_service import exportar_para_simulador
+        dados = {
+            "ativo": r.ativo,
+            "preco_spot": r.preco_ativo,
+            "strike_call": r.strike_call,
+            "dte_call": r.dte_call,
+            "iv_call": r.iv_call / 100.0,
+            "strike_put": r.strike_put,
+            "dte_put": r.dte_put,
+            "iv_put": r.iv_put / 100.0,
+            "taxa_cdi": getattr(r, 'r', 0.145),
+        }
+        exportar_para_simulador(dados)
 
     def _abrir_boleta_calendario(self, r):
         from src.ui.desktop.boleta_dialog import BoletaDialog
@@ -1236,16 +1299,21 @@ class ColarCalendarioDialog(QDialog):
 
             ratio = max(getattr(r, 'ratio_call', 1), 1)
             ratio_put = max(getattr(r, 'ratio_put', 1.0), 0.01)  # fix: escala m PUTs
+
+            repo = ParametroRepository(self._db_path)
+            param = repo.get_by_chave("taxa_cdi")
+            rf_disc = param.valor if param else 0.1450
+            rf = np.log(1 + rf_disc)
+
             sigma_spot = S0 * iv_c * np.sqrt(T_call)
-            s3_l = S0 - 3 * sigma_spot
-            s3_r = S0 + 3 * sigma_spot
+            drift = (rf - 0.5 * iv_c ** 2) * T_call
+            sigma_pct = iv_c * np.sqrt(T_call)
+            s3_l = S0 * np.exp(drift - 3 * sigma_pct) if sigma_pct > 1e-10 else S0 * 0.7
+            s3_r = S0 * np.exp(drift + 3 * sigma_pct) if sigma_pct > 1e-10 else S0 * 1.3
             x_min = min(Kp, S0, s3_l) * (0.92 if ratio > 1 else 0.95)
             x_max = max(Kc, S0, s3_r) * (1.08 if ratio > 1 else 1.05)
             x = np.linspace(x_min, x_max, 500)
 
-            repo = ParametroRepository(self._db_path)
-            param = repo.get_by_chave("taxa_cdi")
-            rf = param.valor if param else 0.1450
             # fix: usa preco_compra (ASK real) como custo da ação, não o spot atual
             S_custo = getattr(r, 'preco_compra', None) or S0
             stock_pnl = np.minimum(x, Kc) - S_custo
@@ -1305,7 +1373,23 @@ class ColarCalendarioDialog(QDialog):
             elif k_bwb_p and q_bwb_p > 0:
                 bwb_put_pnl = (np.maximum(0, k_bwb_p - x) - (c_bwb_p / q_bwb_p)) * q_bwb_p
 
-            pnl = (stock_pnl + call_pnl + naked_pnl + put_pnl) * qtd_a + bwb_call_pnl + bwb_put_pnl
+            # ── Tail Protect PnL ──
+            k_tail_c = getattr(r, 'strike_protecao_call', None)
+            k_tail_p = getattr(r, 'strike_protecao_put', None)
+            c_tail_c = getattr(r, 'custo_protecao_call', 0.0) or 0.0
+            c_tail_p = getattr(r, 'custo_protecao_put', 0.0) or 0.0
+            q_tc = getattr(r, 'qtd_protecao_call', 0) or 0
+            q_tp = getattr(r, 'qtd_protecao_put', 0) or 0
+            tail_call_pnl = np.zeros_like(x)
+            tail_put_pnl = np.zeros_like(x)
+            if k_tail_c and q_tc > 0:
+                tail_call_pnl = (np.maximum(0, x - k_tail_c) - (c_tail_c / max(q_tc, 1))) * q_tc
+            if k_tail_p and q_tp > 0:
+                tail_put_pnl = (np.maximum(0, k_tail_p - x) - (c_tail_p / max(q_tp, 1))) * q_tp
+
+            pnl = (stock_pnl + call_pnl + naked_pnl + put_pnl) * qtd_a + bwb_call_pnl + bwb_put_pnl + tail_call_pnl + tail_put_pnl
+            pnl_sem_tail = (stock_pnl + call_pnl + naked_pnl + put_pnl) * qtd_a + bwb_call_pnl + bwb_put_pnl
+            tem_tail = np.any(tail_call_pnl != 0) or np.any(tail_put_pnl != 0)
 
             BG = '#0d0d0d'; TEXT = '#c0c0c0'; RED = '#ff3355'
             ACCENT = '#ffc107'; SIGMA_C = '#6c5ce7'
@@ -1319,6 +1403,11 @@ class ColarCalendarioDialog(QDialog):
                 cor = GREEN if mid >= 0 else RED
                 ax.plot(x[i:i + 2], pnl[i:i + 2], color=cor, linewidth=2.5, solid_capstyle='round')
 
+            if tem_tail:
+                for i in range(len(x) - 1):
+                    ax.plot(x[i:i + 2], pnl_sem_tail[i:i + 2], color='#888888', linewidth=0.8,
+                            linestyle='--', alpha=0.5, zorder=2)
+
             hover_vline = ax.axvline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
             hover_hline = ax.axhline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
             hover_text = ax.text(
@@ -1327,8 +1416,10 @@ class ColarCalendarioDialog(QDialog):
                 bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=ACCENT, alpha=0.9),
             )
             x_lim = (x_min, x_max)
-            y_pad = (pnl.max() - pnl.min()) * 0.08
-            y_lim = (pnl.min() - y_pad, pnl.max() + y_pad)
+            y_pad = (max(pnl.max(), pnl_sem_tail.max() if tem_tail else pnl.max())
+                     - min(pnl.min(), pnl_sem_tail.min() if tem_tail else pnl.min())) * 0.08
+            y_lim = (min(pnl.min(), pnl_sem_tail.min() if tem_tail else pnl.min()) - y_pad,
+                     max(pnl.max(), pnl_sem_tail.max() if tem_tail else pnl.max()) + y_pad)
             def _on_hover(event):
                 ax.set_xlim(x_lim)
                 ax.set_ylim(y_lim)
@@ -1369,7 +1460,7 @@ class ColarCalendarioDialog(QDialog):
             _linha_com_rotulo(Kc, GREEN, f'Call {Kc:.2f}')
 
             for n in [-2, -1, 1, 2]:
-                px = S0 + n * sigma_spot
+                px = S0 * np.exp(drift + n * sigma_pct) if sigma_pct > 1e-10 else S0 * (1 + n * 0.1)
                 if x_min <= px <= x_max:
                     ax.axvline(px, color=SIGMA_C, linewidth=0.5, linestyle=':', alpha=0.5)
                     ax.text(px, ax.get_ylim()[0], f'{n:+d}σ\n{px:.2f}',
@@ -1412,7 +1503,24 @@ class ColarCalendarioDialog(QDialog):
                 ax.axvline(k_bwb_p, color=BWB_CLR, linewidth=0.8, linestyle='-.', alpha=0.9)
                 ax.text(k_bwb_p, ax.get_ylim()[1] * 0.82, f'BWB P\n{k_bwb_p:.2f}',
                         color=BWB_CLR, fontsize=6, ha='center', va='top',
-                        bbox=dict(boxstyle='round,pad=0.1', facecolor='#1a1a1a', edgecolor=BWB_CLR, alpha=0.8))
+                         bbox=dict(boxstyle='round,pad=0.1', facecolor='#1a1a1a', edgecolor=BWB_CLR, alpha=0.8))
+
+            # ── Marcadores Tail Protect ──
+            TAIL_CLR = '#2ecc71'
+            k_tail_c = getattr(r, 'strike_protecao_call', None)
+            k_tail_p = getattr(r, 'strike_protecao_put', None)
+            if k_tail_c and x_min <= k_tail_c <= x_max:
+                ax.axvline(k_tail_c, color=TAIL_CLR, linewidth=1.2, linestyle='--', alpha=0.9)
+                ax.text(k_tail_c, ax.get_ylim()[1] * 0.78, f'Tail CALL\n{k_tail_c:.2f}',
+                        color=TAIL_CLR, fontsize=6.5, ha='center', va='top',
+                        bbox=dict(boxstyle='round,pad=0.1', facecolor='#0a2a0a',
+                                  edgecolor=TAIL_CLR, alpha=0.85))
+            if k_tail_p and x_min <= k_tail_p <= x_max:
+                ax.axvline(k_tail_p, color=TAIL_CLR, linewidth=1.2, linestyle='--', alpha=0.9)
+                ax.text(k_tail_p, ax.get_ylim()[1] * 0.70, f'Tail PUT\n{k_tail_p:.2f}',
+                        color=TAIL_CLR, fontsize=6.5, ha='center', va='top',
+                        bbox=dict(boxstyle='round,pad=0.1', facecolor='#0a2a0a',
+                                  edgecolor=TAIL_CLR, alpha=0.85))
 
             # Breakevens
             be_color_bs = '#6c5ce7'
@@ -1512,14 +1620,42 @@ class ColarCalendarioDialog(QDialog):
             elif k_bwb_p and q_bwb_p > 0:
                 bwb_extra += f"<br><b>BWB Put:</b> K={k_bwb_p:.2f} x {q_bwb_p} — R$ {c_bwb_p:.2f}"
 
+            # ── Tail Protect footer ──
+            tail_extra = ""
+            k_tc = getattr(r, 'strike_protecao_call', None)
+            k_tp = getattr(r, 'strike_protecao_put', None)
+            cod_tc = getattr(r, 'cod_prot_call', None)
+            cod_tp = getattr(r, 'cod_prot_put', None)
+            q_tc = getattr(r, 'qtd_protecao_call', 0) or 0
+            q_tp = getattr(r, 'qtd_protecao_put', 0) or 0
+            c_tc = getattr(r, 'custo_protecao_call', 0.0) or 0.0
+            c_tp = getattr(r, 'custo_protecao_put', 0.0) or 0.0
+            premio_tc = getattr(r, 'premio_book_call', 0.0) or getattr(r, 'premio_ask_protecao_call', 0.0) or 0.0
+            premio_tp = getattr(r, 'premio_book_put', 0.0) or getattr(r, 'premio_ask_protecao_put', 0.0) or 0.0
+            if k_tc and q_tc > 0:
+                tail_extra += (f"<br><b>Tail CALL:</b> {cod_tc or '?'} K={k_tc:.2f} "
+                              f"— R$ {premio_tc:.4f}/ação × {q_tc} = R$ {c_tc:.2f}")
+            if k_tp and q_tp > 0:
+                tail_extra += (f"<br><b>Tail PUT:</b> {cod_tp or '?'} K={k_tp:.2f} "
+                              f"— R$ {premio_tp:.4f}/ação × {q_tp} = R$ {c_tp:.2f}")
+
+            pnl_tail = getattr(r, 'pnl_liquido_pos_protecao', 0.0) or 0.0
+            tail_pnl_str = ""
+            if pnl_tail > 0:
+                cap2 = abs(S0 * qtd_a + Pp * qtd_a * ratio_put - Pc * qtd_a * ratio)
+                cdi_tail = (pnl_tail / cap2) / ((1 + rf_disc) ** (dc_to_du(None, None, r.dte_call) / 252) - 1) if cap2 > 0 else 0
+                tail_pnl_str = f"  |  <b>PnL Pós-Tail:</b> R$ {pnl_tail:.2f} ({cdi_tail:.2f}x CDI)"
+
             footer = QLabel(
                 f"<b>Comprar Ativo:</b> {r.ativo} — R$ {S0:.2f} × {qtd_a} un = R$ {S0 * qtd_a:.2f}<br>"
                 f"<b>Vender Call:</b> {r.cod_call} K={Kc:.2f} — +R$ {Pc:.2f} × {int(ratio * qtd_a)} ações = R$ {Pc * ratio * qtd_a:.2f} (venc. {r.vencimento_call.strftime('%d/%m')})<br>"
                 f"<b>Comprar Put:</b> {r.cod_put} K={Kp:.2f} — −R$ {Pp:.2f} × {int(ratio_put * qtd_a)} ações = R$ {Pp * ratio_put * qtd_a:.2f} (venc. {r.vencimento_put.strftime('%d/%m')})"
                 + bwb_extra
+                + tail_extra
                 + f"<br><b>Capital:</b> R$ {S0 + Pp - Pc:.2f}  |  "
                 f"<b>PnL Proj:</b> R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI)"
                 + (f"  |  <b>PnL Pós-BWB:</b> R$ {getattr(r, 'pnl_liquido_pos_protecao', 0) or 0:.2f}" if lado_bwb and lado_bwb not in ("nenhum", None) and (q_bwb_c > 0 or q_bwb_p > 0) else "")
+                + tail_pnl_str
                 + (f"  |  {be_str}" if be_str else "")
             )
             footer.setStyleSheet(f"""

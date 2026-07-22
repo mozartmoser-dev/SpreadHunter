@@ -16,8 +16,11 @@ scipy==1.17.1
 python-dotenv==1.2.2
 opencv-python==4.13.0.92
 pillow==12.2.0
+yfinance==0.2.66
 
-# Dev (testes)
+# Dev / Simulador (Gregas, etc.)
+streamlit==1.47.0
+plotly==6.5.0
 pytest==9.1.0
 pluggy==1.6.0
 iniconfig==2.3.0

@@ -10,7 +10,9 @@ def salvar_ordem_colunas(header, key: str):
         order = []
         for v in range(header.count()):
             order.append(header.logicalIndex(v))
-        _settings().setValue(key, order)
+        s = _settings()
+        s.setValue(key, order)
+        s.sync()
     except Exception:
         pass
 
@@ -36,7 +38,9 @@ def salvar_largura_colunas(header, key: str):
         widths = []
         for i in range(header.count()):
             widths.append(int(header.sectionSize(i)))
-        _settings().setValue(key, widths)
+        s = _settings()
+        s.setValue(key, widths)
+        s.sync()
     except Exception:
         pass
 

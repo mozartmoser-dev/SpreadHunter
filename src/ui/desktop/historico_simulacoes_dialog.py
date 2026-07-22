@@ -9,7 +9,7 @@ from PySide6.QtGui import QFont
 
 from src.infrastructure.persistence.database import get_db_path
 from src.infrastructure.persistence.repositories.repositories import HistoricoSimulacoesRepository
-from src.ui.desktop.column_utils import salvar_ordem_colunas, limpar_e_restaurar_colunas
+from src.ui.desktop.column_utils import salvar_ordem_colunas, salvar_largura_colunas, limpar_e_restaurar_colunas
 from src.ui.desktop.theme import Palette
 
 logger = logging.getLogger(__name__)
@@ -131,10 +131,10 @@ class HistoricoSimulacoesDialog(QDialog):
         header.setDragEnabled(True)
         KEY = "historico_simulacoes_order"
         header.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(header, KEY)))
-        limpar_e_restaurar_colunas(header, KEY, "historico_simulacoes_width")
-        header.setSectionResizeMode(QHeaderView.Interactive)
+        header.sectionResized.connect(lambda: QTimer.singleShot(0, lambda: salvar_largura_colunas(header, "historico_simulacoes_width")))
         for i, (_, w) in enumerate(COLUMNS):
             header.resizeSection(i, w)
+        limpar_e_restaurar_colunas(header, KEY, "historico_simulacoes_width")
         self.table_view.verticalHeader().setDefaultSectionSize(22)
         self.table_view.verticalHeader().hide()
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)

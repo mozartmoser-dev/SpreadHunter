@@ -489,7 +489,10 @@ class CalculadoraCaudaAssincrona:
             if (c["be_esq"] is None or c["be_esq"] <= s_2sigma_l)
         ]
         if baixa_candidates:
-            baixa = max(baixa_candidates, key=lambda c: (1.0 - abs(c["m"] - 1.0)) * 100 + c["pct_cdi"])
+            pnl_vals = sorted(c["pnl_2l"] for c in baixa_candidates)
+            median_pnl = pnl_vals[len(pnl_vals) // 2]
+            safe = [c for c in baixa_candidates if c["pnl_2l"] >= median_pnl]
+            baixa = min(safe, key=lambda c: (c["n"], -c["m"]))
             _add(baixa, "Proteção")
 
         def _simetria(c):

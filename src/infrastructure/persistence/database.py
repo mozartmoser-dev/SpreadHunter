@@ -164,6 +164,10 @@ def _migrar_historico_simulacoes(conn):
         ("custo_borboleta_put", "REAL DEFAULT 0.0"),
         ("lotes_bwb_call", "INTEGER DEFAULT 0"),
         ("lotes_bwb_put", "INTEGER DEFAULT 0"),
+        ("cod_prot_call", "TEXT"),
+        ("cod_prot_put", "TEXT"),
+        ("premio_book_call", "REAL DEFAULT 0.0"),
+        ("premio_book_put", "REAL DEFAULT 0.0"),
     ]
     for col, tipo in novas_colunas:
         try:
