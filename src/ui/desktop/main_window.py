@@ -38,6 +38,7 @@ from src.ui.desktop.column_utils import (
     salvar_largura_colunas,
     limpar_e_restaurar_colunas,
 )
+from src.ui.desktop.mercado_topbar import MercadoTopBarWidget
 
 
 def _make_led_icon(color_hex: str, size: int = 12) -> QIcon:
@@ -352,6 +353,9 @@ class MainWindow(QMainWindow):
         main_layout = QVBoxLayout(central)
         main_layout.setContentsMargins(10, 10, 10, 6)
         main_layout.setSpacing(8)
+
+        self.top_bar = MercadoTopBarWidget()
+        main_layout.addWidget(self.top_bar)
 
         self.table_model = MonitorTableModel()
         self._main_proxy = TopNSortProxy()
