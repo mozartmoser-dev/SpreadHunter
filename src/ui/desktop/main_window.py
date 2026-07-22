@@ -354,7 +354,7 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(10, 10, 10, 6)
         main_layout.setSpacing(8)
 
-        self.top_bar = MercadoTopBarWidget()
+        self.top_bar = MercadoTopBarWidget(db_path=self.db_path)
         main_layout.addWidget(self.top_bar)
 
         self.table_model = MonitorTableModel()
@@ -1497,6 +1497,11 @@ class MainWindow(QMainWindow):
             self._sensibilidade_mercado.show()
         elif not self._sensibilidade_mercado.isVisible():
             self._sensibilidade_mercado.show()
+
+        if connected and hasattr(self, 'top_bar'):
+            source = self._worker.market_data_source if hasattr(self._worker, 'market_data_source') else None
+            if source:
+                self.top_bar.conectar_fonte(source)
 
     def _on_oportunidades_atualizadas(self, resultados: list):
         self._resultados_brutos = resultados
