@@ -1489,14 +1489,6 @@ class MainWindow(QMainWindow):
         self._update_rtd_indicator(connected)
         if self._colar_dialog and self._colar_dialog.isVisible():
             self._colar_dialog.set_rtd_status(connected)
-        if self._sensibilidade_mercado is None:
-            source = self._worker.market_data_source if hasattr(self._worker, 'market_data_source') else None
-            self._sensibilidade_mercado = SensibilidadeMercadoWidget(
-                db_path=self.db_path, source=source, parent=self
-            )
-            self._sensibilidade_mercado.show()
-        elif not self._sensibilidade_mercado.isVisible():
-            self._sensibilidade_mercado.show()
 
         if connected and hasattr(self, 'top_bar'):
             source = self._worker.market_data_source if hasattr(self._worker, 'market_data_source') else None
