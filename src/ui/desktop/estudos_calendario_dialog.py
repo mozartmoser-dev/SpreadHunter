@@ -53,6 +53,8 @@ COLUMNS = [
     ("\u03c3$ esq", 65, "Distância em R$ do spot até o BE esquerdo"),
     ("\u03c3$ dir", 65, "Distância em R$ do spot até o BE direito"),
     ("Piso 2\u03c3", 65, "Menor PnL dentro de ±2σ (R$); negativo=risco)"),
+    ("E[PnL]", 70, "Valor Esperado Ponderado (R$) — Black-Scholes analítico. Positivo=expectativa favorável."),
+    ("EV%", 55, "E[PnL] / Capital (%). Comparação entre montagens."),
     ("# ciclos", 55, "Quantas vezes este chassi foi registrado"),
     ("Detectado", 130, "Data/hora (Brasília) da detecção pelo monitor"),
 ]
@@ -96,8 +98,10 @@ class EstudosCalendarioTableModel(QAbstractTableModel):
             if col == 18: return item.get("sigma_monet_esq_str", "-")
             if col == 19: return item.get("sigma_monet_dir_str", "-")
             if col == 20: return item.get("piso_2s_str", "-")
-            if col == 21: return str(item.get("n_ciclos", ""))
-            if col == 22:
+            if col == 21: return f'R$ {item.get("score_ev", 0) or 0:.2f}'
+            if col == 22: return f'{item.get("score_ev_pct", 0) or 0:.2f}%'
+            if col == 23: return str(item.get("n_ciclos", ""))
+            if col == 24:
                 det = item.get("detectado_em")
                 if det:
                     try:

@@ -88,6 +88,8 @@ class ColarCalTableModel(QAbstractTableModel):
         ("K BWB P", "strike_protecao_put"),
         ("Qtd BWB C", "qtd_protecao_call"),
         ("Qtd BWB P", "qtd_protecao_put"),
+        ("E[PnL]", "score_ev_str"),
+        ("EV%", "score_ev_pct"),
         ("Detectado", "label_detectado"),
     ]
 
@@ -162,6 +164,13 @@ class ColarCalTableModel(QAbstractTableModel):
                     "tipo_str": "Classificação do viés: Alta, Baixa ou Neutro.",
                     "ratio_call": "Quantas CALLs vendidas por lote de ação (Cauda Assíncrona).",
                     "label_detectado": "Data e hora (Brasília) em que o monitor detectou a oportunidade pelo RTD (DD/MM/YYYY HH:MM:SS).",
+                    "score_ev_str": "E[PnL] — Valor Esperado Ponderado da estrutura no vencimento da CALL.\n"
+                                    "Calculado via integração analítica Black-Scholes (N(d2)),\n"
+                                    "ponderando o PnL em cada zona de preço pela probabilidade real.\n"
+                                    "Positivo = expectativa matemática favorável.\n"
+                                    "Negativo = estrutura com viés direcional (depende de movimento).",
+                    "score_ev_pct": "E[PnL] / Capital Empregado (%).\n"
+                                    "Permite comparar montagens de diferentes tamanhos.",
                 }
                 return tips.get(self.COLUMNS[section][1])
         return None
@@ -206,6 +215,10 @@ class ColarCalTableModel(QAbstractTableModel):
                 return f"{val:.2f}x" if val else "1.00x"
             if col_key == "ratio_put":
                 return f"{val:.2f}x" if val else "1.00x"
+            if col_key == "score_ev_str":
+                return f"R$ {val:.2f}"
+            if col_key == "score_ev_pct":
+                return f"{val:.2f}%" if val else "-"
             return str(val)
         if role == Qt.ItemDataRole.ForegroundRole:
             if col_key == "tipo_str":
@@ -217,6 +230,16 @@ class ColarCalTableModel(QAbstractTableModel):
                 return QBrush(cores.get(base, QColor(Palette.TEXT_PRIMARY)))
             if col_key in ("pct_cdi", "score", "score_iv"):
                 return QBrush(QColor(Palette.YELLOW))
+            if col_key in ("score_ev_str",):
+                val = item.get("score_ev_str", 0)
+                if val > 0: return QBrush(QColor(Palette.GREEN))
+                if val < 0: return QBrush(QColor(Palette.RED))
+                return QBrush(QColor(Palette.TEXT_PRIMARY))
+            if col_key in ("score_ev_pct",):
+                val = item.get("score_ev_pct", 0) or 0
+                if val > 0: return QBrush(QColor(Palette.GREEN))
+                if val < 0: return QBrush(QColor(Palette.RED))
+                return QBrush(QColor(Palette.TEXT_PRIMARY))
             if col_key in ("theta_liquido",):
                 val = item.get("theta_liquido", 0)
                 if val > 0:
@@ -2290,6 +2313,8 @@ class ColarCalendarioDialog(QDialog):
                     "strike_protecao_put": getattr(r, 'strike_protecao_put', None),
                     "qtd_protecao_call": getattr(r, 'qtd_protecao_call', 0) or 0,
                     "qtd_protecao_put": getattr(r, 'qtd_protecao_put', 0) or 0,
+                    "score_ev_str": getattr(r, 'score_ev', 0.0) or 0.0,
+                    "score_ev_pct": getattr(r, 'score_ev_pct', 0.0) or 0.0,
                     "is_cauda": getattr(r, 'is_cauda', False),
                     "is_otimizado": getattr(r, 'is_otimizado', False),
                     "label_detectado": _formatar_detectado(getattr(r, 'detectado_em', None)),

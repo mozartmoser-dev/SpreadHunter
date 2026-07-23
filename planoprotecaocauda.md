@@ -473,6 +473,62 @@ Proteção de Cauda — Resumo do Ciclo
 | 6 | Resumo no `EngineDashboard` | Sim — mock de resultados |
 
 
+## Nota operacional: `n_sigma_protecao` × `spread_maximo_pct`
+
+**`n_sigma_protecao` é um piso de corte, não um alvo.** Define "só considere strikes ALÉM deste ponto". Baixar de 2.0 para 1.5 abre mais candidatos (útil quando o book OTM é rarefeito), mas strikes mais próximos do spot tendem a ter spread maior e custo mais alto — viram hedge comum, não seguro de cauda.
+
+**Quem protege isso é o `spread_maximo_pct=0.20`**: se o spread real do book for > 20%, o strike é barrado antes de qualquer conta. Isso permite baixar o `n_sigma` sem medo de comprar caro.
+
+**Recomendação:** comece com 2.0. Se zerar candidatos em muitos ativos, reduza para 1.5. Nunca abaixo de 1.0 — perde-se a assimetria.
+
+
+---
+
+# Análise de Riscos — Proteção de Cauda Collar Calendário
+
+**Contexto:** Proteção de cauda via compra de opções OTM sobre estrutura de Collar Calendário otimizada por ratio (1.0x a 1.3x na call vendida). 4 variantes por chassi: Base, Rendimento, Platô, Proteção. Sistema de planejamento, não de execução automática.
+
+## 1. Volatilidade estocástica vs σ fixo
+
+**Risco teórico:** Limites baseados em desvio padrão fixo pressupõem estacionaridade — em crises, caudas engordam.
+
+**Realidade Spreadhunter:** O `sigma_periodo` deriva da **volatilidade implícita da call** (IV via B&S reverso do book), não de vol histórica. Mercado em pânico → IV sobe → `s_target = S × (1 + n × σ × √T)` se expande automaticamente. Multiplicador externo (VIX) seria redundante. O sistema também opera por **força bruta** — testa múltiplos ratios e exige PnL > 0 em ±2.2σ. Se o sigma estiver subestimado, a estrutura simplesmente não passa no filtro de ruína.
+
+## 2. Gamma e rolagem da call curta
+
+**Risco teórico:** Em movimentos direcionais fortes, o Gamma da call curta acelera e rolar custa caro.
+
+**Realidade Spreadhunter:** O sistema **não modela rolagem** — assume buy-and-hold até o vencimento. Mas o propósito da proteção não é maximizar PnL: é **trocar perda ilimitada por perda limitada de 2-4%**. Se a estrutura sobrevive a ±2.2σ com PnL > 0, o custo de rolagem é oportunidade perdida, não ruína. A proteção comprada garante o piso.
+
+## 3. Liquidez OTM na B3
+
+**Risco real:** Opções OTM profundas têm spread bid-ask de 30%+ em ativos menores — EV teórico não sobrevive à fricção.
+
+**Cobertura Spreadhunter:** Já implementado (Mudança 3):
+- `spread_maximo_pct=0.20`: descarta strikes com spread book real > 20%
+- `cab_minimo_protecao`: profundidade mínima de book
+- `fator_seguranca_liquidez`: volume diário ≥ múltiplo da ordem
+- **Não usa preço teórico** — exige ask/bid reais do Profit RTD ou OpenFast
+
+## 4. Exercício antecipado e dividendos
+
+**Risco real:** Calls americanas podem ser exercidas perto de datas Com.
+
+**Realidade Spreadhunter:** Se exercido na call vendida, o PnL é positivo — a ação já está acima do strike, o exercício **cristaliza um lucro que já existia**. A PUT comprada remanescente é vendida no mercado. O risco é apenas **operacional** (não perceber o exercício a tempo). Cobertura atual:
+- Coluna MOD Call (Fase 5): mostra se a call é Americana (A) ou Europeia (E)
+- Topbar: exibe datas Com do dia
+- A Fase 5 planejada adicionará alerta de cruzamento data-com vs vencimento, mas o risco financeiro é mínimo
+
+| Risco | Cobertura |
+|---|---|
+| σ não-estacionário | Coberto — IV-based, adaptativo, força bruta |
+| Gamma/rolling | Parcial — proteção limita ruína a 2-4%, rolagem não modelada |
+| Liquidez OTM | Coberto — filtro de spread real do book |
+| Exercício/Dividendos | Parcial — PnL positivo no exercício, MOD visível, falta alerta automático |
+
+**Conclusão:** O sistema é robusto para planejamento. A proteção existe para evitar ruína, não maximizar retorno. Trade-offs conhecidos e documentados.
+
+
 ---
 
 # Fase 5 — Coluna MOD Call (Risco de Exercício Antecipado)
@@ -508,3 +564,51 @@ Na prática B3, ~99% dos casos caem na linha do meio (`A/E` = âmbar), porque PU
 | 3 | Coluna `MOD Call` nos modelos de tabela (`ColarCalTableModel`, `EstudosCalendarioTableModel`) |
 | 4 | Badge delegate para renderizar `A`/`E` com cor |
 | 5 | Tooltip e conteúdo do botão Explicar |
+
+
+---
+
+# Fase 6 — `historico_rejeicoes` (Log de Rejeições Qualificado)
+
+**Status:** Refinado — aguardando implementação após Fase 4.
+
+**Objetivo:** Funil de conversão real para calibrar parâmetros de proteção com dado empírico — não achismo. Saber exatamente em qual estágio cada ativo está travando.
+
+**Design minimalista (5 colunas resolvem 80%):**
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `ativo` | TEXT | Código B3 |
+| `detectado_em` | TIMESTAMP | Data/hora |
+| `etapa_rejeicao` | TEXT | Estágio: `liquidez`, `direcao`, `custo`, `cdi`, `spread` |
+| `motivo` | TEXT | Frase curta: `custo excede orcamento`, `sem strikes na direcao` |
+| `detalhe` | TEXT | Valor quantitativo: `custo=80 orcamento=50`, `spread=35% limite=20%` |
+| `sigma_periodo` | REAL | Volatilidade do período (σ√T) no momento da rejeição |
+| `iv_call` | REAL | Volatilidade implícita da call (%) |
+| `preco_ativo` | REAL | Spot no momento |
+| `parametros_snapshot` | JSON | Parâmetros no momento da rejeição |
+
+**Só persiste se:** o chassi não gerou NENHUMA variante viável (nem Base, nem +Tail). Se já tem variante viável, a rejeição de uma específica não agrega informação.
+
+**Snapshot só nos rejeitados.** Nos aprovados, os campos de output do `historico_simulacoes` (`custo_protecao_total`, `score_ev`, `strike_protecao_call`, `viavel`) já bastam para inferir o efeito do parâmetro.
+
+**O que cada estágio de rejeição ensina:**
+
+| Estágio | Aprendizado | Ação |
+|---|---|---|
+| Liquidez (15) | `fator_seguranca_liquidez` ideal | Calcular percentil 80 do vol real dos rejeitados → definir limiar empírico |
+| Direção (16) | `n_sigma_protecao` está longe demais? | Se candidatos líquidos só existem do lado errado, reduzir n_sigma |
+| Custo (17) | `limite_protecao_pct` vs preço real de mercado | Se a maioria cai aqui, o orçamento é sistematicamente insuficiente |
+| Spread | `spread_maximo_pct` está realista? | Se muitos caem com spread 21-25%, subir de 20% pra 25% resolve |
+| CDI (14d) | Grid de ratio está valendo o custo computacional? | Se Rendimento/Proteção/Platô raramente batem a Base, ajustar `otimizado_ratio_max` |
+
+**Consulta agregada típica:**
+```sql
+SELECT ativo, etapa_rejeicao, COUNT(*) as ocorrencias
+FROM historico_rejeicoes
+GROUP BY ativo, etapa_rejeicao
+ORDER BY ativo, ocorrencias DESC
+```
+→ Mostra exatamente onde cada ativo está travando. Ajusta UM parâmetro por vez, mede o efeito.
+
+**Isso é estatística descritiva (pandas), não ML.** Entrega calibração de limiar com dado real — não descoberta de padrão oculto, não decisão automática.

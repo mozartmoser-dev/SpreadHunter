@@ -99,6 +99,8 @@ class ResultadoColarCalendario:
     cod_prot_put: str | None = None
     premio_book_call: float = 0.0
     premio_book_put: float = 0.0
+    score_ev: float = 0.0
+    score_ev_pct: float = 0.0
 
 
 class CalculadoraColarCalendario:
@@ -717,6 +719,12 @@ class CalculadoraColarCalendario:
             pct_cdi_antes = (pnl_atual / cap) / cdi_periodo if cdi_periodo > 0 and cap > 0 else 0.0
             pct_cdi_depois = (pnl_pos_bwb / cap) / cdi_periodo if cdi_periodo > 0 and cap > 0 else 0.0
             lines.append(f"<li>\u00d7 CDI: {pct_cdi_antes:.2f}x \u2192 <b>{pct_cdi_depois:.2f}x</b> (ap\u00f3s BWB)</li>")
+
+            score_ev = getattr(r, 'score_ev', 0.0) or 0.0
+            score_ev_pct = getattr(r, 'score_ev_pct', 0.0) or 0.0
+            if score_ev != 0.0:
+                cor_ev = "#2ecc71" if score_ev > 0 else "#e74c3c"
+                lines.append(f"<li><b>E[PnL] (Valor Esperado): <span style='color:{cor_ev};'>R$ {score_ev:,.2f}</span> ({score_ev_pct:+.2f}%)</b></li>")
             lines.append("</ul><hr>")
 
         # ── Tail Protect ──

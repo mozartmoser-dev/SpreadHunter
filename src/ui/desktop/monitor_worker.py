@@ -564,6 +564,7 @@ class MonitorWorker(QThread):
                     limite_protecao_pct_protecao=limite_protecao_pct_protecao,
                     razao_convexidade_max=razao_convexidade_max,
                     spread_maximo_pct=spread_maximo_pct,
+                    taxa_cdi=taxa_cdi,
                     calda_preco_min_opcao=calda_preco_min_opcao,
                     cab_minimo=cab_minimo_protecao,
                     fator_seguranca_liquidez=fator_seguranca_liquidez,
@@ -597,6 +598,8 @@ class MonitorWorker(QThread):
                         "lotes_bwb_put": 0,
                         "razao_convexidade_call": 1.0,
                         "razao_convexidade_put": 1.0,
+                        "score_ev": 0.0,
+                        "score_ev_pct": 0.0,
                     }
                 else:
                     protecao_campos = {
@@ -624,6 +627,8 @@ class MonitorWorker(QThread):
                         "lotes_bwb_put": protecao.lotes_bwb_put,
                         "razao_convexidade_call": protecao.razao_convexidade_call,
                         "razao_convexidade_put": protecao.razao_convexidade_put,
+                        "score_ev": protecao.score_ev,
+                        "score_ev_pct": protecao.score_ev_pct,
                     }
 
                 n = v.ratio_call
@@ -758,6 +763,8 @@ class MonitorWorker(QThread):
                         custo_borboleta_put=protecao_campos.get("custo_borboleta_put", 0.0),
                         lotes_bwb_call=protecao_campos.get("lotes_bwb_call", 0),
                         lotes_bwb_put=protecao_campos.get("lotes_bwb_put", 0),
+                        score_ev=protecao_campos.get("score_ev", 0.0),
+                        score_ev_pct=protecao_campos.get("score_ev_pct", 0.0),
                     )
                 else:
                     novo = ResultadoColar(
@@ -913,6 +920,8 @@ class MonitorWorker(QThread):
                             "lotes_bwb_put": 0,
                             "razao_convexidade_call": 1.0,
                             "razao_convexidade_put": 1.0,
+                            "score_ev": 0.0,
+                            "score_ev_pct": 0.0,
                         }
                         registros.append(reg_tail)
 
@@ -988,6 +997,8 @@ class MonitorWorker(QThread):
                             viavel_protecao=True,
                             qtd_protecao_call=r.qtd_acao if tail_call else 0,
                             qtd_protecao_put=r.qtd_acao if tail_put else 0,
+                            score_ev=0.0,
+                            score_ev_pct=0.0,
                         )
                         ui_results.append(novo_tail)
                         c_montadas += 1

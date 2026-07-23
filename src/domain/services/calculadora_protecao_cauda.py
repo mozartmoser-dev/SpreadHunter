@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import logging
+import math
 from typing import TYPE_CHECKING
 
 from src.domain.services.calculadora_cauda_assincrona import ResultadoCaudaAssincrona
@@ -11,6 +12,14 @@ logger = logging.getLogger(__name__)
 
 
 _LOTE = 100
+
+try:
+    from scipy.stats import norm as _norm
+    def _phi(x: float) -> float:
+        return float(_norm.cdf(x))
+except ImportError:
+    def _phi(x: float) -> float:
+        return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
 
 
 @dataclass(slots=True)
@@ -45,6 +54,8 @@ class ResultadoProtecaoCauda:
     lotes_bwb_put: int = 0
     razao_convexidade_call: float = 1.0
     razao_convexidade_put: float = 1.0
+    score_ev: float = 0.0
+    score_ev_pct: float = 0.0
 
 
 class CalculadoraProtecaoCauda:
@@ -62,6 +73,75 @@ class CalculadoraProtecaoCauda:
     NAKED_FRAC_MINIMO = 0.02
 
     @staticmethod
+    def _bs_call_ev(S0: float, K: float, T: float, r_cont: float, sigma_T: float) -> float:
+        if sigma_T <= 0 or T <= 0:
+            return max(0.0, S0 - K)
+        d1 = (math.log(max(S0, 1e-9) / max(K, 1e-9)) + r_cont * T) / sigma_T + sigma_T / 2.0
+        d2 = d1 - sigma_T
+        return S0 * _phi(d1) - K * math.exp(-r_cont * T) * _phi(d2)
+
+    @staticmethod
+    def _d2(S0: float, K: float, T: float, r_cont: float, sigma_T: float) -> float:
+        if sigma_T <= 0 or T <= 0:
+            return 10.0 if S0 > K else -10.0
+        return (math.log(max(S0, 1e-9) / max(K, 1e-9)) + (r_cont - sigma_T * sigma_T / 2.0) * T) / sigma_T
+
+    @staticmethod
+    def _calcular_score_probabilistico(
+        resultado: "ResultadoCaudaAssincrona",
+        protecao: "ResultadoProtecaoCauda",
+        qtd_acao: int,
+        taxa_cdi: float,
+    ) -> dict:
+        S0 = resultado.preco_ativo
+        Kc = resultado.strike_call
+        Kp = resultado.strike_put
+        n_ratio = resultado.ratio_call
+        m_ratio = resultado.ratio_put
+        sigma_T = resultado.sigma_periodo
+        T = resultado.dte_call / 365.0
+
+        if sigma_T <= 0 or T <= 0:
+            return {"score_ev": 0.0, "score_ev_pct": 0.0}
+
+        r_cont = math.log(1.0 + taxa_cdi)
+
+        Kprot = protecao.strike_protecao_call or Kc * 1.5
+        raz = max(protecao.razao_convexidade_call, 1.0)
+        qtd_prot = max(protecao.qtd_protecao_call, 0)
+        custo_prot = protecao.custo_protecao_call + protecao.custo_protecao_put
+
+        credito_por_acao = n_ratio * resultado.premio_call - m_ratio * resultado.premio_put
+        credito_total = qtd_acao * credito_por_acao
+
+        F = S0 * math.exp(r_cont * T)
+
+        d2c = CalculadoraProtecaoCauda._d2(S0, Kc, T, r_cont, sigma_T)
+        d2p = CalculadoraProtecaoCauda._d2(S0, Kp, T, r_cont, sigma_T)
+        d2prot = CalculadoraProtecaoCauda._d2(S0, Kprot, T, r_cont, sigma_T)
+        d1c = d2c + sigma_T
+        d1p = d2p + sigma_T
+        d1prot = d2prot + sigma_T
+
+        BS_call_c = CalculadoraProtecaoCauda._bs_call_ev(S0, Kc, T, r_cont, sigma_T)
+        BS_put_p = Kp * math.exp(-r_cont * T) * _phi(-d2p) - S0 * _phi(-d1p)
+        BS_call_prot = CalculadoraProtecaoCauda._bs_call_ev(S0, Kprot, T, r_cont, sigma_T)
+
+        ev_pnl = (credito_total
+                  + qtd_acao * (F - S0)
+                  - n_ratio * qtd_acao * BS_call_c
+                  + m_ratio * qtd_acao * BS_put_p
+                  + raz * qtd_prot * BS_call_prot
+                  - custo_prot)
+
+        ev_pct = (ev_pnl / max(resultado.capital_base, 1.0)) * 100.0 if resultado.capital_base > 0 else 0.0
+
+        return {
+            "score_ev": round(ev_pnl, 2),
+            "score_ev_pct": round(ev_pct, 4),
+        }
+
+    @staticmethod
     def avaliar(
         resultado: ResultadoCaudaAssincrona,
         strikes_call_candidatos: list[dict] | None = None,
@@ -77,6 +157,7 @@ class CalculadoraProtecaoCauda:
         fator_seguranca_liquidez: float = 0.2,
         razao_convexidade_max: float = 1.5,
         spread_maximo_pct: float = 0.20,
+        taxa_cdi: float = 0.1425,
         pipeline_tracker: "PipelineTracker | None" = None,
         bwb_modo: str = "simples",
     ) -> ResultadoProtecaoCauda | None:
@@ -196,7 +277,7 @@ class CalculadoraProtecaoCauda:
 
         lado_protegido = "ambos" if len(lados) == 2 else lados[0]
 
-        return ResultadoProtecaoCauda(
+        provisorio = ResultadoProtecaoCauda(
             id_chassi=resultado.id_chassi,
             ativo=resultado.ativo,
             lado_protegido=lado_protegido,
@@ -228,6 +309,17 @@ class CalculadoraProtecaoCauda:
             razao_convexidade_call=info_call.get("razao_convexidade", 1.0),
             razao_convexidade_put=info_put.get("razao_convexidade", 1.0),
         )
+
+        ev = CalculadoraProtecaoCauda._calcular_score_probabilistico(
+            resultado=resultado,
+            protecao=provisorio,
+            qtd_acao=qtd_acao,
+            taxa_cdi=taxa_cdi,
+        )
+        provisorio.score_ev = ev["score_ev"]
+        provisorio.score_ev_pct = ev["score_ev_pct"]
+
+        return provisorio
 
     @staticmethod
     def _avaliar_lado(

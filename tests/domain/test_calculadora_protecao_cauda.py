@@ -731,3 +731,71 @@ class TestFiltroSpread:
         )
         assert prot is not None
         assert prot.viavel_call
+
+
+# ═══════════════════════════════════════════════════════════════
+# Fase 4 — Score de Valor Esperado Ponderado (E[PnL])
+# ═══════════════════════════════════════════════════════════════
+
+class TestScoreEV:
+    RESULT = _chassi(
+        ratio_call=1.25, ratio_put=1.0,
+        pnl_com_ratio=1700.0, pnl_base=1386.23,
+        sigma_periodo=0.085, preco_ativo=40.64,
+        capital_base=41520.0,
+    )
+    STRIKE = {"strike": 48.00, "premio_ask": 0.02, "vol_ask": 500, "vol_bid": 400}
+
+    def test_score_ev_computado_para_viavel(self):
+        prot = CalculadoraProtecaoCauda.avaliar(
+            self.RESULT, strikes_call_candidatos=[self.STRIKE], qtd_acao=1000,
+            taxa_cdi=0.1425,
+        )
+        assert prot is not None
+        assert prot.viavel_call
+        assert prot.score_ev != 0.0
+        assert prot.score_ev_pct != 0.0
+
+    def test_score_ev_zero_para_inviavel(self):
+        r = _chassi(
+            ratio_call=1.25, ratio_put=1.0,
+            pnl_com_ratio=1386.30, pnl_base=1386.23,
+            sigma_periodo=0.085, preco_ativo=40.64,
+            capital_base=41520.0,
+        )
+        strike_caro = {"strike": 48.00, "premio_ask": 50.0, "vol_ask": 500, "vol_bid": 400}
+        prot = CalculadoraProtecaoCauda.avaliar(
+            r, strikes_call_candidatos=[strike_caro], qtd_acao=1000,
+            limite_protecao_pct=0.35, taxa_cdi=0.1425,
+        )
+        assert prot is not None
+        assert not prot.viavel_call
+        assert prot.score_ev != 0.0  # E[PnL] da estrutura nua (sem proteção)
+
+    def test_score_ev_default_zero(self):
+        p = ResultadoProtecaoCauda(
+            id_chassi="t", ativo="X", lado_protegido="nenhum",
+            naked_call_frac=0.0, naked_put_gap=0.0,
+            strike_protecao_call=None, strike_protecao_put=None,
+            premio_ask_call=None, premio_ask_put=None,
+            qtd_protecao_call=0, qtd_protecao_put=0,
+            custo_protecao_call=0.0, custo_protecao_put=0.0,
+            custo_protecao_total=0.0,
+            pnl_sem_protecao=0.0, pnl_liquido_pos_protecao=0.0,
+            viavel_call=False, viavel_put=False, viavel=False,
+        )
+        assert p.score_ev == 0.0
+        assert p.score_ev_pct == 0.0
+
+    def test_strikes_diferentes_ev_diferentes(self):
+        strike_perto = {"strike": 48.00, "premio_ask": 0.10, "vol_ask": 500, "vol_bid": 400}
+        strike_longe = {"strike": 55.00, "premio_ask": 0.01, "vol_ask": 500, "vol_bid": 400}
+        prot_perto = CalculadoraProtecaoCauda.avaliar(
+            self.RESULT, strikes_call_candidatos=[strike_perto], qtd_acao=1000,
+            taxa_cdi=0.1425,
+        )
+        prot_longe = CalculadoraProtecaoCauda.avaliar(
+            self.RESULT, strikes_call_candidatos=[strike_longe], qtd_acao=1000,
+            taxa_cdi=0.1425,
+        )
+        assert prot_perto.score_ev != prot_longe.score_ev
