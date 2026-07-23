@@ -172,6 +172,7 @@ def _migrar_historico_simulacoes(conn):
         ("razao_convexidade_put", "REAL DEFAULT 1.0"),
         ("score_ev", "REAL DEFAULT 0.0"),
         ("score_ev_pct", "REAL DEFAULT 0.0"),
+        ("zonas_ev_json", "TEXT"),
     ]
     for col, tipo in novas_colunas:
         try:

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import json
 import logging
 import math
 from typing import TYPE_CHECKING
@@ -56,6 +57,15 @@ class ResultadoProtecaoCauda:
     razao_convexidade_put: float = 1.0
     score_ev: float = 0.0
     score_ev_pct: float = 0.0
+    prob_zona_a: float = 0.0
+    prob_zona_b: float = 0.0
+    prob_zona_c: float = 0.0
+    prob_zona_d: float = 0.0
+    ev_zona_a: float = 0.0
+    ev_zona_b: float = 0.0
+    ev_zona_c: float = 0.0
+    ev_zona_d: float = 0.0
+    zonas_ev_json: str | None = None
 
 
 class CalculadoraProtecaoCauda:
@@ -102,7 +112,9 @@ class CalculadoraProtecaoCauda:
         T = resultado.dte_call / 365.0
 
         if sigma_T <= 0 or T <= 0:
-            return {"score_ev": 0.0, "score_ev_pct": 0.0}
+            return {"score_ev": 0.0, "score_ev_pct": 0.0,
+                    "p_a": 0, "p_b": 0, "p_c": 0, "p_d": 0,
+                    "ev_a": 0.0, "ev_b": 0.0, "ev_c": 0.0, "ev_d": 0.0}
 
         r_cont = math.log(1.0 + taxa_cdi)
 
@@ -115,6 +127,7 @@ class CalculadoraProtecaoCauda:
         credito_total = qtd_acao * credito_por_acao
 
         F = S0 * math.exp(r_cont * T)
+        disc = math.exp(-r_cont * T)
 
         d2c = CalculadoraProtecaoCauda._d2(S0, Kc, T, r_cont, sigma_T)
         d2p = CalculadoraProtecaoCauda._d2(S0, Kp, T, r_cont, sigma_T)
@@ -124,7 +137,7 @@ class CalculadoraProtecaoCauda:
         d1prot = d2prot + sigma_T
 
         BS_call_c = CalculadoraProtecaoCauda._bs_call_ev(S0, Kc, T, r_cont, sigma_T)
-        BS_put_p = Kp * math.exp(-r_cont * T) * _phi(-d2p) - S0 * _phi(-d1p)
+        BS_put_p = Kp * disc * _phi(-d2p) - S0 * _phi(-d1p)
         BS_call_prot = CalculadoraProtecaoCauda._bs_call_ev(S0, Kprot, T, r_cont, sigma_T)
 
         ev_pnl = (credito_total
@@ -136,9 +149,45 @@ class CalculadoraProtecaoCauda:
 
         ev_pct = (ev_pnl / max(resultado.capital_base, 1.0)) * 100.0 if resultado.capital_base > 0 else 0.0
 
+        # Probabilidades por zona
+        p_a = _phi(-d2p)
+        p_b = max(0.0, _phi(d2p) - _phi(d2c))
+        p_c = max(0.0, _phi(d2c) - _phi(d2prot))
+        p_d = _phi(d2prot)
+
+        # Spot esperado condicional por zona (truncated log-normal)
+        def _e_spot_cond(d1_a, d2_a, d1_b, d2_b):
+            num = F * (_phi(d1_a) - _phi(d1_b))
+            den = max(_phi(d2_a) - _phi(d2_b), 1e-12)
+            return num / den
+
+        e_s_a = F * _phi(-d1p) / max(_phi(-d2p), 1e-12)
+        e_s_b = _e_spot_cond(d1p, d2p, d1c, d2c) if p_b > 0 else S0
+        e_s_c = _e_spot_cond(d1c, d2c, d1prot, d2prot) if p_c > 0 else S0
+        e_s_d = F * _phi(d1prot) / max(_phi(d2prot), 1e-12)
+
+        # PnL linear em cada zona
+        cpa = credito_por_acao
+
+        def _pnl_zona(S_med: float) -> float:
+            stock = qtd_acao * (S_med - S0)
+            call_pay = n_ratio * qtd_acao * max(0.0, S_med - Kc)
+            put_pay = m_ratio * qtd_acao * max(0.0, Kp - S_med)
+            prot_pay = raz * qtd_prot * max(0.0, S_med - Kprot)
+            return credito_total + stock - call_pay + put_pay + prot_pay - custo_prot
+
+        ev_a = _pnl_zona(e_s_a) * p_a
+        ev_b = _pnl_zona(e_s_b) * p_b
+        ev_c = _pnl_zona(e_s_c) * p_c
+        ev_d = _pnl_zona(e_s_d) * p_d
+
         return {
             "score_ev": round(ev_pnl, 2),
             "score_ev_pct": round(ev_pct, 4),
+            "p_a": round(p_a, 4), "p_b": round(p_b, 4),
+            "p_c": round(p_c, 4), "p_d": round(p_d, 4),
+            "ev_a": round(ev_a, 2), "ev_b": round(ev_b, 2),
+            "ev_c": round(ev_c, 2), "ev_d": round(ev_d, 2),
         }
 
     @staticmethod
@@ -318,6 +367,21 @@ class CalculadoraProtecaoCauda:
         )
         provisorio.score_ev = ev["score_ev"]
         provisorio.score_ev_pct = ev["score_ev_pct"]
+        provisorio.prob_zona_a = ev.get("p_a", 0.0)
+        provisorio.prob_zona_b = ev.get("p_b", 0.0)
+        provisorio.prob_zona_c = ev.get("p_c", 0.0)
+        provisorio.prob_zona_d = ev.get("p_d", 0.0)
+        provisorio.ev_zona_a = ev.get("ev_a", 0.0)
+        provisorio.ev_zona_b = ev.get("ev_b", 0.0)
+        provisorio.ev_zona_c = ev.get("ev_c", 0.0)
+        provisorio.ev_zona_d = ev.get("ev_d", 0.0)
+        try:
+            provisorio.zonas_ev_json = json.dumps({
+                "p": [ev.get("p_a", 0), ev.get("p_b", 0), ev.get("p_c", 0), ev.get("p_d", 0)],
+                "ev": [ev.get("ev_a", 0), ev.get("ev_b", 0), ev.get("ev_c", 0), ev.get("ev_d", 0)],
+            })
+        except Exception:
+            provisorio.zonas_ev_json = None
 
         return provisorio
 

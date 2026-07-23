@@ -600,6 +600,7 @@ class MonitorWorker(QThread):
                         "razao_convexidade_put": 1.0,
                         "score_ev": 0.0,
                         "score_ev_pct": 0.0,
+                        "zonas_ev_json": None,
                     }
                 else:
                     protecao_campos = {
@@ -629,6 +630,7 @@ class MonitorWorker(QThread):
                         "razao_convexidade_put": protecao.razao_convexidade_put,
                         "score_ev": protecao.score_ev,
                         "score_ev_pct": protecao.score_ev_pct,
+                        "zonas_ev_json": protecao.zonas_ev_json,
                     }
 
                 n = v.ratio_call
@@ -765,6 +767,7 @@ class MonitorWorker(QThread):
                         lotes_bwb_put=protecao_campos.get("lotes_bwb_put", 0),
                         score_ev=protecao_campos.get("score_ev", 0.0),
                         score_ev_pct=protecao_campos.get("score_ev_pct", 0.0),
+                        zonas_ev_json=protecao_campos.get("zonas_ev_json"),
                     )
                 else:
                     novo = ResultadoColar(
@@ -922,6 +925,7 @@ class MonitorWorker(QThread):
                             "razao_convexidade_put": 1.0,
                             "score_ev": 0.0,
                             "score_ev_pct": 0.0,
+                            "zonas_ev_json": None,
                         }
                         registros.append(reg_tail)
 

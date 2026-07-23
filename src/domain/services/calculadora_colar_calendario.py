@@ -101,6 +101,7 @@ class ResultadoColarCalendario:
     premio_book_put: float = 0.0
     score_ev: float = 0.0
     score_ev_pct: float = 0.0
+    zonas_ev_json: str | None = None
 
 
 class CalculadoraColarCalendario:

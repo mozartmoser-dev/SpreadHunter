@@ -1023,6 +1023,7 @@ class HistoricoSimulacoesRepository:
                 "premio_book_call", "premio_book_put",
                 "razao_convexidade_call", "razao_convexidade_put",
                 "score_ev", "score_ev_pct",
+                "zonas_ev_json",
             ]
             placeholders = ", ".join(["?"] * len(colunas))
             cols_str = ", ".join(colunas)
