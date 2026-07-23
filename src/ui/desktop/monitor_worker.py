@@ -927,6 +927,7 @@ class MonitorWorker(QThread):
 
                         ev_tail = {"score_ev": 0.0, "score_ev_pct": 0.0}
                         zonas_ev_json_tail = None
+                        logger.debug("Tail E[PnL] iniciando para %s %s", v.ativo, v.estagio)
                         try:
                             prot_tail = ResultadoProtecaoCauda(
                                 id_chassi=v.id_chassi,
