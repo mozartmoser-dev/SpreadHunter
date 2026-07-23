@@ -153,4 +153,9 @@ class ParametroOperacional:
         "cab_minimo_protecao": {"valor": 1, "estrategia": "PROTECAO_CAUDA", "descricao": "CAB minimo / VOL_ASK minimo para strike candidato"},
         "n_sigma_protecao": {"valor": 2.0, "estrategia": "PROTECAO_CAUDA", "descricao": "Numero de sigmas para s_target da cauda"},
         "fator_seguranca_liquidez": {"valor": 0.2, "estrategia": "PROTECAO_CAUDA", "descricao": "Volume diario minimo como multiplo da qtd comprada"},
+        "limite_protecao_pct_rendimento": {"valor": 0.20, "estrategia": "PROTECAO_CAUDA", "descricao": "Fracao do ganho extra para protecao — estagio Rendimento"},
+        "limite_protecao_pct_plato": {"valor": 0.45, "estrategia": "PROTECAO_CAUDA", "descricao": "Fracao do ganho extra para protecao — estagio Plato"},
+        "limite_protecao_pct_protecao": {"valor": 0.70, "estrategia": "PROTECAO_CAUDA", "descricao": "Fracao do ganho extra para protecao — estagio Protecao"},
+        "razao_convexidade_max": {"valor": 1.5, "estrategia": "PROTECAO_CAUDA", "descricao": "Razao maxima de convexidade (qtd/ naked) no estagio Protecao"},
+        "spread_maximo_pct": {"valor": 0.20, "estrategia": "PROTECAO_CAUDA", "descricao": "Spread bid-ask maximo para considerar cotacao confiavel"},
     }

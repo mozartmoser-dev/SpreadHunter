@@ -1021,6 +1021,7 @@ class HistoricoSimulacoesRepository:
                 "lotes_bwb_call", "lotes_bwb_put",
                 "cod_prot_call", "cod_prot_put",
                 "premio_book_call", "premio_book_put",
+                "razao_convexidade_call", "razao_convexidade_put",
             ]
             placeholders = ", ".join(["?"] * len(colunas))
             cols_str = ", ".join(colunas)

@@ -354,3 +354,157 @@ r.get("viavel", 0),
 - **OpenFast sem `BOOK_HEADER`**: fallback para `VOL_ASK` como proxy. `cab_minimo_protecao` controla ambos.
 - **Strike inexistente**: calculadora retorna `viavel=False`, sem quebra.
 - **Cache de strikes**: limpar em `recarregar_parametros()`. Se um ativo ganha novas séries durante o dia, o cache pode ficar desatualizado — invalidar a cada ~10 ciclos ou quando `flush_buffer()` detectar novos códigos.
+
+
+---
+
+# Fase 4 — Score de Valor Esperado Ponderado (E[PnL])
+
+**Status:** Planejado — NÃO implementado. Aguardando decisão de execução.
+
+**Objetivo:** Para cada montagem otimizada com proteção, calcular `E[PnL]` integrando sobre as 4 zonas de payoff no vencimento da call, ponderado pela probabilidade log-normal. Permite comparar montagens concorrentes com métrica objetiva de risco/retorno.
+
+## Decisões de design (confirmadas com o usuário em 23/07/2026)
+
+| Decisão | Escolha |
+|---|---|
+| Ponto de avaliação | Vencimento da CALL (evento crítico, naked expira primeiro) |
+| Método de integração | Analítica via `N(d2)` de Black-Scholes (exata, sem erro de grid) |
+| Peso no ranking | **Coluna informativa** — NÃO entra no Score automático. O trader decide. |
+| Visualização 1 | `ColarCalendarioDialog`: barra sparkline inline com 4 zonas coloridas na grade |
+| Visualização 2 | `EstudosCalendarioDialog`: gráfico de payoff existente + barras de probabilidade por zona |
+| Visualização 3 | `EngineDashboard`: resumo agregado (quantas montagens com vale < 5%, distribuição de E[PnL]) |
+
+## As 4 zonas de payoff no vencimento da call
+
+```
+Zona A: S ≤ K_put          → Put ITM cobre, call OTM, naked sem efeito
+Zona B: K_put < S ≤ K_call → Ambas OTM — ganho máximo (prêmio integral)
+Zona C: K_call < S < K_prot→ VALE DA MORTE — naked perde, proteção ainda OTM
+Zona D: S ≥ K_prot         → Proteção comprada paga, convexidade aparece
+```
+
+## Probabilidades (analíticas, via N(d2))
+
+```
+P(A) = N(-d2_put)
+P(B) = N(d2_put) - N(d2_call)
+P(C) = N(d2_call) - N(d2_prot)
+P(D) = N(d2_prot)
+```
+
+Cada `d2` usa o respectivo strike e a vol implícita da call (`iv_call`).
+
+## PnL esperado em cada zona (aproximação linear no vencimento)
+
+| Zona | PnL Otimizado+Protegido |
+|---|---|
+| A | base + prêmio_naked_extra |
+| B | base + prêmio_naked_extra |
+| C | base + prêmio_naked_extra − naked×(S_médio−K_call) − custo_prot |
+| D | base + prêmio_naked_extra − naked×(S_médio−K_call) + razão×(S_médio−K_prot) − custo_prot |
+
+Onde `S_médio` é a média truncada da log-normal dentro de cada zona (fórmula fechada via momentos da normal truncada).
+
+## Métrica final
+
+```
+E[PnL] = P(A)×PnL_A + P(B)×PnL_B + P(C)×PnL_C + P(D)×PnL_D
+E[PnL]/Capital = E[PnL] / capital_empregado   (para comparar entre montagens)
+```
+
+## O que o trader vê
+
+**No `ColarCalendarioDialog`** (barra sparkline inline na tabela):
+```
+PETR4 | Proteção | E[PnL]=R$274 | ██████░░░█░░████
+                                     A    B  C    D
+                                  (verde)(verde)(verm)(verde)
+```
+
+**No `EstudosCalendarioDialog`** (detalhe abaixo do gráfico de payoff):
+```
+Probabilidades por zona no vencimento da call (24/08/2026, 31 DU):
+┌─────────────────────────────────────────────────────┐
+│ ████████████████████████████████  Zona A: 72%  +R$200 │
+│ ██████                           Zona B: 15%  +R$380 │
+│ ██                               Zona C:  3%  -R$150 │  ← vale da morte
+│ ████                             Zona D: 10%  +R$120 │
+└─────────────────────────────────────────────────────┘
+E[PnL] = R$ 274,34  |  E[PnL]/Capital = 0,65%
+```
+
+**No `EngineDashboard`:**
+```
+Proteção de Cauda — Resumo do Ciclo
+├─ Montagens com proteção: 12
+├─ Viaveis com vale < 5%:  8
+├─ E[PnL] médio:           R$ 312
+└─ Melhor E[PnL]/Capital:   0,82% (PETR4, Proteção, 1.3×)
+```
+
+## Arquivos a tocar
+
+| # | Arquivo | Mudança |
+|---|---|---|
+| 1 | `calculadora_protecao_cauda.py` | Novo método `_calcular_score_probabilistico()`, campo `score_ev` no `ResultadoProtecaoCauda` |
+| 2 | `colar_calendario_dialog.py` | Barra sparkline 4 zonas na coluna da tabela |
+| 3 | `estudos_calendario_dialog.py` | Gráfico de barras de probabilidade abaixo do payoff |
+| 4 | `engine_dashboard.py` | Resumo agregado de E[PnL] no dashboard |
+| 5 | `monitor_worker.py` | Persistir `score_ev` e `score_ev_pct` no `historico_simulacoes` |
+| 6 | `database.py` | Migração: colunas `score_ev`, `score_ev_pct` no `historico_simulacoes` |
+| 7 | `repositories.py` | Colunas no INSERT de `salvar_lote` |
+
+## Dependências
+
+- **Já implementado (Fases 1-3):** `CalculadoraProtecaoCauda`, `razao_convexidade`, `spread_maximo_pct`, parâmetros por estágio
+- **Input necessário:** `ResultadoCaudaAssincrona` (preco_ativo, iv_call, sigma_periodo, dte_call, pnl_com_ratio, pnl_base, breakeven_esquerdo/direito) + `ResultadoProtecaoCauda` (strike_protecao_call/put, custo_protecao, razao_convexidade)
+- **já existente:** `pop_upside`/`pop_downside` no `ResultadoColarCalendario` (N(d2) de B&S)
+
+## Ordem de implementação
+
+| Passo | O que | Testável isoladamente? |
+|---|---|---|
+| 1 | `_calcular_score_probabilistico()` | Sim — teste unitário com chassi sintético |
+| 2 | Colunas `score_ev`/`score_ev_pct` no banco | Sim — `PRAGMA table_info` |
+| 3 | Persistência no `monitor_worker` | Sim — mock |
+| 4 | Sparkline no `ColarCalendarioDialog` | Sim — abrir dialog com resultados mock |
+| 5 | Gráfico de barras no `EstudosCalendarioDialog` | Sim — mesmo mock |
+| 6 | Resumo no `EngineDashboard` | Sim — mock de resultados |
+
+
+---
+
+# Fase 5 — Coluna MOD Call (Risco de Exercício Antecipado)
+
+**Status:** Planejado — NÃO implementado.
+
+**Objetivo:** Informar o trader sobre o risco de exercício antecipado da CALL vendida, baseado no MOD (American/European) da call short. PUTs B3 são sempre Europeias — irrelevantes para esta análise.
+
+## As 3 combinações possíveis (só a CALL importa)
+
+| MOD Call Short | MOD Call Proteção | Nome | Ícone | Cor | Significado |
+|---|---|---|---|---|---|
+| `E` | `E` | **Sem Risco** | 🛡️ `E` | Verde | Ninguém exerce antes do vencimento. Estrutura hermética. |
+| `A` | `E` | **Risco Assíncrono** | ⚡ `A` | Âmbar | Pode ser exercido, não pode exercer a proteção. Se exercido, perde a ação e a estrutura quebra. |
+| `A` | `A` | **Risco Síncrono** | 🔄 `A` | Azul | Pode ser exercido MAS pode exercer a proteção. Tem ferramenta de manejo, só precisa estar atento. |
+
+Na prática B3, ~99% dos casos caem na linha do meio (`A/E` = âmbar), porque PUTs e a maioria das calls de proteção são Europeias.
+
+## Onde aparece
+
+| Local | Conteúdo |
+|---|---|
+| **Coluna na grade** (`ColarCalendarioDialog` e `EstudosCalendarioDialog`) | Badge com letra (`A`/`E`) + cor (verde/âmbar/azul) + ícone |
+| **Tooltip (hover na coluna)** | Explicação resumida: "Risco MOD — Exercício Antecipado da CALL" |
+| **Botão Explicar** | Tabela completa com as 3 combinações, incluindo o alerta sobre vésperas de dividendos |
+
+## Implementação
+
+| Passo | O que |
+|---|---|
+| 1 | Adicionar coluna `mod_call` na leitura do `importflash.py` (já existe o campo `mod`) |
+| 2 | Persistir `mod_call` no `historico_simulacoes` (ou ler do `instrumentos_base` no momento da exibição) |
+| 3 | Coluna `MOD Call` nos modelos de tabela (`ColarCalTableModel`, `EstudosCalendarioTableModel`) |
+| 4 | Badge delegate para renderizar `A`/`E` com cor |
+| 5 | Tooltip e conteúdo do botão Explicar |

@@ -18,7 +18,7 @@ class MercadoTopBarWidget(QFrame):
                 border-radius: 6px;
             }
             QLabel { color: #f1f2f6; font-family: 'Segoe UI', Arial, sans-serif; }
-            .BadgeCompacto { color: #dcdde1; font-size: 10px; }
+            .BadgeCompacto { color: #dcdde1; font-size: 11pt; }
             .TickerLabel { color: #f39c12; font-size: 10.5px; font-weight: bold; }
             .TituloColuna { color: #e1b12c; font-weight: bold; font-size: 11px; padding-bottom: 4px; border-bottom: 1px solid #2d2d2d; }
             .ItemTexto { color: #dfe4ea; font-size: 10.5px; }
@@ -151,44 +151,38 @@ class MercadoTopBarWidget(QFrame):
     def conectar_fonte(self, source):
         self._source = source
         if source and source.disponivel:
-            for cod in ("WIN$", "WDO$", "IND$", "DOL$", "DI1$"):
+            for cod in ("WIN$", "WDO$", "IND$", "DOL$", "DI1F27", "DI1F33"):
                 try:
                     source.registrar_topico(cod, "ask")
                     source.registrar_topico(cod, "last")
                 except Exception:
                     pass
 
-    def _atualizar_cotacoes(self):
-        partes = ["<b>CDI:</b> 14.25%"]
-        defaults = {"WIN$": ("WIN", 178.775), "WDO$": ("WDO", 5.070), "IND$": ("IBOV", 177.547), "DI1$": ("DI1", 14.71)}
-        if self._source and self._source.disponivel:
-            try:
-                for cod, (nome, fallback) in defaults.items():
-                    dados = self._source.ler_campos(cod, "ask", "last") or {}
-                    preco = dados.get("last") or dados.get("ask") or 0
-                    if preco and preco > 0:
-                        anterior = self._precos_anteriores.get(cod, preco)
-                        var_pct = (preco - anterior) / anterior * 100 if anterior > 0 else 0
-                        cor = "#2ecc71" if var_pct > 0 else "#e74c3c" if var_pct < 0 else "#dcdde1"
-                        partes.append(f"<b>{nome}:</b> {preco:.2f} <span style='color:{cor};'>({var_pct:+.2f}%)</span>")
-                        self._precos_anteriores[cod] = preco
-                        if cod == "IND$":
-                            self.term_ibov.setValue(int(min(max((preco - 170000) / 20000 * 100, 0), 100)))
-                            self.term_ibov.setFormat(f"IBOV {preco:.0f}")
-                    else:
-                        partes.append(f"<b>{nome}:</b> {fallback:.3f}")
-            except Exception:
-                pass
-        else:
-            for cod, (nome, fallback) in defaults.items():
-                partes.append(f"<b>{nome}:</b> {fallback:.3f}")
-        partes.append("<b>Brent/Min:</b> 91.87 / 13.41 | <b>Vetor:</b> MISTO")
+    @staticmethod
+    def _seta(var: float) -> str:
+        if var > 0.0001:
+            return "\u25b2"
+        if var < -0.0001:
+            return "\u25bc"
+        return ""
 
-        vix_str = self._buscar_vix()
-        if vix_str:
-            partes.append(vix_str)
+    @staticmethod
+    def _cor_var(var: float) -> str:
+        if var > 0.0001:
+            return "#2ecc71"
+        if var < -0.0001:
+            return "#e74c3c"
+        return "#dcdde1"
 
-        self.lbl_summary.setText(" | ".join(partes))
+    def _fmt_variacao(self, nome: str, valor: float, anterior: float | None, fmt: str = ".2f", suffix: str = "", variacao: bool = True) -> str:
+        if not variacao:
+            return f"<b>{nome}:</b> {valor:{fmt}}{suffix}"
+        if anterior is None:
+            anterior = valor
+        var = (valor - anterior) / anterior if anterior > 0 else 0.0
+        cor = self._cor_var(var)
+        seta = self._seta(var)
+        return f"<b>{nome}:</b> {valor:{fmt}}{suffix} <span style='color:{cor};'>{seta}{var:+.2f}%</span>"
 
     def _buscar_vix(self):
         try:
@@ -197,10 +191,63 @@ class MercadoTopBarWidget(QFrame):
             info = t.fast_info
             preco = getattr(info, 'last_price', None) or getattr(info, 'regular_market_previous_close', None)
             if preco and preco > 0:
-                return f"<b>VIX:</b> {preco:.2f}"
+                return preco
         except Exception:
             pass
         return None
+
+    def _atualizar_cotacoes(self):
+        partes = []
+        cdi = self._ler_cdi()
+        partes.append(self._fmt_variacao("CDI", cdi, None, fmt=".2f", suffix="%", variacao=False))
+
+        defaults = {"WIN$": ("WIN", 178775.0), "WDO$": ("WDO", 5.070), "IND$": ("IBOV", 177547.0),
+                    "DI1F27": ("DI27", 13.95), "DI1F33": ("DI33", 14.71)}
+        if self._source and self._source.disponivel:
+            try:
+                for cod, (nome, fallback) in defaults.items():
+                    dados = self._source.ler_campos(cod, "ask", "last") or {}
+                    preco = dados.get("last") or dados.get("ask") or 0
+                    if preco and preco > 0:
+                        anterior = self._precos_anteriores.get(cod)
+                        partes.append(self._fmt_variacao(nome, preco, anterior))
+                        self._precos_anteriores[cod] = preco
+                        if cod == "IND$":
+                            self.term_ibov.setValue(int(min(max((preco - 170000) / 20000 * 100, 0), 100)))
+                            self.term_ibov.setFormat(f"IBOV {preco:.0f}")
+                    else:
+                        partes.append(f"<b>{nome}:</b> {fallback}")
+            except Exception:
+                pass
+        else:
+            for cod, (nome, fallback) in defaults.items():
+                partes.append(f"<b>{nome}:</b> {fallback:.3f}")
+
+        partes.append(self._fmt_variacao("Brent", 91.87, None, fmt=".2f", variacao=False))
+        partes.append(self._fmt_variacao("Min", 13.41, None, fmt=".2f", variacao=False))
+
+        partes.append("<b>Vetor:</b> MISTO")
+
+        vix_val = self._buscar_vix()
+        if vix_val:
+            vix_ant = self._precos_anteriores.get("VIX")
+            partes.append(self._fmt_variacao("VIX", vix_val, vix_ant, fmt=".2f"))
+            self._precos_anteriores["VIX"] = vix_val
+        else:
+            partes.append("<b>VIX:</b> --")
+
+        self.lbl_summary.setText(" | ".join(partes))
+
+    def _ler_cdi(self) -> float:
+        try:
+            from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+            repo = ParametroRepository(self.db_path)
+            p = repo.get_by_chave("taxa_cdi")
+            if p and p.valor:
+                return float(p.valor) * 100.0
+        except Exception:
+            pass
+        return 14.25
 
     def _carregar_eventos_do_dia(self):
         hoje = date.today().isoformat()

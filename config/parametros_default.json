@@ -912,6 +912,36 @@
       "valor": "simples",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Modo BWB: 'simples' (1 opcao OTM/legado) ou 'borboleta' (3 strikes autofinanciada)"
+    },
+    {
+      "chave": "limite_protecao_pct_rendimento",
+      "valor": "0.20",
+      "estrategia": "PROTECAO_CAUDA",
+      "descricao": "Fracao do ganho extra para protecao — estagio Rendimento (0.20 = 20%)"
+    },
+    {
+      "chave": "limite_protecao_pct_plato",
+      "valor": "0.45",
+      "estrategia": "PROTECAO_CAUDA",
+      "descricao": "Fracao do ganho extra para protecao — estagio Plato (0.45 = 45%)"
+    },
+    {
+      "chave": "limite_protecao_pct_protecao",
+      "valor": "0.70",
+      "estrategia": "PROTECAO_CAUDA",
+      "descricao": "Fracao do ganho extra para protecao — estagio Protecao (0.70 = 70%)"
+    },
+    {
+      "chave": "razao_convexidade_max",
+      "valor": "1.5",
+      "estrategia": "PROTECAO_CAUDA",
+      "descricao": "Razao maxima de convexidade (qtd comprada / qtd naked) — estagio Protecao"
+    },
+    {
+      "chave": "spread_maximo_pct",
+      "valor": "0.20",
+      "estrategia": "PROTECAO_CAUDA",
+      "descricao": "Spread bid-ask maximo para considerar cotacao confiavel (0.20 = 20%)"
     }
   ]
 }

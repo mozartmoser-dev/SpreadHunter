@@ -472,6 +472,11 @@ class MonitorWorker(QThread):
 
         n_sigma_protecao = self._ler_param_float("n_sigma_protecao", 2.0)
         limite_protecao_pct = self._ler_param_float("limite_protecao_pct", 0.35)
+        limite_protecao_pct_rendimento = self._ler_param_float("limite_protecao_pct_rendimento", 0.20)
+        limite_protecao_pct_plato = self._ler_param_float("limite_protecao_pct_plato", 0.45)
+        limite_protecao_pct_protecao = self._ler_param_float("limite_protecao_pct_protecao", 0.70)
+        razao_convexidade_max = self._ler_param_float("razao_convexidade_max", 1.5)
+        spread_maximo_pct = self._ler_param_float("spread_maximo_pct", 0.20)
         calda_preco_min_opcao = self._ler_param_float("calda_preco_min_opcao", 0.01)
         cab_minimo_protecao = int(self._ler_param_float("cab_minimo_protecao", 1))
         fator_seguranca_liquidez = self._ler_param_float("fator_seguranca_liquidez", 0.2)
@@ -554,6 +559,11 @@ class MonitorWorker(QThread):
                     qtd_acao=r.qtd_acao,
                     n_sigma=n_sigma_protecao,
                     limite_protecao_pct=limite_protecao_pct,
+                    limite_protecao_pct_rendimento=limite_protecao_pct_rendimento,
+                    limite_protecao_pct_plato=limite_protecao_pct_plato,
+                    limite_protecao_pct_protecao=limite_protecao_pct_protecao,
+                    razao_convexidade_max=razao_convexidade_max,
+                    spread_maximo_pct=spread_maximo_pct,
                     calda_preco_min_opcao=calda_preco_min_opcao,
                     cab_minimo=cab_minimo_protecao,
                     fator_seguranca_liquidez=fator_seguranca_liquidez,
@@ -585,6 +595,8 @@ class MonitorWorker(QThread):
                         "custo_borboleta_put": 0.0,
                         "lotes_bwb_call": 0,
                         "lotes_bwb_put": 0,
+                        "razao_convexidade_call": 1.0,
+                        "razao_convexidade_put": 1.0,
                     }
                 else:
                     protecao_campos = {
@@ -610,6 +622,8 @@ class MonitorWorker(QThread):
                         "custo_borboleta_put": protecao.custo_borboleta_put,
                         "lotes_bwb_call": protecao.lotes_bwb_call,
                         "lotes_bwb_put": protecao.lotes_bwb_put,
+                        "razao_convexidade_call": protecao.razao_convexidade_call,
+                        "razao_convexidade_put": protecao.razao_convexidade_put,
                     }
 
                 n = v.ratio_call
@@ -889,6 +903,16 @@ class MonitorWorker(QThread):
                             "cod_prot_put": tail_put.get("codigo"),
                             "premio_book_call": tail_call.get("premio_book", 0.0),
                             "premio_book_put": tail_put.get("premio_book", 0.0),
+                            "strikes_bwb_call": None,
+                            "strikes_bwb_put": None,
+                            "premios_bwb_call": None,
+                            "premios_bwb_put": None,
+                            "custo_borboleta_call": 0.0,
+                            "custo_borboleta_put": 0.0,
+                            "lotes_bwb_call": 0,
+                            "lotes_bwb_put": 0,
+                            "razao_convexidade_call": 1.0,
+                            "razao_convexidade_put": 1.0,
                         }
                         registros.append(reg_tail)
 
@@ -1176,6 +1200,7 @@ class MonitorWorker(QThread):
             for cod in codigos_call | codigos_put:
                 source.registrar_topico(cod, FieldName.STRIKE)
                 source.registrar_topico(cod, FieldName.ASK)
+                source.registrar_topico(cod, FieldName.BID)
                 source.registrar_topico(cod, FieldName.VOL_ASK)
                 source.registrar_topico(cod, FieldName.VOL_BID)
             if eh_openfast:
@@ -1216,12 +1241,14 @@ class MonitorWorker(QThread):
                 if source and source.disponivel and hasattr(source, "ler_campos"):
                     try:
                         dados = source.ler_campos(cod, FieldName.STRIKE, FieldName.ASK,
-                                                  FieldName.VOL_ASK, FieldName.VOL_BID,
-                                                  FieldName.BOOK_HEADER) or {}
+                                                   FieldName.BID,
+                                                   FieldName.VOL_ASK, FieldName.VOL_BID,
+                                                   FieldName.BOOK_HEADER) or {}
                     except Exception:
                         dados = {}
                     strike = dados.get(FieldName.STRIKE) or 0.0
                     ask = dados.get(FieldName.ASK) or 0.0
+                    bid = dados.get(FieldName.BID) or 0.0
                     vol_ask = dados.get(FieldName.VOL_ASK) or 0
                     vol_bid = dados.get(FieldName.VOL_BID) or 0
                 if not strike or strike <= 0 or ask <= 0:
@@ -1246,6 +1273,7 @@ class MonitorWorker(QThread):
                 candidatos.append({
                     "strike": strike,
                     "premio_ask": ask,
+                    "premio_bid": bid,
                     "vol_ask": vol_ask,
                     "vol_bid": vol_bid,
                 })

@@ -43,6 +43,8 @@ class ResultadoProtecaoCauda:
     custo_borboleta_put: float = 0.0
     lotes_bwb_call: int = 0
     lotes_bwb_put: int = 0
+    razao_convexidade_call: float = 1.0
+    razao_convexidade_put: float = 1.0
 
 
 class CalculadoraProtecaoCauda:
@@ -67,9 +69,14 @@ class CalculadoraProtecaoCauda:
         qtd_acao: int = 100,
         n_sigma: float = 2.0,
         limite_protecao_pct: float = 0.35,
+        limite_protecao_pct_rendimento: float = 0.20,
+        limite_protecao_pct_plato: float = 0.45,
+        limite_protecao_pct_protecao: float = 0.70,
         calda_preco_min_opcao: float = 0.01,
         cab_minimo: int = 1,
         fator_seguranca_liquidez: float = 0.2,
+        razao_convexidade_max: float = 1.5,
+        spread_maximo_pct: float = 0.20,
         pipeline_tracker: "PipelineTracker | None" = None,
         bwb_modo: str = "simples",
     ) -> ResultadoProtecaoCauda | None:
@@ -83,6 +90,13 @@ class CalculadoraProtecaoCauda:
             return None
 
         ganho_extra_ratio = resultado.pnl_com_ratio - resultado.pnl_base
+
+        mapa_limite = {
+            "Rendimento": limite_protecao_pct_rendimento,
+            "Platô": limite_protecao_pct_plato,
+            "Proteção": limite_protecao_pct_protecao,
+        }
+        limite_efetivo = mapa_limite.get(resultado.estagio, limite_protecao_pct)
 
         usar_borboleta = bwb_modo == "borboleta"
 
@@ -99,6 +113,9 @@ class CalculadoraProtecaoCauda:
             s_target_call = resultado.preco_ativo * (1.0 + n_sigma * resultado.sigma_periodo)
             s_target_put = resultado.preco_ativo * (1.0 - n_sigma * resultado.sigma_periodo)
 
+        s_eficiencia_call = resultado.preco_ativo * (1.0 + n_sigma * 1.5 * resultado.sigma_periodo)
+        s_eficiencia_put = resultado.preco_ativo * (1.0 - n_sigma * 1.5 * resultado.sigma_periodo)
+
         if usar_borboleta:
             info_call = CalculadoraProtecaoCauda._avaliar_borboleta(
                 lado="call",
@@ -108,7 +125,7 @@ class CalculadoraProtecaoCauda:
                 acima_do_target=True,
                 qtd_acao=qtd_acao,
                 ganho_extra_ratio=ganho_extra_ratio,
-                limite_protecao_pct=limite_protecao_pct,
+                limite_protecao_pct=limite_efetivo,
                 calda_preco_min_opcao=calda_preco_min_opcao,
                 cab_minimo=cab_minimo,
                 fator_seguranca_liquidez=fator_seguranca_liquidez,
@@ -122,7 +139,7 @@ class CalculadoraProtecaoCauda:
                 acima_do_target=False,
                 qtd_acao=qtd_acao,
                 ganho_extra_ratio=ganho_extra_ratio,
-                limite_protecao_pct=limite_protecao_pct,
+                limite_protecao_pct=limite_efetivo,
                 calda_preco_min_opcao=calda_preco_min_opcao,
                 cab_minimo=cab_minimo,
                 fator_seguranca_liquidez=fator_seguranca_liquidez,
@@ -137,10 +154,14 @@ class CalculadoraProtecaoCauda:
                 acima_do_target=True,
                 qtd_acao=qtd_acao,
                 ganho_extra_ratio=ganho_extra_ratio,
-                limite_protecao_pct=limite_protecao_pct,
+                limite_protecao_pct=limite_efetivo,
                 calda_preco_min_opcao=calda_preco_min_opcao,
                 cab_minimo=cab_minimo,
                 fator_seguranca_liquidez=fator_seguranca_liquidez,
+                razao_convexidade_max=razao_convexidade_max,
+                spread_maximo_pct=spread_maximo_pct,
+                s_eficiencia=s_eficiencia_call,
+                estagio=resultado.estagio,
                 pipeline_tracker=pipeline_tracker,
             )
             info_put = CalculadoraProtecaoCauda._avaliar_lado(
@@ -151,10 +172,14 @@ class CalculadoraProtecaoCauda:
                 acima_do_target=False,
                 qtd_acao=qtd_acao,
                 ganho_extra_ratio=ganho_extra_ratio,
-                limite_protecao_pct=limite_protecao_pct,
+                limite_protecao_pct=limite_efetivo,
                 calda_preco_min_opcao=calda_preco_min_opcao,
                 cab_minimo=cab_minimo,
                 fator_seguranca_liquidez=fator_seguranca_liquidez,
+                razao_convexidade_max=razao_convexidade_max,
+                spread_maximo_pct=spread_maximo_pct,
+                s_eficiencia=s_eficiencia_put,
+                estagio=resultado.estagio,
                 pipeline_tracker=pipeline_tracker,
             )
 
@@ -200,6 +225,8 @@ class CalculadoraProtecaoCauda:
             custo_borboleta_put=round(info_put.get("custo_borboleta", 0.0), 2),
             lotes_bwb_call=info_call.get("lotes_bwb", 0),
             lotes_bwb_put=info_put.get("lotes_bwb", 0),
+            razao_convexidade_call=info_call.get("razao_convexidade", 1.0),
+            razao_convexidade_put=info_put.get("razao_convexidade", 1.0),
         )
 
     @staticmethod
@@ -215,6 +242,10 @@ class CalculadoraProtecaoCauda:
         calda_preco_min_opcao: float,
         cab_minimo: int,
         fator_seguranca_liquidez: float = 0.2,
+        razao_convexidade_max: float = 1.5,
+        spread_maximo_pct: float = 0.20,
+        s_eficiencia: float | None = None,
+        estagio: str = "",
         pipeline_tracker: "PipelineTracker | None" = None,
     ) -> dict:
         def _stage(nome: str, entrada: int, saida: int, msg: str = "") -> None:
@@ -229,24 +260,39 @@ class CalculadoraProtecaoCauda:
                 _stage(f"BWB {lado} — entrada", n_entrada, 0, "sem candidatos")
             return {
                 "strike": None, "premio_ask": None, "qtd": 0, "custo": 0.0, "viavel": False,
+                "razao_convexidade": 1.0,
             }
+
+        if s_eficiencia is None:
+            s_eficiencia = s_target
 
         qtd_bruta = naked_frac * qtd_acao
         qtd_lote = max(1, int(qtd_bruta / _LOTE + 0.5)) * _LOTE
 
         limite_liquidez = max(cab_minimo, qtd_lote * fator_seguranca_liquidez)
 
-        filtrados = [
-            s for s in strikes_candidatos
+        filtrados = []
+        for s in strikes_candidatos:
+            vol_ask = s.get("vol_ask", 0) or 0
+            vol_bid = s.get("vol_bid", 0) or 0
+            premio_ask = s.get("premio_ask", 0) or 0
+            strike = s.get("strike") or 0
             if (
-                min(s.get("vol_ask", 0) or 0, s.get("vol_bid", 0) or 0)
-            ) >= limite_liquidez
-            and (s.get("premio_ask", 0) or 0) >= calda_preco_min_opcao
-            and (s.get("strike") or 0) > 0
-        ]
+                min(vol_ask, vol_bid) < limite_liquidez
+                or premio_ask < calda_preco_min_opcao
+                or strike <= 0
+            ):
+                continue
+            bid = s.get("premio_bid", 0) or 0
+            if bid > 0 and premio_ask > 0:
+                spread_pct = (premio_ask - bid) / premio_ask
+                if spread_pct > spread_maximo_pct:
+                    continue
+            filtrados.append(s)
+
         n_pos_liquidez = len(filtrados)
         _stage(f"BWB {lado} — liquidez", n_entrada, n_pos_liquidez,
-               f"limite={limite_liquidez:.0f} preco_min={calda_preco_min_opcao:.4f}")
+               f"limite={limite_liquidez:.0f} preco_min={calda_preco_min_opcao:.4f} spread_max={spread_maximo_pct:.0%}")
 
         if n_pos_liquidez == 0:
             logger.debug(
@@ -256,6 +302,7 @@ class CalculadoraProtecaoCauda:
             )
             return {
                 "strike": None, "premio_ask": None, "qtd": 0, "custo": 0.0, "viavel": False,
+                "razao_convexidade": 1.0,
             }
 
         if acima_do_target:
@@ -275,19 +322,48 @@ class CalculadoraProtecaoCauda:
             )
             return {
                 "strike": None, "premio_ask": None, "qtd": 0, "custo": 0.0, "viavel": False,
+                "razao_convexidade": 1.0,
             }
 
-        if acima_do_target:
-            escolha = min(filtrados, key=lambda s: abs(s["strike"] - s_target))
-        else:
-            escolha = min(filtrados, key=lambda s: abs(s["strike"] - s_target))
+        def _eficiencia(s):
+            strike = s["strike"]
+            premio = s.get("premio_ask", 0) or 0
+            custo = premio * qtd_lote
+            if custo <= 0:
+                return -1.0
+            if acima_do_target:
+                perda_evitada = max(0.0, s_eficiencia - strike) * qtd_lote
+            else:
+                perda_evitada = max(0.0, strike - s_eficiencia) * qtd_lote
+            return perda_evitada / custo
+
+        escolha = max(filtrados, key=_eficiencia)
 
         premio_ask = escolha.get("premio_ask", 0) or 0
+        razao_usada = 1.0
+        if estagio == "Proteção" and razao_convexidade_max > 1.0:
+            max_steps = int((razao_convexidade_max - 1.0) / 0.1)
+            for step in range(max_steps, -1, -1):
+                razao_teste = round(1.0 + step * 0.1, 1)
+                qtd_teste = max(1, int((naked_frac * razao_teste) * qtd_acao / _LOTE + 0.5)) * _LOTE
+                custo_teste = premio_ask * qtd_teste
+                if custo_teste <= ganho_extra_ratio * limite_protecao_pct:
+                    razao_usada = razao_teste
+                    qtd_lote = qtd_teste
+                    break
+            else:
+                if estagio == "Proteção":
+                    logger.debug(
+                        "BWB _avaliar_lado [%s]: Proteção com razão=1.0 custo=%.2f > limite=%.2f",
+                        lado, premio_ask * qtd_lote, ganho_extra_ratio * limite_protecao_pct,
+                    )
+
         custo = premio_ask * qtd_lote
 
         viavel = ganho_extra_ratio > 0 and custo <= ganho_extra_ratio * limite_protecao_pct
         _stage(f"BWB {lado} — custo", n_pos_direcao, 1 if viavel else 0,
-               f"custo={custo:.2f} limite={ganho_extra_ratio * limite_protecao_pct:.2f}" if not viavel else f"K={escolha['strike']:.2f} custo={custo:.2f}")
+               f"custo={custo:.2f} limite={ganho_extra_ratio * limite_protecao_pct:.2f}" if not viavel
+               else f"K={escolha['strike']:.2f} custo={custo:.2f} razao={razao_usada}")
 
         if not viavel:
             logger.debug(
@@ -304,6 +380,7 @@ class CalculadoraProtecaoCauda:
             "qtd": qtd_lote if viavel else 0,
             "custo": round(custo, 2) if viavel else 0.0,
             "viavel": viavel,
+            "razao_convexidade": razao_usada,
         }
 
     @staticmethod

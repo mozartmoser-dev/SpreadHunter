@@ -230,11 +230,16 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("black_list_import", "Blacklist de ativos (separados por virgula)"),
     ],
     "PROTECAO_CAUDA": [
-        ("limite_protecao_pct", "Limite de Custo (% do ganho extra)"),
+        ("limite_protecao_pct", "Limite Global (% ganho extra)"),
+        ("limite_protecao_pct_rendimento", "Limite Rendimento (% ganho extra)"),
+        ("limite_protecao_pct_plato", "Limite Plato (% ganho extra)"),
+        ("limite_protecao_pct_protecao", "Limite Protecao (% ganho extra)"),
         ("calda_preco_min_opcao", "Preco Minimo da Opcao (R$)"),
         ("cab_minimo_protecao", "CAB / Vol.Ask Minimo"),
         ("n_sigma_protecao", "Nº de Sigmas (s_target)"),
         ("fator_seguranca_liquidez", "Fator Seguranca Liquidez (x qtd)"),
+        ("razao_convexidade_max", "Razao Convexidade Max (Protecao)"),
+        ("spread_maximo_pct", "Spread Maximo Bid-Ask"),
     ],
 }
 
@@ -737,6 +742,31 @@ PARAMETROS_INFO = {
         "usado_em": "CalculadoraProtecaoCauda — filtro de liquidez do strike candidato.",
         "precedencia": "Banco de Dados -> 0.2 (padrao)",
     },
+    "limite_protecao_pct_rendimento": {
+        "descricao": "Fracao maxima do ganho extra que a protecao de cauda pode consumir no estagio Rendimento. Ex: 0.20 = ate 20% do ganho extra e usado para protecao. O estagio Rendimento foca em capturar premio, entao o orcamento de protecao e baixo — so o suficiente para evitar ruina sem sacrificar o ganho liquido.",
+        "usado_em": "CalculadoraProtecaoCauda — substitui limite_protecao_pct quando estagio='Rendimento'.",
+        "precedencia": "Banco de Dados -> 0.20 (20%, padrao)",
+    },
+    "limite_protecao_pct_plato": {
+        "descricao": "Fracao maxima do ganho extra que a protecao de cauda pode consumir no estagio Plato. Ex: 0.45 = ate 45% do ganho extra. Valor intermediario entre Rendimento e Protecao.",
+        "usado_em": "CalculadoraProtecaoCauda — substitui limite_protecao_pct quando estagio='Plato'.",
+        "precedencia": "Banco de Dados -> 0.45 (45%, padrao)",
+    },
+    "limite_protecao_pct_protecao": {
+        "descricao": "Fracao maxima do ganho extra que a protecao de cauda pode consumir no estagio Protecao. Ex: 0.70 = ate 70% do ganho extra. O estagio Protecao foca em seguranca, entao o orcamento e alto — pode consumir a maior parte do ganho para maximizar a defesa.",
+        "usado_em": "CalculadoraProtecaoCauda — substitui limite_protecao_pct quando estagio='Protecao'.",
+        "precedencia": "Banco de Dados -> 0.70 (70%, padrao)",
+    },
+    "razao_convexidade_max": {
+        "descricao": "Multiplicador maximo sobre a quantidade naked para criar backspread de razao no estagio Protecao. Ex: 1.5 = pode comprar ate 50% a mais de protecao do que o naked vendido. Quanto maior, mais convexidade (payoff volta a subir apos o strike de protecao). Para outros estagios a razao fica fixa em 1.0.",
+        "usado_em": "CalculadoraProtecaoCauda._avaliar_lado — otimizacao de razao para estagio 'Protecao'.",
+        "precedencia": "Banco de Dados -> 1.5 (padrao)",
+    },
+    "spread_maximo_pct": {
+        "descricao": "Spread bid-ask maximo (em % da ask) para considerar a cotacao de um strike como confiavel. Ex: 0.20 = no maximo 20% de spread. Descartar candidatos com spread maior que este valor, mesmo que tenham volume suficiente, pois o preco pode nao ser confiavel para execucao.",
+        "usado_em": "CalculadoraProtecaoCauda._avaliar_lado — filtro de qualidade de cotacao.",
+        "precedencia": "Banco de Dados -> 0.20 (20%, padrao)",
+    },
 }
 
 
@@ -1076,6 +1106,22 @@ class ParametrosWidget(QWidget):
                         self._pct_chaves.add(chave)
                     elif chave == "limite_protecao_pct":
                         widget.setRange(0.01, 0.99)
+                        widget.setSuffix(" %")
+                        widget.setDecimals(2)
+                        widget.setSingleStep(0.01)
+                        self._pct_chaves.add(chave)
+                    elif chave in ("limite_protecao_pct_rendimento", "limite_protecao_pct_plato", "limite_protecao_pct_protecao"):
+                        widget.setRange(0.01, 0.99)
+                        widget.setSuffix(" %")
+                        widget.setDecimals(2)
+                        widget.setSingleStep(0.01)
+                        self._pct_chaves.add(chave)
+                    elif chave == "razao_convexidade_max":
+                        widget.setRange(1.0, 5.0)
+                        widget.setDecimals(1)
+                        widget.setSingleStep(0.1)
+                    elif chave == "spread_maximo_pct":
+                        widget.setRange(0.01, 1.00)
                         widget.setSuffix(" %")
                         widget.setDecimals(2)
                         widget.setSingleStep(0.01)

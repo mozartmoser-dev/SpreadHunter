@@ -168,6 +168,8 @@ def _migrar_historico_simulacoes(conn):
         ("cod_prot_put", "TEXT"),
         ("premio_book_call", "REAL DEFAULT 0.0"),
         ("premio_book_put", "REAL DEFAULT 0.0"),
+        ("razao_convexidade_call", "REAL DEFAULT 1.0"),
+        ("razao_convexidade_put", "REAL DEFAULT 1.0"),
     ]
     for col, tipo in novas_colunas:
         try:
