@@ -149,11 +149,17 @@ class CalculadoraProtecaoCauda:
 
         ev_pct = (ev_pnl / max(resultado.capital_base, 1.0)) * 100.0 if resultado.capital_base > 0 else 0.0
 
-        # Probabilidades por zona
-        p_a = _phi(-d2p)
-        p_b = max(0.0, _phi(d2p) - _phi(d2c))
-        p_c = max(0.0, _phi(d2c) - _phi(d2prot))
-        p_d = _phi(d2prot)
+        # Probabilidades por zona (mutuamente exclusivas)
+        if Kp <= Kc:
+            p_a = _phi(-d2p)
+            p_b = max(0.0, _phi(d2p) - _phi(d2c))
+            p_c = max(0.0, _phi(d2c) - _phi(d2prot))
+            p_d = _phi(d2prot)
+        else:
+            p_a = _phi(-d2c)
+            p_b = 0.0
+            p_c = max(0.0, _phi(d2c) - _phi(d2prot))
+            p_d = _phi(d2prot)
 
         # Spot esperado condicional por zona (truncated log-normal)
         def _e_spot_cond(d1_a, d2_a, d1_b, d2_b):
@@ -161,7 +167,10 @@ class CalculadoraProtecaoCauda:
             den = max(_phi(d2_a) - _phi(d2_b), 1e-12)
             return num / den
 
-        e_s_a = F * _phi(-d1p) / max(_phi(-d2p), 1e-12)
+        if Kp <= Kc:
+            e_s_a = F * _phi(-d1p) / max(_phi(-d2p), 1e-12)
+        else:
+            e_s_a = F * _phi(-d1c) / max(_phi(-d2c), 1e-12)
         e_s_b = _e_spot_cond(d1p, d2p, d1c, d2c) if p_b > 0 else S0
         e_s_c = _e_spot_cond(d1c, d2c, d1prot, d2prot) if p_c > 0 else S0
         e_s_d = F * _phi(d1prot) / max(_phi(d2prot), 1e-12)
