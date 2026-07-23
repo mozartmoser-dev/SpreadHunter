@@ -16,7 +16,7 @@ from src.application.use_cases.monitor_venda_coberta import MonitorVendaCobertaU
 from src.application.use_cases.mpp_use_case import MPPUseCase
 from src.domain.services.pipeline_tracker import PipelineTracker
 from src.domain.services.calculadora_cauda_assincrona import CalculadoraCaudaAssincrona, ResultadoCaudaAssincrona
-from src.domain.services.calculadora_protecao_cauda import CalculadoraProtecaoCauda
+from src.domain.services.calculadora_protecao_cauda import CalculadoraProtecaoCauda, ResultadoProtecaoCauda
 from src.domain.services.calculadora_colar_calendario import ResultadoColarCalendario, TipoColarCalendario
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
 from src.domain.services.market_data_source import criar_data_source, MarketDataSource
