@@ -958,6 +958,7 @@ class MonitorWorker(QThread):
                                 "ev": [ev_tail.get("ev_a", 0), ev_tail.get("ev_b", 0), ev_tail.get("ev_c", 0), ev_tail.get("ev_d", 0)],
                             })
                         except Exception:
+                            logger.exception("Erro ao calcular E[PnL] para Tail")
                             pass
 
                         reg_tail["score_ev"] = ev_tail.get("score_ev", 0.0)
