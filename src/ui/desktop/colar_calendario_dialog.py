@@ -201,6 +201,20 @@ class ColarCalTableModel(QAbstractTableModel):
             if col_key == "zonas_barras":
                 return item.get("zonas_barras", {"empty": True})
             return None
+        if role == Qt.ItemDataRole.ToolTipRole:
+            if col_key == "zonas_barras":
+                zonas = item.get("zonas_barras", {})
+                if zonas.get("empty"):
+                    return "Sem dados de zona (protecao nao calculada)"
+                p = zonas.get("p", [0, 0, 0, 0])
+                ev = zonas.get("ev", [0, 0, 0, 0])
+                return (
+                    f"Zona A (PUT cobre): {p[0]:.1%} | EV: R$ {ev[0]:.2f}\n"
+                    f"Zona B (Ganho max): {p[1]:.1%} | EV: R$ {ev[1]:.2f}\n"
+                    f"Zona C (Vale morte): {p[2]:.1%} | EV: R$ {ev[2]:.2f}\n"
+                    f"Zona D (Protecao):   {p[3]:.1%} | EV: R$ {ev[3]:.2f}"
+                )
+            return None
         if role == Qt.ItemDataRole.DisplayRole:
             val = item.get(col_key)
             if val is None:
@@ -317,10 +331,18 @@ class ZonesSparklineDelegate(QStyledItemDelegate):
             w = float(rect.width())
             h = float(rect.height())
             total_p = sum(probs) or 1.0
+            labels = ["A", "B", "C", "D"]
             for i in range(4):
                 seg_w = int(w * probs[i] / total_p)
                 if seg_w > 0:
                     painter.fillRect(QRect(int(x), int(rect.y()), seg_w, int(h)), _ZONA_COLORS[i])
+                    if seg_w > 15:
+                        painter.setPen(QColor("#ffffff"))
+                        font = painter.font()
+                        font.setPixelSize(max(8, int(h * 0.5)))
+                        painter.setFont(font)
+                        painter.drawText(QRect(int(x), int(rect.y()), seg_w, int(h)),
+                                         Qt.AlignmentFlag.AlignCenter, labels[i])
                     x += seg_w
         elif data and isinstance(data, dict) and data.get("empty"):
             painter.setPen(QColor("#555555"))

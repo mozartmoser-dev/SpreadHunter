@@ -923,10 +923,46 @@ class MonitorWorker(QThread):
                             "lotes_bwb_put": 0,
                             "razao_convexidade_call": 1.0,
                             "razao_convexidade_put": 1.0,
-                            "score_ev": 0.0,
-                            "score_ev_pct": 0.0,
-                            "zonas_ev_json": None,
                         }
+
+                        ev_tail = {"score_ev": 0.0, "score_ev_pct": 0.0}
+                        zonas_ev_json_tail = None
+                        try:
+                            prot_tail = ResultadoProtecaoCauda(
+                                id_chassi=v.id_chassi,
+                                ativo=v.ativo,
+                                lado_protegido="call" if tail_call else ("put" if tail_put else "nenhum"),
+                                naked_call_frac=max(0.0, v.ratio_call - 1.0),
+                                naked_put_gap=max(0.0, 1.0 - v.ratio_put),
+                                strike_protecao_call=tail_call.get("strike") if tail_call else None,
+                                strike_protecao_put=tail_put.get("strike") if tail_put else None,
+                                premio_ask_call=tail_call.get("premio_book") if tail_call else None,
+                                premio_ask_put=tail_put.get("premio_book") if tail_put else None,
+                                qtd_protecao_call=r.qtd_acao if tail_call else 0,
+                                qtd_protecao_put=r.qtd_acao if tail_put else 0,
+                                custo_protecao_call=tail_call.get("custo_total", 0.0) if tail_call else 0.0,
+                                custo_protecao_put=tail_put.get("custo_total", 0.0) if tail_put else 0.0,
+                                custo_protecao_total=custo_tail,
+                                pnl_sem_protecao=v.pnl_com_ratio,
+                                pnl_liquido_pos_protecao=pnl_tail,
+                                viavel_call=bool(tail_call),
+                                viavel_put=bool(tail_put),
+                                viavel=bool(tail_call or tail_put),
+                            )
+                            ev_tail = CalculadoraProtecaoCauda._calcular_score_probabilistico(
+                                resultado=v, protecao=prot_tail, qtd_acao=r.qtd_acao, taxa_cdi=taxa_cdi,
+                            )
+                            import json
+                            zonas_ev_json_tail = json.dumps({
+                                "p": [ev_tail.get("p_a", 0), ev_tail.get("p_b", 0), ev_tail.get("p_c", 0), ev_tail.get("p_d", 0)],
+                                "ev": [ev_tail.get("ev_a", 0), ev_tail.get("ev_b", 0), ev_tail.get("ev_c", 0), ev_tail.get("ev_d", 0)],
+                            })
+                        except Exception:
+                            pass
+
+                        reg_tail["score_ev"] = ev_tail.get("score_ev", 0.0)
+                        reg_tail["score_ev_pct"] = ev_tail.get("score_ev_pct", 0.0)
+                        reg_tail["zonas_ev_json"] = zonas_ev_json_tail
                         registros.append(reg_tail)
 
                         # Variante na UI
@@ -1001,8 +1037,9 @@ class MonitorWorker(QThread):
                             viavel_protecao=True,
                             qtd_protecao_call=r.qtd_acao if tail_call else 0,
                             qtd_protecao_put=r.qtd_acao if tail_put else 0,
-                            score_ev=0.0,
-                            score_ev_pct=0.0,
+                            score_ev=ev_tail.get("score_ev", 0.0),
+                            score_ev_pct=ev_tail.get("score_ev_pct", 0.0),
+                            zonas_ev_json=zonas_ev_json_tail,
                         )
                         ui_results.append(novo_tail)
                         c_montadas += 1
