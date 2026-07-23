@@ -331,18 +331,18 @@ class ZonesSparklineDelegate(QStyledItemDelegate):
             w = float(rect.width())
             h = float(rect.height())
             total_p = sum(probs) or 1.0
-            labels = ["A", "B", "C", "D"]
             for i in range(4):
                 seg_w = int(w * probs[i] / total_p)
                 if seg_w > 0:
                     painter.fillRect(QRect(int(x), int(rect.y()), seg_w, int(h)), _ZONA_COLORS[i])
-                    if seg_w > 15:
+                    if seg_w > 20:
                         painter.setPen(QColor("#ffffff"))
                         font = painter.font()
-                        font.setPixelSize(max(8, int(h * 0.5)))
+                        font.setPixelSize(max(8, int(h * 0.45)))
                         painter.setFont(font)
+                        pct_text = f"{probs[i]/total_p:.0%}"
                         painter.drawText(QRect(int(x), int(rect.y()), seg_w, int(h)),
-                                         Qt.AlignmentFlag.AlignCenter, labels[i])
+                                         Qt.AlignmentFlag.AlignCenter, pct_text)
                     x += seg_w
         elif data and isinstance(data, dict) and data.get("empty"):
             painter.setPen(QColor("#555555"))
