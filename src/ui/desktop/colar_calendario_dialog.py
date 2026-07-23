@@ -1449,23 +1449,7 @@ class ColarCalendarioDialog(QDialog):
             elif k_bwb_p and q_bwb_p > 0:
                 bwb_put_pnl = (np.maximum(0, k_bwb_p - x) - (c_bwb_p / q_bwb_p)) * q_bwb_p
 
-            # ── Tail Protect PnL ──
-            k_tail_c = getattr(r, 'strike_protecao_call', None)
-            k_tail_p = getattr(r, 'strike_protecao_put', None)
-            c_tail_c = getattr(r, 'custo_protecao_call', 0.0) or 0.0
-            c_tail_p = getattr(r, 'custo_protecao_put', 0.0) or 0.0
-            q_tc = getattr(r, 'qtd_protecao_call', 0) or 0
-            q_tp = getattr(r, 'qtd_protecao_put', 0) or 0
-            tail_call_pnl = np.zeros_like(x)
-            tail_put_pnl = np.zeros_like(x)
-            if k_tail_c and q_tc > 0:
-                tail_call_pnl = (np.maximum(0, x - k_tail_c) - (c_tail_c / max(q_tc, 1))) * q_tc
-            if k_tail_p and q_tp > 0:
-                tail_put_pnl = (np.maximum(0, k_tail_p - x) - (c_tail_p / max(q_tp, 1))) * q_tp
-
-            pnl = (stock_pnl + call_pnl + naked_pnl + put_pnl) * qtd_a + bwb_call_pnl + bwb_put_pnl + tail_call_pnl + tail_put_pnl
-            pnl_sem_tail = (stock_pnl + call_pnl + naked_pnl + put_pnl) * qtd_a + bwb_call_pnl + bwb_put_pnl
-            tem_tail = np.any(tail_call_pnl != 0) or np.any(tail_put_pnl != 0)
+            pnl = (stock_pnl + call_pnl + naked_pnl + put_pnl) * qtd_a + bwb_call_pnl + bwb_put_pnl
 
             BG = '#0d0d0d'; TEXT = '#c0c0c0'; RED = '#ff3355'
             ACCENT = '#ffc107'; SIGMA_C = '#6c5ce7'
@@ -1479,11 +1463,6 @@ class ColarCalendarioDialog(QDialog):
                 cor = GREEN if mid >= 0 else RED
                 ax.plot(x[i:i + 2], pnl[i:i + 2], color=cor, linewidth=2.5, solid_capstyle='round')
 
-            if tem_tail:
-                for i in range(len(x) - 1):
-                    ax.plot(x[i:i + 2], pnl_sem_tail[i:i + 2], color='#888888', linewidth=0.8,
-                            linestyle='--', alpha=0.5, zorder=2)
-
             hover_vline = ax.axvline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
             hover_hline = ax.axhline(0, color=ACCENT, linewidth=0.8, linestyle=':', alpha=0.5, visible=False, zorder=5)
             hover_text = ax.text(
@@ -1492,10 +1471,8 @@ class ColarCalendarioDialog(QDialog):
                 bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a1a', edgecolor=ACCENT, alpha=0.9),
             )
             x_lim = (x_min, x_max)
-            y_pad = (max(pnl.max(), pnl_sem_tail.max() if tem_tail else pnl.max())
-                     - min(pnl.min(), pnl_sem_tail.min() if tem_tail else pnl.min())) * 0.08
-            y_lim = (min(pnl.min(), pnl_sem_tail.min() if tem_tail else pnl.min()) - y_pad,
-                     max(pnl.max(), pnl_sem_tail.max() if tem_tail else pnl.max()) + y_pad)
+            y_pad = (pnl.max() - pnl.min()) * 0.08
+            y_lim = (pnl.min() - y_pad, pnl.max() + y_pad)
             def _on_hover(event):
                 ax.set_xlim(x_lim)
                 ax.set_ylim(y_lim)
@@ -1579,24 +1556,7 @@ class ColarCalendarioDialog(QDialog):
                 ax.axvline(k_bwb_p, color=BWB_CLR, linewidth=0.8, linestyle='-.', alpha=0.9)
                 ax.text(k_bwb_p, ax.get_ylim()[1] * 0.82, f'BWB P\n{k_bwb_p:.2f}',
                         color=BWB_CLR, fontsize=6, ha='center', va='top',
-                         bbox=dict(boxstyle='round,pad=0.1', facecolor='#1a1a1a', edgecolor=BWB_CLR, alpha=0.8))
-
-            # ── Marcadores Tail Protect ──
-            TAIL_CLR = '#2ecc71'
-            k_tail_c = getattr(r, 'strike_protecao_call', None)
-            k_tail_p = getattr(r, 'strike_protecao_put', None)
-            if k_tail_c and x_min <= k_tail_c <= x_max:
-                ax.axvline(k_tail_c, color=TAIL_CLR, linewidth=1.2, linestyle='--', alpha=0.9)
-                ax.text(k_tail_c, ax.get_ylim()[1] * 0.78, f'Tail CALL\n{k_tail_c:.2f}',
-                        color=TAIL_CLR, fontsize=6.5, ha='center', va='top',
-                        bbox=dict(boxstyle='round,pad=0.1', facecolor='#0a2a0a',
-                                  edgecolor=TAIL_CLR, alpha=0.85))
-            if k_tail_p and x_min <= k_tail_p <= x_max:
-                ax.axvline(k_tail_p, color=TAIL_CLR, linewidth=1.2, linestyle='--', alpha=0.9)
-                ax.text(k_tail_p, ax.get_ylim()[1] * 0.70, f'Tail PUT\n{k_tail_p:.2f}',
-                        color=TAIL_CLR, fontsize=6.5, ha='center', va='top',
-                        bbox=dict(boxstyle='round,pad=0.1', facecolor='#0a2a0a',
-                                  edgecolor=TAIL_CLR, alpha=0.85))
+                          bbox=dict(boxstyle='round,pad=0.1', facecolor='#1a1a1a', edgecolor=BWB_CLR, alpha=0.8))
 
             # Breakevens
             be_color_bs = '#6c5ce7'

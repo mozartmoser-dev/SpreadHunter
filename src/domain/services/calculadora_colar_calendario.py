@@ -701,7 +701,9 @@ class CalculadoraColarCalendario:
         pnl_atual = r.pnl_projetado
 
         if lado_protegido and lado_protegido not in ("nenhum", None) and custo_prot > 0:
-            lines.append("<p><b>\U0001f6e1 Prote\u00e7\u00e3o BWB (Broken Wing Butterfly):</b></p><ul>")
+            is_bwb = bool(getattr(r, 'strikes_bwb_call', None))
+            titulo = "\U0001f6e1 Prote\u00e7\u00e3o BWB (Broken Wing Butterfly):" if is_bwb else "\U0001f6e1 Prote\u00e7\u00e3o:"
+            lines.append(f"<p><b>{titulo}</b></p><ul>")
             lines.append(f"<li>Lado protegido: <b>{lado_protegido}</b></li>")
             lines.append(f"<li>PnL antes da prote\u00e7\u00e3o: <b>R$ {pnl_atual:.2f}</b></li>")
             lines.append(f"<li>Custo da prote\u00e7\u00e3o: <b>\u2212R$ {custo_prot:.2f}</b></li>")
@@ -735,7 +737,7 @@ class CalculadoraColarCalendario:
         k_tail_p = getattr(r, 'strike_protecao_put', None)
         custo_tail = getattr(r, 'custo_protecao_total', 0.0) or 0.0
         pnl_tail = getattr(r, 'pnl_liquido_pos_protecao', 0.0) or 0.0
-        if (cod_tail_c or cod_tail_p) and custo_tail > 0:
+        if (cod_tail_c or cod_tail_p) and custo_tail > 0 and not (lado_protegido and lado_protegido not in ("nenhum", None)):
             lines.append("<p><b>\U0001f6e1 Tail Protect (Prote\u00e7\u00e3o Simples):</b></p><ul>")
             if cod_tail_c and k_tail_c:
                 premio_tc = getattr(r, 'premio_book_call', 0.0) or getattr(r, 'premio_ask_protecao_call', 0.0) or 0.0
