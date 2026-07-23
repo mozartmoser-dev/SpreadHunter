@@ -1,13 +1,14 @@
+import json
 import logging
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QLineEdit, QFormLayout, QFrame,
     QListWidget, QListWidgetItem, QWidget, QTextEdit, QSpinBox, QDoubleSpinBox,
-    QComboBox,
+    QComboBox, QStyledItemDelegate,
 )
-from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal
-from PySide6.QtGui import QFont, QColor, QBrush
+from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal, QRect
+from PySide6.QtGui import QFont, QColor, QBrush, QPainter, QPen
 
 from src.domain.services.calendario_b3 import dc_to_du
 from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
@@ -16,6 +17,21 @@ from src.ui.desktop.column_utils import salvar_ordem_colunas, salvar_largura_col
 from src.ui.desktop.copy_utils import copiar_texto_formatado, copiar_figura_clipboard, salvar_figura_arquivo
 from src.ui.desktop.theme import Palette
 from src.ui.desktop.constants import SELETOR_TODOS
+
+logger = logging.getLogger(__name__)
+
+
+def _parse_zonas_json(json_str: str | None) -> dict:
+    if not json_str:
+        return {"empty": True}
+    try:
+        data = json.loads(json_str)
+        if data.get("p") and sum(data["p"]) > 0:
+            return {"p": data["p"], "ev": data.get("ev", [0, 0, 0, 0])}
+    except Exception:
+        pass
+    return {"empty": True}
+
 
 CUSTOS_DISCLOSURE = (
     "\n\n* Custos já incluem taxa B3 (emolumento 0,025% + liquidação 0,0275% por perna) "
@@ -90,6 +106,7 @@ class ColarCalTableModel(QAbstractTableModel):
         ("Qtd BWB P", "qtd_protecao_put"),
         ("E[PnL]", "score_ev_str"),
         ("EV%", "score_ev_pct"),
+        ("Zonas", "zonas_barras"),
         ("Detectado", "label_detectado"),
     ]
 
@@ -180,6 +197,10 @@ class ColarCalTableModel(QAbstractTableModel):
             return None
         item = self._items[index.row()]
         col_key = self.COLUMNS[index.column()][1]
+        if role == Qt.ItemDataRole.UserRole:
+            if col_key == "zonas_barras":
+                return item.get("zonas_barras", {"empty": True})
+            return None
         if role == Qt.ItemDataRole.DisplayRole:
             val = item.get(col_key)
             if val is None:
@@ -278,6 +299,33 @@ class ColarCalTableModel(QAbstractTableModel):
         self.beginResetModel()
         self._items = items
         self.endResetModel()
+
+
+_ZONA_COLORS = [QColor("#2ecc71"), QColor("#27ae60"), QColor("#e74c3c"), QColor("#3498db")]
+
+
+class ZonesSparklineDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        painter.save()
+        self.initStyleOption(option, index)
+        data = index.data(Qt.ItemDataRole.UserRole)
+        if data and isinstance(data, dict) and data.get("p"):
+            probs = data["p"]
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+            rect = option.rect.adjusted(2, 4, -2, -4)
+            x = float(rect.x())
+            w = float(rect.width())
+            h = float(rect.height())
+            total_p = sum(probs) or 1.0
+            for i in range(4):
+                seg_w = int(w * probs[i] / total_p)
+                if seg_w > 0:
+                    painter.fillRect(QRect(int(x), int(rect.y()), seg_w, int(h)), _ZONA_COLORS[i])
+                    x += seg_w
+        elif data and isinstance(data, dict) and data.get("empty"):
+            painter.setPen(QColor("#555555"))
+            painter.drawText(option.rect, Qt.AlignmentFlag.AlignCenter, "--")
+        painter.restore()
 
 
 class ColarCalSortProxy(QSortFilterProxyModel):
@@ -638,6 +686,11 @@ class ColarCalendarioDialog(QDialog):
         header.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(header, "colar_cal_table_order")))
         header.sectionResized.connect(lambda: QTimer.singleShot(0, lambda: salvar_largura_colunas(header, "colar_cal_table_width")))
         limpar_e_restaurar_colunas(header, "colar_cal_table_order", "colar_cal_table_width")
+
+        zonas_col = next((i for i, (_, k) in enumerate(ColarCalTableModel.COLUMNS) if k == "zonas_barras"), -1)
+        if zonas_col >= 0:
+            self.table_view.setItemDelegateForColumn(zonas_col, ZonesSparklineDelegate(self.table_view))
+
         header.setSectionResizeMode(QHeaderView.Interactive)
         self.table_view.verticalHeader().setDefaultSectionSize(24)
         self.table_view.verticalHeader().hide()
@@ -2315,6 +2368,7 @@ class ColarCalendarioDialog(QDialog):
                     "qtd_protecao_put": getattr(r, 'qtd_protecao_put', 0) or 0,
                     "score_ev_str": getattr(r, 'score_ev', 0.0) or 0.0,
                     "score_ev_pct": getattr(r, 'score_ev_pct', 0.0) or 0.0,
+                    "zonas_barras": _parse_zonas_json(getattr(r, 'zonas_ev_json', None)),
                     "is_cauda": getattr(r, 'is_cauda', False),
                     "is_otimizado": getattr(r, 'is_otimizado', False),
                     "label_detectado": _formatar_detectado(getattr(r, 'detectado_em', None)),
