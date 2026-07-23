@@ -570,45 +570,92 @@ Na prática B3, ~99% dos casos caem na linha do meio (`A/E` = âmbar), porque PU
 
 # Fase 6 — `historico_rejeicoes` (Log de Rejeições Qualificado)
 
-**Status:** Refinado — aguardando implementação após Fase 4.
+**Status:** Revisado e aprovado. Aguardando implementação.
 
-**Objetivo:** Funil de conversão real para calibrar parâmetros de proteção com dado empírico — não achismo. Saber exatamente em qual estágio cada ativo está travando.
+**Revisão 23/07:** 3 ajustes críticos incorporados:
+1. Adicionado `estagio` (Base/Rendimento/Proteção/Platô) — essencial para calibrar limites por variante
+2. Regra de persistência alterada: persiste POR VARIANTE (não por chassi), capturando assimetrias entre estágios
+3. Confirmado que `spread` e `liquidez` são distinguíveis no código (`_avaliar_lado`)
 
-**Design minimalista (5 colunas resolvem 80%):**
+**Objetivo:** Funil de conversão real para calibrar parâmetros de proteção com dado empírico. Saber exatamente em qual estágio cada variante está travando.
+
+## Schema (10 colunas)
 
 | Coluna | Tipo | Descrição |
 |---|---|---|
 | `ativo` | TEXT | Código B3 |
+| `estagio` | TEXT | Base / Rendimento / Proteção / Platô |
 | `detectado_em` | TIMESTAMP | Data/hora |
-| `etapa_rejeicao` | TEXT | Estágio: `liquidez`, `direcao`, `custo`, `cdi`, `spread` |
+| `etapa_rejeicao` | TEXT | `liquidez`, `spread`, `direcao`, `custo`, `cdi` |
 | `motivo` | TEXT | Frase curta: `custo excede orcamento`, `sem strikes na direcao` |
-| `detalhe` | TEXT | Valor quantitativo: `custo=80 orcamento=50`, `spread=35% limite=20%` |
-| `sigma_periodo` | REAL | Volatilidade do período (σ√T) no momento da rejeição |
+| `detalhe` | TEXT | Valores: `custo=80 orcamento=50`, `spread=35% limite=20%`, `vol=10 limite=40` |
+| `sigma_periodo` | REAL | Volatilidade do período (σ√T) no momento |
 | `iv_call` | REAL | Volatilidade implícita da call (%) |
 | `preco_ativo` | REAL | Spot no momento |
 | `parametros_snapshot` | JSON | Parâmetros no momento da rejeição |
 
-**Só persiste se:** o chassi não gerou NENHUMA variante viável (nem Base, nem +Tail). Se já tem variante viável, a rejeição de uma específica não agrega informação.
+## Regra de persistência (REVISADA)
 
-**Snapshot só nos rejeitados.** Nos aprovados, os campos de output do `historico_simulacoes` (`custo_protecao_total`, `score_ev`, `strike_protecao_call`, `viavel`) já bastam para inferir o efeito do parâmetro.
+**Persiste se:** `naked_call_frac >= 2% OU naked_put_gap >= 2%` E `avaliar()` retornar `viavel=False` (ou seja, a proteção foi tentada mas falhou).
 
-**O que cada estágio de rejeição ensina:**
+**NÃO persiste se:** `avaliar()` retornar `None` (naked insignificante = não-aplicável, não é rejeição).
+
+**Uma linha por variante**, independente do resultado das outras variantes do mesmo chassi. Exemplo: se Base passa, mas Proteção falha por custo → grava 1 linha para Proteção. Se Proteção passa mas Rendimento falha por spread → grava 1 linha para Rendimento.
+
+## Distinção spread vs liquidez (CONFIRMADO)
+
+No `_avaliar_lado`, os filtros são separados no mesmo loop:
+- `min(vol_ask, vol_bid) < limite_liquidez` → `continue` → motivo `"liquidez"`
+- `spread_pct > spread_maximo_pct` → `continue` → motivo `"spread"`
+
+A Fase 6 deve registrar o motivo correto (não agrupar ambos como "liquidez").
+
+**Snapshot só nos rejeitados.** Nos aprovados, os campos de output do `historico_simulacoes` já bastam.
+
+## O que cada estágio de rejeição ensina
 
 | Estágio | Aprendizado | Ação |
 |---|---|---|
-| Liquidez (15) | `fator_seguranca_liquidez` ideal | Calcular percentil 80 do vol real dos rejeitados → definir limiar empírico |
-| Direção (16) | `n_sigma_protecao` está longe demais? | Se candidatos líquidos só existem do lado errado, reduzir n_sigma |
-| Custo (17) | `limite_protecao_pct` vs preço real de mercado | Se a maioria cai aqui, o orçamento é sistematicamente insuficiente |
-| Spread | `spread_maximo_pct` está realista? | Se muitos caem com spread 21-25%, subir de 20% pra 25% resolve |
-| CDI (14d) | Grid de ratio está valendo o custo computacional? | Se Rendimento/Proteção/Platô raramente batem a Base, ajustar `otimizado_ratio_max` |
+| Liquidez | `fator_seguranca_liquidez` ideal | Percentil 80 do vol real dos rejeitados → limiar empírico |
+| Spread | `spread_maximo_pct` está realista? | Se muitos caem com spread 21-25%, subir de 20% pra 25% |
+| Direção | `n_sigma_protecao` está longe demais? | Candidatos líquidos só do lado errado → reduzir n_sigma |
+| Custo | `limite_protecao_pct` vs preço real | Por estágio: se Rendimento falha muito mais que Proteção, o orçamento de 20% é insuficiente |
+| CDI | Grid de ratio está valendo? | Se Rendimento/Proteção/Platô raramente batem a Base, ajustar `otimizado_ratio_max` |
 
-**Consulta agregada típica:**
+## SQL
+
 ```sql
-SELECT ativo, etapa_rejeicao, COUNT(*) as ocorrencias
-FROM historico_rejeicoes
-GROUP BY ativo, etapa_rejeicao
-ORDER BY ativo, ocorrencias DESC
+CREATE TABLE IF NOT EXISTS historico_rejeicoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ativo TEXT NOT NULL,
+    estagio TEXT NOT NULL,
+    etapa_rejeicao TEXT NOT NULL,
+    motivo TEXT,
+    detalhe TEXT,
+    sigma_periodo REAL,
+    iv_call REAL,
+    preco_ativo REAL,
+    parametros_snapshot TEXT,
+    detectado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
-→ Mostra exatamente onde cada ativo está travando. Ajusta UM parâmetro por vez, mede o efeito.
 
-**Isso é estatística descritiva (pandas), não ML.** Entrega calibração de limiar com dado real — não descoberta de padrão oculto, não decisão automática.
+## Consulta agregada típica
+
+```sql
+SELECT ativo, estagio, etapa_rejeicao, COUNT(*) as ocorrencias
+FROM historico_rejeicoes
+GROUP BY ativo, estagio, etapa_rejeicao
+ORDER BY ativo, estagio, ocorrencias DESC
+```
+
+## Ordem de implementação
+
+| Passo | O que |
+|---|---|
+| 1 | Criar tabela `historico_rejeicoes` em `database.py` |
+| 2 | `HistoricoRejeicoesRepository` em `repositories.py` |
+| 3 | Adaptar `_avaliar_lado` para retornar `motivo_rejeicao` no dict |
+| 4 | Em `avaliar()`, persistir rejeição via repositório quando `viavel=False` |
+| 5 | Em `monitor_worker.py`, garantir que snapshot de parâmetros é capturado |
+| 6 | Dialog de consulta simples (ativo, data, estágio)
