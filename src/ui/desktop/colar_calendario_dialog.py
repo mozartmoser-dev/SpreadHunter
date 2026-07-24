@@ -300,13 +300,18 @@ class _ResumoAnaliticoDialog(QDialog):
             vl, vf = _card("ANALISE DAS VARIANTES")
 
             # Separa otimizados com e sem Tail
-            sem_tail = [x for x in self._irmaos if not getattr(x, 'lado_protegido', None) or getattr(x, 'lado_protegido', 'nenhum') == 'nenhum']
-            com_tail = [x for x in self._irmaos if getattr(x, 'lado_protegido', 'nenhum') != 'nenhum']
+            def _tem_tail(x):
+                lado = getattr(x, 'lado_protegido', None)
+                return lado is not None and lado != 'nenhum' and str(lado).strip() != ''
+
+            sem_tail = [x for x in self._irmaos if not _tem_tail(x)]
+            com_tail = [x for x in self._irmaos if _tem_tail(x)]
 
             melhor_otm = max(sem_tail, key=lambda x: getattr(x, 'pnl_projetado', 0) or 0, default=None)
             melhor_tail = max(com_tail, key=lambda x: getattr(x, 'pnl_projetado', 0) or 0, default=None)
 
             pnl_neutro = getattr(self._neutro, 'pnl_projetado', 0) or 0 if self._neutro else 0
+            pnl_otm = 0
 
             linhas_variantes = []
 
@@ -2003,14 +2008,17 @@ class ColarCalendarioDialog(QDialog):
         dialog.exec_()
 
     def _mostrar_resumo_analitico(self, r):
-        neutro = next((x for x in self._resultados
-                       if x.ativo == r.ativo and x.cod_call == r.cod_call and x.cod_put == r.cod_put
-                       and not getattr(x, 'is_otimizado', False)), None)
-        irmaos = [x for x in self._resultados
-                  if x.ativo == r.ativo and x.cod_call == r.cod_call and x.cod_put == r.cod_put
-                  and getattr(x, 'is_otimizado', False)]
-        dlg = _ResumoAnaliticoDialog(r, irmaos, neutro, self)
-        dlg.exec_()
+        try:
+            neutro = next((x for x in self._resultados
+                           if x.ativo == r.ativo and x.cod_call == r.cod_call and x.cod_put == r.cod_put
+                           and not getattr(x, 'is_otimizado', False)), None)
+            irmaos = [x for x in self._resultados
+                      if x.ativo == r.ativo and x.cod_call == r.cod_call and x.cod_put == r.cod_put
+                      and getattr(x, 'is_otimizado', False)]
+            dlg = _ResumoAnaliticoDialog(r, irmaos, neutro, self)
+            dlg.exec_()
+        except Exception:
+            logger.exception("Erro ao abrir Resumo Analitico")
 
     def _plot_payoff(self, r):
         from PySide6.QtWidgets import QMessageBox
