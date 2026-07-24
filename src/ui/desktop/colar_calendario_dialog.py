@@ -655,6 +655,21 @@ class ColarCalendarioDialog(QDialog):
         self.btn_bell.toggled.connect(self._toggle_som)
         header_layout.addWidget(self.btn_bell)
 
+        self.btn_ajuda = QPushButton("?")
+        self.btn_ajuda.setFixedSize(24, 24)
+        self.btn_ajuda.setToolTip("Guia rápido de análise — como interpretar scores, E[PnL] e zonas")
+        self.btn_ajuda.setCursor(Qt.PointingHandCursor)
+        self.btn_ajuda.setStyleSheet("""
+            QPushButton {
+                background-color: #2d2d44; color: #f39c12;
+                border: 1px solid #f39c12; border-radius: 4px;
+                font-size: 11pt; font-weight: bold; padding: 0;
+            }
+            QPushButton:hover { background-color: #3d3d55; color: #f1c40f; }
+        """)
+        self.btn_ajuda.clicked.connect(self._mostrar_guia_analise)
+        header_layout.addWidget(self.btn_ajuda)
+
         self.btn_export_csv = QPushButton("📥 Export CSV")
         self.btn_export_csv.setFixedHeight(24)
         self.btn_export_csv.setCursor(Qt.PointingHandCursor)
@@ -2641,3 +2656,44 @@ class ColarCalendarioDialog(QDialog):
     def _toggle_som(self, ativo: bool):
         self._som_ativado = ativo
         self.btn_bell.setToolTip("Som: ligado" if ativo else "Som: desligado")
+
+    def _mostrar_guia_analise(self):
+        from PySide6.QtWidgets import QMessageBox
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Guia Rapido de Analise — Collar Calendario")
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setText("""
+<b><font color='#f39c12'>Como interpretar os dados e decidir</font></b>
+
+<b>★ QUALIDADE (1-5)</b> — Nota agregada: PnL, %CDI, E[PnL] e zona C.
+  <font color='#2ecc71'>4-5★</font> = prioridade alta | <font color='#f39c12'>3★</font> = OK | <font color='#e74c3c'>1-2★</font> = ignorar
+
+<b>SCORE (0-10)</b> — Forca bruta do collar (PnL absoluto × %CDI).
+  <font color='#2ecc71'>5+</font> = excelente | <font color='#f39c12'>3-5</font> = bom | <font color='#e74c3c'>&lt;3</font> = fraco
+
+<b>SCORE IV (0-1)</b> — Ambiente de volatilidade.
+  <font color='#2ecc71'>0.5+</font> = opcoes caras (bom pra vender) | <font color='#e74c3c'>&lt;0.3</font> = IV baixo
+
+<b>E[PnL]</b> — Valor esperado probabilistico (4 zonas, Black-Scholes).
+  <b>Negativo e NORMAL</b> — mercado eficiente = premio justo.
+  O edge real esta no <b>theta diferencial</b> (call decay vs put decay),
+  nao no E[PnL]. Use E[PnL] so para <b>comparar variantes</b> entre si.
+
+<b>ZONAS (barras)</b> — Distribuicao de probabilidade do resultado:
+  <font color='#e74c3c'>Zona A</font> (S &lt; Kp) = perda na cauda esquerda
+  <font color='#f39c12'>Zona B</font> (Kp &lt; S &lt; S0) = ganho parcial
+  <font color='#2ecc71'>Zona C</font> (S0 &lt; S &lt; Kc) = lucro maximo
+  <font color='#3498db'>Zona D</font> (S &gt; Kc) = cap lado direito
+  Se A+D dominam → <b>risco de cauda</b>. Prefira B+C altos.
+
+<b>FLUXO DE DECISAO:</b>
+  1. Filtrar por ★ 4-5
+  2. Zonas: evitar cauda pesada (A+D &gt; 40%)
+  3. E[PnL]: comparar Rendimento × Protecao × Plata × Base
+  4. Score IV &gt; 0.5 = ambiente favoravel
+  5. MOD: <font color='#e74c3c'>A (Americana)</font> = risco exercicio antecipado
+           <font color='#2ecc71'>E (Europeia)</font> = seguro
+  6. Theta liquido positivo = estrutura ganha com o tempo
+        """)
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.exec_()
