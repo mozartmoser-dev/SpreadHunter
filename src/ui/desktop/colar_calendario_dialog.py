@@ -1991,7 +1991,6 @@ class ColarCalendarioDialog(QDialog):
 
     def _mostrar_resumo_analitico(self, r):
         try:
-            logger.warning("Resumo: type(r)=%s, r=%s, hasattr(ativo)=%s", type(r), r, hasattr(r, 'ativo'))
             if not hasattr(r, 'ativo'):
                 return
             if not isinstance(self._resultados, list):
