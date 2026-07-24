@@ -198,7 +198,7 @@ def test_colar_calendario_derived_values(qapp):
     ("iv_put", 28.0, "28.0%"),
     ("premio_call", 0.50, "R$ 0.50"),
     ("premio_put", 1.00, "R$ 1.00"),
-    ("net_credito", 0.50, "R$ 0.50"),
+    ("net_credito", 0.50, "R$ +0.50"),
     ("valor_put_venc_call", 0.80, "R$ 0.80"),
     ("theta_call", 0.02, "0.02"),
     ("theta_call", 0.00, "-"),

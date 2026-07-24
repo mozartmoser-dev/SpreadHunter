@@ -220,9 +220,13 @@ class ColarCalTableModel(QAbstractTableModel):
             if val is None:
                 return "-"
             if col_key in ("preco_ativo", "strike_call", "strike_put", "premio_call",
-                           "premio_put", "net_credito", "valor_put_venc_call",
+                           "premio_put", "valor_put_venc_call",
                            "pnl_projetado", "pnl_b3", "pnl_liquido",
                            "capital_empregado", "risco_max"):
+                return f"R$ {val:.2f}"
+            if col_key == "net_credito":
+                if val > 0:
+                    return f"R$ +{val:.2f}"
                 return f"R$ {val:.2f}"
             if col_key in ("score", "score_iv"):
                 return f"{val:.2f}"
@@ -280,7 +284,7 @@ class ColarCalTableModel(QAbstractTableModel):
                 if val > 0:
                     return QBrush(QColor(Palette.GREEN))
                 return QBrush(QColor(Palette.RED))
-            if col_key in ("pnl_b3", "pnl_liquido"):
+            if col_key in ("pnl_b3", "pnl_liquido", "net_credito"):
                 val = item.get(col_key, 0)
                 if val > 0:
                     return QBrush(QColor(Palette.GREEN))
@@ -1473,6 +1477,27 @@ class ColarCalendarioDialog(QDialog):
 
             pnl = (stock_pnl + call_pnl + naked_pnl + put_pnl) * qtd_a + bwb_call_pnl + bwb_put_pnl
 
+            has_prot = (q_bwb_c > 0 or q_bwb_p > 0
+                        or (lado_bwb and lado_bwb not in ("nenhum", None)))
+            be_baixa_adj = r.be_baixa
+            be_alta_adj = r.be_alta
+            if has_prot:
+                sign_changes = np.where(np.diff(np.sign(pnl)))[0]
+                for idx in sign_changes:
+                    if idx + 1 >= len(x):
+                        continue
+                    x0, x1 = x[idx], x[idx + 1]
+                    y0, y1 = pnl[idx], pnl[idx + 1]
+                    if abs(y1 - y0) < 1e-12:
+                        continue
+                    crossing = x0 - y0 * (x1 - x0) / (y1 - y0)
+                    if crossing < S0:
+                        if be_baixa_adj is None or crossing > be_baixa_adj:
+                            be_baixa_adj = crossing
+                    else:
+                        if be_alta_adj is None or crossing < be_alta_adj:
+                            be_alta_adj = crossing
+
             BG = '#0d0d0d'; TEXT = '#c0c0c0'; RED = '#ff3355'
             ACCENT = '#ffc107'; SIGMA_C = '#6c5ce7'
             WHITE = '#ffffff'; GREEN = '#4caf50'; SPOT_CLR = '#42a5f5'
@@ -1583,23 +1608,24 @@ class ColarCalendarioDialog(QDialog):
             # Breakevens
             be_color_bs = '#6c5ce7'
             be_color_int = '#fd79a8'
+            be_label_bs = "BE B&S" if not has_prot else "BE Ajust."
             ylim_bottom, ylim_top = ax.get_ylim()
             y_bs = ylim_top * 0.05
             y_int = ylim_top * 0.14
             x_range = x_max - x_min
-            if r.be_baixa is not None:
-                ax.axvline(r.be_baixa, color=be_color_bs, linewidth=1.2, linestyle='--', alpha=0.9)
-                dx_bs = max((r.be_alta - r.be_baixa) * 0.02 if r.be_alta is not None else x_range * 0.02, x_range * 0.005)
-                ax.annotate(f'BE B&S {r.be_baixa:.2f}', xy=(r.be_baixa, 0),
-                            xytext=(r.be_baixa - dx_bs, y_bs),
+            if be_baixa_adj is not None:
+                ax.axvline(be_baixa_adj, color=be_color_bs, linewidth=1.2, linestyle='--', alpha=0.9)
+                dx_bs = max((be_alta_adj - be_baixa_adj) * 0.02 if be_alta_adj is not None else x_range * 0.02, x_range * 0.005)
+                ax.annotate(f'{be_label_bs} {be_baixa_adj:.2f}', xy=(be_baixa_adj, 0),
+                            xytext=(be_baixa_adj - dx_bs, y_bs),
                             color=be_color_bs, fontsize=7, ha='center',
                             arrowprops=dict(arrowstyle='->', color=be_color_bs, lw=0.8))
-            if r.be_alta is not None:
-                ax.axvline(r.be_alta, color=be_color_bs, linewidth=1.2, linestyle='--', alpha=0.9,
-                           label='BE B&S')
-                dx_bs = max((r.be_alta - r.be_baixa) * 0.02 if r.be_baixa is not None else x_range * 0.02, x_range * 0.005)
-                ax.annotate(f'BE B&S {r.be_alta:.2f}', xy=(r.be_alta, 0),
-                            xytext=(r.be_alta + dx_bs, y_bs),
+            if be_alta_adj is not None:
+                ax.axvline(be_alta_adj, color=be_color_bs, linewidth=1.2, linestyle='--', alpha=0.9,
+                           label=be_label_bs)
+                dx_bs = max((be_alta_adj - be_baixa_adj) * 0.02 if be_baixa_adj is not None else x_range * 0.02, x_range * 0.005)
+                ax.annotate(f'{be_label_bs} {be_alta_adj:.2f}', xy=(be_alta_adj, 0),
+                            xytext=(be_alta_adj + dx_bs, y_bs),
                             color=be_color_bs, fontsize=7, ha='center',
                             arrowprops=dict(arrowstyle='->', color=be_color_bs, lw=0.8))
             if r.be_baixa_intrinseco is not None:
@@ -1654,12 +1680,15 @@ class ColarCalendarioDialog(QDialog):
             payoff_layout.addWidget(canvas)
 
             be_parts = []
-            if r.be_baixa is not None and r.be_alta is not None:
-                be_parts.append(f"BE B&S: R$ {r.be_baixa:.2f} — R$ {r.be_alta:.2f}")
-            elif r.be_baixa is not None:
-                be_parts.append(f"BE Baixa B&S: R$ {r.be_baixa:.2f}")
-            elif r.be_alta is not None:
-                be_parts.append(f"BE Alta B&S: R$ {r.be_alta:.2f}")
+            be_bs_label = "BE Ajust." if has_prot else "BE B&S"
+            be_low = be_baixa_adj if has_prot else r.be_baixa
+            be_high = be_alta_adj if has_prot else r.be_alta
+            if be_low is not None and be_high is not None:
+                be_parts.append(f"{be_bs_label}: R$ {be_low:.2f} — R$ {be_high:.2f}")
+            elif be_low is not None:
+                be_parts.append(f"BE Baixa {be_bs_label}: R$ {be_low:.2f}")
+            elif be_high is not None:
+                be_parts.append(f"BE Alta {be_bs_label}: R$ {be_high:.2f}")
             if r.be_baixa_intrinseco is not None and r.be_alta_intrinseco is not None:
                 be_parts.append(f"BE Intr: R$ {r.be_baixa_intrinseco:.2f} — R$ {r.be_alta_intrinseco:.2f}")
             elif r.be_baixa_intrinseco is not None:
@@ -1710,7 +1739,7 @@ class ColarCalendarioDialog(QDialog):
                 f"<b>Comprar Put:</b> {r.cod_put} K={Kp:.2f} — −R$ {Pp:.2f} × {int(ratio_put * qtd_a)} ações = R$ {Pp * ratio_put * qtd_a:.2f} (venc. {r.vencimento_put.strftime('%d/%m')})"
                 + bwb_extra
                 + tail_extra
-                + f"<br><b>Capital:</b> R$ {S0 + Pp - Pc:.2f}  |  "
+                + f"<br><b>Capital:</b> R$ {abs(S0 * qtd_a + Pp * ratio_put * qtd_a - Pc * ratio * qtd_a):.2f}  |  "
                 f"<b>PnL Proj:</b> R$ {r.pnl_projetado:.2f} ({r.pct_retorno:.2f}% / {r.pct_cdi:.2f}x CDI)"
                 + (f"  |  <b>PnL Pós-BWB:</b> R$ {getattr(r, 'pnl_liquido_pos_protecao', 0) or 0:.2f}" if lado_bwb and lado_bwb not in ("nenhum", None) and (q_bwb_c > 0 or q_bwb_p > 0) else "")
                 + tail_pnl_str

@@ -464,7 +464,6 @@ class CalculadoraColarCalendario:
         )
 
     @staticmethod
-    @staticmethod
     def gerar_explicacao(r: 'ResultadoColarCalendario', taxa_cdi: float = 0.1450) -> str:
         import numpy as np
         from scipy.stats import norm
@@ -491,8 +490,8 @@ class CalculadoraColarCalendario:
         qtd_call_real = max(1, int(raw_call / _LOTE + 0.5)) * _LOTE if qtd_acao > 0 else raw_call
         qtd_put_real = max(0, int(raw_put / _LOTE + 0.5)) * _LOTE if qtd_acao > 0 else raw_put
 
-        cap = S0 * qtd_acao + Pp * qtd_put_real - Pc * qtd_call_real
-        net = Pc * qtd_call_real - Pp * qtd_put_real
+        cap = abs(getattr(r, 'capital_empregado', 0)) or abs(S0 * qtd_acao + Pp * qtd_put_real - Pc * qtd_call_real)
+        net = getattr(r, 'net_credito', Pc * qtd_call_real - Pp * qtd_put_real)
 
         # ── MOD (tipo_opcao) da CALL via DB ──
         mod_call = None

@@ -1389,6 +1389,7 @@ class MainWindow(QMainWindow):
             service = WorkspaceService(db_path=self.db_path)
             service.garantir_system_default()
             dlg = WorkspaceDialog(service, parent=self)
+            dlg.restaurar_solicitado.connect(self._on_workspace_restaurado)
             dlg.exec_()
         except Exception as e:
             try:
@@ -1396,6 +1397,12 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "Workspace", f"Falha ao abrir o diálogo:\n{e}")
             except Exception:
                 pass
+
+    def _on_workspace_restaurado(self, snapshot_id: str):
+        self._worker.recarregar_parametros()
+        self._aplicar_tema_configurado()
+        self._aplicar_fonte_tamanho()
+        self._update_cdi_display()
 
     def _abrir_historico_simulacoes(self):
         try:
