@@ -153,9 +153,10 @@ class ZonaBarWidget(QWidget):
 class _ResumoAnaliticoDialog(QDialog):
     """Dialogo elegante com resumo analitico da operacao."""
 
-    def __init__(self, r, parent=None):
+    def __init__(self, r, irmaos: list | None = None, parent=None):
         super().__init__(parent, Qt.Window)
         self.r = r
+        self._irmaos = irmaos or []
         self._setup()
 
     def _setup(self):
@@ -292,6 +293,60 @@ class _ResumoAnaliticoDialog(QDialog):
             lv.setStyleSheet(f"color: {muted}; font-size: 8pt; border: none; background: transparent;")
             zl.addWidget(lv)
         layout.addWidget(zf)
+
+        # ═══ CARD: VARIANTES DO CHASSI ═══
+        if self._irmaos:
+            vl, vf = _card("VARIANTES DO CHASSI")
+            header_row = QHBoxLayout()
+            header_row.setSpacing(8)
+            cols = [("Variante", 80), ("Ratio", 60), ("PnL Br", 90), ("E[PnL]", 90), ("EV%", 55), ("Z.C", 50), ("★", 40)]
+            for titulo, w in cols:
+                hl = QLabel(titulo)
+                hl.setFixedWidth(w)
+                hl.setStyleSheet(f"color: {muted}; font-size: 7pt; font-weight: bold; border: none; background: transparent;")
+                header_row.addWidget(hl)
+            vl.addLayout(header_row)
+
+            # Melhor PnL para highlight
+            melhor_pnl = max(self._irmaos, key=lambda x: getattr(x, 'pnl_projetado', 0) or 0, default=r)
+            melhor_pnl_val = getattr(melhor_pnl, 'pnl_projetado', 0) or 0
+
+            for irmao in self._irmaos:
+                row = QHBoxLayout()
+                row.setSpacing(8)
+                estagio = getattr(irmao, 'estagio_otimizado', '') or ''
+                if getattr(irmao, 'lado_protegido', 'nenhum') not in (None, 'nenhum'):
+                    estagio += "+T"
+                ratio = f"{getattr(irmao, 'ratio_call', 1):.1f}/{getattr(irmao, 'ratio_put', 1):.1f}"
+                pnl = getattr(irmao, 'pnl_projetado', 0) or 0
+                ev = getattr(irmao, 'score_ev', 0) or 0
+                ev_pct = getattr(irmao, 'score_ev_pct', 0) or 0
+                zona_c = _extrair_zona_c_prob(irmao) or 0
+                pontos_v = _calcular_qualidade(irmao)
+                estrelas_v = _estrelas_str(pontos_v)
+
+                is_melhor = (irmao is melhor_pnl and melhor_pnl_val > 0)
+                cor_destaque = "#2ecc71" if is_melhor else "#e0e0e0"
+                cor_ev = "#e74c3c" if ev < 0 else "#2ecc71"
+
+                valores = [
+                    (estagio, 80, cor_destaque, True),
+                    (ratio, 60, cor_destaque, False),
+                    (f"R$ {pnl:,.0f}", 90, cor_destaque, True),
+                    (f"R$ {ev:,.0f}", 90, cor_ev, False),
+                    (f"{ev_pct:+.1f}%", 55, "#9090b0", False),
+                    (f"{zona_c*100:.0f}%", 50, "#9090b0", False),
+                    (estrelas_v, 40, cor_destaque, False),
+                ]
+                for texto, w, cor, bold in valores:
+                    lbl = QLabel(texto)
+                    lbl.setFixedWidth(w)
+                    peso = "bold" if bold else "normal"
+                    lbl.setStyleSheet(f"color: {cor}; font-size: 8pt; font-weight: {peso}; border: none; background: transparent;")
+                    row.addWidget(lbl)
+                vl.addLayout(row)
+
+            layout.addWidget(vf)
 
         # ═══ CARD: ESTRUTURA ═══
         el, ef = _card("ESTRUTURA")
@@ -1693,7 +1748,7 @@ class ColarCalendarioDialog(QDialog):
             }}
             QPushButton:hover {{ background-color: #3d553d; }}
         """)
-        btn_resumo.clicked.connect(lambda: self._mostrar_resumo_analitico(r))
+        btn_resumo.clicked.connect(lambda _r=r: self._mostrar_resumo_analitico(_r))
         btn_row.addWidget(btn_resumo)
 
         btn_simulador = QPushButton("🧪 Simulador")
@@ -1915,7 +1970,10 @@ class ColarCalendarioDialog(QDialog):
         dialog.exec_()
 
     def _mostrar_resumo_analitico(self, r):
-        dlg = _ResumoAnaliticoDialog(r, self)
+        irmaos = [x for x in self._resultados
+                  if x.ativo == r.ativo and x.cod_call == r.cod_call and x.cod_put == r.cod_put
+                  and getattr(x, 'is_otimizado', False)]
+        dlg = _ResumoAnaliticoDialog(r, irmaos, self)
         dlg.exec_()
 
     def _plot_payoff(self, r):
