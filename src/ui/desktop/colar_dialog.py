@@ -939,8 +939,8 @@ class ColarDialog(QDialog):
         lbl = QLabel("1. Comprar Ativo:")
         lbl.setStyleSheet(label_style)
         qa = r.qtd_acao
-        preco_compra_real = r.custo_liquido - r.premio_put + r.premio_call
-        preco_unit = preco_compra_real / qa if qa else 0
+        preco_unit = getattr(r, 'preco_compra_ativo', None) or (r.custo_liquido - r.premio_put + r.premio_call) / max(qa, 1)
+        preco_compra_real = preco_unit * qa
         val = QLabel(f"{r.ativo} — R$ {preco_unit:.2f} × {qa} un = R$ {preco_compra_real:.2f}")
         val.setToolTip(
             f"Preço de compra efetivo (oferta de venda / ask): R$ {preco_unit:.2f} × {qa} = R$ {preco_compra_real:.2f}. "

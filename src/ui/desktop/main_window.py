@@ -2022,8 +2022,11 @@ class MainWindow(QMainWindow):
         if r.custo > 0:
             pnl_final = lucro - r.custo
             f2.addRow(_muted("− Custos B3:"), QLabel("−R$ {:.2f}".format(r.custo)))
-            f2.addRow(_muted("= Lucro Líquido:"), QLabel("R$ {:.2f}".format(pnl_final)))
-        f2.addRow(_muted("Retorno:"), QLabel("{:.2f}% / {:.2f}x CDI".format(r.pct_ganho * 100, r.pct_cdi)))
+            f2.addRow(_muted("= Pós-B3:"), QLabel("R$ {:.2f}".format(pnl_final)))
+        pct_liq = getattr(r, 'pct_ganho_liquido', r.pct_ganho) or r.pct_ganho
+        cdi_liq = getattr(r, 'pct_cdi_liquido', r.pct_cdi) or r.pct_cdi
+        f2.addRow(_muted("Retorno Bruto:"), QLabel("{:.2f}% / {:.2f}x CDI".format(r.pct_ganho * 100, r.pct_cdi)))
+        f2.addRow(_muted("Retorno Líq. (B3+IR):"), QLabel("{:.2f}% / {:.2f}x CDI".format(pct_liq * 100, cdi_liq)))
 
         from datetime import datetime
         from zoneinfo import ZoneInfo
@@ -2166,7 +2169,14 @@ class MainWindow(QMainWindow):
         lucro = r.recebimento - r.strike
         f2.addRow(_muted("Recebimento:"), QLabel("R$ {:.2f}".format(r.recebimento)))
         f2.addRow(_muted("Lucro (Receb. − Strike):"), QLabel("R$ {:.2f}".format(lucro)))
-        f2.addRow(_muted("Retorno:"), QLabel("{:.2f}% / {:.2f}x CDI".format(r.pct_ganho * 100, r.pct_cdi)))
+        if r.custo > 0:
+            pnl_final = lucro - r.custo
+            f2.addRow(_muted("− Custos B3:"), QLabel("−R$ {:.2f}".format(r.custo)))
+            f2.addRow(_muted("= Pós-B3:"), QLabel("R$ {:.2f}".format(pnl_final)))
+        pct_liq_cob = getattr(r, 'pct_ganho_liquido', r.pct_ganho) or r.pct_ganho
+        cdi_liq_cob = getattr(r, 'pct_cdi_liquido', r.pct_cdi) or r.pct_cdi
+        f2.addRow(_muted("Retorno Bruto:"), QLabel("{:.2f}% / {:.2f}x CDI".format(r.pct_ganho * 100, r.pct_cdi)))
+        f2.addRow(_muted("Retorno Líq. (B3+IR):"), QLabel("{:.2f}% / {:.2f}x CDI".format(pct_liq_cob * 100, cdi_liq_cob)))
 
         from datetime import datetime
         from zoneinfo import ZoneInfo

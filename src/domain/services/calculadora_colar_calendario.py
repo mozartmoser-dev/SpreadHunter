@@ -346,7 +346,7 @@ class CalculadoraColarCalendario:
 
         theta_call = self.bs_theta(S_bs_call, strike_call, T_call, r_cont, iv_call, 'call')
         theta_put = self.bs_theta(S_bs_put, strike_put, T_put, r_cont, iv_put, 'put')
-        theta_liquido = abs(theta_call) - abs(theta_put)
+        theta_liquido = -theta_call + theta_put
 
         T_put_rem = dc_to_du(None, None, dte_extra) / 252.0 if dte_extra > 0 else 0
         valor_put_vc = self.black_scholes(S_bs_call, strike_put, T_put_rem, r_cont, iv_put, 'put') if T_put_rem > 0 else 0
@@ -403,11 +403,11 @@ class CalculadoraColarCalendario:
         viavel = pct_cdi >= self.premio_risco
 
         be_baixa, be_alta = self._calcular_breakevens(
-            preco_ativo, strike_call, strike_put,
+            preco_compra, strike_call, strike_put,
             premio_call, premio_put, dte_extra, r_cont, iv_put,
         )
         be_baixa_int, be_alta_int = self._calcular_breakevens_intrinseco(
-            preco_ativo, strike_call, strike_put,
+            preco_compra, strike_call, strike_put,
             premio_call, premio_put,
         )
 
@@ -591,11 +591,11 @@ class CalculadoraColarCalendario:
         lines.append(f"<li>A\u00e7\u00e3o ({qtd_acao}x): <b>\u2212R$ {S0 * qtd_acao:.2f}</b></li>")
         lines.append(
             f"<li>Vender CALL {r.cod_call} K={Kc:.2f} "
-            f"({int(qtd_call_real)}x, ratio {ratio_call:.2f}): <b>+R$ {Pc * qtd_call_real:.2f}</b></li>"
+            f"({int(raw_call)}x, ratio {ratio_call:.2f}): <b>+R$ {Pc * raw_call:.2f}</b></li>"
         )
         lines.append(
             f"<li>Comprar PUT {r.cod_put} K={Kp:.2f} "
-            f"({int(qtd_put_real)}x, ratio {ratio_put:.2f}): <b>\u2212R$ {Pp * qtd_put_real:.2f}</b></li>"
+            f"({int(raw_put)}x, ratio {ratio_put:.2f}): <b>\u2212R$ {Pp * raw_put:.2f}</b></li>"
         )
         lines.append(
             f"<li><b>Capital = R$ {cap:.2f}</b></li>"

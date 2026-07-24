@@ -175,7 +175,7 @@ class CalculadoraCaudaAssincrona:
                 continue
 
             for m in m_vals:
-                pnl_spot = pnl_projetado_base + (n - 1) * extra_call_pnl * qtd_acao - (1 - m) * custo_put * qtd_acao
+                pnl_spot = pnl_projetado_base + (n - 1) * extra_call_pnl * qtd_acao + (1 - m) * custo_put * qtd_acao
                 if pnl_spot <= 0:
                     continue
 
@@ -214,7 +214,7 @@ class CalculadoraCaudaAssincrona:
             snap_puts = max(0, int(melhor_m * qtd_acao / _LOTE + 0.5))
             melhor_n = snap_calls * _LOTE / qtd_acao
             melhor_m = snap_puts * _LOTE / qtd_acao
-            pnl_spot = pnl_projetado_base + (melhor_n - 1) * extra_call_pnl * qtd_acao - (1 - melhor_m) * custo_put * qtd_acao
+            pnl_spot = pnl_projetado_base + (melhor_n - 1) * extra_call_pnl * qtd_acao + (1 - melhor_m) * custo_put * qtd_acao
             if pnl_spot <= 0:
                 _diag(f"Snap lote B3: n={melhor_n:.2f} m={melhor_m:.2f} pnl={pnl_spot:.4f} — descartado")
                 return None
@@ -371,7 +371,7 @@ class CalculadoraCaudaAssincrona:
 
         for n in n_vals:
             for m in m_vals:
-                pnl_spot = pnl_projetado_base + (n - 1) * extra_call_pnl * qtd_acao - (1 - m) * custo_put * qtd_acao
+                pnl_spot = pnl_projetado_base + (n - 1) * extra_call_pnl * qtd_acao + (1 - m) * custo_put * qtd_acao
                 if pnl_spot <= 0:
                     continue
 
@@ -425,7 +425,7 @@ class CalculadoraCaudaAssincrona:
             snap_puts = max(0, int(m * qtd_acao / _LOTE + 0.5))
             n2 = snap_calls * _LOTE / qtd_acao
             m2 = snap_puts * _LOTE / qtd_acao
-            pnl = pnl_projetado_base + (n2 - 1) * extra_call_pnl * qtd_acao - (1 - m2) * custo_put * qtd_acao
+            pnl = pnl_projetado_base + (n2 - 1) * extra_call_pnl * qtd_acao + (1 - m2) * custo_put * qtd_acao
             if pnl <= 0:
                 return (n2, m2, 0.0, 0.0, 0.0, 0.0)
             dl = CalculadoraCaudaAssincrona._delta_pnl(

@@ -40,7 +40,7 @@ class TestCaudaBasics:
     def test_ratio_put_entre_min_e_um(self):
         r = CalculadoraCaudaAssincrona.calcular(**self.BASE)
         assert r is not None
-        assert 0.3 <= r.ratio_put <= 1.0
+        assert 0.0 <= r.ratio_put <= 1.0
 
     def test_range_ok_zero_nivel(self):
         r = CalculadoraCaudaAssincrona.calcular(**self.BASE)

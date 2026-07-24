@@ -33,6 +33,82 @@ def _parse_zonas_json(json_str: str | None) -> dict:
     return {"empty": True}
 
 
+def _extrair_zona_c_prob(r) -> float | None:
+    zonas = getattr(r, 'zonas_ev_json', None)
+    if not zonas:
+        return None
+    try:
+        data = json.loads(zonas) if isinstance(zonas, str) else zonas
+        probs = data.get("p", [])
+        if len(probs) >= 3 and sum(probs) > 0:
+            return float(probs[2])
+    except Exception:
+        pass
+    return None
+
+
+def _calcular_qualidade(r) -> int:
+    score_ev = getattr(r, 'score_ev', 0) or 0
+    is_opt = getattr(r, 'is_otimizado', False) or getattr(r, 'is_cauda', False)
+    zona_c = _extrair_zona_c_prob(r)
+
+    pontos = 0
+
+    if r.pnl_projetado > 0:
+        pontos += 25
+    else:
+        pontos += 0
+
+    if r.pct_cdi >= 2.5:
+        pontos += 25
+    elif r.pct_cdi >= 1.5:
+        pontos += 15
+
+    if is_opt:
+        if score_ev > 0:
+            pontos += 30
+        elif score_ev > -50:
+            pontos += 20
+        elif score_ev > -150:
+            pontos += 10
+        elif score_ev > -300:
+            pontos += 5
+        if zona_c is not None:
+            if zona_c < 0.30:
+                pontos += 20
+            elif zona_c < 0.50:
+                pontos += 10
+    else:
+        if r.score >= 8:
+            pontos += 30
+        elif r.score >= 6:
+            pontos += 20
+        elif r.score >= 4:
+            pontos += 10
+        elif r.score >= 2:
+            pontos += 5
+        cap = abs(getattr(r, 'capital_empregado', 1) or 1)
+        risco_pct = abs(getattr(r, 'risco_max', 0) or 0) / cap if cap > 0 else 1
+        if risco_pct < 0.20:
+            pontos += 20
+        elif risco_pct < 0.40:
+            pontos += 10
+
+    return min(pontos, 100)
+
+
+def _estrelas_str(pontos: int) -> str:
+    if pontos >= 80:
+        return "★★★★★"
+    if pontos >= 60:
+        return "★★★★☆"
+    if pontos >= 40:
+        return "★★★☆☆"
+    if pontos >= 20:
+        return "★★☆☆☆"
+    return "★☆☆☆☆"
+
+
 CUSTOS_DISCLOSURE = (
     "\n\n* Custos já incluem taxa B3 (emolumento 0,025% + liquidação 0,0275% por perna) "
     "e IR (15% sobre o lucro líquido)."
@@ -67,6 +143,7 @@ class ColarCalTableModel(QAbstractTableModel):
         ("Preço", "preco_ativo"),
         ("Score", "score"),
         ("Score IV", "score_iv"),
+        ("★", "qualidade"),
         ("% CDI", "pct_cdi"),
         ("PnL Bruto", "pnl_projetado"),
         ("PnL B3", "pnl_b3"),
@@ -157,11 +234,25 @@ class ColarCalTableModel(QAbstractTableModel):
                              "• SIGMA_FOLGA = min(|spot−K_call|,|spot−K_put|) ÷ (spot × σ_IV√DTE_call/252)\n"
                              "• CRÉDITO_NORM = max(0, crédito/capital) ÷ max(cred_ratio) no lote\n"
                              "• LIQ = 1.0 (neutro, disponível para futura implementação)\n"
-                             "Ordem padrão: Score decrescente. Pesos configuráveis em Parâmetros > Collar Calendário.",
-                    "pct_cdi": "Retorno percentual comparado ao CDI do período." + CUSTOS_DISCLOSURE,
-                    "pnl_projetado": "Resultado bruto projetado da estrutura no vencimento da CALL." + CUSTOS_DISCLOSURE,
-                    "pnl_b3": "Resultado após custos B3 (emolumento + liquidação)." + CUSTOS_DISCLOSURE,
-                    "pnl_liquido": "Resultado líquido final (B3 + IR deduzidos)." + CUSTOS_DISCLOSURE,
+                              "Ordem padrão: Score decrescente. Pesos configuráveis em Parâmetros > Collar Calendário.",
+                     "qualidade": "★ Qualidade — nota consolidada de 1 a 5 estrelas.\n"
+                                  "Agrega múltiplos critérios em um único indicador visual.\n\n"
+                                  "BASE (calendário normal):\n"
+                                  "  • PnL > 0           → fundamento mínimo\n"
+                                  "  • % CDI ≥ 1.5×      → retorno atrativo vs renda fixa\n"
+                                  "  • Score ≥ 6         → ranking multi-critério bom\n"
+                                  "  • Risco/Capital < 20% → risco controlado\n\n"
+                                  "OTIMIZADO / CAUDA:\n"
+                                  "  • PnL > 0           → fundamento mínimo\n"
+                                  "  • % CDI ≥ 1.5×/2.5× → retorno atrativo\n"
+                                  "  • E[PnL] > 0/−50    → expectativa probabilística favorável\n"
+                                  "  • Zona C < 30%/50%  → baixo risco de 'vale da morte'\n\n"
+                                  "★★★☆☆ (3+) = boa operação. ★★★★☆ (4+) = excelente.\n"
+                                  "NÃO use isolado — combine com Zonas e E[PnL].",
+                     "pct_cdi": "Retorno comparado ao CDI do período (bruto, sem custos B3/IR).",
+                     "pnl_projetado": "Resultado bruto projetado (sem custos B3/IR).",
+                     "pnl_b3": "Resultado após custos B3 (emolumento + liquidação, ida-e-volta)." + CUSTOS_DISCLOSURE,
+                     "pnl_liquido": "Resultado líquido final (B3 + IR deduzidos)." + CUSTOS_DISCLOSURE,
                     "capital_empregado": "Capital total empregado na montagem (ação + PUT − CALL).",
                     "vencimento_call": "Vencimento da CALL (perna curta, vence primeiro).",
                     "vencimento_put": "Vencimento da PUT (perna longa, vence depois).",
@@ -181,11 +272,12 @@ class ColarCalTableModel(QAbstractTableModel):
                     "tipo_str": "Classificação do viés: Alta, Baixa ou Neutro.",
                     "ratio_call": "Quantas CALLs vendidas por lote de ação (Cauda Assíncrona).",
                     "label_detectado": "Data e hora (Brasília) em que o monitor detectou a oportunidade pelo RTD (DD/MM/YYYY HH:MM:SS).",
-                    "score_ev_str": "E[PnL] — Valor Esperado Ponderado da estrutura no vencimento da CALL.\n"
-                                    "Calculado via integração analítica Black-Scholes (N(d2)),\n"
-                                    "ponderando o PnL em cada zona de preço pela probabilidade real.\n"
-                                    "Positivo = expectativa matemática favorável.\n"
-                                    "Negativo = estrutura com viés direcional (depende de movimento).",
+                    "score_ev_str": "E[PnL] — Valor Esperado Probabilístico no vencimento da CALL.\n"
+                                    "Calculado via integração Black-Scholes (probabilidade risk-neutral N(d2)).\n"
+                                    "ATENÇÃO: em mercado eficiente, E[PnL] tende a ser negativo (prêmio justo).\n"
+                                    "Positivo = expectativa favorável após custos. Negativo é comum —\n"
+                                    "o edge real está no decaimento temporal diferencial (theta), não no EV.\n"
+                                    "NÃO analise isolado. Combine com pnl_projetado, zonas e pct_cdi.",
                     "score_ev_pct": "E[PnL] / Capital Empregado (%).\n"
                                     "Permite comparar montagens de diferentes tamanhos.",
                 }
@@ -230,6 +322,8 @@ class ColarCalTableModel(QAbstractTableModel):
                 return f"R$ {val:.2f}"
             if col_key in ("score", "score_iv"):
                 return f"{val:.2f}"
+            if col_key == "qualidade":
+                return _estrelas_str(int(val)) if val else "−"
             if col_key in ("pct_cdi",):
                 return f"{val:.2f}x"
             if col_key in ("iv_call", "iv_put"):
@@ -290,7 +384,18 @@ class ColarCalTableModel(QAbstractTableModel):
                     return QBrush(QColor(Palette.GREEN))
                 if val < 0:
                     return QBrush(QColor(Palette.RED))
-                return QBrush(QColor(Palette.TEXT_MUTED))
+            if col_key == "qualidade":
+                val = item.get("qualidade", 0) or 0
+                if val >= 80:
+                    return QBrush(QColor("#4caf50"))
+                if val >= 60:
+                    return QBrush(QColor("#8bc34a"))
+                if val >= 40:
+                    return QBrush(QColor("#fdd835"))
+                if val >= 20:
+                    return QBrush(QColor("#ff9800"))
+                return QBrush(QColor("#f44336"))
+            return QBrush(QColor(Palette.TEXT_MUTED))
             return QBrush(QColor(Palette.TEXT_MUTED))
         if role == Qt.ItemDataRole.TextAlignmentRole:
             center_cols = {"score", "score_iv",
@@ -299,7 +404,8 @@ class ColarCalTableModel(QAbstractTableModel):
                            "pct_cdi", "pnl_projetado", "pnl_b3", "pnl_liquido",
                            "tipo_str", "valor_put_venc_call",
                            "capital_empregado", "risco_max", "iv_rank",
-                           "vega_call", "vega_put", "vega_liquido", "gamma_call", "gamma_put"}
+                           "vega_call", "vega_put", "vega_liquido", "gamma_call", "gamma_put",
+                            "qualidade"}
             if col_key in center_cols:
                 return Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
             return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
@@ -1011,7 +1117,7 @@ class ColarCalendarioDialog(QDialog):
         form.addRow(sep4)
 
         add_row("Crédito Líquido:", f"R$ {r.net_credito:.2f}", cor=Palette.YELLOW,
-                tooltip="Prêmio recebido pela CALL menos prêmio pago pela PUT, já descontados custos." + CUSTOS_DISCLOSURE)
+                tooltip="Prêmio recebido pela CALL menos prêmio pago pela PUT. Sem custos B3/IR.")
         add_row("Theta Líquido:", f"{r.theta_liquido:.3f} por dia",
                 cor=Palette.GREEN if r.theta_liquido > 0 else Palette.RED,
                 tooltip="Decaimento temporal líquido por dia. Positivo = o tempo corre a seu favor." + CUSTOS_DISCLOSURE)
@@ -1039,12 +1145,18 @@ class ColarCalendarioDialog(QDialog):
             add_row("− IR (15%):", f"−R$ {r.custo_ir:.2f}",
                     cor=Palette.ORANGE,
                     tooltip="Imposto de Renda (15% sobre lucro líquido pós-B3)." + CUSTOS_DISCLOSURE)
-        add_row("= PnL Líquido:", f"R$ {pnl_liquido:.2f} ({r.pct_retorno:.2f}%)",
+        cap_abs = abs(r.capital_empregado) if r.capital_empregado else 1
+        pct_liq = (pnl_liquido / cap_abs * 100) if cap_abs > 0 else 0
+        add_row("= PnL Líquido:", f"R$ {pnl_liquido:.2f} ({pct_liq:.2f}%)",
                 cor=Palette.GREEN if pnl_liquido > 0 else Palette.RED,
                 tooltip="Lucro/prejuízo líquido final (B3 + IR deduzidos)." + CUSTOS_DISCLOSURE)
         add_row("% CDI Líq:", f"{r.pct_cdi_liquido:.2f}x",
                 cor=Palette.GREEN if r.pct_cdi_liquido >= 1.0 else Palette.RED,
                 tooltip="Retorno líquido (pós-B3 e IR) comparado ao CDI do período." + CUSTOS_DISCLOSURE)
+        risco_tooltip = "Risco máximo = capital_empregado − min(strike). Se > 0, estrutura NÃO é risk-free."
+        add_row("Risco Máx:", f"R$ {r.risco_max:.2f}",
+                cor=Palette.GREEN if r.risco_max == 0 else Palette.RED,
+                tooltip=risco_tooltip + CUSTOS_DISCLOSURE)
 
         is_otimizado = getattr(r, 'is_otimizado', False)
         if is_otimizado:
@@ -1246,15 +1358,16 @@ class ColarCalendarioDialog(QDialog):
         qtd_c_real = qtd_c * ratio_c
         qtd_p_real = qtd_p * ratio_p
 
-        T_call = r.dte_call / 365
-        T_put = r.dte_put / 365
-        T_rem = r.dte_extra / 365
-        du = round(r.dte_call * 252 / 365)
+        T_call = dc_to_du(None, None, r.dte_call) / 252.0
+        T_put = dc_to_du(None, None, r.dte_put) / 252.0
+        T_rem = dc_to_du(None, None, r.dte_extra) / 252.0 if r.dte_extra > 0 else 0
+        du = dc_to_du(None, None, r.dte_call)
         repo = ParametroRepository(self._db_path)
         param = repo.get_by_chave("taxa_cdi")
         rf = param.valor if param else 0.1450
         cdi_periodo = (1 + rf) ** (du / 252) - 1
-        pnl_stk = (min(r.preco_ativo, r.strike_call) - r.preco_ativo) * qtd_a
+        S_custo_debug = getattr(r, 'preco_compra', None) or r.preco_ativo
+        pnl_stk = (min(r.preco_ativo, r.strike_call) - S_custo_debug) * qtd_a
         pnl_call = r.premio_call * qtd_c_real
         if T_rem > 0:
             dp1 = (np.log(r.preco_ativo / r.strike_put) + (rf + 0.5 * (r.iv_put / 100) ** 2) * T_rem) / ((r.iv_put / 100) * np.sqrt(T_rem))
@@ -1414,6 +1527,16 @@ class ColarCalendarioDialog(QDialog):
             s3_r = S0 * np.exp(drift + 3 * sigma_pct) if sigma_pct > 1e-10 else S0 * 1.3
             x_min = min(Kp, S0, s3_l) * (0.92 if ratio > 1 else 0.95)
             x_max = max(Kc, S0, s3_r) * (1.08 if ratio > 1 else 1.05)
+            prot_strikes = []
+            _ks = getattr(r, 'strike_protecao_call', None)
+            if _ks: prot_strikes.append(_ks)
+            _ks = getattr(r, 'strike_protecao_put', None)
+            if _ks: prot_strikes.append(_ks)
+            for ks in prot_strikes:
+                if ks < x_min:
+                    x_min = ks * 0.92
+                if ks > x_max:
+                    x_max = ks * 1.08
             x = np.linspace(x_min, x_max, 500)
 
             # fix: usa preco_compra (ASK real) como custo da ação, não o spot atual
@@ -1488,6 +1611,8 @@ class ColarCalendarioDialog(QDialog):
                         continue
                     x0, x1 = x[idx], x[idx + 1]
                     y0, y1 = pnl[idx], pnl[idx + 1]
+                    if y0 * y1 >= 0:
+                        continue
                     if abs(y1 - y0) < 1e-12:
                         continue
                     crossing = x0 - y0 * (x1 - x0) / (y1 - y0)
@@ -2382,6 +2507,7 @@ class ColarCalendarioDialog(QDialog):
                     "zonas_barras": _parse_zonas_json(getattr(r, 'zonas_ev_json', None)),
                     "is_cauda": getattr(r, 'is_cauda', False),
                     "is_otimizado": getattr(r, 'is_otimizado', False),
+                    "qualidade": _calcular_qualidade(r),
                     "label_detectado": _formatar_detectado(getattr(r, 'detectado_em', None)),
                 })
             self.model.atualizar(items)
