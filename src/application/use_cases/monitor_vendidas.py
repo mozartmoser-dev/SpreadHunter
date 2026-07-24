@@ -95,7 +95,7 @@ class MonitorVendidasUseCase:
             dist_min_ativo = self._get_param("sbth_vendida_dist_ativo", 1.20)
             recebimento_sbth = of_compra_ativo + of_compra_put
             cond_sbth = (
-                strike > preco_ativo * dist_min_ativo
+                strike > of_compra_ativo * dist_min_ativo  # usa BID (vende ativo → recebe BID)
                 and recebimento_sbth > strike
                 and of_compra_ativo > 0
                 and of_compra_put > 0
@@ -111,10 +111,10 @@ class MonitorVendidasUseCase:
                 lote_put = self._lote_liquidez("BOX_VENDIDO")
                 lote_call = self._lote_liquidez("BOX_VENDIDO")
                 liq_ok = vov_put >= lote_put and voc_call >= lote_call
-                capital = abs(recebimento_box)
+                capital = strike
                 pct = (recebimento_box - strike) / capital if capital > 0 else 0.0
                 pct_cdi = pct / cdi_periodo if cdi_periodo > 0 else 0.0
-                viavel = pct_cdi >= premio_risco and not em_leilao and liq_ok
+                viavel = pct_cdi >= premio_risco and liq_ok  # leilão: identifica visualmente, não descarta
                 premio_medio_box_vendido = (
                     (of_compra_put + of_venda_call) / 2 if of_compra_put > 0 and of_venda_call > 0 else 0.0
                 )
@@ -165,10 +165,10 @@ class MonitorVendidasUseCase:
                 lote_put = self._lote_liquidez("SBTH_VENDIDA")
                 lote_call = self._lote_liquidez("SBTH_VENDIDA")
                 liq_ok = vov_put >= lote_put  # only put needs liquidity
-                capital = abs(recebimento_sbth)
+                capital = strike
                 pct = (recebimento_sbth - strike) / capital if capital > 0 else 0.0
                 pct_cdi = pct / cdi_periodo if cdi_periodo > 0 else 0.0
-                viavel = pct_cdi >= premio_risco and not em_leilao and liq_ok
+                viavel = pct_cdi >= premio_risco and liq_ok  # leilão: identifica visualmente, não descarta
                 custo = self._custos_b3.calcular_custos_vendida(
                     preco_ativo=preco_ativo,
                     premio_medio_opcoes=of_compra_put if of_compra_put > 0 else 0.0,

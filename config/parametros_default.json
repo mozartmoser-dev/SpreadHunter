@@ -819,9 +819,9 @@
     },
     {
       "chave": "venda_coberta_dist_max_pct",
-      "valor": "0.2",
+      "valor": "0.0",
       "estrategia": "VENDA_COBERTA",
-      "descricao": "Distancia maxima do strike abaixo do spot"
+      "descricao": "Distancia maxima do strike abaixo do spot (0 = sem minima)"
     },
     {
       "chave": "som_arquivo_coberta",
@@ -840,6 +840,12 @@
       "valor": "1.2",
       "estrategia": "SBTH_VENDIDA",
       "descricao": "Distancia minima strike/spot (x) - filtro de entrada SBTH Vendida"
+    },
+    {
+      "chave": "vendidas_premio_risco",
+      "valor": "1.1",
+      "estrategia": "VENDIDAS",
+      "descricao": "Multiplo minimo do CDI para considerar viavel (BOX e SBTH vendidos)"
     },
     {
       "chave": "venda_coberta_dias_maximos",

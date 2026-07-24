@@ -370,8 +370,7 @@ class MonitorOportunidadesUseCase:
         tem_liquidez = liq_put_x_lote >= 0 and liq_call_x_lote >= 0
         viavel = (
             resultado.operacao in ("BOX", "SBTH", "BOXSBTH")
-            and not dados.em_leilao
-            and tem_liquidez
+            and tem_liquidez  # leilão: identifica visualmente, não descarta
         )
 
         return OportunidadeMonitor(

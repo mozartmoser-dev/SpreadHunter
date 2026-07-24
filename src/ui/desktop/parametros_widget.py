@@ -132,6 +132,7 @@ PARAMETROS_POR_ESTRATEGIA = {
     ],
     "SBTH_VENDIDA": [
         ("sbth_vendida_dist_ativo", "Distancia Minima Strike/Spot (x)"),
+        ("vendidas_premio_risco", "Premio Risco (x CDI) — BOX e SBTH"),
     ],
     "COLAR": [
         ("premio_risco_colar", "Premio risco Colar (x CDI)"),

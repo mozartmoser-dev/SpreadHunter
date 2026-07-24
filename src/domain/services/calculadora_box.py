@@ -123,8 +123,7 @@ class CalculadoraBox:
         viavel = (
             pct_cdi_bruto >= self.premio_risco
             and lucro_liquido > 0
-            and not em_leilao
-            and profundidade_ok
+            and profundidade_ok  # leilão: identifica visualmente, não descarta
         )
 
         return ResultadoBox(

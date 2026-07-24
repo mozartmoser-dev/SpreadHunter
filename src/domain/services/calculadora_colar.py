@@ -246,7 +246,7 @@ class CalculadoraColar:
         pct_cdi_liquido = (pior_retorno_liquido_ir / custo_liquido) / cdi_periodo if cdi_periodo > 0 else 0.0
         pct_cdi_melhor_liquido = (melhor_retorno_liquido_ir / custo_liquido) / cdi_periodo if cdi_periodo > 0 else 0.0
         risco = self.calcular_risco_leilao(vov_put, voc_call, status_put, status_call)
-        viavel = pct_cdi_bruto >= self.premio_risco_colar and not em_leilao
+        viavel = pct_cdi_bruto >= self.premio_risco_colar  # leilão: identifica visualmente, não descarta
 
         du_bs = dc_to_du(None, None, dias)
         T = du_bs / 252.0

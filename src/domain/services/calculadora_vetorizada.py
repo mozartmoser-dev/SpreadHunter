@@ -110,7 +110,7 @@ class CalculadoraVetorizada:
         passa_sbth = pct_cdi_sbth_bruto > self.premio_risco_sbth
         
         # Combinado (BOX ou SBTH ou Ambos)
-        viavel = (passa_box | passa_sbth) & tem_liquidez & (~em_leilao)
+        viavel = (passa_box | passa_sbth) & tem_liquidez  # leilão: identifica visualmente, não descarta
         
         return ResultadoVetorizado(
             indices_viaveis=np.where(viavel)[0],

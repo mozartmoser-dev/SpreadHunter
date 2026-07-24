@@ -108,10 +108,10 @@ class MonitorVendaCobertaUseCase:
             lote_call = self._lote_liquidez_call()
             liq_call_ok = voc_call >= lote_call
 
-            capital = abs(recebimento)
+            capital = strike
             pct = (recebimento - strike) / capital if capital > 0 else 0.0
             pct_cdi = pct / cdi_periodo if cdi_periodo > 0 else 0.0
-            viavel = pct_cdi >= premio_risco and not em_leilao and liq_call_ok
+            viavel = pct_cdi >= premio_risco and liq_call_ok  # leilão: identifica visualmente, não descarta
 
             custo = self._custos_b3.calcular_custos_vendida(
                 preco_ativo=preco_ativo,

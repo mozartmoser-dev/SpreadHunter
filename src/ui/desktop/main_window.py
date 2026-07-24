@@ -2086,7 +2086,7 @@ class MainWindow(QMainWindow):
         f5.addRow(_muted("Money PUT:"), QLabel("R$ {:.2f}".format(r.money_put)))
         if r.classificacao == "BOX_VENDIDO":
             f5.addRow(_muted("Money CALL:"), QLabel("R$ {:.2f}".format(r.money_call)))
-        status_lbl = QLabel("BLOQUEADO" if r.em_leilao else "OK")
+        status_lbl = QLabel("⚠️ LEILÃO" if r.em_leilao else "✓ Aberto")
         if r.em_leilao:
             status_lbl.setStyleSheet("color: #ffffff; background-color: {}; border-radius: 3px; padding: 2px 8px; font-weight: bold;".format(Palette.RED_DIM))
         else:
@@ -2225,7 +2225,7 @@ class MainWindow(QMainWindow):
         f5 = QFormLayout()
         f5.setSpacing(8)
         f5.addRow(_muted("Money CALL:"), QLabel("R$ {:.2f}".format(r.money_call)))
-        status_lbl = QLabel("BLOQUEADO" if r.em_leilao else "OK")
+        status_lbl = QLabel("⚠️ LEILÃO" if r.em_leilao else "✓ Aberto")
         if r.em_leilao:
             status_lbl.setStyleSheet("color: #ffffff; background-color: {}; border-radius: 3px; padding: 2px 8px; font-weight: bold;".format(Palette.RED_DIM))
         else:
