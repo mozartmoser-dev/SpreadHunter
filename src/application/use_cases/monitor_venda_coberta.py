@@ -169,3 +169,109 @@ class MonitorVendaCobertaUseCase:
             self._ultimo_pipeline.add_stage("7. Viáveis", len(resultados), n_viaveis, f"Prêmio-risco {premio_risco}xCDI")
 
         return resultados
+
+    def varrer_comprada(self, dados_mercado: dict[str, dict], pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeVendaCoberta]:
+        agora = datetime.now()
+        hoje = date.today()
+        inst_map = self.inst_repo.get_all_mapped()
+        taxa_repo = TaxaAluguelRepository(self.db_path)
+        taxa_map = taxa_repo.get_latest_all()
+        premio_risco = self._get_param("taxa_comprada_premio_risco", 1.05)
+        dias_maximos = int(self._get_param("taxa_comprada_dias_maximos", 10))
+        dist_max_pct = self._get_param("taxa_comprada_dist_max_pct", 0.80)
+        lote_liquidez = int(self._get_param("taxa_comprada_lote_liquidez", 1))
+
+        resultados: list[OportunidadeVendaCoberta] = []
+
+        for key, mercado in dados_mercado.items():
+            if "|" not in key:
+                continue
+            ativo, cod_put = key.split("|", 1)
+            inst = inst_map.get((ativo, cod_put))
+            if not inst or not inst.vencimento or inst.vencimento <= hoje:
+                continue
+            if inst.dias_ate_vencimento is None or inst.dias_ate_vencimento > dias_maximos:
+                continue
+
+            strike = mercado.get("strike_rtd")
+            if not strike or strike <= 0:
+                continue
+
+            preco_ativo = mercado.get("preco_ativo", 0.0) or 0.0
+            of_venda_ativo = mercado.get("of_venda_ativo", 0.0) or 0.0
+            of_compra_call = mercado.get("of_compra_call", 0.0) or 0.0
+            voc_call = mercado.get("voc_call_boca", 0.0) or mercado.get("voc_call", 0.0) or 0.0
+
+            em_leilao = mercado.get("em_leilao", False)
+
+            # Taxa Comprada: compra ativo (ask) + vende CALL (bid)
+            custo_montagem = of_venda_ativo - of_compra_call
+            strike_max = preco_ativo * (1.0 - dist_max_pct)
+            cond = (
+                strike <= strike_max
+                and custo_montagem > 0
+                and strike > custo_montagem
+                and of_venda_ativo > 0
+                and of_compra_call > 0
+            )
+
+            if not cond:
+                continue
+
+            cdi_periodo = self._calcular_cdi_periodo(inst.dias_ate_vencimento)
+            liq_call_ok = voc_call >= lote_liquidez
+
+            capital = strike
+            pct = (strike - custo_montagem) / capital if capital > 0 else 0.0
+            pct_cdi = pct / cdi_periodo if cdi_periodo > 0 else 0.0
+            viavel = pct_cdi >= premio_risco and liq_call_ok
+
+            custo = self._custos_b3.calcular_custos_vendida(
+                preco_ativo=preco_ativo,
+                premio_medio_opcoes=of_compra_call if of_compra_call > 0 else 0.0,
+                n_pernas_opcoes=1,
+                n_acoes=1,
+            )
+            ganho_antes_ir = strike - custo_montagem - custo
+            ir_comprada = self._custos_b3.ajustar_ir(max(ganho_antes_ir, 0.0))
+            ganho_liq = ganho_antes_ir - ir_comprada
+            pct_liq = ganho_liq / capital if capital > 0 else 0.0
+            pct_cdi_liq = pct_liq / cdi_periodo if cdi_periodo > 0 else 0.0
+
+            money_call = max(preco_ativo - strike, 0.0)
+            money_put = max(strike - preco_ativo, 0.0)
+            taxa_aluguel = taxa_map.get(inst.ativo).taxa_atual if taxa_map and taxa_map.get(inst.ativo) else 0.0
+
+            resultados.append(OportunidadeVendaCoberta(
+                ativo=ativo,
+                strike=strike,
+                vencimento=inst.vencimento,
+                dias=inst.dias_ate_vencimento,
+                cod_put=inst.cod_put,
+                cod_call=inst.cod_call,
+                tipo_opcao=inst.tipo_opcao.value,
+                detectado_em=agora,
+                classificacao="TAXA_COMPRADA",
+                recebimento=round(custo_montagem, 2),
+                pct_ganho=round(pct, 6),
+                pct_cdi=round(pct_cdi, 4),
+                viavel=viavel,
+                em_leilao=em_leilao,
+                liq_call_x_lote=voc_call - lote_liquidez,
+                preco_ativo=round(preco_ativo, 2),
+                of_compra_put=0.0,
+                of_venda_call=round(of_compra_call, 2),
+                qul_put=0.0,
+                qul_call=round(voc_call),
+                money_put=round(money_put, 2),
+                money_call=round(money_call, 2),
+                custo=round(custo, 2),
+                taxa_aluguel=round(taxa_aluguel, 2),
+                pct_ganho_bruto=round(pct, 6),
+                pct_ganho_liquido=round(pct_liq, 6),
+                pct_cdi_bruto=round(pct_cdi, 4),
+                pct_cdi_liquido=round(pct_cdi_liq, 4),
+            ))
+
+        resultados.sort(key=lambda o: (not o.viavel, -o.pct_cdi))
+        return resultados

@@ -854,6 +854,30 @@
       "descricao": "Dias maximos ate o vencimento para TAXA"
     },
     {
+      "chave": "taxa_comprada_dist_max_pct",
+      "valor": "0.80",
+      "estrategia": "TAXA_COMPRADA",
+      "descricao": "Distancia maxima do strike abaixo do ativo (1.0 = 0%, 0.80 = 20% abaixo)"
+    },
+    {
+      "chave": "taxa_comprada_premio_risco",
+      "valor": "1.05",
+      "estrategia": "TAXA_COMPRADA",
+      "descricao": "Multiplo minimo do CDI para considerar viavel"
+    },
+    {
+      "chave": "taxa_comprada_dias_maximos",
+      "valor": "10",
+      "estrategia": "TAXA_COMPRADA",
+      "descricao": "Prazo maximo em dias corridos para TAXA comprada"
+    },
+    {
+      "chave": "taxa_comprada_lote_liquidez",
+      "valor": "1",
+      "estrategia": "TAXA_COMPRADA",
+      "descricao": "Lote minimo de liquidez para CALL"
+    },
+    {
       "chave": "otimizado_desvios_sigma",
       "valor": "1.5",
       "estrategia": "COLLAR_CALENDARIO",

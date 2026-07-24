@@ -45,7 +45,9 @@ class OportunidadeVendaCoberta:
 
     @property
     def label_tipo(self) -> str:
-        return "TAXA"
+        if self.classificacao == "TAXA_COMPRADA":
+            return "COMPRADA"
+        return "VENDIDA"
 
     @property
     def custo_box_display(self) -> str:

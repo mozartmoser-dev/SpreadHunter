@@ -388,10 +388,13 @@ class MonitorWorker(QThread):
             vendidas = [r for r in vendidas if r.viavel]
         self.oportunidades_vendidas_atualizadas.emit(vendidas)
 
-        # Venda Coberta
-        coberta = self._monitor_coberta_uc.varrer(dados_mercado, pipeline_tracker=PipelineTracker())
+        # Venda Coberta (Vendida + Comprada)
+        coberta_vendida = self._monitor_coberta_uc.varrer(dados_mercado, pipeline_tracker=PipelineTracker())
+        coberta_comprada = self._monitor_coberta_uc.varrer_comprada(dados_mercado)
+        coberta = coberta_vendida + coberta_comprada
         if not self._mostrar_tp_op:
             coberta = [r for r in coberta if r.viavel]
+        coberta.sort(key=lambda o: (not o.viavel, -o.pct_cdi))
         self.oportunidades_coberta_atualizadas.emit(coberta)
 
     def _processar_colares(self, rtd):

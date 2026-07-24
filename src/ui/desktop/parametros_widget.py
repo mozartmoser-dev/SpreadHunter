@@ -39,6 +39,7 @@ ESTRATEGIA_LABELS = {
     "MPP": "Motor de Priorização de Pescaria (MPP)",
     "VENDA_COBERTA": "Taxa",
     "SBTH_VENDIDA": "SBTH Vendida",
+    "TAXA_COMPRADA": "Taxa Comprada",
     "RATIOS_OTIMIZADOS": "Ratios Otimizados",
     "PROTECAO_CAUDA": "Protecao de Cauda (BWB)",
 }
@@ -59,6 +60,7 @@ ESTRATEGIA_COLORS = {
     "IMPORTACAO": "#8e44ad",
     "RATIOS_OTIMIZADOS": "#e67e22",
     "PROTECAO_CAUDA": "#c0392b",
+    "TAXA_COMPRADA": "#3498db",
 }
 
 PARAMETROS_POR_ESTRATEGIA = {
@@ -133,6 +135,12 @@ PARAMETROS_POR_ESTRATEGIA = {
     "SBTH_VENDIDA": [
         ("sbth_vendida_dist_ativo", "Distancia Minima Strike/Spot (x)"),
         ("vendidas_premio_risco", "Premio Risco (x CDI) — BOX e SBTH"),
+    ],
+    "TAXA_COMPRADA": [
+        ("taxa_comprada_premio_risco", "Premio Risco (x CDI)"),
+        ("taxa_comprada_dist_max_pct", "Dist. Max Strike Abaixo (0-1)"),
+        ("taxa_comprada_dias_maximos", "Prazo Maximo (dias)"),
+        ("taxa_comprada_lote_liquidez", "Lote Liquidez CALL"),
     ],
     "COLAR": [
         ("premio_risco_colar", "Premio risco Colar (x CDI)"),
@@ -796,6 +804,7 @@ class ParametrosWidget(QWidget):
         "SBTH",
         "VENDA_COBERTA",
         "SBTH_VENDIDA",
+        "TAXA_COMPRADA",
         "PERFORMANCE",
         "IMPORTACAO",
         "TELEGRAM",

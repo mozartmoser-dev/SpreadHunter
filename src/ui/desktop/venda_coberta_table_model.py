@@ -49,6 +49,7 @@ class VendaCobertaTableModel(QAbstractTableModel):
     _BG_VIABLE = QColor(Palette.ROW_BOX)
     _BG_NOT_VIABLE = QColor(Palette.ROW_NOT_VIABLE)
     _BG_LEILAO = QColor(Palette.ROW_LEILAO)
+    _BG_COMPRADA = QColor("#0d1a2d")
     _FG_GREEN = QBrush(QColor(Palette.LIQ_POSITIVE))
     _FG_RED = QBrush(QColor(Palette.LIQ_NEGATIVE))
     _FG_ORANGE = QBrush(QColor(Palette.ORANGE))
@@ -85,7 +86,8 @@ class VendaCobertaTableModel(QAbstractTableModel):
             return self.COLUMNS[section][0]
         if role == Qt.ItemDataRole.ToolTipRole:
             tips = {
-                "label_tipo": "TAXA: vende ativo (bid) + compra CALL (ask).",
+                "label_tipo": "VENDIDA: vende ativo (bid) + compra CALL (ask).\n"
+                              "COMPRADA: compra ativo (ask) + vende CALL (bid).",
                 "ativo": "Codigo da acao objeto.",
                 "strike": "Preco de exercicio da CALL comprada (cobertura).",
                 "ganho_bruto_display": "Ganho percentual BRUTO — sem descontar taxas B3 nem IR.",
@@ -123,6 +125,8 @@ class VendaCobertaTableModel(QAbstractTableModel):
                 return QBrush(self._BG_LEILAO)
             if not item.viavel:
                 return QBrush(self._BG_NOT_VIABLE)
+            if item.classificacao == "TAXA_COMPRADA":
+                return QBrush(self._BG_COMPRADA)
             return QBrush(self._BG_VIABLE)
 
         if role == Qt.ItemDataRole.ForegroundRole:
