@@ -697,6 +697,7 @@ class MonitorWorker(QThread):
                     "score": getattr(r, 'score', None),
                     "score_iv": getattr(r, 'score_iv', None),
                     "tipo_estrategia": tipo_estrategia,
+                    "is_otimizado": 1,
                     **protecao_campos,
                 })
 
@@ -906,6 +907,7 @@ class MonitorWorker(QThread):
                             "score": getattr(r, 'score', None),
                             "score_iv": getattr(r, 'score_iv', None),
                             "tipo_estrategia": tipo_estrategia,
+                            "is_otimizado": 1,
                             "lado_protegido": "call" if tail_call else ("put" if tail_put else "nenhum"),
                             "naked_call_frac": max(0.0, v.ratio_call - 1.0),
                             "naked_put_gap": max(0.0, 1.0 - v.ratio_put),
