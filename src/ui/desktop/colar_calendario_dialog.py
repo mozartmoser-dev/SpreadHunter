@@ -1986,10 +1986,13 @@ class ColarCalendarioDialog(QDialog):
 
     def _mostrar_resumo_analitico(self, r):
         try:
-            neutro = next((x for x in self._resultados
+            if not isinstance(self._resultados, list):
+                return
+            resultados = [x for x in self._resultados if hasattr(x, 'ativo')]
+            neutro = next((x for x in resultados
                            if x.ativo == r.ativo and x.cod_call == r.cod_call and x.cod_put == r.cod_put
                            and not getattr(x, 'is_otimizado', False)), None)
-            irmaos = [x for x in self._resultados
+            irmaos = [x for x in resultados
                       if x.ativo == r.ativo and x.cod_call == r.cod_call and x.cod_put == r.cod_put
                       and getattr(x, 'is_otimizado', False)]
             dlg = _ResumoAnaliticoDialog(r, irmaos, neutro, self)
