@@ -57,13 +57,21 @@ STRIKES_PUT = [
 # ═══════════════════════════════════════════════════════════════
 
 class TestExposicaoNula:
-    def test_ratio_um_retorna_none(self):
+    def test_ratio_um_retorna_base_com_ev(self):
         r = _chassi(ratio_call=1.0, ratio_put=1.0)
-        assert CalculadoraProtecaoCauda.avaliar(r, strikes_call_candidatos=STRIKES_CALL) is None
+        protecao = CalculadoraProtecaoCauda.avaliar(r, strikes_call_candidatos=STRIKES_CALL)
+        assert protecao is not None
+        assert protecao.lado_protegido == "nenhum"
+        assert protecao.naked_call_frac == 0.0
+        assert protecao.naked_put_gap == 0.0
+        assert protecao.viavel is False
+        assert isinstance(protecao.score_ev, float)
 
-    def test_naked_frac_abaixo_piso_retorna_none(self):
+    def test_naked_frac_abaixo_piso_retorna_base(self):
         r = _chassi(ratio_call=1.01, ratio_put=0.99)
-        assert CalculadoraProtecaoCauda.avaliar(r, strikes_call_candidatos=STRIKES_CALL) is None
+        protecao = CalculadoraProtecaoCauda.avaliar(r, strikes_call_candidatos=STRIKES_CALL)
+        assert protecao is not None
+        assert protecao.lado_protegido == "nenhum"
 
 
 # ═══════════════════════════════════════════════════════════════

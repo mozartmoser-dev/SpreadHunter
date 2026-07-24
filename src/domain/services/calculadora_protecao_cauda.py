@@ -226,7 +226,62 @@ class CalculadoraProtecaoCauda:
             naked_call_frac < CalculadoraProtecaoCauda.NAKED_FRAC_MINIMO
             and naked_put_gap < CalculadoraProtecaoCauda.NAKED_FRAC_MINIMO
         ):
-            return None
+            base = ResultadoProtecaoCauda(
+                id_chassi=resultado.id_chassi,
+                ativo=resultado.ativo,
+                lado_protegido="nenhum",
+                naked_call_frac=0.0,
+                naked_put_gap=0.0,
+                strike_protecao_call=None,
+                strike_protecao_put=None,
+                premio_ask_call=None,
+                premio_ask_put=None,
+                qtd_protecao_call=0,
+                qtd_protecao_put=0,
+                custo_protecao_call=0.0,
+                custo_protecao_put=0.0,
+                custo_protecao_total=0.0,
+                pnl_sem_protecao=resultado.pnl_com_ratio,
+                pnl_liquido_pos_protecao=resultado.pnl_com_ratio,
+                viavel_call=False,
+                viavel_put=False,
+                viavel=False,
+                bwb_modo=bwb_modo,
+                strikes_bwb_call=None,
+                strikes_bwb_put=None,
+                premios_bwb_call=None,
+                premios_bwb_put=None,
+                custo_borboleta_call=0.0,
+                custo_borboleta_put=0.0,
+                lotes_bwb_call=0,
+                lotes_bwb_put=0,
+                razao_convexidade_call=1.0,
+                razao_convexidade_put=1.0,
+            )
+            ev = CalculadoraProtecaoCauda._calcular_score_probabilistico(
+                resultado=resultado,
+                protecao=base,
+                qtd_acao=qtd_acao,
+                taxa_cdi=taxa_cdi,
+            )
+            base.score_ev = ev["score_ev"]
+            base.score_ev_pct = ev["score_ev_pct"]
+            base.prob_zona_a = ev.get("p_a", 0.0)
+            base.prob_zona_b = ev.get("p_b", 0.0)
+            base.prob_zona_c = ev.get("p_c", 0.0)
+            base.prob_zona_d = ev.get("p_d", 0.0)
+            base.ev_zona_a = ev.get("ev_a", 0.0)
+            base.ev_zona_b = ev.get("ev_b", 0.0)
+            base.ev_zona_c = ev.get("ev_c", 0.0)
+            base.ev_zona_d = ev.get("ev_d", 0.0)
+            try:
+                base.zonas_ev_json = json.dumps({
+                    "p": [ev.get("p_a", 0), ev.get("p_b", 0), ev.get("p_c", 0), ev.get("p_d", 0)],
+                    "ev": [ev.get("ev_a", 0), ev.get("ev_b", 0), ev.get("ev_c", 0), ev.get("ev_d", 0)],
+                })
+            except Exception:
+                base.zonas_ev_json = None
+            return base
 
         ganho_extra_ratio = resultado.pnl_com_ratio - resultado.pnl_base
 
