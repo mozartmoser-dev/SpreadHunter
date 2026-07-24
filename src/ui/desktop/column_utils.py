@@ -1,24 +1,47 @@
 from PySide6.QtCore import QSettings
+import hashlib
 
 
 def _settings() -> QSettings:
     return QSettings("Spreadhunter", "DesktopMonitor")
 
 
-def salvar_ordem_colunas(header, key: str):
+def _checksum_colunas(colunas: list[tuple[str, str]]) -> str:
+    raw = "|".join(f"{h}:{k}" for h, k in colunas)
+    return hashlib.sha256(raw.encode()).hexdigest()[:12]
+
+
+def salvar_ordem_colunas(header, key: str, colunas: list[tuple[str, str]] | None = None):
     try:
         order = []
         for v in range(header.count()):
             order.append(header.logicalIndex(v))
         s = _settings()
         s.setValue(key, order)
+        if colunas is not None:
+            s.setValue(key + "_cksum", _checksum_colunas(colunas))
         s.sync()
     except Exception:
         pass
 
 
-def restaurar_ordem_colunas(header, key: str):
+def _ordem_invalida(header, order_key: str, colunas: list[tuple[str, str]] | None) -> bool:
+    if colunas is None:
+        return False
+    s = _settings()
+    saved_checksum = s.value(order_key + "_cksum")
+    if not saved_checksum or not isinstance(saved_checksum, str):
+        return True
+    return saved_checksum != _checksum_colunas(colunas)
+
+
+def restaurar_ordem_colunas(header, key: str, colunas: list[tuple[str, str]] | None = None):
     try:
+        if _ordem_invalida(header, key, colunas):
+            s = _settings()
+            s.remove(key)
+            s.remove(key + "_cksum")
+            return
         raw = _settings().value(key)
         if not raw or not isinstance(raw, list):
             return
@@ -119,12 +142,12 @@ def limpar_colunas_incompativeis(header, order_key: str, width_key: str) -> bool
     return removed
 
 
-def limpar_e_restaurar_colunas(header, order_key: str, width_key: str) -> None:
+def limpar_e_restaurar_colunas(header, order_key: str, width_key: str, colunas: list | None = None) -> None:
     """Limpa QSettings incompatíveis e então restaura ordem/largura.
 
     Atalho p/ usar nos diálogos: substitui o par restaurar_ordem + restaurar_largura.
     Garante que nunca aplica ordem/largura salva com tamanho diferente do atual.
     """
     limpar_colunas_incompativeis(header, order_key, width_key)
-    restaurar_ordem_colunas(header, order_key)
+    restaurar_ordem_colunas(header, order_key, colunas)
     restaurar_largura_colunas(header, width_key)

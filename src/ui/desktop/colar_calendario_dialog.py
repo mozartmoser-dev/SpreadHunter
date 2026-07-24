@@ -1310,9 +1310,9 @@ class ColarCalendarioDialog(QDialog):
         header.setStretchLastSection(True)
         header.setSectionsMovable(True)
         header.setDragEnabled(True)
-        header.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(header, "colar_cal_table_order")))
+        header.sectionMoved.connect(lambda: QTimer.singleShot(0, lambda: salvar_ordem_colunas(header, "colar_cal_table_order", ColarCalTableModel.COLUMNS)))
         header.sectionResized.connect(lambda: QTimer.singleShot(0, lambda: salvar_largura_colunas(header, "colar_cal_table_width")))
-        limpar_e_restaurar_colunas(header, "colar_cal_table_order", "colar_cal_table_width")
+        limpar_e_restaurar_colunas(header, "colar_cal_table_order", "colar_cal_table_width", ColarCalTableModel.COLUMNS)
 
         zonas_col = next((i for i, (_, k) in enumerate(ColarCalTableModel.COLUMNS) if k == "zonas_barras"), -1)
         if zonas_col >= 0:
