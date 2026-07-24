@@ -109,6 +109,33 @@ def _estrelas_str(pontos: int) -> str:
     return "★☆☆☆☆"
 
 
+_mod_call_cache: dict[str, str] = {}
+
+def _ler_mod_call(ativo: str, cod_put: str) -> str:
+    chave = f"{ativo}|{cod_put}"
+    if chave in _mod_call_cache:
+        return _mod_call_cache[chave]
+    try:
+        from src.infrastructure.persistence.database import get_connection
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT tipo_opcao FROM instrumentos_base WHERE ativo = ? AND cod_put = ?",
+                (ativo, cod_put)
+            ).fetchone()
+            if row:
+                mod = row["tipo_opcao"]
+                mod = "A" if mod in ("AMERICANA", "A") else "E"
+                _mod_call_cache[chave] = mod
+                return mod
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    _mod_call_cache[chave] = "?"
+    return "?"
+
+
 CUSTOS_DISCLOSURE = (
     "\n\n* Custos já incluem taxa B3 (emolumento 0,025% + liquidação 0,0275% por perna) "
     "e IR (15% sobre o lucro líquido)."
@@ -172,6 +199,7 @@ class ColarCalTableModel(QAbstractTableModel):
         ("θ Líq", "theta_liquido"),
         ("P Put VC", "valor_put_venc_call"),
         ("Viés", "tipo_str"),
+        ("MOD", "mod_call"),
         ("R Call", "ratio_call"),
         ("R Put", "ratio_put"),
         ("BWB", "lado_protegido_str"),
@@ -270,6 +298,12 @@ class ColarCalTableModel(QAbstractTableModel):
                     "theta_liquido": "Theta líquido da estrutura (θ CALL − θ PUT). Positivo = ganha tempo.",
                     "valor_put_venc_call": "Valor estimado da PUT no vencimento da CALL, projetado pelo Black-Scholes.",
                     "tipo_str": "Classificação do viés: Alta, Baixa ou Neutro.",
+                    "mod_call": "MOD da CALL vendida — Risco de Exercício Antecipado.\n"
+                                "A = Americana (pode ser exercida antes do vencimento). "
+                                "Risco: perde a ação e a estrutura quebra.\n"
+                                "E = Europeia (só exerce no vencimento). Sem risco de exercício antecipado.\n"
+                                "Atenção: PUTs B3 são sempre Europeias — irrelevante para a perna comprada.\n"
+                                "? = não foi possível consultar o banco.",
                     "ratio_call": "Quantas CALLs vendidas por lote de ação (Cauda Assíncrona).",
                     "label_detectado": "Data e hora (Brasília) em que o monitor detectou a oportunidade pelo RTD (DD/MM/YYYY HH:MM:SS).",
                     "score_ev_str": "E[PnL] — Valor Esperado Probabilístico no vencimento da CALL.\n"
@@ -324,6 +358,8 @@ class ColarCalTableModel(QAbstractTableModel):
                 return f"{val:.2f}"
             if col_key == "qualidade":
                 return _estrelas_str(int(val)) if val else "−"
+            if col_key == "mod_call":
+                return val if val else "−"
             if col_key in ("pct_cdi",):
                 return f"{val:.2f}x"
             if col_key in ("iv_call", "iv_put"):
@@ -361,6 +397,13 @@ class ColarCalTableModel(QAbstractTableModel):
                          "Rendimento": QColor("#2ecc71"), "Proteção": QColor("#e74c3c"), "Platô": QColor("#9b59b6"),
                          "Base": QColor("#888888")}
                 return QBrush(cores.get(base, QColor(Palette.TEXT_PRIMARY)))
+            if col_key == "mod_call":
+                val = item.get("mod_call", "")
+                if val == "A":
+                    return QBrush(QColor("#f39c12"))
+                if val == "E":
+                    return QBrush(QColor("#2ecc71"))
+                return QBrush(QColor(Palette.TEXT_MUTED))
             if col_key in ("pct_cdi", "score", "score_iv"):
                 return QBrush(QColor(Palette.YELLOW))
             if col_key in ("score_ev_str",):
@@ -404,8 +447,8 @@ class ColarCalTableModel(QAbstractTableModel):
                            "pct_cdi", "pnl_projetado", "pnl_b3", "pnl_liquido",
                            "tipo_str", "valor_put_venc_call",
                            "capital_empregado", "risco_max", "iv_rank",
-                           "vega_call", "vega_put", "vega_liquido", "gamma_call", "gamma_put",
-                            "qualidade"}
+                            "vega_call", "vega_put", "vega_liquido", "gamma_call", "gamma_put",
+                             "qualidade", "mod_call"}
             if col_key in center_cols:
                 return Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
             return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
@@ -2508,6 +2551,7 @@ class ColarCalendarioDialog(QDialog):
                     "is_cauda": getattr(r, 'is_cauda', False),
                     "is_otimizado": getattr(r, 'is_otimizado', False),
                     "qualidade": _calcular_qualidade(r),
+                    "mod_call": _ler_mod_call(r.ativo, r.cod_put),
                     "label_detectado": _formatar_detectado(getattr(r, 'detectado_em', None)),
                 })
             self.model.atualizar(items)
