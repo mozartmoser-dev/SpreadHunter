@@ -173,6 +173,7 @@ def _migrar_historico_simulacoes(conn):
         ("score_ev", "REAL DEFAULT 0.0"),
         ("score_ev_pct", "REAL DEFAULT 0.0"),
         ("zonas_ev_json", "TEXT"),
+        ("is_otimizado", "INTEGER DEFAULT 0"),
     ]
     for col, tipo in novas_colunas:
         try:

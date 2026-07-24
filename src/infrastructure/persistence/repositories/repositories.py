@@ -1024,6 +1024,7 @@ class HistoricoSimulacoesRepository:
                 "razao_convexidade_call", "razao_convexidade_put",
                 "score_ev", "score_ev_pct",
                 "zonas_ev_json",
+                "is_otimizado",
             ]
             placeholders = ", ".join(["?"] * len(colunas))
             cols_str = ", ".join(colunas)

@@ -141,7 +141,7 @@ class CalculadoraProtecaoCauda:
         BS_call_prot = CalculadoraProtecaoCauda._bs_call_ev(S0, Kprot, T, r_cont, sigma_T)
 
         ev_pnl = (credito_total
-                  + qtd_acao * (F - S0)
+                  + qtd_acao * S0 * (1.0 - disc)
                   - n_ratio * qtd_acao * BS_call_c
                   + m_ratio * qtd_acao * BS_put_p
                   + raz * qtd_prot * BS_call_prot
