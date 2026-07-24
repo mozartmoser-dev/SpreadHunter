@@ -701,6 +701,9 @@ class MonitorWorker(QThread):
                     **protecao_campos,
                 })
 
+                if v.estagio == "Base":
+                    continue
+
                 if tipo_estrategia == "Calendario":
                     novo = ResultadoColarCalendario(
                         ativo=r.ativo,
