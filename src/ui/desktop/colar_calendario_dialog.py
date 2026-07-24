@@ -1522,6 +1522,7 @@ class ColarCalendarioDialog(QDialog):
     def _mostrar_detalhes(self, r):
         if not hasattr(r, 'ativo'):
             return
+        self._detalhe_r = r
         from src.domain.services.calculadora_colar_calendario import ResultadoColarCalendario
 
         dialog = QDialog(self, Qt.Window)
@@ -1767,7 +1768,7 @@ class ColarCalendarioDialog(QDialog):
             }}
             QPushButton:hover {{ background-color: #3d553d; }}
         """)
-        btn_resumo.clicked.connect(lambda _r=r: self._mostrar_resumo_analitico(_r))
+        btn_resumo.clicked.connect(lambda: self._mostrar_resumo_analitico(self._detalhe_r))
         btn_row.addWidget(btn_resumo)
 
         btn_simulador = QPushButton("🧪 Simulador")
@@ -1990,6 +1991,7 @@ class ColarCalendarioDialog(QDialog):
 
     def _mostrar_resumo_analitico(self, r):
         try:
+            logger.warning("Resumo: type(r)=%s, r=%s, hasattr(ativo)=%s", type(r), r, hasattr(r, 'ativo'))
             if not hasattr(r, 'ativo'):
                 return
             if not isinstance(self._resultados, list):
