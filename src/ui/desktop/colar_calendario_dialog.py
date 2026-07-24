@@ -1515,9 +1515,13 @@ class ColarCalendarioDialog(QDialog):
         if row < 0 or row >= len(self._resultados):
             return
         r = self._resultados[row]
+        if not hasattr(r, 'ativo'):
+            return
         self._mostrar_detalhes(r)
 
     def _mostrar_detalhes(self, r):
+        if not hasattr(r, 'ativo'):
+            return
         from src.domain.services.calculadora_colar_calendario import ResultadoColarCalendario
 
         dialog = QDialog(self, Qt.Window)
@@ -1986,6 +1990,8 @@ class ColarCalendarioDialog(QDialog):
 
     def _mostrar_resumo_analitico(self, r):
         try:
+            if not hasattr(r, 'ativo'):
+                return
             if not isinstance(self._resultados, list):
                 return
             neutro = None
