@@ -1996,6 +1996,9 @@ class ColarCalendarioDialog(QDialog):
             dlg.exec_()
         except Exception:
             logger.exception("Erro ao abrir Resumo Analitico")
+            from PySide6.QtWidgets import QMessageBox
+            import traceback
+            QMessageBox.warning(self, "Erro", f"Erro ao abrir Resumo:\n{traceback.format_exc()}")
 
     def _plot_payoff(self, r):
         from PySide6.QtWidgets import QMessageBox
