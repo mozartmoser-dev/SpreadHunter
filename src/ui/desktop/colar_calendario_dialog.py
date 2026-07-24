@@ -297,87 +297,64 @@ class _ResumoAnaliticoDialog(QDialog):
 
         # ═══ CARD: ANALISE DAS VARIANTES ═══
         if self._irmaos:
-            vl, vf = _card("ANALISE DAS VARIANTES")
+            vl, vf = _card("OTIMIZACAO")
 
-            # Separa otimizados com e sem Tail
-            def _tem_tail(x):
-                lado = getattr(x, 'lado_protegido', None)
-                return lado is not None and lado != 'nenhum' and str(lado).strip() != ''
-
-            sem_tail = [x for x in self._irmaos if not _tem_tail(x)]
-            com_tail = [x for x in self._irmaos if _tem_tail(x)]
-
-            melhor_otm = max(sem_tail, key=lambda x: getattr(x, 'pnl_projetado', 0) or 0, default=None)
-            melhor_tail = max(com_tail, key=lambda x: getattr(x, 'pnl_projetado', 0) or 0, default=None)
+            melhor_otm = max(self._irmaos, key=lambda x: getattr(x, 'pnl_projetado', 0) or 0, default=None)
+            com_tail = [x for x in self._irmaos if (getattr(x, 'lado_protegido', None) or '') not in (None, '', 'nenhum')]
+            melhor_tail = max(com_tail, key=lambda x: getattr(x, 'pnl_projetado', 0) or 0, default=None) if com_tail else None
 
             pnl_neutro = getattr(self._neutro, 'pnl_projetado', 0) or 0 if self._neutro else 0
-            pnl_otm = 0
+            pnl_otm = getattr(melhor_otm, 'pnl_projetado', 0) or 0 if melhor_otm else 0
 
             linhas_variantes = []
 
-            # Linha 1: Neutro (baseline)
             if self._neutro:
                 linhas_variantes.append((
-                    "Neutro (1:1)", f"R$ {pnl_neutro:,.0f}", "—", "#9090b0", "baseline"
+                    "Neutro (1:1)", f"R$ {pnl_neutro:,.0f}", "—", "#9090b0",
                 ))
 
-            # Linha 2: Melhor otimizado
             if melhor_otm:
-                pnl_otm = getattr(melhor_otm, 'pnl_projetado', 0) or 0
                 delta = pnl_otm - pnl_neutro
                 pct = (delta / max(abs(pnl_neutro), 1)) * 100
-                cor_delta = "#2ecc71" if delta > 0 else "#e74c3c"
+                cor = "#2ecc71" if delta > 0 else "#e74c3c"
                 emoji = "✅" if delta > 0 else "❌"
-                estagio = getattr(melhor_otm, 'estagio_otimizado', '') or 'Otimizado'
-                rat = f"{getattr(melhor_otm, 'ratio_call', 1):.1f}/{getattr(melhor_otm, 'ratio_put', 1):.1f}"
-                veredito = f"Otimizar ({estagio} {rat})" if delta > 0 else "Otimizar piorou"
+                rat = f"{getattr(melhor_otm, 'ratio_call', 1):.2f}/{getattr(melhor_otm, 'ratio_put', 1):.2f}"
                 linhas_variantes.append((
-                    f"{estagio} ({rat})",
+                    f"Otimizado ({rat})",
                     f"R$ {pnl_otm:,.0f}",
-                    f"{delta:+.0f} ({pct:+.0f}%) {emoji} {veredito}",
-                    cor_delta,
-                    "otimizado",
+                    f"{delta:+.0f} ({pct:+.0f}%) {emoji} Otimizar {'valeu' if delta > 0 else 'nao compensou'}",
+                    cor,
                 ))
 
-            # Linha 3: Melhor + Tail
             if melhor_tail:
                 pnl_tail = getattr(melhor_tail, 'pnl_projetado', 0) or 0
                 custo_t = getattr(melhor_tail, 'custo_protecao_total', 0) or 0
-                pnl_ref = pnl_otm if melhor_otm else pnl_neutro
-                delta_t = pnl_tail - pnl_ref
-                cor_tail = "#2ecc71" if delta_t > 0 else ("#f39c12" if delta_t > -50 else "#e74c3c")
+                delta_t = pnl_tail - pnl_otm
+                cor_t = "#2ecc71" if delta_t > 0 else ("#f39c12" if delta_t > -50 else "#e74c3c")
                 emoji_t = "✅" if delta_t > 0 else ("⚠️" if delta_t > -50 else "❌")
                 if delta_t > 0:
-                    veredito_t = "Tail compensou"
+                    v_t = "Tail compensou"
                 elif delta_t > -50:
-                    veredito_t = "Tail marginal"
+                    v_t = "Tail marginal"
                 else:
-                    veredito_t = "Tail nao compensou"
-                estagio_t = getattr(melhor_tail, 'estagio_otimizado', '') or ''
-                lado_t = getattr(melhor_tail, 'lado_protegido', '') or ''
+                    v_t = "Tail nao compensou"
                 linhas_variantes.append((
-                    f"{estagio_t}+T ({lado_t})",
-                    f"R$ {pnl_tail:,.0f}",
-                    f"{delta_t:+.0f} | custo R${custo_t:,.0f} {emoji_t} {veredito_t}",
-                    cor_tail,
-                    "tail",
+                    f"+ Tail", f"R$ {pnl_tail:,.0f}",
+                    f"{delta_t:+.0f} | custo R${custo_t:,.0f} {emoji_t} {v_t}",
+                    cor_t,
                 ))
 
-            for label, pnl_str, veredito_str, cor, _tipo in linhas_variantes:
+            for label, pnl_str, veredito_str, cor in linhas_variantes:
                 row = QHBoxLayout()
                 row.setSpacing(10)
                 lbl_nome = QLabel(label)
                 lbl_nome.setFixedWidth(120)
-                bold = "bold" if _tipo == "otimizado" else "normal"
-                cor_nome = "#2ecc71" if _tipo == "otimizado" and cor == "#2ecc71" else "#e0e0e0"
-                lbl_nome.setStyleSheet(f"color: {cor_nome}; font-size: 9pt; font-weight: {bold}; border: none; background: transparent;")
+                lbl_nome.setStyleSheet(f"color: #e0e0e0; font-size: 9pt; font-weight: bold; border: none; background: transparent;")
                 row.addWidget(lbl_nome)
-
                 lbl_pnl = QLabel(pnl_str)
                 lbl_pnl.setFixedWidth(90)
-                lbl_pnl.setStyleSheet(f"color: #e0e0e0; font-size: 9pt; font-weight: bold; border: none; background: transparent;")
+                lbl_pnl.setStyleSheet(f"color: #e0e0e0; font-size: 9pt; border: none; background: transparent;")
                 row.addWidget(lbl_pnl)
-
                 lbl_v = QLabel(veredito_str)
                 lbl_v.setStyleSheet(f"color: {cor}; font-size: 8pt; border: none; background: transparent;")
                 row.addWidget(lbl_v)
@@ -837,7 +814,7 @@ class ColarCalTableModel(QAbstractTableModel):
                 base = tipo.replace(" Cauda", "").replace(" Otimizada", "")
                 cores = {"Alta": QColor("#2ecc71"), "Baixa": QColor("#e74c3c"), "Neutro": QColor("#f39c12"),
                          "Rendimento": QColor("#2ecc71"), "Proteção": QColor("#e74c3c"), "Platô": QColor("#9b59b6"),
-                         "Base": QColor("#888888")}
+                         "Base": QColor("#888888"), "Otimizado": QColor("#2ecc71")}
                 return QBrush(cores.get(base, QColor(Palette.TEXT_PRIMARY)))
             if col_key == "mod_call":
                 val = item.get("mod_call", "")
@@ -1661,7 +1638,7 @@ class ColarCalendarioDialog(QDialog):
         is_otimizado = getattr(r, 'is_otimizado', False)
         if is_otimizado:
             estagio = getattr(r, 'estagio_otimizado', '')
-            cor_estagio = {"Rendimento": "#2ecc71", "Proteção": "#e74c3c", "Platô": "#9b59b6", "Base": "#888888"}.get(estagio, Palette.YELLOW)
+            cor_estagio = {"Rendimento": "#2ecc71", "Proteção": "#e74c3c", "Platô": "#9b59b6", "Base": "#888888", "Otimizado": "#2ecc71"}.get(estagio, Palette.YELLOW)
             add_row("Estágio:", estagio, cor=cor_estagio)
             qtd_a = getattr(r, 'qtd_acao', 100)
             qtd_c = getattr(r, 'qtd_call', 100)

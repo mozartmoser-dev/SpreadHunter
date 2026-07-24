@@ -285,12 +285,7 @@ class CalculadoraProtecaoCauda:
 
         ganho_extra_ratio = resultado.pnl_com_ratio - resultado.pnl_base
 
-        mapa_limite = {
-            "Rendimento": limite_protecao_pct_rendimento,
-            "Platô": limite_protecao_pct_plato,
-            "Proteção": limite_protecao_pct_protecao,
-        }
-        limite_efetivo = mapa_limite.get(resultado.estagio, limite_protecao_pct)
+        limite_efetivo = limite_protecao_pct
 
         usar_borboleta = bwb_modo == "borboleta"
 

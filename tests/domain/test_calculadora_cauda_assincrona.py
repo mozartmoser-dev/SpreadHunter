@@ -159,9 +159,8 @@ class TestProcessarOtimizado:
     def test_estagios_presentes(self):
         resultados = CalculadoraCaudaAssincrona.processar_otimizado(**self.BASE)
         estagios = {r.estagio for r in resultados}
-        assert "Rendimento" in estagios
-        assert "Proteção" in estagios
-        assert "Platô" in estagios
+        assert "Base" in estagios
+        assert "Otimizado" in estagios
 
     def test_ratios_no_range(self):
         resultados = CalculadoraCaudaAssincrona.processar_otimizado(**self.BASE)

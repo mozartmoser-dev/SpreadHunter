@@ -493,65 +493,15 @@ class TestLimitePorEstagio:
         sigma_periodo=0.085, preco_ativo=40.64,
     )
 
-    STRIKE_CARO = {"strike": 48.00, "premio_ask": 15.0, "vol_ask": 500, "vol_bid": 400}
-
-    def test_rendimento_usa_limite_proprio_nao_global(self):
-        """Rendimento usa limite_protecao_pct_rendimento (0.20), não o global (0.35)."""
+    def test_usa_limite_global(self):
+        """Todos os estagios usam limite_protecao_pct global."""
         r = _chassi(
             ratio_call=1.25, ratio_put=1.0,
             pnl_com_ratio=1700.0, pnl_base=1386.23,
             sigma_periodo=0.085, preco_ativo=40.64,
-            estagio="Rendimento",
+            estagio="Otimizado",
         )
-        # ganho_extra = 313.77, budget global = 313.77*0.35 = 109.82, budget Rendimento = 313.77*0.20 = 62.75
-        # strike caro: custo = 15*200 = 3000 (excede ambos → inviavel em qualquer caso)
-        # Vamos testar com strike que cabe no global mas NÃO no Rendimento
-        strike_limite = {"strike": 48.00, "premio_ask": 0.40, "vol_ask": 500, "vol_bid": 400}
-        # custo global: 0.40*200=80 <= 109.82 → viavel
-        # custo Rendimento: 80 > 62.75 → inviavel
-        prot = CalculadoraProtecaoCauda.avaliar(
-            r, strikes_call_candidatos=[strike_limite], qtd_acao=1000,
-            limite_protecao_pct=0.35,
-            limite_protecao_pct_rendimento=0.20,
-        )
-        assert prot is not None
-        assert not prot.viavel_call
-        assert prot.custo_protecao_call == 0.0
-
-    def test_protecao_usa_limite_proprio_nao_global(self):
-        """Proteção usa limite_protecao_pct_protecao (0.70), não o global (0.35)."""
-        r = _chassi(
-            ratio_call=1.25, ratio_put=1.0,
-            pnl_com_ratio=1386.73, pnl_base=1386.23,
-            sigma_periodo=0.085, preco_ativo=40.64,
-            estagio="Proteção",
-        )
-        # ganho_extra = 0.50, budget global = 0.50*0.35 = 0.175, budget Protecao = 0.50*0.70 = 0.35
-        # ask=0.002, qtd=100 (qtd_acao=100, naked_frac=0.25 → lote=100), custo=0.20
-        # global: 0.20 > 0.175 → inviavel | Protecao: 0.20 <= 0.35 → viavel
-        strike_barato = {"strike": 48.00, "premio_ask": 0.002, "vol_ask": 500, "vol_bid": 400}
-        prot = CalculadoraProtecaoCauda.avaliar(
-            r, strikes_call_candidatos=[strike_barato], qtd_acao=100,
-            limite_protecao_pct=0.35,
-            limite_protecao_pct_protecao=0.70,
-            calda_preco_min_opcao=0.001,
-        )
-        assert prot is not None
-        assert prot.viavel_call
-        assert prot.custo_protecao_call > 0
-
-    def test_base_usa_fallback_global(self):
-        """Base não está no mapa → usa limite_protecao_pct global."""
-        r = _chassi(
-            ratio_call=1.25, ratio_put=1.0,
-            pnl_com_ratio=1700.0, pnl_base=1386.23,
-            sigma_periodo=0.085, preco_ativo=40.64,
-            estagio="Base",
-        )
-        # Base nem chega a avaliar proteção (ratio_put=1.0, naked_put_gap=0),
-        # mas se tivesse naked em ambos os lados, usaria o global.
         strike_ok = {"strike": 48.00, "premio_ask": 0.02, "vol_ask": 500, "vol_bid": 400}
-        # ganho_extra = 313.77, budget = 313.77*0.35 = 109.82, custo = 4.0 → viavel
         prot = CalculadoraProtecaoCauda.avaliar(
             r, strikes_call_candidatos=[strike_ok], qtd_acao=1000,
             limite_protecao_pct=0.35,

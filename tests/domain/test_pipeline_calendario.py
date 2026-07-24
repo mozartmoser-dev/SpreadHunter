@@ -284,7 +284,7 @@ class TestPipelineOtimizadoProducesProperResults:
             assert r.ratio_call >= 1.0
             assert r.ratio_put > 0
             assert isinstance(r.estagio, str)
-            assert r.estagio in ("Base", "Rendimento", "Proteção", "Platô")
+            assert r.estagio in ("Base", "Otimizado")
 
     def test_estagio_base_ratio_um_para_um(self):
         resultados = CalculadoraCaudaAssincrona.processar_otimizado(**self.BASE_OTIMIZADO)

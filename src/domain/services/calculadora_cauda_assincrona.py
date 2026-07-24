@@ -476,33 +476,11 @@ class CalculadoraCaudaAssincrona:
         if base:
             _add(base, "Base")
 
-        rendimento_candidates = [
-            c for c in candidatos
-            if min(c["pnl_2l"], c["pnl_2r"]) >= cdi_periodo * cap_abs
-        ]
-        if rendimento_candidates:
-            alta = max(rendimento_candidates, key=lambda c: c["pct_cdi"] + (c["be_dir"] or 0) / preco_ativo * 0.1)
-            _add(alta, "Rendimento")
-
-        baixa_candidates = [
-            c for c in candidatos
-            if (c["be_esq"] is None or c["be_esq"] <= s_2sigma_l)
-        ]
-        if baixa_candidates:
-            pnl_vals = sorted(c["pnl_2l"] for c in baixa_candidates)
-            median_pnl = pnl_vals[len(pnl_vals) // 2]
-            safe = [c for c in baixa_candidates if c["pnl_2l"] >= median_pnl]
-            baixa = min(safe, key=lambda c: (c["n"], -c["m"]))
-            _add(baixa, "Proteção")
-
-        def _simetria(c):
-            piso = min(c["pnl_2l"], c["pnl_2r"])
-            if piso <= 0:
-                return 0.0
-            divisor = max(c["pnl_2l"], c["pnl_2r"])
-            return piso / divisor if divisor > 0 else 0.0
-
-        neutro = max(candidatos, key=lambda c: _simetria(c) * c["pct_cdi"])
-        _add(neutro, "Platô")
+        viaveis = [c for c in candidatos
+                   if min(c["pnl_2l"], c["pnl_2r"]) >= cdi_periodo * cap_abs
+                   and c != base]
+        if viaveis:
+            melhor = max(viaveis, key=lambda c: c["pct_cdi"])
+            _add(melhor, "Otimizado")
 
         return resultados

@@ -827,7 +827,7 @@ class MonitorWorker(QThread):
                 ui_results.append(novo)
                 c_montadas += 1
 
-                if v.estagio != "Base" and tipo_estrategia == "Calendario":
+                if tipo_estrategia == "Calendario":
                     tail = None
                     try:
                         tail = self._selecionar_tail_protect(
@@ -1371,8 +1371,7 @@ class MonitorWorker(QThread):
         extra = (ratio_call - 1.0) * qtd_acao * premio_call if ratio_call > 1.0 else 0.0
         extra_put = (1.0 - ratio_put) * qtd_acao * premio_put if ratio_put < 1.0 else 0.0
 
-        pcts = {"Platô": 0.15, "Proteção": 0.35, "Rendimento": 0.40}
-        pct = pcts.get(estagio, 0.35)
+        pct = 0.40
         orcamento = extra * pct
         orcamento_put = extra_put * pct
 
@@ -1458,12 +1457,7 @@ class MonitorWorker(QThread):
             if not candidatos:
                 continue
 
-            if estagio == "Platô":
-                melhor = min(candidatos, key=lambda c: c["ask"])
-            elif estagio == "Proteção":
-                melhor = min(candidatos, key=lambda c: abs(c["strike"] - preco_ativo))
-            else:
-                melhor = max(candidatos, key=lambda c: c["score"])
+            melhor = max(candidatos, key=lambda c: c["score"])
 
             label = "call" if eh_call else "put"
             resultado[label] = {
