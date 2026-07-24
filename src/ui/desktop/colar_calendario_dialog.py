@@ -49,6 +49,7 @@ def _extrair_zona_c_prob(r) -> float | None:
 
 def _calcular_qualidade(r) -> int:
     score_ev = getattr(r, 'score_ev', 0) or 0
+    score_ev_pct = getattr(r, 'score_ev_pct', 0) or 0
     is_opt = getattr(r, 'is_otimizado', False) or getattr(r, 'is_cauda', False)
     zona_c = _extrair_zona_c_prob(r)
 
@@ -65,18 +66,18 @@ def _calcular_qualidade(r) -> int:
         pontos += 15
 
     if is_opt:
-        if score_ev > 0:
+        if score_ev_pct > 0:
             pontos += 30
-        elif score_ev > -50:
+        elif score_ev_pct > -1.0:
             pontos += 20
-        elif score_ev > -150:
+        elif score_ev_pct > -3.0:
             pontos += 10
-        elif score_ev > -300:
+        elif score_ev_pct > -5.0:
             pontos += 5
         if zona_c is not None:
-            if zona_c < 0.30:
+            if zona_c > 0.60:
                 pontos += 20
-            elif zona_c < 0.50:
+            elif zona_c > 0.40:
                 pontos += 10
     else:
         if r.score >= 8:
