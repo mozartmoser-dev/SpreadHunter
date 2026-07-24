@@ -601,6 +601,10 @@ class MonitorWorker(QThread):
                         "lotes_bwb_put": 0,
                         "razao_convexidade_call": 1.0,
                         "razao_convexidade_put": 1.0,
+                        "cod_prot_call": None,
+                        "cod_prot_put": None,
+                        "premio_book_call": 0.0,
+                        "premio_book_put": 0.0,
                         "score_ev": 0.0,
                         "score_ev_pct": 0.0,
                         "zonas_ev_json": None,
@@ -631,6 +635,10 @@ class MonitorWorker(QThread):
                         "lotes_bwb_put": protecao.lotes_bwb_put,
                         "razao_convexidade_call": protecao.razao_convexidade_call,
                         "razao_convexidade_put": protecao.razao_convexidade_put,
+                        "cod_prot_call": getattr(protecao, 'cod_prot_call', None),
+                        "cod_prot_put": getattr(protecao, 'cod_prot_put', None),
+                        "premio_book_call": getattr(protecao, 'premio_book_call', 0.0) or 0.0,
+                        "premio_book_put": getattr(protecao, 'premio_book_put', 0.0) or 0.0,
                         "score_ev": protecao.score_ev,
                         "score_ev_pct": protecao.score_ev_pct,
                         "zonas_ev_json": protecao.zonas_ev_json,
@@ -641,7 +649,7 @@ class MonitorWorker(QThread):
                 custo_b3_variante = (
                     custos_b3_calc.custos_opcao(r.premio_call, n_pernas=1, ida_e_volta=True) * n
                     + custos_b3_calc.custos_opcao(r.premio_put, n_pernas=1, ida_e_volta=True) * m
-                    + custos_b3_calc.custos_stock(r.preco_compra or r.preco_ativo, n_acoes=1)
+                    + custos_b3_calc.custos_stock(r.preco_compra or r.preco_ativo, n_acoes=r.qtd_acao)
                 )
 
                 registros.append({

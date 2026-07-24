@@ -492,6 +492,8 @@ class CalculadoraColarCalendario:
 
         cap = abs(getattr(r, 'capital_empregado', 0)) or abs(S0 * qtd_acao + Pp * qtd_put_real - Pc * qtd_call_real)
         net = getattr(r, 'net_credito', Pc * qtd_call_real - Pp * qtd_put_real)
+        custo_prot = getattr(r, 'custo_protecao_total', 0.0) or 0.0
+        capital_display = cap + custo_prot if custo_prot > 0 else cap
 
         # ── MOD (tipo_opcao) da CALL via DB ──
         mod_call = None
@@ -598,7 +600,7 @@ class CalculadoraColarCalendario:
             f"({int(raw_put)}x, ratio {ratio_put:.2f}): <b>\u2212R$ {Pp * raw_put:.2f}</b></li>"
         )
         lines.append(
-            f"<li><b>Capital = R$ {cap:.2f}</b></li>"
+            f"<li><b>Capital = R$ {capital_display:.2f}</b>" + (f" (base R$ {cap:.2f} + prot R$ {custo_prot:.2f})" if custo_prot > 0 else "") + "</li>"
             f"<li>D\u00e9bito/Cr\u00e9dito: <b>R$ {net:.2f}</b></li>"
         )
         lines.append("</ul><hr>")
@@ -695,18 +697,17 @@ class CalculadoraColarCalendario:
 
         # ── BWB ──
         lado_protegido = getattr(r, 'lado_protegido', None)
-        custo_prot = getattr(r, 'custo_protecao_total', 0.0) or 0.0
         pnl_pos_bwb = getattr(r, 'pnl_liquido_pos_protecao', 0.0) or 0.0
         pnl_atual = r.pnl_projetado
 
         if lado_protegido and lado_protegido not in ("nenhum", None) and custo_prot > 0:
             is_bwb = bool(getattr(r, 'strikes_bwb_call', None))
-            titulo = "\U0001f6e1 Prote\u00e7\u00e3o BWB (Broken Wing Butterfly):" if is_bwb else "\U0001f6e1 Prote\u00e7\u00e3o:"
+            titulo = "\U0001f6e1 Prote\u00e7\u00e3o BWB (Broken Wing Butterfly):" if is_bwb else "\U0001f6e1 Prote\u00e7\u00e3o de Cauda:"
             lines.append(f"<p><b>{titulo}</b></p><ul>")
             lines.append(f"<li>Lado protegido: <b>{lado_protegido}</b></li>")
             lines.append(f"<li>PnL antes da prote\u00e7\u00e3o: <b>R$ {pnl_atual:.2f}</b></li>")
             lines.append(f"<li>Custo da prote\u00e7\u00e3o: <b>\u2212R$ {custo_prot:.2f}</b></li>")
-            lines.append(f"<li><b>PnL L\u00edquido P\u00f3s-BWB: R$ {pnl_pos_bwb:.2f}</b></li>")
+            lines.append(f"<li><b>PnL Líquido Pós-Prot: R$ {pnl_pos_bwb:.2f}</b></li>")
 
             k_bwb_c = getattr(r, 'strike_protecao_call', None)
             k_bwb_p = getattr(r, 'strike_protecao_put', None)
@@ -718,9 +719,9 @@ class CalculadoraColarCalendario:
             if k_bwb_p and q_bwb_p > 0:
                 lines.append(f"<li>Compra PUT K={k_bwb_p:.2f} ({q_bwb_p}x) \u2014 prote\u00e7\u00e3o cauda esquerda</li>")
 
-            pct_cdi_antes = (pnl_atual / cap) / cdi_periodo if cdi_periodo > 0 and cap > 0 else 0.0
-            pct_cdi_depois = (pnl_pos_bwb / cap) / cdi_periodo if cdi_periodo > 0 and cap > 0 else 0.0
-            lines.append(f"<li>\u00d7 CDI: {pct_cdi_antes:.2f}x \u2192 <b>{pct_cdi_depois:.2f}x</b> (ap\u00f3s BWB)</li>")
+            pct_cdi_antes = (pnl_atual / capital_display) / cdi_periodo if cdi_periodo > 0 and capital_display > 0 else 0.0
+            pct_cdi_depois = (pnl_pos_bwb / capital_display) / cdi_periodo if cdi_periodo > 0 and capital_display > 0 else 0.0
+            lines.append(f"<li>\u00d7 CDI: {pct_cdi_antes:.2f}x \u2192 <b>{pct_cdi_depois:.2f}x</b> (ap\u00f3s Prot)</li>")
 
             score_ev = getattr(r, 'score_ev', 0.0) or 0.0
             score_ev_pct = getattr(r, 'score_ev_pct', 0.0) or 0.0
@@ -746,7 +747,7 @@ class CalculadoraColarCalendario:
                 lines.append(f"<li>Compra PUT {cod_tail_p} K={k_tail_p:.2f} \u2014 ask R$ {premio_tp:.4f}/a\u00e7\u00e3o</li>")
             lines.append(f"<li>Custo total: <b>R$ {custo_tail:.2f}</b></li>")
             lines.append(f"<li>PnL p\u00f3s-prote\u00e7\u00e3o: <b>R$ {pnl_tail:.2f}</b></li>")
-            pct_cdi_tail = (pnl_tail / cap) / cdi_periodo if cdi_periodo > 0 and cap > 0 else 0.0
+            pct_cdi_tail = (pnl_tail / capital_display) / cdi_periodo if cdi_periodo > 0 and capital_display > 0 else 0.0
             lines.append(f"<li>\u00d7 CDI p\u00f3s-Tail: <b>{pct_cdi_tail:.2f}x</b></li>")
             lines.append("</ul><hr>")
 
