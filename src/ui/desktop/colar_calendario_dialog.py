@@ -153,10 +153,11 @@ class ZonaBarWidget(QWidget):
 class _ResumoAnaliticoDialog(QDialog):
     """Dialogo elegante com resumo analitico da operacao."""
 
-    def __init__(self, r, irmaos: list | None = None, parent=None):
+    def __init__(self, r, irmaos: list | None = None, neutro=None, parent=None):
         super().__init__(parent, Qt.Window)
         self.r = r
         self._irmaos = irmaos or []
+        self._neutro = neutro
         self._setup()
 
     def _setup(self):
@@ -294,56 +295,88 @@ class _ResumoAnaliticoDialog(QDialog):
             zl.addWidget(lv)
         layout.addWidget(zf)
 
-        # ═══ CARD: VARIANTES DO CHASSI ═══
+        # ═══ CARD: ANALISE DAS VARIANTES ═══
         if self._irmaos:
-            vl, vf = _card("VARIANTES DO CHASSI")
-            header_row = QHBoxLayout()
-            header_row.setSpacing(8)
-            cols = [("Variante", 80), ("Ratio", 60), ("PnL Br", 90), ("E[PnL]", 90), ("EV%", 55), ("Z.C", 50), ("★", 40)]
-            for titulo, w in cols:
-                hl = QLabel(titulo)
-                hl.setFixedWidth(w)
-                hl.setStyleSheet(f"color: {muted}; font-size: 7pt; font-weight: bold; border: none; background: transparent;")
-                header_row.addWidget(hl)
-            vl.addLayout(header_row)
+            vl, vf = _card("ANALISE DAS VARIANTES")
 
-            # Melhor PnL para highlight
-            melhor_pnl = max(self._irmaos, key=lambda x: getattr(x, 'pnl_projetado', 0) or 0, default=r)
-            melhor_pnl_val = getattr(melhor_pnl, 'pnl_projetado', 0) or 0
+            # Separa otimizados com e sem Tail
+            sem_tail = [x for x in self._irmaos if not getattr(x, 'lado_protegido', None) or getattr(x, 'lado_protegido', 'nenhum') == 'nenhum']
+            com_tail = [x for x in self._irmaos if getattr(x, 'lado_protegido', 'nenhum') != 'nenhum']
 
-            for irmao in self._irmaos:
+            melhor_otm = max(sem_tail, key=lambda x: getattr(x, 'pnl_projetado', 0) or 0, default=None)
+            melhor_tail = max(com_tail, key=lambda x: getattr(x, 'pnl_projetado', 0) or 0, default=None)
+
+            pnl_neutro = getattr(self._neutro, 'pnl_projetado', 0) or 0 if self._neutro else 0
+
+            linhas_variantes = []
+
+            # Linha 1: Neutro (baseline)
+            if self._neutro:
+                linhas_variantes.append((
+                    "Neutro (1:1)", f"R$ {pnl_neutro:,.0f}", "—", "#9090b0", "baseline"
+                ))
+
+            # Linha 2: Melhor otimizado
+            if melhor_otm:
+                pnl_otm = getattr(melhor_otm, 'pnl_projetado', 0) or 0
+                delta = pnl_otm - pnl_neutro
+                pct = (delta / max(abs(pnl_neutro), 1)) * 100
+                cor_delta = "#2ecc71" if delta > 0 else "#e74c3c"
+                emoji = "✅" if delta > 0 else "❌"
+                estagio = getattr(melhor_otm, 'estagio_otimizado', '') or 'Otimizado'
+                rat = f"{getattr(melhor_otm, 'ratio_call', 1):.1f}/{getattr(melhor_otm, 'ratio_put', 1):.1f}"
+                veredito = f"Otimizar ({estagio} {rat})" if delta > 0 else "Otimizar piorou"
+                linhas_variantes.append((
+                    f"{estagio} ({rat})",
+                    f"R$ {pnl_otm:,.0f}",
+                    f"{delta:+.0f} ({pct:+.0f}%) {emoji} {veredito}",
+                    cor_delta,
+                    "otimizado",
+                ))
+
+            # Linha 3: Melhor + Tail
+            if melhor_tail:
+                pnl_tail = getattr(melhor_tail, 'pnl_projetado', 0) or 0
+                custo_t = getattr(melhor_tail, 'custo_protecao_total', 0) or 0
+                pnl_ref = pnl_otm if melhor_otm else pnl_neutro
+                delta_t = pnl_tail - pnl_ref
+                cor_tail = "#2ecc71" if delta_t > 0 else ("#f39c12" if delta_t > -50 else "#e74c3c")
+                emoji_t = "✅" if delta_t > 0 else ("⚠️" if delta_t > -50 else "❌")
+                if delta_t > 0:
+                    veredito_t = "Tail compensou"
+                elif delta_t > -50:
+                    veredito_t = "Tail marginal"
+                else:
+                    veredito_t = "Tail nao compensou"
+                estagio_t = getattr(melhor_tail, 'estagio_otimizado', '') or ''
+                lado_t = getattr(melhor_tail, 'lado_protegido', '') or ''
+                linhas_variantes.append((
+                    f"{estagio_t}+T ({lado_t})",
+                    f"R$ {pnl_tail:,.0f}",
+                    f"{delta_t:+.0f} | custo R${custo_t:,.0f} {emoji_t} {veredito_t}",
+                    cor_tail,
+                    "tail",
+                ))
+
+            for label, pnl_str, veredito_str, cor, _tipo in linhas_variantes:
                 row = QHBoxLayout()
-                row.setSpacing(8)
-                estagio = getattr(irmao, 'estagio_otimizado', '') or ''
-                if getattr(irmao, 'lado_protegido', 'nenhum') not in (None, 'nenhum'):
-                    estagio += "+T"
-                ratio = f"{getattr(irmao, 'ratio_call', 1):.1f}/{getattr(irmao, 'ratio_put', 1):.1f}"
-                pnl = getattr(irmao, 'pnl_projetado', 0) or 0
-                ev = getattr(irmao, 'score_ev', 0) or 0
-                ev_pct = getattr(irmao, 'score_ev_pct', 0) or 0
-                zona_c = _extrair_zona_c_prob(irmao) or 0
-                pontos_v = _calcular_qualidade(irmao)
-                estrelas_v = _estrelas_str(pontos_v)
+                row.setSpacing(10)
+                lbl_nome = QLabel(label)
+                lbl_nome.setFixedWidth(120)
+                bold = "bold" if _tipo == "otimizado" else "normal"
+                cor_nome = "#2ecc71" if _tipo == "otimizado" and cor == "#2ecc71" else "#e0e0e0"
+                lbl_nome.setStyleSheet(f"color: {cor_nome}; font-size: 9pt; font-weight: {bold}; border: none; background: transparent;")
+                row.addWidget(lbl_nome)
 
-                is_melhor = (irmao is melhor_pnl and melhor_pnl_val > 0)
-                cor_destaque = "#2ecc71" if is_melhor else "#e0e0e0"
-                cor_ev = "#e74c3c" if ev < 0 else "#2ecc71"
+                lbl_pnl = QLabel(pnl_str)
+                lbl_pnl.setFixedWidth(90)
+                lbl_pnl.setStyleSheet(f"color: #e0e0e0; font-size: 9pt; font-weight: bold; border: none; background: transparent;")
+                row.addWidget(lbl_pnl)
 
-                valores = [
-                    (estagio, 80, cor_destaque, True),
-                    (ratio, 60, cor_destaque, False),
-                    (f"R$ {pnl:,.0f}", 90, cor_destaque, True),
-                    (f"R$ {ev:,.0f}", 90, cor_ev, False),
-                    (f"{ev_pct:+.1f}%", 55, "#9090b0", False),
-                    (f"{zona_c*100:.0f}%", 50, "#9090b0", False),
-                    (estrelas_v, 40, cor_destaque, False),
-                ]
-                for texto, w, cor, bold in valores:
-                    lbl = QLabel(texto)
-                    lbl.setFixedWidth(w)
-                    peso = "bold" if bold else "normal"
-                    lbl.setStyleSheet(f"color: {cor}; font-size: 8pt; font-weight: {peso}; border: none; background: transparent;")
-                    row.addWidget(lbl)
+                lbl_v = QLabel(veredito_str)
+                lbl_v.setStyleSheet(f"color: {cor}; font-size: 8pt; border: none; background: transparent;")
+                row.addWidget(lbl_v)
+                row.addStretch()
                 vl.addLayout(row)
 
             layout.addWidget(vf)
@@ -1970,10 +2003,13 @@ class ColarCalendarioDialog(QDialog):
         dialog.exec_()
 
     def _mostrar_resumo_analitico(self, r):
+        neutro = next((x for x in self._resultados
+                       if x.ativo == r.ativo and x.cod_call == r.cod_call and x.cod_put == r.cod_put
+                       and not getattr(x, 'is_otimizado', False)), None)
         irmaos = [x for x in self._resultados
                   if x.ativo == r.ativo and x.cod_call == r.cod_call and x.cod_put == r.cod_put
                   and getattr(x, 'is_otimizado', False)]
-        dlg = _ResumoAnaliticoDialog(r, irmaos, self)
+        dlg = _ResumoAnaliticoDialog(r, irmaos, neutro, self)
         dlg.exec_()
 
     def _plot_payoff(self, r):

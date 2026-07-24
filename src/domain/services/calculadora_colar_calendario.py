@@ -73,6 +73,7 @@ class ResultadoColarCalendario:
     is_cauda: bool = False
     is_otimizado: bool = False
     estagio_otimizado: str | None = None
+    id_chassi: str | None = None
     detectado_em: datetime | None = None
     qtd_acao: int = 100
     qtd_call: int = 100
