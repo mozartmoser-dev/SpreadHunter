@@ -1988,13 +1988,18 @@ class ColarCalendarioDialog(QDialog):
         try:
             if not isinstance(self._resultados, list):
                 return
-            resultados = [x for x in self._resultados if hasattr(x, 'ativo')]
-            neutro = next((x for x in resultados
-                           if x.ativo == r.ativo and x.cod_call == r.cod_call and x.cod_put == r.cod_put
-                           and not getattr(x, 'is_otimizado', False)), None)
-            irmaos = [x for x in resultados
-                      if x.ativo == r.ativo and x.cod_call == r.cod_call and x.cod_put == r.cod_put
-                      and getattr(x, 'is_otimizado', False)]
+            neutro = None
+            irmaos = []
+            for x in self._resultados:
+                try:
+                    if x.ativo != r.ativo or x.cod_call != r.cod_call or x.cod_put != r.cod_put:
+                        continue
+                except AttributeError:
+                    continue
+                if not getattr(x, 'is_otimizado', False):
+                    neutro = neutro or x
+                else:
+                    irmaos.append(x)
             dlg = _ResumoAnaliticoDialog(r, irmaos, neutro, self)
             dlg.exec_()
         except Exception:
