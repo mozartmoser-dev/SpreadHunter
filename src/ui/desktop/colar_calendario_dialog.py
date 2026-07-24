@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QLineEdit, QFormLayout, QFrame,
     QListWidget, QListWidgetItem, QWidget, QTextEdit, QSpinBox, QDoubleSpinBox,
-    QComboBox, QStyledItemDelegate,
+    QComboBox, QStyledItemDelegate, QSizePolicy,
 )
 from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal, QRect
 from PySide6.QtGui import QFont, QColor, QBrush, QPainter, QPen
@@ -107,6 +107,346 @@ def _estrelas_str(pontos: int) -> str:
     if pontos >= 20:
         return "★★☆☆☆"
     return "★☆☆☆☆"
+
+
+class ZonaBarWidget(QWidget):
+    """Barra horizontal pintada representando as 4 zonas de probabilidade."""
+
+    ZONA_COLORS = [
+        QColor("#e74c3c"),  # A — cauda esquerda (vermelho)
+        QColor("#f39c12"),  # B — ganho parcial (laranja)
+        QColor("#2ecc71"),  # C — lucro maximo (verde)
+        QColor("#3498db"),  # D — cap direito (azul)
+    ]
+    ZONA_LABELS = ["A: Perda", "B: Parcial", "C: Maximo", "D: Cap"]
+
+    def __init__(self, probabilidades: list[float], parent=None):
+        super().__init__(parent)
+        self._probs = probabilidades or [0, 0, 0, 0]
+        self.setMinimumHeight(28)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w = self.width()
+        h = self.height()
+        total = sum(self._probs)
+        if total <= 0 or w <= 0:
+            return
+
+        x = 0
+        for i, prob in enumerate(self._probs):
+            pw = max(0, int(round((prob / total) * w)))
+            if pw > 0:
+                p.fillRect(x, 0, pw, h, self.ZONA_COLORS[i])
+                x += pw
+
+    def sizeHint(self):
+        return self.minimumSizeHint()
+
+    def minimumSizeHint(self):
+        return self.size()
+
+
+class _ResumoAnaliticoDialog(QDialog):
+    """Dialogo elegante com resumo analitico da operacao."""
+
+    def __init__(self, r, parent=None):
+        super().__init__(parent, Qt.Window)
+        self.r = r
+        self._setup()
+
+    def _setup(self):
+        r = self.r
+        self.setWindowTitle(f"Resumo Analitico — {r.ativo}")
+        self.setMinimumSize(560, 480)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(14)
+
+        card_bg = "#1a1a2e"
+        border_color = "#2d2d44"
+        muted = "#9090b0"
+
+        def _card(title: str) -> tuple[QVBoxLayout, QFrame]:
+            frame = QFrame()
+            frame.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {card_bg};
+                    border: 1px solid {border_color};
+                    border-radius: 6px;
+                }}
+            """)
+            cl = QVBoxLayout(frame)
+            cl.setContentsMargins(14, 10, 14, 10)
+            cl.setSpacing(6)
+            lbl = QLabel(title)
+            lbl.setStyleSheet(f"color: {muted}; font-size: 8pt; font-weight: bold; border: none; background: transparent;")
+            cl.addWidget(lbl)
+            return cl, frame
+
+        # ═══ CARD: QUALIDADE & DECISAO ═══
+        ql, qf = _card("QUALIDADE & DECISAO")
+        pontos = _calcular_qualidade(r)
+        estrelas = _estrelas_str(pontos)
+        score_ev = getattr(r, 'score_ev', 0) or 0
+        theta = getattr(r, 'theta_liquido', 0) or 0
+        zonas_json = getattr(r, 'zonas_ev_json', None)
+        probs, evs = self._extrair_zonas(zonas_json)
+        a_plus_d = (probs[0] + probs[3]) * 100 if sum(probs) > 0 else 0
+        mod = getattr(r, 'mod_call', None) or (getattr(r, 'cod_call', '') and _ler_mod_call(r.ativo, getattr(r, 'cod_put', ''))) or '?'
+
+        if pontos >= 80 and theta > 0 and a_plus_d <= 40:
+            decisao = "EXECUTAR"
+            decisao_cor = "#2ecc71"
+            decisao_bg = "#1a3d1a"
+        elif pontos >= 40 or mod == 'A':
+            decisao = "ATENCAO"
+            decisao_cor = "#f39c12"
+            decisao_bg = "#3d2e1a"
+        else:
+            decisao = "DESCARTAR"
+            decisao_cor = "#e74c3c"
+            decisao_bg = "#3d1a1a"
+
+        hq = QHBoxLayout()
+        lbl_estrelas = QLabel(estrelas)
+        cor_estrela = "#2ecc71" if pontos >= 60 else ("#f39c12" if pontos >= 40 else "#e74c3c")
+        lbl_estrelas.setStyleSheet(f"color: {cor_estrela}; font-size: 16pt; font-weight: bold; border: none; background: transparent;")
+        hq.addWidget(lbl_estrelas)
+        hq.addStretch()
+        badge = QLabel(f"  {decisao}  ")
+        badge.setStyleSheet(f"""
+            QLabel {{
+                background-color: {decisao_bg}; color: {decisao_cor};
+                border: 1px solid {decisao_cor}; border-radius: 4px;
+                font-size: 11pt; font-weight: bold; padding: 4px 14px;
+            }}
+        """)
+        hq.addWidget(badge)
+        ql.addLayout(hq)
+
+        # Scores inline
+        scores_row = QHBoxLayout()
+        scores_row.setSpacing(20)
+        for label, valor, cor_val in [
+            ("Score", f"{r.score:.2f}", "#e0e0e0"),
+            ("Score IV", f"{r.score_iv:.2f}", "#e0e0e0"),
+            ("% CDI", f"{r.pct_cdi:.2f}x", "#2ecc71" if r.pct_cdi >= 2 else "#e0e0e0"),
+        ]:
+            w = QWidget()
+            w.setStyleSheet("background: transparent; border: none;")
+            vl = QVBoxLayout(w)
+            vl.setContentsMargins(0, 0, 0, 0)
+            vl.setSpacing(2)
+            hl = QLabel(label)
+            hl.setStyleSheet(f"color: {muted}; font-size: 7pt; border: none; background: transparent;")
+            vl.addWidget(hl)
+            vl2 = QLabel(str(valor))
+            vl2.setStyleSheet(f"color: {cor_val}; font-size: 10pt; font-weight: bold; border: none; background: transparent;")
+            vl.addWidget(vl2)
+            scores_row.addWidget(w)
+        scores_row.addStretch()
+        ql.addLayout(scores_row)
+
+        layout.addWidget(qf)
+
+        # ═══ CARD: ZONAS ═══
+        zl, zf = _card("DISTRIBUICAO DE PROBABILIDADE")
+        if sum(probs) > 0:
+            bar = ZonaBarWidget(probs)
+            bar.setFixedHeight(24)
+            zl.addWidget(bar)
+
+            legenda = QHBoxLayout()
+            legenda.setSpacing(14)
+            for i in range(4):
+                pw = QWidget()
+                pw.setStyleSheet("background: transparent; border: none;")
+                hl = QHBoxLayout(pw)
+                hl.setContentsMargins(0, 0, 0, 0)
+                hl.setSpacing(4)
+                dot = QLabel("●")
+                dot.setStyleSheet(f"color: {ZonaBarWidget.ZONA_COLORS[i].name()}; font-size: 8pt; border: none; background: transparent;")
+                hl.addWidget(dot)
+                lbl = QLabel(f"{ZonaBarWidget.ZONA_LABELS[i]}  {probs[i]*100:.1f}%")
+                lbl.setStyleSheet(f"color: #e0e0e0; font-size: 8pt; border: none; background: transparent;")
+                hl.addWidget(lbl)
+                legenda.addWidget(pw)
+            zl.addLayout(legenda)
+
+            warn = ""
+            if a_plus_d > 40:
+                warn = f"⚠ Risco de cauda elevado (A+D = {a_plus_d:.0f}%)"
+            elif a_plus_d > 30:
+                warn = f"⚡ Cauda moderada (A+D = {a_plus_d:.0f}%)"
+            if warn:
+                lw = QLabel(warn)
+                lw.setStyleSheet(f"color: {'#e74c3c' if a_plus_d > 40 else '#f39c12'}; font-size: 8pt; border: none; background: transparent;")
+                zl.addWidget(lw)
+        else:
+            lv = QLabel("Dados de zona indisponiveis (EV nao calculado)")
+            lv.setStyleSheet(f"color: {muted}; font-size: 8pt; border: none; background: transparent;")
+            zl.addWidget(lv)
+        layout.addWidget(zf)
+
+        # ═══ CARD: ESTRUTURA ═══
+        el, ef = _card("ESTRUTURA")
+        linhas = [
+            f"<b>Comprado</b>  {r.qtd_acao}x {r.ativo} @ R$ {r.preco_ativo:.2f}",
+            f"<b>Venda Call</b> {r.cod_call} K={r.strike_call:.2f} ({mod}) → +R$ {r.premio_call:.2f}",
+            f"<b>Compra Put</b> {r.cod_put} K={r.strike_put:.2f} (E) → -R$ {r.premio_put:.2f}",
+        ]
+        lado = getattr(r, 'lado_protegido', 'nenhum') or 'nenhum'
+        custo_prot = getattr(r, 'custo_protecao_total', 0) or 0
+        if lado != "nenhum" and custo_prot:
+            kp = getattr(r, 'strike_protecao_call', None) or getattr(r, 'strike_protecao_put', None) or '-'
+            linhas.append(f"<b>Protecao</b>  {lado} K={kp} → -R$ {custo_prot:.2f}")
+
+        for linha in linhas:
+            lbl = QLabel(linha)
+            lbl.setStyleSheet(f"color: #e0e0e0; font-size: 9pt; border: none; background: transparent; padding: 1px 0;")
+            lbl.setTextFormat(Qt.TextFormat.RichText)
+            el.addWidget(lbl)
+        layout.addWidget(ef)
+
+        # ═══ CARD: FINANCEIRO ═══
+        fl, ff = _card("RESUMO FINANCEIRO")
+        fin_row = QHBoxLayout()
+        fin_row.setSpacing(20)
+        for label, valor in [
+            ("Capital", f"R$ {r.capital_empregado:,.2f}"),
+            ("Risco Max", f"R$ {r.risco_max:,.2f}" if getattr(r, 'risco_max', None) else "-"),
+            ("PnL Bruto", f"R$ {r.pnl_projetado:,.2f}"),
+            ("PnL Liquido", f"R$ {getattr(r, 'pnl_liquido', 0) or 0:,.2f}"),
+            ("θ Liquido/dia", f"R$ {theta:,.2f}"),
+        ]:
+            w = QWidget()
+            w.setStyleSheet("background: transparent; border: none;")
+            vl = QVBoxLayout(w)
+            vl.setContentsMargins(0, 0, 0, 0)
+            vl.setSpacing(2)
+            hl = QLabel(label)
+            hl.setStyleSheet(f"color: {muted}; font-size: 7pt; border: none; background: transparent;")
+            vl.addWidget(hl)
+            hl2 = QLabel(str(valor))
+            hl2.setStyleSheet(f"color: #e0e0e0; font-size: 10pt; font-weight: bold; border: none; background: transparent;")
+            vl.addWidget(hl2)
+            fin_row.addWidget(w)
+        fin_row.addStretch()
+        fl.addLayout(fin_row)
+        layout.addWidget(ff)
+
+        # ═══ RODAPE ═══
+        btn_row = QHBoxLayout()
+        btn_cli = QPushButton("📋 Copiar CLI")
+        btn_cli.setToolTip("Copiar resumo em formato ASCII para terminal")
+        btn_cli.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #2d2d44; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid {Palette.BORDER}; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #3d3d55; }}
+        """)
+        btn_cli.clicked.connect(self._copiar_cli)
+        btn_row.addWidget(btn_cli)
+        btn_row.addStretch()
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #e74c3c; color: white;
+                border: none; border-radius: 4px;
+                padding: 6px 18px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #d35400; }}
+        """)
+        btn_fechar.clicked.connect(self.close)
+        btn_row.addWidget(btn_fechar)
+        layout.addLayout(btn_row)
+
+    def _extrair_zonas(self, zonas_json):
+        if not zonas_json:
+            return [0, 0, 0, 0], [0, 0, 0, 0]
+        try:
+            data = json.loads(zonas_json) if isinstance(zonas_json, str) else zonas_json
+            return data.get("p", [0, 0, 0, 0]), data.get("ev", [0, 0, 0, 0])
+        except Exception:
+            return [0, 0, 0, 0], [0, 0, 0, 0]
+
+    def _copiar_cli(self):
+        from PySide6.QtWidgets import QApplication
+        texto = self._gerar_cli()
+        QApplication.clipboard().setText(texto)
+
+    def _gerar_cli(self) -> str:
+        r = self.r
+        estrelas = _estrelas_str(_calcular_qualidade(r))
+        score_ev = getattr(r, 'score_ev', 0) or 0
+        theta = getattr(r, 'theta_liquido', 0) or 0
+        zonas_json = getattr(r, 'zonas_ev_json', None)
+        probs, evs = self._extrair_zonas(zonas_json)
+        a_plus_d = (probs[0] + probs[3]) * 100 if sum(probs) > 0 else 0
+        mod = getattr(r, 'mod_call', '?')
+        pontos = _calcular_qualidade(r)
+
+        if pontos >= 80 and theta > 0 and a_plus_d <= 40:
+            decisao = "EXECUTAR"
+        elif pontos >= 40 or mod == 'A':
+            decisao = "ATENCAO"
+        else:
+            decisao = "DESCARTAR"
+
+        iv_lbl = "Cara" if r.score_iv >= 0.5 else ("Media" if r.score_iv >= 0.3 else "Barata")
+
+        # Barra de zonas ASCII
+        if sum(probs) > 0:
+            total_chars = 20
+            chars = []
+            for p in probs:
+                n = max(0, int(round(p * total_chars)))
+                chars.append(n)
+            diff = total_chars - sum(chars)
+            if diff != 0:
+                chars[2] = max(0, chars[2] + diff)
+            barra_zonas = "█" * chars[0] + "░" * chars[1] + "▓" * chars[2] + "▒" * chars[3]
+            while len(barra_zonas) < total_chars:
+                barra_zonas += " "
+            barra_zonas = barra_zonas[:total_chars]
+        else:
+            barra_zonas = "─" * 20
+
+        lado = getattr(r, 'lado_protegido', 'nenhum') or 'nenhum'
+        custo_prot = getattr(r, 'custo_protecao_total', 0) or 0
+
+        linhas = [
+            "=" * 98,
+            f" RESUMO ANALITICO | ATIVO: {r.ativo}",
+            "=" * 98,
+            f" QUALIDADE: {estrelas}  | DECISAO: [ {decisao} ]",
+            f" Score: {r.score:.2f} | Score IV: {r.score_iv:.2f} ({iv_lbl}) | % CDI: {r.pct_cdi:.2f}x | Theta: R$ {theta:+.2f}/dia",
+            "-" * 98,
+            " DISTRIBUICAO DE PROBABILIDADE (Zonas A | B | C | D):",
+            f" [{barra_zonas}]",
+            f"  A: {probs[0]*100:5.1f}%  |  B: {probs[1]*100:5.1f}%  |  C: {probs[2]*100:5.1f}%  |  D: {probs[3]*100:5.1f}%  |  A+D: {a_plus_d:.0f}%",
+            "-" * 98,
+            " ESTRUTURA:",
+            f"  Comprado:  {r.qtd_acao}x {r.ativo} @ R$ {r.preco_ativo:.2f}",
+            f"  Venda Call: {r.cod_call} K={r.strike_call:.2f} ({mod}) → +R$ {r.premio_call:.2f}",
+            f"  Compra Put: {r.cod_put} K={r.strike_put:.2f} (E) → -R$ {r.premio_put:.2f}",
+        ]
+        if lado != "nenhum" and custo_prot:
+            kp = getattr(r, 'strike_protecao_call', None) or getattr(r, 'strike_protecao_put', None) or '-'
+            linhas.append(f"  Protecao:   {lado} K={kp} → -R$ {custo_prot:.2f}")
+        linhas += [
+            "-" * 98,
+            f" Capital: R$ {r.capital_empregado:,.2f} | Risco Max: R$ {getattr(r, 'risco_max', 0) or 0:,.2f}",
+            f" PnL Bruto: R$ {r.pnl_projetado:,.2f} | PnL Liquido: R$ {getattr(r, 'pnl_liquido', 0) or 0:,.2f} | E[PnL]: R$ {score_ev:,.2f}",
+            "=" * 98,
+        ]
+        return "\n".join(linhas)
 
 
 _mod_call_cache: dict[str, str] = {}
@@ -1342,6 +1682,19 @@ class ColarCalendarioDialog(QDialog):
         btn_explicar.clicked.connect(lambda: self._explicar_estrategia(r))
         btn_row.addWidget(btn_explicar)
 
+        btn_resumo = QPushButton("📊 Resumo")
+        btn_resumo.setAutoDefault(False)
+        btn_resumo.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #2a3d2a; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid #2ecc71; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #3d553d; }}
+        """)
+        btn_resumo.clicked.connect(lambda: self._mostrar_resumo_analitico(r))
+        btn_row.addWidget(btn_resumo)
+
         btn_simulador = QPushButton("🧪 Simulador")
         btn_simulador.setAutoDefault(False)
         btn_simulador.setStyleSheet(f"""
@@ -1559,6 +1912,10 @@ class ColarCalendarioDialog(QDialog):
         btn_row.addWidget(btn_fechar)
         layout.addLayout(btn_row)
         dialog.exec_()
+
+    def _mostrar_resumo_analitico(self, r):
+        dlg = _ResumoAnaliticoDialog(r, self)
+        dlg.exec_()
 
     def _plot_payoff(self, r):
         from PySide6.QtWidgets import QMessageBox
