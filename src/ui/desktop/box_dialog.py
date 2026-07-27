@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QFrame, QWidget,
-    QDoubleSpinBox,
+    QDoubleSpinBox, QRadioButton, QButtonGroup, QCheckBox,
 )
 from collections import Counter
 
@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTime
 from PySide6.QtGui import QFont, QColor, QBrush, QDesktopServices
 
 from src.ui.desktop.column_utils import salvar_ordem_colunas, salvar_largura_colunas, limpar_e_restaurar_colunas
+from src.ui.desktop.flag_icons import flag_icon
 from src.ui.desktop.theme import Palette
 
 CUSTOS_DISCLOSURE = (
@@ -53,6 +54,8 @@ BOX_4P_COLUMNS = [
     ("Dias", "dias"),
     ("Venc", "vencimento"),
     ("Detectado", "label_detectado"),
+    ("Sentido", "sentido"),
+    ("Mod", "tipo_opcao"),
 ]
 
 
@@ -99,6 +102,8 @@ class BoxTableModel(QAbstractTableModel):
                     "vencimento": "Data de expiração das opções.",
                     "taxa_aluguel": "Taxa de aluguel (BTC) da ação objeto — InvestSite.",
                     "label_detectado": "Data e hora (Brasília) em que o monitor detectou a oportunidade pelo RTD (DD/MM/YYYY HH:MM:SS).",
+                    "tipo_opcao": "MOD — estilo da opção (CALL K1): 🇺🇸 = Americana (A) | 🇪🇺 = Europeia (E).",
+                    "sentido": "Sentido da operação: VENDIDO (short box) = recebe hoje, paga no vencimento | COMPRADO (long box) = paga hoje, recebe no vencimento.",
                 }
                 return tips.get(BOX_4P_COLUMNS[section][1])
         return None
@@ -131,6 +136,13 @@ class BoxTableModel(QAbstractTableModel):
             return str(val)
 
         if role == Qt.ItemDataRole.ForegroundRole:
+            if col_key == "sentido":
+                val = item.get(col_key, "")
+                if val == "COMPRADO":
+                    return QBrush(QColor(Palette.GREEN))
+                if val == "VENDIDO":
+                    return QBrush(QColor(Palette.RED))
+                return QBrush(QColor(Palette.TEXT_MUTED))
             if col_key in ("lucro", "lucro_b3", "lucro_final", "lucro_pct", "pct_cdi"):
                 val = item.get(col_key, 0)
                 if val > 0:
@@ -151,7 +163,7 @@ class BoxTableModel(QAbstractTableModel):
                            "lucro_pct", "pct_cdi", "dias", "qtd_bid_call_k1", "qtd_ask_put_k1",
                            "qtd_ask_call_k2", "qtd_bid_put_k2",
                            "bid_call_k1", "ask_put_k1", "ask_call_k2", "bid_put_k2",
-                           "taxa_aluguel"}
+                           "taxa_aluguel", "tipo_opcao", "sentido"}
             if col_key in center_cols:
                 return Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
             return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
@@ -160,6 +172,10 @@ class BoxTableModel(QAbstractTableModel):
             if not item.get("viavel", False):
                 return QBrush(QColor(Palette.ROW_NOT_VIABLE))
             return None
+
+        if role == Qt.ItemDataRole.DecorationRole and col_key == "tipo_opcao":
+            val = item.get(col_key, "")
+            return flag_icon(val) if val else None
 
         return None
 
@@ -173,15 +189,30 @@ class BoxSortProxy(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._cdi_min = 0.0
+        self._sentido = ""
+        self._mod = ""
+        self._only_viaveis = False
 
     def set_filtro_cdi_min(self, valor: float):
         self._cdi_min = valor
         self.invalidate()
 
+    def set_filtro_sentido(self, valor: str):
+        self._sentido = valor
+        self.invalidate()
+
+    def set_filtro_mod(self, valor: str):
+        self._mod = valor
+        self.invalidate()
+
+    def set_filtro_viaveis(self, valor: bool):
+        self._only_viaveis = valor
+        self.invalidate()
+
     def filterAcceptsRow(self, row, parent):
         src = self.sourceModel()
         if self._cdi_min > 0:
-            idx_cdi = 7
+            idx_cdi = 9
             val = src.data(src.index(row, idx_cdi), Qt.ItemDataRole.DisplayRole) or "0.00x"
             try:
                 num = float(val.replace("x", "").strip())
@@ -189,6 +220,21 @@ class BoxSortProxy(QSortFilterProxyModel):
                     return False
             except ValueError:
                 pass
+        if self._sentido:
+            col_sentido = next((i for i, (_, k) in enumerate(BOX_4P_COLUMNS) if k == "sentido"), -1)
+            if col_sentido >= 0:
+                val = src.data(src.index(row, col_sentido), Qt.ItemDataRole.DisplayRole) or ""
+                if val != self._sentido:
+                    return False
+        if self._mod:
+            col_mod = next((i for i, (_, k) in enumerate(BOX_4P_COLUMNS) if k == "tipo_opcao"), -1)
+            if col_mod >= 0:
+                val = src.data(src.index(row, col_mod), Qt.ItemDataRole.DisplayRole) or ""
+                if val != self._mod:
+                    return False
+        if self._only_viaveis:
+            if not src._items[row].get("viavel", False):
+                return False
         return True
 
 
@@ -296,16 +342,6 @@ class BoxDialog(QDialog):
         self.btn_export_csv.clicked.connect(self._exportar_csv)
         header.addWidget(self.btn_export_csv)
 
-    def _exportar_csv(self):
-        from src.ui.desktop.copy_utils import exportar_monitor_csv
-        exportar_monitor_csv(
-            resultados=self._resultados,
-            colunas=BOX_4P_COLUMNS,
-            table_view=self.table_view,
-            parent=self,
-            titulo_janela="Export CSV - BOX 4P",
-        )
-
         layout.addLayout(header)
 
         body = QHBoxLayout()
@@ -337,6 +373,53 @@ class BoxDialog(QDialog):
         """)
         self.spin_cdi_min.valueChanged.connect(self._on_filtro_cdi)
         left_panel.addWidget(self.spin_cdi_min)
+
+        lbl_sentido = QLabel("Sentido:")
+        lbl_sentido.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold; margin-top: 8px;".format(Palette.TEXT_MUTED))
+        left_panel.addWidget(lbl_sentido)
+
+        self._sentido_group = QButtonGroup(self)
+        self._radio_todos = QRadioButton("Todos")
+        self._radio_vendido = QRadioButton("Vendido")
+        self._radio_comprado = QRadioButton("Comprado")
+        for rb, style in [(self._radio_todos, Palette.TEXT_PRIMARY),
+                          (self._radio_vendido, Palette.RED),
+                          (self._radio_comprado, Palette.GREEN)]:
+            rb.setStyleSheet("color: {}; font-size: 8pt;".format(style))
+            self._sentido_group.addButton(rb)
+            left_panel.addWidget(rb)
+        self._radio_todos.setChecked(True)
+        self._sentido_group.buttonClicked.connect(self._on_filtro_sentido)
+
+        lbl_mod = QLabel("MOD:")
+        lbl_mod.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold; margin-top: 8px;".format(Palette.TEXT_MUTED))
+        left_panel.addWidget(lbl_mod)
+
+        self._mod_group = QButtonGroup(self)
+        self._radio_mod_todos = QRadioButton("Todos")
+        self._radio_mod_eu = QRadioButton(" Europeia")
+        self._radio_mod_us = QRadioButton(" Americana")
+        self._radio_mod_eu.setIcon(flag_icon("E"))
+        self._radio_mod_us.setIcon(flag_icon("A"))
+        for rb in [self._radio_mod_todos, self._radio_mod_eu, self._radio_mod_us]:
+            rb.setStyleSheet("color: {}; font-size: 8pt;".format(Palette.TEXT_PRIMARY))
+            self._mod_group.addButton(rb)
+            left_panel.addWidget(rb)
+        self._radio_mod_todos.setChecked(True)
+        self._mod_group.buttonClicked.connect(self._on_filtro_mod)
+
+        self._chk_apenas_viaveis = QCheckBox("Apenas viáveis")
+        self._chk_apenas_viaveis.setToolTip(
+            "Quando ativado, mostra apenas operações que superam o prêmio de risco "
+            "configurado nos parâmetros (box_premio_risco).\n"
+            "Viável = pct_cdi_bruto >= box_premio_risco, lucro líquido > 0 "
+            "e profundidade mínima atendida."
+        )
+        self._chk_apenas_viaveis.setStyleSheet(
+            "color: {}; font-size: 9pt; font-weight: bold;".format(Palette.TEXT_PRIMARY)
+        )
+        self._chk_apenas_viaveis.toggled.connect(self._on_filtro_viaveis)
+        left_panel.addWidget(self._chk_apenas_viaveis)
 
         left_panel.addStretch()
 
@@ -385,6 +468,16 @@ class BoxDialog(QDialog):
         self._footer_layout.addStretch()
         layout.addWidget(self._footer)
 
+    def _exportar_csv(self):
+        from src.ui.desktop.copy_utils import exportar_monitor_csv
+        exportar_monitor_csv(
+            resultados=self._resultados,
+            colunas=BOX_4P_COLUMNS,
+            table_view=self.table_view,
+            parent=self,
+            titulo_janela="Export CSV - BOX 4P",
+        )
+
     def _abrir_regras(self):
         from src.ui.desktop.regras_dialog import RegrasDialog
         dlg = RegrasDialog("BOX_4P", self._db_path, self)
@@ -421,6 +514,25 @@ class BoxDialog(QDialog):
 
     def _on_filtro_cdi(self, valor):
         self.proxy.set_filtro_cdi_min(valor)
+
+    def _on_filtro_sentido(self, btn):
+        if btn is self._radio_vendido:
+            self.proxy.set_filtro_sentido("VENDIDO")
+        elif btn is self._radio_comprado:
+            self.proxy.set_filtro_sentido("COMPRADO")
+        else:
+            self.proxy.set_filtro_sentido("")
+
+    def _on_filtro_mod(self, btn):
+        if btn is self._radio_mod_eu:
+            self.proxy.set_filtro_mod("E")
+        elif btn is self._radio_mod_us:
+            self.proxy.set_filtro_mod("A")
+        else:
+            self.proxy.set_filtro_mod("")
+
+    def _on_filtro_viaveis(self, checked):
+        self.proxy.set_filtro_viaveis(checked)
 
     def atualizar_resultados(self, resultados: list):
         self._pending_resultados = resultados
@@ -465,6 +577,8 @@ class BoxDialog(QDialog):
                 "vencimento": r.vencimento,
                 "taxa_aluguel": r.taxa_aluguel,
                 "viavel": r.viavel,
+                "tipo_opcao": getattr(r, 'tipo_opcao', '') or '',
+                "sentido": getattr(r, 'sentido', 'VENDIDO') or 'VENDIDO',
                 "label_detectado": _formatar_detectado(getattr(r, 'detectado_em', None)),
             })
         self.model.atualizar(rows)
@@ -558,14 +672,16 @@ class BoxDialog(QDialog):
         from src.domain.services.calculadora_box import ResultadoBox
 
         dialog = QDialog(self, Qt.Window)
-        dialog.setWindowTitle(f"Detalhes Box 4P — {r.ativo}")
+        dialog.setWindowTitle(f"Detalhes Box 4P — {r.ativo} ({r.sentido})")
         dialog.setMinimumSize(520, 420)
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
-        title = QLabel(f"<b>{r.ativo}</b> — Box Spread 4 Pontas")
-        title.setStyleSheet(f"font-size: 13pt; color: {Palette.TEXT_PRIMARY};")
+        is_comprado = getattr(r, 'sentido', 'VENDIDO') == 'COMPRADO'
+
+        title = QLabel(f"<b>{r.ativo}</b> — Box Spread 4 Pontas ({r.sentido})")
+        title.setStyleSheet(f"font-size: 13pt; color: {Palette.GREEN if is_comprado else Palette.RED};")
         layout.addWidget(title)
 
         sep = QFrame()
@@ -595,29 +711,54 @@ class BoxDialog(QDialog):
         sep2.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
         form.addRow(sep2)
 
-        lbl = QLabel("Perna 1 — Vender Call (K1):")
-        lbl.setStyleSheet(label_style)
-        val = QLabel(f"{r.cod_call_k1} — Bid R$ {r.bid_call_k1:.2f} (Qtd {r.qtd_bid_call_k1})")
-        val.setStyleSheet(value_style)
-        form.addRow(lbl, val)
+        if is_comprado:
+            lbl = QLabel("Perna 1 — Comprar Call (K1):")
+            lbl.setStyleSheet(label_style)
+            val = QLabel(f"{r.cod_call_k1} — Ask R$ {r.bid_call_k1:.2f} (Qtd {r.qtd_bid_call_k1})")
+            val.setStyleSheet(value_style)
+            form.addRow(lbl, val)
 
-        lbl = QLabel("Perna 2 — Comprar Put (K1):")
-        lbl.setStyleSheet(label_style)
-        val = QLabel(f"{r.cod_put_k1} — Ask R$ {r.ask_put_k1:.2f} (Qtd {r.qtd_ask_put_k1})")
-        val.setStyleSheet(value_style)
-        form.addRow(lbl, val)
+            lbl = QLabel("Perna 2 — Vender Put (K1):")
+            lbl.setStyleSheet(label_style)
+            val = QLabel(f"{r.cod_put_k1} — Bid R$ {r.ask_put_k1:.2f} (Qtd {r.qtd_ask_put_k1})")
+            val.setStyleSheet(value_style)
+            form.addRow(lbl, val)
 
-        lbl = QLabel("Perna 3 — Comprar Call (K2):")
-        lbl.setStyleSheet(label_style)
-        val = QLabel(f"{r.cod_call_k2} — Ask R$ {r.ask_call_k2:.2f} (Qtd {r.qtd_ask_call_k2})")
-        val.setStyleSheet(value_style)
-        form.addRow(lbl, val)
+            lbl = QLabel("Perna 3 — Vender Call (K2):")
+            lbl.setStyleSheet(label_style)
+            val = QLabel(f"{r.cod_call_k2} — Bid R$ {r.ask_call_k2:.2f} (Qtd {r.qtd_ask_call_k2})")
+            val.setStyleSheet(value_style)
+            form.addRow(lbl, val)
 
-        lbl = QLabel("Perna 4 — Vender Put (K2):")
-        lbl.setStyleSheet(label_style)
-        val = QLabel(f"{r.cod_put_k2} — Bid R$ {r.bid_put_k2:.2f} (Qtd {r.qtd_bid_put_k2})")
-        val.setStyleSheet(value_style)
-        form.addRow(lbl, val)
+            lbl = QLabel("Perna 4 — Comprar Put (K2):")
+            lbl.setStyleSheet(label_style)
+            val = QLabel(f"{r.cod_put_k2} — Ask R$ {r.bid_put_k2:.2f} (Qtd {r.qtd_bid_put_k2})")
+            val.setStyleSheet(value_style)
+            form.addRow(lbl, val)
+        else:
+            lbl = QLabel("Perna 1 — Vender Call (K1):")
+            lbl.setStyleSheet(label_style)
+            val = QLabel(f"{r.cod_call_k1} — Bid R$ {r.bid_call_k1:.2f} (Qtd {r.qtd_bid_call_k1})")
+            val.setStyleSheet(value_style)
+            form.addRow(lbl, val)
+
+            lbl = QLabel("Perna 2 — Comprar Put (K1):")
+            lbl.setStyleSheet(label_style)
+            val = QLabel(f"{r.cod_put_k1} — Ask R$ {r.ask_put_k1:.2f} (Qtd {r.qtd_ask_put_k1})")
+            val.setStyleSheet(value_style)
+            form.addRow(lbl, val)
+
+            lbl = QLabel("Perna 3 — Comprar Call (K2):")
+            lbl.setStyleSheet(label_style)
+            val = QLabel(f"{r.cod_call_k2} — Ask R$ {r.ask_call_k2:.2f} (Qtd {r.qtd_ask_call_k2})")
+            val.setStyleSheet(value_style)
+            form.addRow(lbl, val)
+
+            lbl = QLabel("Perna 4 — Vender Put (K2):")
+            lbl.setStyleSheet(label_style)
+            val = QLabel(f"{r.cod_put_k2} — Bid R$ {r.bid_put_k2:.2f} (Qtd {r.qtd_bid_put_k2})")
+            val.setStyleSheet(value_style)
+            form.addRow(lbl, val)
 
         sep3 = QFrame()
         sep3.setFrameShape(QFrame.HLine)
@@ -647,19 +788,27 @@ class BoxDialog(QDialog):
         sep4.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
         form.addRow(sep4)
 
-        lbl = QLabel("CLR (Crédito Líquido):")
+        lbl = QLabel("CLR (Crédito Líquido):" if not is_comprado else "Débito (Custo da montagem):")
         lbl.setStyleSheet(label_style)
         clr_color = Palette.GREEN if r.clr > 0 else Palette.RED
         val = QLabel(f"R$ {r.clr:.2f}")
-        val.setToolTip("Crédito Líquido Recebido = (Bid_Call_K1 + Bid_Put_K2) − (Ask_Put_K1 + Ask_Call_K2)" + CUSTOS_DISCLOSURE)
+        val.setToolTip(
+            "Crédito Líquido = (Bid_Call_K1 + Bid_Put_K2) − (Ask_Put_K1 + Ask_Call_K2)" if not is_comprado
+            else "Débito = (Ask_Call_K1 + Ask_Put_K2) − (Bid_Put_K1 + Bid_Call_K2)" 
+            + CUSTOS_DISCLOSURE
+        )
         val.setStyleSheet(f"color: {clr_color}; font-size: 11pt; font-weight: bold; font-family: Consolas;")
         form.addRow(lbl, val)
 
-        lbl = QLabel("Lucro (CLR − Dist):")
+        lbl = QLabel("Lucro (CLR − Dist):" if not is_comprado else "Lucro (Dist − Débito):")
         lbl.setStyleSheet(label_style)
         lucro_color = Palette.GREEN if r.lucro > 0 else Palette.RED
         val = QLabel(f"R$ {r.lucro:.2f}")
-        val.setToolTip("Lucro bruto antes dos custos = CLR − Distância (K2−K1)" + CUSTOS_DISCLOSURE)
+        val.setToolTip(
+            "Lucro bruto = CLR − Distância" if not is_comprado
+            else "Lucro bruto = Distância − Débito"
+            + CUSTOS_DISCLOSURE
+        )
         val.setStyleSheet(f"color: {lucro_color}; font-size: 11pt; font-weight: bold; font-family: Consolas;")
         form.addRow(lbl, val)
 
@@ -718,11 +867,18 @@ class BoxDialog(QDialog):
 
         layout.addLayout(form)
 
-        detalhes = QLabel(
-            "<p style='color:{}; font-size:8pt;'>"
-            "CLR = (Bid_Call_K1 + Bid_Put_K2) − (Ask_Put_K1 + Ask_Call_K2)<br>"
-            "O box paga K2−K1 no vencimento. Lucro se CLR > K2−K1.</p>".format(Palette.TEXT_MUTED)
-        )
+        if not is_comprado:
+            detalhes = QLabel(
+                "<p style='color:{}; font-size:8pt;'>"
+                "CLR = (Bid_Call_K1 + Bid_Put_K2) − (Ask_Put_K1 + Ask_Call_K2)<br>"
+                "O box paga K2−K1 no vencimento. Lucro se CLR > K2−K1.</p>".format(Palette.TEXT_MUTED)
+            )
+        else:
+            detalhes = QLabel(
+                "<p style='color:{}; font-size:8pt;'>"
+                "Débito = (Ask_Call_K1 + Ask_Put_K2) − (Bid_Put_K1 + Bid_Call_K2)<br>"
+                "O box recebe K2−K1 no vencimento. Lucro se Débito < K2−K1.</p>".format(Palette.TEXT_MUTED)
+            )
         layout.addWidget(detalhes)
 
         layout.addStretch()

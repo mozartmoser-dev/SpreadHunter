@@ -1,6 +1,119 @@
-from datetime import date
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget, QGridLayout
+from datetime import date, timedelta
+from PySide6.QtCore import Qt, QTimer, QRectF
+from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget, QGridLayout, QProgressBar, QSizePolicy
+from src.domain.services.market_data_source import FieldName
+
+_MC = {1: "F", 2: "G", 3: "H", 4: "J", 5: "K", 6: "M",
+       7: "N", 8: "Q", 9: "U", 10: "V", 11: "X", 12: "Z"}
+
+
+def _cod_fut(prefixo: str, ano: int, mes: int) -> str:
+    return f"{prefixo.lower()}{_MC[mes].lower()}{str(ano)[-2:]}"
+
+
+def _prox_mes(ano: int, mes: int) -> tuple[int, int]:
+    return (ano + 1, 1) if mes == 12 else (ano, mes + 1)
+
+
+def _formatar_data_curta(data_iso: str) -> str:
+    if not data_iso or len(data_iso) < 10:
+        return data_iso
+    try:
+        partes = data_iso[:10].split("-")
+        return f"{partes[2]}/{partes[1]}"
+    except (ValueError, IndexError):
+        return data_iso
+
+
+class TickerWidget(QWidget):
+    """Letreiro digital com rolagem contínua da direita para a esquerda."""
+
+    BG = QColor("#121212")
+    COR_BALANCO = QColor("#f1c40f")
+    COR_PROVENTO = QColor("#2ecc71")
+    COR_AGENDA = QColor("#747d8c")
+    SEPARADOR = "    ◆    "
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(38)
+        self.setMinimumWidth(100)
+        self._itens: list[tuple[str, QColor]] = []
+        self._offset = 0.0
+        self._velocidade = 35.0
+        self._font = QFont("Consolas", 11)
+        self._font.setStyleHint(QFont.Monospace)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._scroll)
+        self._timer.start(35)
+        self._largura_total = 0.0
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+    def set_eventos(self, itens: list[tuple[str, QColor]]):
+        self._itens = itens
+        self._offset = float(self.width())
+        self._largura_total = self._medir_largura_total()
+        self.update()
+
+    def _medir_largura_total(self) -> float:
+        if not self._itens:
+            return 0.0
+        fm = self.fontMetrics()
+        total = 0.0
+        for i, (texto, _) in enumerate(self._itens):
+            total += fm.horizontalAdvance(texto) + 24
+            if i < len(self._itens) - 1:
+                total += fm.horizontalAdvance(self.SEPARADOR) + 12
+        return total
+
+    def _scroll(self):
+        if not self._itens:
+            return
+        self._offset -= self._velocidade * 0.035
+        if self._offset < -(self._largura_total + 20):
+            self._offset = float(self.width())
+        self.update()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.fillRect(self.rect(), self.BG)
+        if not self._itens:
+            p.setPen(QPen(self.COR_AGENDA))
+            p.setFont(self._font)
+            p.drawText(self.rect(), Qt.AlignCenter, "—")
+            p.end()
+            return
+
+        p.setFont(self._font)
+        x = self._offset
+        fm = self.fontMetrics()
+        y = (self.height() + fm.ascent() - fm.descent()) // 2
+
+        for texto, cor in self._itens:
+            largura_texto = fm.horizontalAdvance(texto)
+            p.setPen(QPen(cor))
+            p.drawText(QRectF(x, 0, largura_texto + 60, self.height()),
+                       Qt.AlignVCenter | Qt.AlignLeft, texto)
+            x += largura_texto + 24
+
+            if cor != self._itens[-1][1] or texto != self._itens[-1][0]:
+                p.setPen(QPen(self.COR_AGENDA.darker(150)))
+                separador_l = fm.horizontalAdvance(self.SEPARADOR)
+                p.drawText(QRectF(x, 0, separador_l + 30, self.height()),
+                           Qt.AlignVCenter | Qt.AlignLeft, self.SEPARADOR)
+                x += separador_l + 12
+
+            if x > self.width() + 200:
+                break
+
+        p.end()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._offset < 0 and abs(self._offset) > self._largura_total + 20:
+            self._offset = float(self.width())
 
 
 class MercadoTopBarWidget(QFrame):
@@ -9,6 +122,8 @@ class MercadoTopBarWidget(QFrame):
         self.db_path = db_path
         self._source = None
         self._precos_anteriores: dict[str, float] = {}
+        self._ref_prices: dict[str, float] = {}
+        self._ref_date: date | None = None
         self.setObjectName("MercadoTopBar")
         self.setStyleSheet("""
             QFrame#MercadoTopBar {
@@ -23,8 +138,8 @@ class MercadoTopBarWidget(QFrame):
             .TituloColuna { color: #e1b12c; font-weight: bold; font-size: 11px; padding-bottom: 4px; border-bottom: 1px solid #2d2d2d; }
             .ItemTexto { color: #dfe4ea; font-size: 10.5px; }
         """)
-        self.height_compact = 58
-        self.height_expanded = 270
+        self.height_compact = 70
+        self.height_expanded = 282
         self.setFixedHeight(self.height_compact)
 
         self.main_layout = QVBoxLayout(self)
@@ -34,7 +149,6 @@ class MercadoTopBarWidget(QFrame):
         self.bar_compact = QWidget()
         layout_compact = QHBoxLayout(self.bar_compact)
         layout_compact.setContentsMargins(0, 0, 0, 0)
-        from PySide6.QtWidgets import QProgressBar
 
         self.lbl_summary = QLabel()
         self.lbl_summary.setProperty("class", "BadgeCompacto")
@@ -64,22 +178,16 @@ class MercadoTopBarWidget(QFrame):
         layout_compact.addWidget(self.lbl_hint)
         self.main_layout.addWidget(self.bar_compact)
 
-        self.lbl_ticker = QLabel()
-        self.lbl_ticker.setProperty("class", "TickerLabel")
-        self.main_layout.addWidget(self.lbl_ticker)
+        self.ticker = TickerWidget()
+        self.main_layout.addWidget(self.ticker)
 
-        self.ticker_messages = []
-        self.current_ticker_idx = 0
         self._carregar_eventos_do_dia()
 
-        self.ticker_timer = QTimer(self)
-        self.ticker_timer.timeout.connect(self.rotate_ticker)
-        self.ticker_timer.start(4000)
-
         self._refresh_timer = QTimer(self)
-        self._refresh_timer.timeout.connect(self._atualizar_cotacoes)
+        self._refresh_timer.timeout.connect(self._atualizar_tudo)
         self._refresh_timer.start(5000)
-        self._atualizar_cotacoes()
+        self._vix_cache = (0.0, 0.0)
+        self._atualizar_tudo()
 
         self.panel_expanded = QWidget()
         layout_expanded = QHBoxLayout(self.panel_expanded)
@@ -151,10 +259,10 @@ class MercadoTopBarWidget(QFrame):
     def conectar_fonte(self, source):
         self._source = source
         if source and source.disponivel:
-            for cod in ("WIN$", "WDO$", "IND$", "DOL$", "DI1F27", "DI1F33"):
+            for cod in self._gerar_defaults():
                 try:
-                    source.registrar_topico(cod, "ask")
-                    source.registrar_topico(cod, "last")
+                    source.registrar_topico(cod, FieldName.ASK)
+                    source.registrar_topico(cod, FieldName.LAST_PRICE)
                 except Exception:
                     pass
 
@@ -174,64 +282,103 @@ class MercadoTopBarWidget(QFrame):
             return "#e74c3c"
         return "#dcdde1"
 
-    def _fmt_variacao(self, nome: str, valor: float, anterior: float | None, fmt: str = ".2f", suffix: str = "", variacao: bool = True) -> str:
+    def _fmt_variacao(self, nome: str, valor: float, anterior: float | None, fmt: str = ".2f",
+                       suffix: str = "", variacao: bool = True, variacao_manual: float | None = None) -> str:
         if not variacao:
             return f"<b>{nome}:</b> {valor:{fmt}}{suffix}"
-        if anterior is None:
-            anterior = valor
-        var = (valor - anterior) / anterior if anterior > 0 else 0.0
+        if variacao_manual is not None:
+            var = variacao_manual
+        elif anterior is None:
+            return f"<b>{nome}:</b> {valor:{fmt}}{suffix} —"
+        else:
+            var = (valor - anterior) / anterior if anterior > 0 else 0.0
         cor = self._cor_var(var)
         seta = self._seta(var)
         return f"<b>{nome}:</b> {valor:{fmt}}{suffix} <span style='color:{cor};'>{seta}{var:+.2f}%</span>"
 
     def _buscar_vix(self):
+        import time
+        agora = time.time()
+        if agora - self._vix_cache[1] < 60:
+            return self._vix_cache[0] if self._vix_cache[0] > 0 else None
         try:
             import yfinance as yf
             t = yf.Ticker("^VIX")
             info = t.fast_info
             preco = getattr(info, 'last_price', None) or getattr(info, 'regular_market_previous_close', None)
             if preco and preco > 0:
+                self._vix_cache = (preco, agora)
                 return preco
         except Exception:
             pass
-        return None
+        return self._vix_cache[0] if self._vix_cache[0] > 0 else None
+
+    def _atualizar_tudo(self):
+        self._atualizar_cotacoes()
+        self._eventos_cycle = getattr(self, '_eventos_cycle', 0) + 1
+        if self._eventos_cycle >= 60:  # a cada ~5 min
+            self._eventos_cycle = 0
+            self._carregar_eventos_do_dia()
+
+    def _gerar_defaults(self) -> dict[str, tuple[str, float]]:
+        hoje = date.today()
+        a, m = hoje.year, hoje.month
+        m2 = _prox_mes(a, m)
+        return {
+            _cod_fut("WIN", *m2): ("WIN", 0.0),
+            _cod_fut("WDO", *m2): ("WDO", 0.0),
+            "IBOV": ("IBOV", 0.0),
+            "DI1F27": ("DI27", 0.0),
+            "DI1F33": ("DI33", 0.0),
+            "BRENT-CFD": ("Brent", 0.0),
+            "SFI$": ("Min", 0.0),
+        }
+
+    def _resetar_ref_se_necessario(self):
+        hoje = date.today()
+        if self._ref_date != hoje:
+            self._ref_prices.clear()
+            self._ref_date = hoje
 
     def _atualizar_cotacoes(self):
+        self._resetar_ref_se_necessario()
         partes = []
         cdi = self._ler_cdi()
         partes.append(self._fmt_variacao("CDI", cdi, None, fmt=".2f", suffix="%", variacao=False))
 
-        defaults = {"WIN$": ("WIN", 178775.0), "WDO$": ("WDO", 5.070), "IND$": ("IBOV", 177547.0),
-                    "DI1F27": ("DI27", 13.95), "DI1F33": ("DI33", 14.71)}
+        defaults = self._gerar_defaults()
         if self._source and self._source.disponivel:
             try:
-                for cod, (nome, fallback) in defaults.items():
-                    dados = self._source.ler_campos(cod, "ask", "last") or {}
-                    preco = dados.get("last") or dados.get("ask") or 0
+                for cod, (nome, _fallback) in defaults.items():
+                    dados = self._source.ler_campos(cod, FieldName.ASK, FieldName.LAST_PRICE) or {}
+                    preco = dados.get(FieldName.LAST_PRICE) or dados.get(FieldName.ASK) or 0
                     if preco and preco > 0:
-                        anterior = self._precos_anteriores.get(cod)
-                        partes.append(self._fmt_variacao(nome, preco, anterior))
+                        if cod not in self._ref_prices:
+                            self._ref_prices[cod] = preco
+                        ref = self._ref_prices.get(cod, preco)
+                        var = (preco - ref) / ref * 100 if ref > 0 else 0.0
+                        partes.append(self._fmt_variacao(nome, preco, ref, variacao_manual=var))
                         self._precos_anteriores[cod] = preco
-                        if cod == "IND$":
+                        if cod == "IBOV":
                             self.term_ibov.setValue(int(min(max((preco - 170000) / 20000 * 100, 0), 100)))
                             self.term_ibov.setFormat(f"IBOV {preco:.0f}")
                     else:
-                        partes.append(f"<b>{nome}:</b> {fallback}")
+                        partes.append(f"<b>{nome}:</b> —")
             except Exception:
                 pass
         else:
-            for cod, (nome, fallback) in defaults.items():
-                partes.append(f"<b>{nome}:</b> {fallback:.3f}")
-
-        partes.append(self._fmt_variacao("Brent", 91.87, None, fmt=".2f", variacao=False))
-        partes.append(self._fmt_variacao("Min", 13.41, None, fmt=".2f", variacao=False))
+            for cod, (nome, _fallback) in defaults.items():
+                partes.append(f"<b>{nome}:</b> —")
 
         partes.append("<b>Vetor:</b> MISTO")
 
         vix_val = self._buscar_vix()
         if vix_val:
-            vix_ant = self._precos_anteriores.get("VIX")
-            partes.append(self._fmt_variacao("VIX", vix_val, vix_ant, fmt=".2f"))
+            if "VIX" not in self._ref_prices:
+                self._ref_prices["VIX"] = vix_val
+            ref = self._ref_prices.get("VIX", vix_val)
+            var = (vix_val - ref) / ref * 100 if ref > 0 else 0.0
+            partes.append(self._fmt_variacao("VIX", vix_val, ref, variacao_manual=var))
             self._precos_anteriores["VIX"] = vix_val
         else:
             partes.append("<b>VIX:</b> --")
@@ -251,42 +398,36 @@ class MercadoTopBarWidget(QFrame):
 
     def _carregar_eventos_do_dia(self):
         hoje = date.today().isoformat()
-        eventos = []
+        itens: list[tuple[str, QColor]] = []
         try:
             from src.infrastructure.persistence.repositories.repositories import (
                 DividendoRepository, CalendarioResultadosRepository,
             )
             repo_div = DividendoRepository(self.db_path)
-            divs = repo_div.get_by_data_com(hoje)
+            divs = repo_div.get_proximos(dias=1)
             for d in divs:
                 ativo = d.get("ativo", "?")
                 valor = d.get("valor", 0)
                 tipo = d.get("tipo", "Provento")
-                eventos.append(f"[DATA COM HOJE]: {ativo} — R$ {valor:.4f} ({tipo})")
+                data_com = d.get("data_com", "")
+                data_com_fmt = _formatar_data_curta(data_com)
+                itens.append((f"[{ativo}] {tipo}: R$ {valor:.4f} | COM: {data_com_fmt}", TickerWidget.COR_PROVENTO))
 
             repo_cal = CalendarioResultadosRepository(self.db_path)
-            balancos = repo_cal.get_by_date_range(hoje, hoje)
+            balancos = repo_cal.get_proximos(dias=1)
             for b in balancos:
                 ativo = b.get("ativo", "?")
-                eventos.append(f"[BALANCO HOJE]: {ativo} — Divulgacao de Resultados")
+                data_pub = b.get("data_publicacao", "")
+                data_pub_fmt = _formatar_data_curta(data_pub)
+                tri = b.get("trimestre_referencia", "")
+                itens.append((f"[{ativo}] Balanco {tri}: {data_pub_fmt}", TickerWidget.COR_BALANCO))
         except Exception:
             pass
 
-        if not eventos:
-            eventos.append("[AGENDA]: Nenhum evento corporativo ou Data Com relevante para hoje.")
+        if not itens:
+            itens.append((f"[AGENDA] Nenhum evento corporativo ou Data Com para hoje/amanha.", TickerWidget.COR_AGENDA))
 
-        self.ticker_messages = eventos
-        self.current_ticker_idx = 0
-        self.update_ticker_text()
-
-    def update_ticker_text(self):
-        if self.ticker_messages:
-            self.lbl_ticker.setText(f"{self.ticker_messages[self.current_ticker_idx]}")
-
-    def rotate_ticker(self):
-        if self.ticker_messages:
-            self.current_ticker_idx = (self.current_ticker_idx + 1) % len(self.ticker_messages)
-            self.update_ticker_text()
+        self.ticker.set_eventos(itens)
 
     def _lbl(self, texto, bold=False, cor=None):
         lbl = QLabel(texto)

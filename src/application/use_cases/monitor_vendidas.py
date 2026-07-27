@@ -119,7 +119,7 @@ class MonitorVendidasUseCase:
                     (of_compra_put + of_venda_call) / 2 if of_compra_put > 0 and of_venda_call > 0 else 0.0
                 )
                 custo = self._custos_b3.calcular_custos_vendida(
-                    preco_ativo=preco_ativo,
+                    preco_ativo=of_compra_ativo if of_compra_ativo > 0 else preco_ativo,
                     premio_medio_opcoes=premio_medio_box_vendido,
                     n_pernas_opcoes=2,
                     n_acoes=1,
@@ -170,7 +170,7 @@ class MonitorVendidasUseCase:
                 pct_cdi = pct / cdi_periodo if cdi_periodo > 0 else 0.0
                 viavel = pct_cdi >= premio_risco and liq_ok  # leilão: identifica visualmente, não descarta
                 custo = self._custos_b3.calcular_custos_vendida(
-                    preco_ativo=preco_ativo,
+                    preco_ativo=of_compra_ativo if of_compra_ativo > 0 else preco_ativo,
                     premio_medio_opcoes=of_compra_put if of_compra_put > 0 else 0.0,
                     n_pernas_opcoes=1,
                     n_acoes=1,

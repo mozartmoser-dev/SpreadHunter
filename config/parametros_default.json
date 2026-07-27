@@ -213,7 +213,7 @@
     },
     {
       "chave": "white_list_box4p",
-      "valor": "ABEV3,AXIA3,B3SA3,BBAS3,BBDC3,BBDC4,BBSE3,BOVA11,BPAC11,CMIG4,CSMG3,EQTL3,ITSA4,ITUB4,PETR3,PETR4,PRIO3,SANB11,SUZB3,VALE3,WEGE3",
+      "valor": "ABCB4,AERI3,AGRO3,ALOS3,ALPA4,ALUP11,AMAR3,AMBP3,ANIM3,ARML3,ASAI3,AUAU3,AURA33,AURE3,AXIA98,AZZA3,BACW39,BEEF3,BEEM39,BHIA3,BIAU39,BITH11,BLAU3,BMGB4,BMOB3,BOVB11,BOVV11,BRAP4,BRAV3,BRAX11,BRKM5,BRSR6,BSLV39,CAML3,CASH3,CBAV3,CEAB3,CMIG3,CMIN3,COGN3,CPFE3,CPLE3,CSAN3,CSNA3,CURY3,CVCB3,CXSE3,CYRE3,DASA3,DIRR3,DXCO3,ECOM3,ECOR3,EGIE3,EMBJ3,ENEV3,ENGI11,ENJU3,ESPA3,EVEN3,EZTC3,FESA4,FLRY3,GFSA3,GGBR4,GGPS3,GMAT3,GOAU4,GOLD11,GRND3,HAPV3,HASH11,HBOR3,HBSA3,HYPE3,IBBR11,IFCM3,IGTI11,INTB3,IRBR3,ISAE4,ITUB3,IVVB11,JALL3,JHSF3,KEPL3,KLBN11,LAVV3,LEVE3,LJQQ3,LOGG3,LOGN3,LREN3,LWSA3,MATD3,MBRF3,MDIA3,MDNE3,MEAL3,MGLU3,MILS3,MLAS3,MOTV3,MOVI3,MRVE3,MTRE3,MULT3,MYPK3,NASD11,NATU3,ONCO3,ORVR3,PASS3,PCAR3,PGMN3,PIBB11,PLPL3,PNVL3,POMO4,POSI3,PSSA3,PTBL3,QBTC11,QUAL3,RADL3,RAIL3,RAIZ4,RANI3,RAPT4,RDOR3,RECV3,RENT3,RENT4,RIAA3,ROMI3,SAPR11,SAUD3,SBFG3,SBSP3,SEER3,SEQL3,SIMH3,SLCE3,SMAL11,SMFT3,SMLL11,SMTO3,SOJA3,SPCX34,SPXI11,TAEE11,TASA4,TCSA3,TEND3,TIMS3,TOTS3,TRIS3,TTEN3,TUPY3,UGPA3,UNIP6,USIM5,VAMO3,VBBR3,VIVA3,VIVT3,VLID3,VULC3,VVEO3,VXBR11,WIZC3,XBOV11,XPBR31,YDUQ3",
       "estrategia": "BOX_4P",
       "descricao": "Whitelist de ativos para Box 4P"
     },
@@ -821,7 +821,7 @@
       "chave": "venda_coberta_dist_max_pct",
       "valor": "0.0",
       "estrategia": "VENDA_COBERTA",
-      "descricao": "Distancia maxima do strike abaixo do spot (0 = sem minima)"
+      "descricao": "Distancia maxima do strike abaixo do spot"
     },
     {
       "chave": "som_arquivo_coberta",
@@ -842,40 +842,10 @@
       "descricao": "Distancia minima strike/spot (x) - filtro de entrada SBTH Vendida"
     },
     {
-      "chave": "vendidas_premio_risco",
-      "valor": "1.1",
-      "estrategia": "VENDIDAS",
-      "descricao": "Multiplo minimo do CDI para considerar viavel (BOX e SBTH vendidos)"
-    },
-    {
       "chave": "venda_coberta_dias_maximos",
       "valor": "30.0",
       "estrategia": "VENDA_COBERTA",
       "descricao": "Dias maximos ate o vencimento para TAXA"
-    },
-    {
-      "chave": "taxa_comprada_dist_max_pct",
-      "valor": "0.80",
-      "estrategia": "TAXA_COMPRADA",
-      "descricao": "Distancia maxima do strike abaixo do ativo (1.0 = 0%, 0.80 = 20% abaixo)"
-    },
-    {
-      "chave": "taxa_comprada_premio_risco",
-      "valor": "1.05",
-      "estrategia": "TAXA_COMPRADA",
-      "descricao": "Multiplo minimo do CDI para considerar viavel"
-    },
-    {
-      "chave": "taxa_comprada_dias_maximos",
-      "valor": "10",
-      "estrategia": "TAXA_COMPRADA",
-      "descricao": "Prazo maximo em dias corridos para TAXA comprada"
-    },
-    {
-      "chave": "taxa_comprada_lote_liquidez",
-      "valor": "1",
-      "estrategia": "TAXA_COMPRADA",
-      "descricao": "Lote minimo de liquidez para CALL"
     },
     {
       "chave": "otimizado_desvios_sigma",
@@ -909,9 +879,9 @@
     },
     {
       "chave": "limite_protecao_pct",
-      "valor": "0.40",
+      "valor": "0.0099",
       "estrategia": "PROTECAO_CAUDA",
-      "descricao": "Fracao maxima do ganho extra consumida pela protecao (0.40 = 40%)"
+      "descricao": "Fracao maxima do ganho extra consumida pela protecao (0.35 = 35%)"
     },
     {
       "chave": "calda_preco_min_opcao",
@@ -933,7 +903,7 @@
     },
     {
       "chave": "fator_seguranca_liquidez",
-      "valor": "0.2",
+      "valor": "0.01",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Volume diario minimo como multiplo da qtd comprada (0.2 = volume >= 5x a ordem)"
     },
@@ -945,19 +915,19 @@
     },
     {
       "chave": "limite_protecao_pct_rendimento",
-      "valor": "0.20",
+      "valor": "0.0099",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Fracao do ganho extra para protecao — estagio Rendimento (0.20 = 20%)"
     },
     {
       "chave": "limite_protecao_pct_plato",
-      "valor": "0.45",
+      "valor": "0.0099",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Fracao do ganho extra para protecao — estagio Plato (0.45 = 45%)"
     },
     {
       "chave": "limite_protecao_pct_protecao",
-      "valor": "0.70",
+      "valor": "0.0099",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Fracao do ganho extra para protecao — estagio Protecao (0.70 = 70%)"
     },
@@ -969,9 +939,45 @@
     },
     {
       "chave": "spread_maximo_pct",
-      "valor": "0.20",
+      "valor": "0.01",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Spread bid-ask maximo para considerar cotacao confiavel (0.20 = 20%)"
+    },
+    {
+      "chave": "taxa_comprada_dist_max_pct",
+      "valor": "0.8",
+      "estrategia": "TAXA_COMPRADA",
+      "descricao": "Distancia maxima do strike abaixo do ativo"
+    },
+    {
+      "chave": "taxa_comprada_premio_risco",
+      "valor": "1.05",
+      "estrategia": "TAXA_COMPRADA",
+      "descricao": "Multiplo minimo do CDI"
+    },
+    {
+      "chave": "taxa_comprada_dias_maximos",
+      "valor": "10.0",
+      "estrategia": "TAXA_COMPRADA",
+      "descricao": "Prazo maximo em dias corridos"
+    },
+    {
+      "chave": "taxa_comprada_lote_liquidez",
+      "valor": "1.0",
+      "estrategia": "TAXA_COMPRADA",
+      "descricao": "Lote minimo de liquidez"
+    },
+    {
+      "chave": "vendidas_premio_risco",
+      "valor": "1.1",
+      "estrategia": "VENDIDAS",
+      "descricao": "Multiplo minimo do CDI para considerar viavel (BOX e SBTH vendidos)"
+    },
+    {
+      "chave": "black_list_box4p",
+      "valor": "ABEV3,AXIA3,B3SA3,BBAS3,BBDC3,BBDC4,BBSE3,BOVA11,BPAC11,CMIG4,CSMG3,EQTL3,ITSA4,ITUB4,PETR3,PETR4,PRIO3,SANB11,SUZB3,VALE3,WEGE3",
+      "estrategia": "BOX_4P",
+      "descricao": "Blacklist de ativos para Box 4P"
     }
   ]
 }

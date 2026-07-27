@@ -182,11 +182,11 @@ class CalculadoraCaudaAssincrona:
                 delta_l = CalculadoraCaudaAssincrona._delta_pnl(
                     s_end_l, preco_ativo, strike_call, strike_put, n, m,
                     bs_put_ref, bs_end_l,
-                )
+                ) * qtd_acao
                 delta_r = CalculadoraCaudaAssincrona._delta_pnl(
                     s_end_r, preco_ativo, strike_call, strike_put, n, m,
                     bs_put_ref, bs_end_r,
-                )
+                ) * qtd_acao
                 cap_abs = capital_empregado_base if capital_empregado_base > 0 else abs(capital_empregado_base)
                 if cap_abs <= 0:
                     continue
@@ -222,11 +222,11 @@ class CalculadoraCaudaAssincrona:
             delta_l = CalculadoraCaudaAssincrona._delta_pnl(
                 s_end_l, preco_ativo, strike_call, strike_put, melhor_n, melhor_m,
                 bs_put_ref, bs_end_l,
-            )
+            ) * qtd_acao
             delta_r = CalculadoraCaudaAssincrona._delta_pnl(
                 s_end_r, preco_ativo, strike_call, strike_put, melhor_n, melhor_m,
                 bs_put_ref, bs_end_r,
-            )
+            ) * qtd_acao
             pnl_end_l = pnl_spot + delta_l
             pnl_end_r = pnl_spot + delta_r
             melhor_cdi = (melhor_pnl / cap_abs) / cdi_periodo if cdi_periodo > 0 and cap_abs > 0 else 0.0
@@ -378,22 +378,22 @@ class CalculadoraCaudaAssincrona:
                 pnl_3l = pnl_spot + CalculadoraCaudaAssincrona._delta_pnl(
                     s_end_l, preco_ativo, strike_call, strike_put, n, m,
                     bs_put_ref, bs_end_l,
-                )
+                ) * qtd_acao
                 pnl_3r = pnl_spot + CalculadoraCaudaAssincrona._delta_pnl(
                     s_end_r, preco_ativo, strike_call, strike_put, n, m,
                     bs_put_ref, bs_end_r,
-                )
+                ) * qtd_acao
                 if pnl_3l < 0 or pnl_3r < 0:
                     continue
 
                 pnl_2l = pnl_spot + CalculadoraCaudaAssincrona._delta_pnl(
                     s_2sigma_l, preco_ativo, strike_call, strike_put, n, m,
                     bs_put_ref, bs_2s_l,
-                )
+                ) * qtd_acao
                 pnl_2r = pnl_spot + CalculadoraCaudaAssincrona._delta_pnl(
                     s_2sigma_r, preco_ativo, strike_call, strike_put, n, m,
                     bs_put_ref, bs_2s_r,
-                )
+                ) * qtd_acao
 
                 pct_cdi_n = (pnl_spot / cap_abs) / cdi_periodo if cdi_periodo > 0 else 0.0
 
@@ -431,11 +431,11 @@ class CalculadoraCaudaAssincrona:
             dl = CalculadoraCaudaAssincrona._delta_pnl(
                 s_end_l, preco_ativo, strike_call, strike_put, n2, m2,
                 bs_put_ref, bs_end_l,
-            )
+            ) * qtd_acao
             dr = CalculadoraCaudaAssincrona._delta_pnl(
                 s_end_r, preco_ativo, strike_call, strike_put, n2, m2,
                 bs_put_ref, bs_end_r,
-            )
+            ) * qtd_acao
             return (n2, m2, pnl, pnl + dl, pnl + dr, (pnl / cap_abs) / cdi_periodo if cdi_periodo > 0 and cap_abs > 0 else 0.0)
 
         def _montar(c, estagio: str) -> ResultadoCaudaAssincrona:

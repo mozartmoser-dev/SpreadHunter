@@ -165,9 +165,6 @@ class CalculadoraColar:
             return TipoColar.STRIKES_ABAIXO
         return TipoColar.TRADICIONAL
 
-    def calcular_pior_retorno(self, custo_liquido: float, strike_put: float, strike_call: float) -> float:
-        return strike_put - custo_liquido
-
     def calcular_risco_leilao(self, vov_put: float, voc_call: float, status_put: str, status_call: str) -> RiscoLeilao:
         if status_put != "Aberto" or status_call != "Aberto":
             return RiscoLeilao.ALTO

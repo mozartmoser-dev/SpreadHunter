@@ -34,7 +34,7 @@ Stack: Python ≥3.12, PySide6 6.11.1, sqlite3, scipy, numpy, matplotlib, pywin3
 ## Regras de negócio (resumo; detalhes em SKILL.md)
 
 1. **Strike NUNCA persistido.** Vem do RTD em tempo real. Se RTD não fornecer, falhar. NUNCA extrair do sufixo B3 (`G445` ≠ 44.50).
-2. **MOD (`tipo_opcao`) só da CALL.** PUTs B3 são Europeias (`E`). Ler `r["mod"]` apenas quando `r["tipo"] == "CALL"`.
+2. **MOD (`tipo_opcao`) só da CALL.** PUTs B3 são Europeias (`E`). Ler `r["mod"]` apenas quando `r["tipo"] == "CALL"`. O scanner Box 4P rejeita pares onde a CALL K1 não é Europeia se `box_soh_europeia=1` (default, `monitor_box.py:178`). `box_soh_europeia=0` aceita CALL Americanas (PUT sempre E).
 3. **Parametrização obrigatória do banco.** TODO valor de negócio via `repo.get_by_chave()`. Nunca hardcoded. Ao adicionar parâmetro, tocar: `config/parametros_default.json` (seed) + `parametro_operacional.py` (fallback) + `parametros_widget.py` + `regras_dialog.py`.
 4. **Custos B3** usam prêmio/preço (NUNCA strike). Ida-e-volta (×2).
 5. **Chave composta `(ativo, cod_opcao)`.** Toda cache/mapa usa `f"{ativo}|{cod}"`.

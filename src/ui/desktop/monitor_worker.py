@@ -11,20 +11,66 @@ from src.application.use_cases.monitor_vendidas import MonitorVendidasUseCase
 from src.application.use_cases.monitor_colares import MonitorColaresUseCase
 from src.application.use_cases.monitor_colares_calendario import MonitorColaresCalendarioUseCase
 from src.application.use_cases.monitor_box import MonitorBoxUseCase
-from src.application.use_cases.monitor_vendidas import MonitorVendidasUseCase
 from src.application.use_cases.monitor_venda_coberta import MonitorVendaCobertaUseCase
 from src.application.use_cases.mpp_use_case import MPPUseCase
 from src.domain.services.pipeline_tracker import PipelineTracker
 from src.domain.services.calculadora_cauda_assincrona import CalculadoraCaudaAssincrona, ResultadoCaudaAssincrona
 from src.domain.services.calculadora_protecao_cauda import CalculadoraProtecaoCauda, ResultadoProtecaoCauda
 from src.domain.services.calculadora_colar_calendario import ResultadoColarCalendario, TipoColarCalendario
-from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
-from src.domain.services.market_data_source import criar_data_source, MarketDataSource
+from src.domain.services.calculadora_colar import ResultadoColar, TipoColar
 from src.domain.services.calendario_b3 import dc_to_du
-from src.application.dtos.dtos import EngineStatsDTO
-from src.infrastructure.persistence.repositories.repositories import HistoricoSimulacoesRepository
+from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
+from src.infrastructure.persistence.repositories.repositories import (
+    ParametroRepository, InstrumentoRepository,
+)
+from src.domain.services.market_data_source import FieldName
 
 logger = logging.getLogger(__name__)
+
+
+class StrategyToggle:
+    """Controle genérico de scan cíclico com mutex."""
+
+    def __init__(self, interval: int = 1, use_db_interval: str | None = None):
+        self.cycle = 0
+        self.interval = interval
+        self.use_db_interval = use_db_interval
+        self.forcar = False
+        self.auto = False
+        self.mutex = QMutex()
+
+    def solicitar(self):
+        self.mutex.lock()
+        self.forcar = True
+        self.mutex.unlock()
+
+    def iniciar_auto(self):
+        self.mutex.lock()
+        self.auto = True
+        self.forcar = True
+        self.cycle = 0
+        self.mutex.unlock()
+
+    def parar_auto(self):
+        self.mutex.lock()
+        self.auto = False
+        self.forcar = False
+        self.cycle = 0
+        self.mutex.unlock()
+
+    def deve_escanear(self, db_reader=None) -> bool:
+        self.mutex.lock()
+        self.cycle += 1
+        result = self.forcar
+        if not result and self.auto:
+            interval = self.interval
+            if self.use_db_interval and db_reader:
+                interval = db_reader(self.use_db_interval, self.interval)
+            result = (self.cycle % interval == 0)
+        if result:
+            self.forcar = False
+        self.mutex.unlock()
+        return result
 
 
 class MonitorWorker(QThread):
@@ -63,24 +109,13 @@ class MonitorWorker(QThread):
         self._paused = False
         self._interval_ms = 3000
         self._mostrar_tp_op = False
-        self._colar_cycle = 0
-        self._colar_interval = 10
-        self._colar_cal_cycle = 0
-        self._colar_cal_interval = 3
         self._mutex = QMutex()
         self._wait_condition = QWaitCondition()
-        self._forcar_colar = False
-        self._colar_auto = False
-        self._colar_mutex = QMutex()
-        self._forcar_colar_cal = False
-        self._colar_cal_auto = False
+        self._toggle_colar = StrategyToggle(interval=10)
+        self._toggle_colar_cal = StrategyToggle(interval=3)
+        self._toggle_box = StrategyToggle(interval=5, use_db_interval="box_scan_interval")
         self._colar_cal_ativos: list[str] | None = None
         self._colar_cal_params: dict | None = None
-        self._colar_cal_mutex = QMutex()
-        self._forcar_box = False
-        self._box_auto = False
-        self._box_mutex = QMutex()
-        self._box_cycle = 0
         self._ultimo_dados_mercado: dict | None = None
         self._rtd_estava_stale: bool = False
         self._manutencao_cycle = 0
@@ -313,56 +348,30 @@ class MonitorWorker(QThread):
         self.mpp_status_changed.emit(False)
 
     def solicitar_varredura_colar(self):
-        self._colar_mutex.lock()
-        self._forcar_colar = True
-        self._colar_mutex.unlock()
+        self._toggle_colar.solicitar()
 
     def iniciar_auto_colar(self):
-        self._colar_mutex.lock()
-        self._colar_auto = True
-        self._forcar_colar = True
-        self._colar_cycle = 0
-        self._colar_mutex.unlock()
+        self._toggle_colar.iniciar_auto()
 
     def parar_auto_colar(self):
-        self._colar_mutex.lock()
-        self._colar_auto = False
-        self._forcar_colar = False
-        self._colar_cycle = 0
-        self._colar_mutex.unlock()
+        self._toggle_colar.parar_auto()
 
     def solicitar_varredura_colar_cal(self):
-        self._colar_cal_mutex.lock()
-        self._forcar_colar_cal = True
-        self._colar_cal_mutex.unlock()
+        self._toggle_colar_cal.solicitar()
 
     def iniciar_auto_colar_cal(self, ativos: list[str] | None = None, params: dict | None = None):
-        self._colar_cal_mutex.lock()
-        self._colar_cal_auto = True
-        self._forcar_colar_cal = True
-        self._colar_cal_cycle = 0
         self._colar_cal_ativos = ativos
         self._colar_cal_params = params
-        self._colar_cal_mutex.unlock()
+        self._toggle_colar_cal.iniciar_auto()
 
     def parar_auto_colar_cal(self):
-        self._colar_cal_mutex.lock()
-        self._colar_cal_auto = False
-        self._forcar_colar_cal = False
-        self._colar_cal_cycle = 0
-        self._colar_cal_mutex.unlock()
+        self._toggle_colar_cal.parar_auto()
 
     def iniciar_auto_box(self):
-        self._box_mutex.lock()
-        self._box_auto = True
-        self._forcar_box = True
-        self._box_mutex.unlock()
+        self._toggle_box.iniciar_auto()
 
     def parar_auto_box(self):
-        self._box_mutex.lock()
-        self._box_auto = False
-        self._forcar_box = False
-        self._box_mutex.unlock()
+        self._toggle_box.parar_auto()
 
     def set_mostrar_tp_op(self, mostrar: bool):
         self._mostrar_tp_op = mostrar
@@ -398,64 +407,50 @@ class MonitorWorker(QThread):
         self.oportunidades_coberta_atualizadas.emit(coberta)
 
     def _processar_colares(self, rtd):
-        self._colar_mutex.lock()
-        self._colar_cycle += 1
-        deve_escanear = self._forcar_colar
-        if not deve_escanear and self._colar_auto:
-            deve_escanear = (self._colar_cycle % self._colar_interval == 0)
-        if deve_escanear:
-            self._forcar_colar = False
-        self._colar_mutex.unlock()
+        if not self._toggle_colar.deve_escanear():
+            return
 
-        if deve_escanear:
-            dados_md = getattr(self, '_ultimo_dados_mercado', None)
-            if not dados_md or len(dados_md) < 50:
-                return
-            tracker = PipelineTracker()
-            resultados = self._monitor_colares_uc.varrer(None, dados_mercado=dados_md, pipeline_tracker=tracker)
-            try:
-                otimizadas = self._processar_otimizado(resultados, tipo_estrategia="Protetivo")
-                if otimizadas:
-                    resultados.extend(otimizadas)
-            except Exception:
-                logger.exception("Erro pós-processamento otimizado colar")
-            self.colares_atualizados.emit(resultados)
+        dados_md = getattr(self, '_ultimo_dados_mercado', None)
+        if not dados_md or len(dados_md) < 50:
+            return
+        tracker = PipelineTracker()
+        resultados = self._monitor_colares_uc.varrer(None, dados_mercado=dados_md, pipeline_tracker=tracker)
+        try:
+            otimizadas = self._processar_otimizado(resultados, tipo_estrategia="Protetivo")
+            if otimizadas:
+                resultados.extend(otimizadas)
+        except Exception:
+            logger.exception("Erro pós-processamento otimizado colar")
+        self.colares_atualizados.emit(resultados)
 
     def _processar_colar_calendario(self, rtd):
-        self._colar_cal_mutex.lock()
-        self._colar_cal_cycle += 1
-        deve_escanear = self._forcar_colar_cal
-        if not deve_escanear and self._colar_cal_auto:
-            deve_escanear = (self._colar_cal_cycle % self._colar_cal_interval == 0)
+        if not self._toggle_colar_cal.deve_escanear():
+            return
 
         ativos = self._colar_cal_ativos
         params = self._colar_cal_params
-        if deve_escanear:
-            self._forcar_colar_cal = False
-        self._colar_cal_mutex.unlock()
 
-        if deve_escanear:
-            dados_md = getattr(self, '_ultimo_dados_mercado', None)
-            tracker = PipelineTracker()
-            resultados = self._monitor_colares_cal_uc.varrer(rtd, dados_md, params, ativos, pipeline_tracker=tracker)
+        dados_md = getattr(self, '_ultimo_dados_mercado', None)
+        tracker = PipelineTracker()
+        resultados = self._monitor_colares_cal_uc.varrer(rtd, dados_md, params, ativos, pipeline_tracker=tracker)
 
-            try:
-                if resultados:
-                    otimizadas = self._processar_otimizado(resultados, pipeline_tracker=tracker)
-                else:
-                    otimizadas = []
-                if otimizadas:
-                    resultados.extend(otimizadas)
-                    tracker.add_stage(
-                        "14. Pós-processamento (Otimizado)",
-                        len(resultados), len(otimizadas),
-                        f"{len(otimizadas)} variantes otimizadas adicionadas"
-                    )
-            except Exception:
-                logger.exception("Erro ao processar Otimizado")
-                tracker.add_stage("14. Pós-processamento (Otimizado)", 0, 0, "ERRO")
+        try:
+            if resultados:
+                otimizadas = self._processar_otimizado(resultados, pipeline_tracker=tracker)
+            else:
+                otimizadas = []
+            if otimizadas:
+                resultados.extend(otimizadas)
+                tracker.add_stage(
+                    "14. Pós-processamento (Otimizado)",
+                    len(resultados), len(otimizadas),
+                    f"{len(otimizadas)} variantes otimizadas adicionadas"
+                )
+        except Exception:
+            logger.exception("Erro ao processar Otimizado")
+            tracker.add_stage("14. Pós-processamento (Otimizado)", 0, 0, "ERRO")
 
-            self.colares_calendario_atualizados.emit(resultados)
+        self.colares_calendario_atualizados.emit(resultados)
 
     def _processar_otimizado(self, resultados: list, tipo_estrategia: str = "Calendario", pipeline_tracker: PipelineTracker | None = None) -> list:
         from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
@@ -491,7 +486,6 @@ class MonitorWorker(QThread):
         c_variantes_geradas = 0
         c_filtro_cdi = 0
         c_montadas = 0
-        fator_seguranca_liquidez = self._ler_param_float("fator_seguranca_liquidez", 0.2)
 
         for r in resultados:
             if not r.viavel:
@@ -1097,20 +1091,12 @@ class MonitorWorker(QThread):
         return ui_results
 
     def _processar_box_4p(self, rtd):
-        self._box_mutex.lock()
-        self._box_cycle += 1
-        deve_escanear = self._forcar_box
-        if not deve_escanear and self._box_auto:
-            box_interval = self._ler_param_int("box_scan_interval", 5)
-            deve_escanear = (self._box_cycle % box_interval == 0)
-        if deve_escanear:
-            self._forcar_box = False
-        self._box_mutex.unlock()
+        if not self._toggle_box.deve_escanear(db_reader=self._ler_param_int):
+            return
 
-        if deve_escanear:
-            tracker = PipelineTracker()
-            resultados = self._monitor_box_uc.varrer(rtd, pipeline_tracker=tracker)
-            self.boxes_atualizados.emit(resultados)
+        tracker = PipelineTracker()
+        resultados = self._monitor_box_uc.varrer(rtd, pipeline_tracker=tracker)
+        self.boxes_atualizados.emit(resultados)
 
     def _emitir_estatisticas_engine(self, t_start_cycle):
         t_elapsed_ms = int((time.perf_counter() - t_start_cycle) * 1000)

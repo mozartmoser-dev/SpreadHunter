@@ -6,6 +6,7 @@ from datetime import date, datetime
 logger = logging.getLogger(__name__)
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOpcao
+from src.domain.services.calendario_b3 import dc_to_du
 from src.domain.services.calculadora_box import CalculadoraBox, ResultadoBox
 from src.domain.services.market_data_source import FieldName
 from src.domain.services.pipeline_tracker import PipelineTracker
@@ -28,7 +29,9 @@ class MonitorBoxUseCase:
             premio = param_risco.valor if param_risco else 1.08
             emol = self._get_param("taxa_emolumento_pct", 0.00025)
             liq = self._get_param("taxa_liquidacao_pct", 0.000275)
-            self._calculadora = CalculadoraBox(taxa_cdi, premio, emol, liq)
+            reg = self._get_param("taxa_registro_pct", 0.0001)
+            iss = self._get_param("taxa_iss_pct", 0.0)
+            self._calculadora = CalculadoraBox(taxa_cdi, premio, emol, liq, taxa_registro=reg, iss=iss)
         return self._calculadora
 
     def recarregar_parametros(self):
@@ -178,6 +181,8 @@ class MonitorBoxUseCase:
                     if soh_europeia and k1_data["tipo_opcao"] != TipoOpcao.EUROPEIA:
                         continue
 
+                    du = dc_to_du(hoje, vencimento) if vencimento else None
+
                     resultado = calc.calcular(
                         strike_k1=k1_data["strike"],
                         strike_k2=k2_data["strike"],
@@ -198,6 +203,8 @@ class MonitorBoxUseCase:
                         dias=k1_data["dias"],
                         em_leilao=k1_data["em_leilao"] or k2_data["em_leilao"],
                         qtd_min_perna=qtd_min,
+                        tipo_opcao=k1_data["tipo_opcao"].value,
+                        du=du,
                     )
 
                     if resultado:
@@ -209,6 +216,40 @@ class MonitorBoxUseCase:
                             self._mpp_use_case.registrar_box_encontrado(
                                 ativo, k1_data["strike"], k2_data["strike"],
                                 resultado.pct_cdi, encontrado=True
+                            )
+
+                    resultado_long = calc.calcular_long(
+                        strike_k1=k1_data["strike"],
+                        strike_k2=k2_data["strike"],
+                        ask_call_k1=k1_data["ask_call"],
+                        bid_put_k1=k1_data["bid_put"],
+                        bid_call_k2=k2_data["bid_call"],
+                        ask_put_k2=k2_data["ask_put"],
+                        qtd_ask_call_k1=k1_data["qtd_ask_call"],
+                        qtd_bid_put_k1=k1_data["qtd_bid_put"],
+                        qtd_bid_call_k2=k2_data["qtd_bid_call"],
+                        qtd_ask_put_k2=k2_data["qtd_ask_put"],
+                        cod_call_k1=k1_data["cod_call"],
+                        cod_put_k1=k1_data["cod_put"],
+                        cod_call_k2=k2_data["cod_call"],
+                        cod_put_k2=k2_data["cod_put"],
+                        ativo=ativo,
+                        vencimento=vencimento,
+                        dias=k1_data["dias"],
+                        em_leilao=k1_data["em_leilao"] or k2_data["em_leilao"],
+                        qtd_min_perna=qtd_min,
+                        tipo_opcao=k2_data["tipo_opcao"].value,
+                        du=du,
+                    )
+                    if resultado_long:
+                        taxa_ent = taxa_map.get(ativo)
+                        resultado_long.taxa_aluguel = taxa_ent.taxa_atual if taxa_ent else 0.0
+                        resultado_long.detectado_em = agora
+                        resultados.append(resultado_long)
+                        if resultado_long.viavel and self._mpp_use_case:
+                            self._mpp_use_case.registrar_box_encontrado(
+                                ativo, k1_data["strike"], k2_data["strike"],
+                                resultado_long.pct_cdi, encontrado=True
                             )
 
         resultados.sort(key=lambda r: -r.lucro_pct)
