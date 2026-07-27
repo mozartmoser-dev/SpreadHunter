@@ -985,7 +985,7 @@ class ParametrosWidget(QWidget):
                 elif "fonte_market_data" in chave:
                     widget = QComboBox()
                     widget.addItems(["Profit RTD", "Open Fast Socket", "Mock (Teste)"])
-                elif "telegram_bot_token" in chave or "telegram_chat_id" in chave or "_list_" in chave or "put_ratio_ratios" in chave:
+                elif "telegram_bot_token" in chave or "telegram_chat_id" in chave or "_list_" in chave or "put_ratio_ratios" in chave or "bwb_modo" in chave:
                     widget = QLineEdit()
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
                 elif chave in ("som_arquivo", "som_arquivo_vendidas", "som_arquivo_coberta"):
