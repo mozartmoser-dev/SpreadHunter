@@ -29,24 +29,25 @@ def _formatar_detectado(detectado_em):
 
 PUT_RATIO_COLUMNS = [
     ("Ativo", "ativo"),
+    ("Spot", "spot"),
     ("Ratio", "ratio_label"),
     ("K1", "strike_k1"),
     ("K2", "strike_k2"),
     ("Ask K1", "ask_put_k1"),
     ("Bid K2", "bid_put_k2"),
     ("Credito", "credito_bruto"),
-    ("Lucro Max", "max_profit"),
-    ("BE Down", "be_down"),
-    ("x CDI", "pct_cdi"),
-    ("CDI Liq", "pct_cdi_liquido"),
-    ("Margem", "capital_margem"),
-    ("IV PUT", "iv_put_pct"),
-    ("Q K1", "qtd_ask_put_k1"),
-    ("Q K2", "qtd_bid_put_k2"),
+    ("Yield%", "credit_yield"),
+    ("x CDI", "yield_cdi"),
+    ("Prot%", "protecao_pct"),
+    ("BE", "be_down"),
+    ("Score", "score"),
     ("Dias", "dias"),
     ("Venc", "vencimento"),
     ("Put K1", "cod_put_k1"),
     ("Put K2", "cod_put_k2"),
+    ("IV PUT", "iv_put_pct"),
+    ("Q K1", "qtd_ask_put_k1"),
+    ("Q K2", "qtd_bid_put_k2"),
     ("Detectado", "label_detectado"),
 ]
 
@@ -69,24 +70,26 @@ class PutRatioTableModel(QAbstractTableModel):
             if role == Qt.ItemDataRole.ToolTipRole:
                 tips = {
                     "ativo": "Codigo da acao objeto.",
+                    "spot": "Preco atual do ativo (spot).",
                     "ratio_label": "Proporcao de Puts compradas x vendidas (ex: 1x2).",
                     "strike_k1": "Strike da Put comprada (ATM/OTM proximo).",
                     "strike_k2": "Strike da Put vendida (mais OTM).",
                     "ask_put_k1": "Preco de compra da Put K1 (Ask).",
                     "bid_put_k2": "Preco de venda da Put K2 (Bid).",
                     "credito_bruto": "Credito liquido recebido na montagem (N2*Bid_K2 - N1*Ask_K1).",
+                    "credit_yield": "Rentabilidade: credito / capital em risco (N2-N1)*K2.",
+                    "yield_cdi": "Quantas vezes o CDI do periodo o yield representa.",
+                    "protecao_pct": "Queda %% suportada ate o breakeven (Spot-BE)/Spot.",
                     "max_profit": "Lucro maximo se o spot fechar exatamente em K2.",
                     "be_down": "Breakeven inferior — abaixo disso entra em prejuizo.",
-                    "pct_cdi": "Rentabilidade comparada ao CDI do periodo (max profit / margem).",
-                    "pct_cdi_liquido": "CDI liquido apos deduzir custos B3 e IR.",
-                    "capital_margem": "Margem estimada (N2 * K2 * lote).",
-                    "iv_put_pct": "Volatilidade Implicita da Put K1 (%%).",
-                    "qtd_ask_put_k1": "Quantidade no Ask da Put K1.",
-                    "qtd_bid_put_k2": "Quantidade no Bid da Put K2.",
+                    "score": "Score combinado = Protecao%% * Yield * 10000 (ranking).",
                     "dias": "Dias corridos ate o vencimento.",
                     "vencimento": "Data de expiracao das opcoes.",
                     "cod_put_k1": "Codigo da Put K1.",
                     "cod_put_k2": "Codigo da Put K2.",
+                    "iv_put_pct": "Volatilidade Implicita da Put K1 (%%).",
+                    "qtd_ask_put_k1": "Quantidade no Ask da Put K1.",
+                    "qtd_bid_put_k2": "Quantidade no Bid da Put K2.",
                     "label_detectado": "Data e hora da deteccao pelo monitor.",
                 }
                 return tips.get(PUT_RATIO_COLUMNS[section][1])
@@ -104,12 +107,16 @@ class PutRatioTableModel(QAbstractTableModel):
             if val is None:
                 return "-"
             if col_key in ("strike_k1", "strike_k2", "ask_put_k1", "bid_put_k2",
-                           "credito_bruto", "max_profit", "be_down", "capital_margem"):
+                           "credito_bruto", "be_down", "spot"):
                 return "R$ {:.2f}".format(val)
-            if col_key == "pct_cdi":
+            if col_key == "credit_yield":
+                return "{:.2f}%".format(val * 100)
+            if col_key == "yield_cdi":
                 return "{:.2f}x".format(val)
-            if col_key == "pct_cdi_liquido":
-                return "{:.2f}x".format(val)
+            if col_key == "protecao_pct":
+                return "{:.1f}%".format(val * 100)
+            if col_key == "score":
+                return "{:.1f}".format(val)
             if col_key == "iv_put_pct":
                 return "{:.1f}%".format(val)
             if col_key == "vencimento":
@@ -119,7 +126,14 @@ class PutRatioTableModel(QAbstractTableModel):
             return str(val)
 
         if role == Qt.ItemDataRole.ForegroundRole:
-            if col_key in ("credito_bruto", "max_profit", "pct_cdi", "pct_cdi_liquido"):
+            if col_key == "score":
+                val = item.get(col_key, 0)
+                if val >= 5:
+                    return QBrush(QColor(Palette.GREEN))
+                if val >= 2:
+                    return QBrush(QColor(Palette.YELLOW))
+                return QBrush(QColor(Palette.TEXT_MUTED))
+            if col_key in ("credito_bruto", "credit_yield", "yield_cdi", "protecao_pct"):
                 val = item.get(col_key, 0)
                 if val > 0:
                     return QBrush(QColor(Palette.GREEN))
@@ -174,7 +188,7 @@ class PutRatioSortProxy(QSortFilterProxyModel):
     def filterAcceptsRow(self, row, parent):
         src = self.sourceModel()
         if self._cdi_min > 0:
-            col_cdi = next((i for i, (_, k) in enumerate(PUT_RATIO_COLUMNS) if k == "pct_cdi"), -1)
+            col_cdi = next((i for i, (_, k) in enumerate(PUT_RATIO_COLUMNS) if k == "yield_cdi"), -1)
             if col_cdi >= 0:
                 val = src.data(src.index(row, col_cdi), Qt.ItemDataRole.DisplayRole) or "0.00x"
                 try:
@@ -301,7 +315,7 @@ class PutRatioDialog(QDialog):
         self.proxy = PutRatioSortProxy()
         self.proxy.setSourceModel(self.model)
         self.proxy.setDynamicSortFilter(True)
-        self.proxy.sort(9, Qt.DescendingOrder)
+        self.proxy.sort(12, Qt.DescendingOrder)  # Score column
 
         self.table_view = QTableView()
         self.table_view.setModel(self.proxy)
@@ -382,24 +396,25 @@ class PutRatioDialog(QDialog):
         for r in resultados:
             rows.append({
                 "ativo": r.ativo,
+                "spot": getattr(r, 'spot', 0.0),
                 "ratio_label": r.ratio_label,
                 "strike_k1": r.strike_k1,
                 "strike_k2": r.strike_k2,
                 "ask_put_k1": r.ask_put_k1,
                 "bid_put_k2": r.bid_put_k2,
                 "credito_bruto": r.credito_bruto,
-                "max_profit": r.max_profit,
+                "credit_yield": getattr(r, 'credit_yield', 0.0),
+                "yield_cdi": getattr(r, 'yield_cdi', 0.0),
+                "protecao_pct": getattr(r, 'protecao_pct', 0.0),
                 "be_down": r.be_down,
-                "pct_cdi": r.pct_cdi,
-                "pct_cdi_liquido": r.pct_cdi_liquido,
-                "capital_margem": r.capital_margem,
-                "iv_put_pct": r.iv_put_pct,
-                "qtd_ask_put_k1": r.qtd_ask_put_k1,
-                "qtd_bid_put_k2": r.qtd_bid_put_k2,
+                "score": getattr(r, 'score', 0.0),
                 "dias": r.dias,
                 "vencimento": r.vencimento,
                 "cod_put_k1": r.cod_put_k1,
                 "cod_put_k2": r.cod_put_k2,
+                "iv_put_pct": r.iv_put_pct,
+                "qtd_ask_put_k1": r.qtd_ask_put_k1,
+                "qtd_bid_put_k2": r.qtd_bid_put_k2,
                 "viavel": r.viavel,
                 "label_detectado": _formatar_detectado(getattr(r, 'detectado_em', None)),
             })

@@ -29,13 +29,17 @@ class MonitorPutRatioUseCase:
             param_cdi = self.param_repo.get_by_chave("taxa_cdi")
             taxa_cdi = param_cdi.valor if param_cdi else 0.1450
             param_risco = self.param_repo.get_by_chave("put_ratio_premio_risco")
-            premio = param_risco.valor if param_risco else 1.5
+            premio = param_risco.valor if param_risco else 1.0
             emol = self._get_param("taxa_emolumento_pct", 0.00025)
             liq = self._get_param("taxa_liquidacao_pct", 0.000275)
             reg = self._get_param("taxa_registro_pct", 0.0001)
             iss = self._get_param("taxa_iss_pct", 0.0)
+            alpha = self._get_param("put_ratio_peso_alpha", 0.5)
+            beta = self._get_param("put_ratio_peso_beta", 0.3)
+            gamma = self._get_param("put_ratio_peso_gamma", 0.2)
             self._calculadora = CalculadoraPutRatio(taxa_cdi, premio, emol, liq,
-                                                     taxa_registro=reg, iss=iss)
+                                                     taxa_registro=reg, iss=iss,
+                                                     peso_alpha=alpha, peso_beta=beta, peso_gamma=gamma)
         return self._calculadora
 
     def recarregar_parametros(self):
@@ -89,10 +93,12 @@ class MonitorPutRatioUseCase:
         if bid_put <= 0 and ask_put <= 0:
             return None
 
+        preco_ativo = rtd.ler_campo_cache(inst.ativo, FieldName.LAST_PRICE) or 0.0
+
         status_put = rtd.ler_status_cache(inst.cod_put)
         status_ativo = rtd.ler_status_cache(inst.ativo)
 
-        iv_put = 0.0  # TODO: ler IV do RTD quando disponivel
+        iv_put = 0.0
 
         return {
             "strike": strike,
@@ -105,6 +111,7 @@ class MonitorPutRatioUseCase:
             "ativo": inst.ativo,
             "vencimento": inst.vencimento,
             "dias": inst.dias_ate_vencimento,
+            "preco_ativo": preco_ativo,
             "iv_put": iv_put,
         }
 
@@ -177,6 +184,7 @@ class MonitorPutRatioUseCase:
                 continue
 
             members.sort(key=lambda m: m["strike"], reverse=True)
+            ativo_results = []
 
             for i in range(len(members)):
                 for j in range(i + 1, len(members)):
@@ -205,13 +213,17 @@ class MonitorPutRatioUseCase:
                             vencimento=vencimento,
                             dias=k1_data["dias"],
                             em_leilao=k1_data["em_leilao"] or k2_data["em_leilao"],
+                            preco_ativo=k1_data.get("preco_ativo", 0.0),
                             iv_put_pct=k1_data["iv_put"],
                             qtd_min_perna=qtd_min,
                             du=du,
                         )
                         if resultado:
                             resultado.detectado_em = agora
-                            resultados.append(resultado)
+                            ativo_results.append(resultado)
 
-        resultados.sort(key=lambda r: -r.pct_cdi)
+            ativo_results.sort(key=lambda r: -r.score)
+            resultados.extend(ativo_results[:3])
+
+        resultados.sort(key=lambda r: -r.score)
         return resultados

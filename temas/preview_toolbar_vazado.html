@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<title>Preview — Toolbar Vazada</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0f0f23;
+    font-family: 'Segoe UI', 'Arial', sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 50px;
+    padding: 40px; min-height: 100vh;
+  }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    padding: 14px 18px;
+    background: #1a1a2e; border-radius: 8px;
+    border: 1px solid #2d2d44;
+    max-width: 1050px;
+  }
+
+  .btn {
+    border-radius: 5px;
+    padding: 5px 12px;
+    font-size: 9pt;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    border-style: solid;
+    border-width: 1.5px;
+    background: transparent;
+    white-space: nowrap;
+    transition: background 0.18s, border-color 0.18s, color 0.18s;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+
+  /* --- Cores por botão (VAZADO) --- */
+
+  .btn-bs           { color: #4a90d9; border-color: #4a90d9; }
+  .btn-bs:hover     { background: #2d4a7a; color: #e0e0e0; }
+
+  .btn-import       { color: #3a8fd4; border-color: #3a8fd4; }
+  .btn-import:hover { background: #1a3a5c; color: #e0e0e0; }
+
+  .btn-historico       { color: #9b59b6; border-color: #9b59b6; }
+  .btn-historico:hover { background: #2d1f3d; color: #e0e0e0; }
+
+  .btn-proventos       { color: #27ae60; border-color: #27ae60; }
+  .btn-proventos:hover { background: #1a3d2a; color: #e0e0e0; }
+
+  .btn-feriados       { color: #5a5a7a; border-color: #5a5a7a; }
+  .btn-feriados:hover { background: #2d2d3d; color: #e0e0e0; }
+
+  .btn-taxa       { color: #f1c40f; border-color: #f1c40f; }
+  .btn-taxa:hover { background: #3d3d0e; color: #e0e0e0; }
+
+  .btn-atualizar       { color: #27ae60; border-color: #27ae60; }
+  .btn-atualizar:hover { background: #2d4a3a; color: #e0e0e0; }
+
+  .btn-colar       { color: #3498db; border-color: #3498db; }
+  .btn-colar:hover { background: #1a3a5c; color: #e0e0e0; }
+
+  .btn-colar-cal       { color: #f39c12; border-color: #f39c12; }
+  .btn-colar-cal:hover { background: #2d1f0e; color: #e0e0e0; }
+
+  .btn-box       { color: #e74c3c; border-color: #e74c3c; }
+  .btn-box:hover { background: #3d0e0e; color: #e0e0e0; }
+
+  .btn-mpp       { color: #22c55e; border-color: #22c55e; }
+  .btn-mpp:hover { background: #0e2d1e; color: #e0e0e0; }
+
+  .btn-ligar       { color: #27ae60; border-color: #27ae60; }
+  .btn-ligar:hover { background: #1a3d2a; color: #e0e0e0; }
+  .btn-ligar.checked       { background: #3d0e0e; color: #e0e0e0; border-color: #e74c3c; }
+  .btn-ligar.checked:hover { background: #5d1e1e; border-color: #f06050; }
+
+  /* --- Checkbox --- */
+  .chk-wrap { display: flex; align-items: center; gap: 6px;
+    color: #9090b0; font-size: 9pt; cursor: pointer; }
+  .chk-wrap input { width: 15px; height: 15px; accent-color: #4a90d9; cursor: pointer; }
+
+  /* --- Header --- */
+  .section-title { color: #9090b0; font-size: 10pt; text-align: center; }
+  .section-title b { font-weight: bold; }
+
+  .toolbar.three-row { gap: 6px; flex-direction: column; flex-wrap: nowrap; }
+  .row-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  hr { border: none; border-top: 1px solid #2d2d44; width: 100%; margin: 4px 0; }
+
+  /* --- toggle demo --- */
+  .demo-controls { display: flex; gap: 12px; }
+  .demo-controls button {
+    padding: 5px 14px; border-radius: 5px; border: 1.5px solid #5a5a7a;
+    background: transparent; color: #9090b0; cursor: pointer; font-size: 9pt;
+    font-weight: bold; letter-spacing: 0.3px;
+  }
+  .demo-controls button:hover { background: #2d2d3d; color: #e0e0e0; }
+
+  .note { color: #5a5a6e; font-size: 8.5pt; margin-top: 4px; text-align: center; }
+</style>
+</head>
+<body>
+
+<!-- ====== VAZADO (proposta) ====== -->
+<div>
+  <p class="section-title">
+    <span style="color:#27ae60;">✔ VAZADO</span>
+    — fundo transparente, cor = borda + texto, hover preenche
+  </p>
+  <div class="toolbar">
+    <span class="btn btn-bs">🧮 B&S</span>
+    <span class="btn btn-import">⚡ Importar</span>
+    <span class="btn btn-historico">📈 Histórico</span>
+    <span class="btn btn-proventos">💰 Proventos</span>
+    <span class="btn btn-feriados">🗓 Feriados</span>
+    <span class="btn btn-taxa">🏦 Tx Aluguel</span>
+    <span class="btn btn-atualizar">🔄 Atualizar Tudo</span>
+    <span class="btn btn-colar">🛡 Collar</span>
+    <span class="btn btn-colar-cal">📅 Collar</span>
+    <span class="btn btn-box">📦 Box 4P</span>
+    <span class="btn btn-mpp">🎯 MPP</span>
+    <span class="btn btn-ligar" id="ligar-demo">▶ Ligar</span>
+    <label class="chk-wrap"><input type="checkbox">Exibir Todas</label>
+  </div>
+  <p class="note">Passe o mouse sobre cada botão — preenche com a cor</p>
+  <p class="note" style="margin-top:2px;">Clique no ▶ Ligar abaixo para ver estado checked</p>
+  <div class="demo-controls" style="margin-top:10px;">
+    <button onclick="document.getElementById('ligar-demo').classList.toggle('checked');
+      var b=document.getElementById('ligar-demo');
+      b.textContent = b.classList.contains('checked') ? '⏸ Parar' : '▶ Ligar';">
+      Alternar ▶ Ligar
+    </button>
+  </div>
+</div>
+
+<!-- ====== PREENCHIDO atual (referência) ====== -->
+<div>
+  <p class="section-title">
+    <span style="color:#f39c12;">⬤ PREENCHIDO</span>
+    — atual (fundo sempre colorido, borda = identidade)
+  </p>
+  <div class="toolbar">
+    <span class="btn btn-bs" style="background:#2d4a7a;color:#e0e0e0;">🧮 B&S</span>
+    <span class="btn btn-import" style="background:#1a3a5c;color:#e0e0e0;">⚡ Importar</span>
+    <span class="btn btn-historico" style="background:#2d1f3d;color:#e0e0e0;">📈 Histórico</span>
+    <span class="btn btn-proventos" style="background:#1a3d2a;color:#e0e0e0;">💰 Proventos</span>
+    <span class="btn btn-feriados" style="background:#2d2d3d;color:#e0e0e0;">🗓 Feriados</span>
+    <span class="btn btn-taxa" style="background:#3d3d0e;color:#e0e0e0;">🏦 Tx Aluguel</span>
+    <span class="btn btn-atualizar" style="background:#2d4a3a;color:#e0e0e0;">🔄 Atualizar Tudo</span>
+    <span class="btn btn-colar" style="background:#1a3a5c;color:#e0e0e0;">🛡 Collar</span>
+    <span class="btn btn-colar-cal" style="background:#2d1f0e;color:#e0e0e0;">📅 Collar</span>
+    <span class="btn btn-box" style="background:#3d0e0e;color:#e0e0e0;">📦 Box 4P</span>
+    <span class="btn btn-mpp" style="background:#0e2d1e;color:#e0e0e0;">🎯 MPP</span>
+    <span class="btn btn-ligar" style="background:#1a3d2a;color:#e0e0e0;">▶ Ligar</span>
+    <label class="chk-wrap"><input type="checkbox">Exibir Todas</label>
+  </div>
+</div>
+
+</body>
+</html>

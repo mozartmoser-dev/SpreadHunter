@@ -1,0 +1,11 @@
+{
+    "ativo": "BBAS3",
+    "preco_spot": 20.46,
+    "strike_call": 20.4,
+    "dte_call": 28,
+    "iv_call": 0.2963,
+    "strike_put": 20.4,
+    "dte_put": 118,
+    "iv_put": 0.44659999999999994,
+    "taxa_cdi": 0.1425
+}

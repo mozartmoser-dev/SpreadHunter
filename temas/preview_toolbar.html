@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<title>Preview — Toolbar Spreadhunter</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0f0f23;
+    font-family: 'Segoe UI', 'Arial', sans-serif;
+    display: flex; justify-content: center; align-items: center;
+    min-height: 100vh; padding: 40px;
+  }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    padding: 16px 20px;
+    background: #1a1a2e; border-radius: 8px;
+    border: 1px solid #2d2d44;
+    max-width: 1100px;
+  }
+
+  .separator {
+    width: 2px; background: #2d2d44; margin: 0 4px;
+    border-radius: 1px; align-self: stretch;
+  }
+
+  .btn {
+    border-radius: 5px;
+    padding: 8px 16px;
+    font-size: 9.5pt;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    border-style: solid;
+    border-width: 1.5px;
+    color: #e0e0e0;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+    text-decoration: none; display: inline-flex; align-items: center; gap: 5px;
+  }
+
+  /* --- Botões coloridos --- */
+
+  .btn-bs { background: #2d4a7a; border-color: #4a90d9; }
+  .btn-bs:hover { background: #3d5a8a; border-color: #5aa0e8; }
+
+  .btn-import { background: #1a3a5c; border-color: #3a8fd4; }
+  .btn-import:hover { background: #224a6e; border-color: #4aa0e8; }
+
+  .btn-historico { background: #2d1f3d; border-color: #9b59b6; }
+  .btn-historico:hover { background: #3d2f4d; border-color: #ab69c6; }
+
+  .btn-proventos { background: #1a3d2a; border-color: #27ae60; }
+  .btn-proventos:hover { background: #224d3a; border-color: #2ecc71; }
+
+  .btn-feriados { background: #2d2d3d; border-color: #5a5a7a; }
+  .btn-feriados:hover { background: #3d3d4d; border-color: #7a7a9a; }
+
+  .btn-taxa { background: #3d3d0e; border-color: #f1c40f; }
+  .btn-taxa:hover { background: #4d4d1e; border-color: #f5d030; }
+
+  .btn-atualizar { background: #2d4a3a; border-color: #27ae60; }
+  .btn-atualizar:hover { background: #3d604a; border-color: #2ecc71; }
+
+  .btn-colar { background: #1a3a5c; border-color: #3498db; }
+  .btn-colar:hover { background: #224a6e; border-color: #5dade2; }
+
+  .btn-colar-cal { background: #2d1f0e; border-color: #f39c12; }
+  .btn-colar-cal:hover { background: #3d2f1e; border-color: #f5a623; }
+
+  .btn-box { background: #3d0e0e; border-color: #e74c3c; }
+  .btn-box:hover { background: #5d1e1e; border-color: #f06050; }
+
+  .btn-mpp { background: #0e2d1e; border-color: #22c55e; }
+  .btn-mpp:hover { background: #1a3d2e; border-color: #3ae070; }
+
+  .btn-ligar { background: #1a3d2a; border-color: #27ae60; }
+  .btn-ligar:hover { background: #224d3a; border-color: #2ecc71; }
+
+  /* --- Checkbox --- */
+  .chk-wrap { display: flex; align-items: center; gap: 6px;
+    color: #9090b0; font-size: 9.5pt; cursor: pointer; }
+  .chk-wrap input { width: 15px; height: 15px; accent-color: #4a90d9; cursor: pointer; }
+
+  /* --- Header --- */
+  .legend {
+    width: 100%; text-align: center; color: #9090b0;
+    font-size: 10pt; margin-bottom: 16px;
+  }
+  .legend span { font-weight: bold; color: #4a90d9; }
+
+  /* --- Versão ANTES (flat) --- */
+  .btn-old {
+    border-radius: 4px; padding: 6px 12px;
+    font-size: 9pt; font-weight: bold;
+    letter-spacing: 0px;
+    border-width: 1px;
+    color: #e0e0e0;
+    background: #1e1e34; border-color: #2d2d44;
+    transition: background 0.15s;
+    display: inline-flex; align-items: center; gap: 5px;
+    white-space: nowrap;
+  }
+  .btn-old:hover { background: #2d2d44; }
+</style>
+</head>
+<body>
+
+<div style="display:flex; flex-direction:column; gap:60px;">
+
+<!-- ========== NOVO (proposto) ========== -->
+<div style="text-align:center;">
+  <p style="color:#9090b0; font-size:10pt; margin-bottom:12px;">
+    <span style="color:#2ecc71; font-weight:bold;">✔ NOVO</span>
+    — padding 8x16, fonte 9.5pt, borda 1.5px, letter-spacing 0.3px, ícones revisados
+  </p>
+  <div class="toolbar" style="justify-content:center;">
+    <span class="btn btn-bs">🧮 B&S</span>
+    <span class="btn btn-import">⚡ Importar</span>
+    <span class="btn btn-historico">📈 Histórico</span>
+    <span class="btn btn-proventos">💰 Proventos</span>
+    <span class="btn btn-feriados">🗓 Feriados</span>
+    <span class="btn btn-taxa">🏦 Tx Aluguel</span>
+    <span class="btn btn-atualizar">🔄 Atualizar Tudo</span>
+    <div class="separator"></div>
+    <span class="btn btn-colar">🛡 Collar</span>
+    <span class="btn btn-colar-cal">📅 Collar</span>
+    <span class="btn btn-box">📦 Box 4P</span>
+    <span class="btn btn-mpp">🎯 MPP</span>
+    <span class="btn btn-ligar">▶ Ligar</span>
+    <span class="separator" style="width:1px;"></span>
+    <label class="chk-wrap"><input type="checkbox">Exibir Todas</label>
+  </div>
+</div>
+
+<!-- ========== ANTES (atual) ========== -->
+<div style="text-align:center;">
+  <p style="color:#9090b0; font-size:10pt; margin-bottom:12px;">
+    <span style="color:#e74c3c; font-weight:bold;">✘ ANTES</span>
+    — padding 6x12, fonte 9pt, borda 1px, sem letter-spacing, ícones atuais
+  </p>
+  <div class="toolbar" style="justify-content:center;">
+    <span class="btn-old">🧮 B&S</span>
+    <span class="btn-old" style="background:#1a3a5c;border-color:#2c6fbb;border-width:1px;">⚡ Importar</span>
+    <span class="btn-old">📊 Histórico</span>
+    <span class="btn-old">📅 Proventos</span>
+    <span class="btn-old">🗓 Feriados</span>
+    <span class="btn-old">📊 Taxa Aluguel</span>
+    <span class="btn-old" style="background:#1a3d2a;border-color:#1a6b3c;border-width:1px;">🔄 Atualizar</span>
+    <span class="btn-old" style="background:#2d1f0e;border-color:#f39c12;border-width:1px;">📅 Collar</span>
+    <span class="btn-old" style="background:#3d0e0e;border-color:#e74c3c;border-width:1px;">📦 Box 4P</span>
+    <span class="btn-old" style="background:#0e2d1e;border-color:#22c55e;border-width:1px;">🎯 MPP</span>
+    <span class="btn-old" style="background:#1a3d1a;border-color:#27ae60;border-width:1px;">▶ Ligar</span>
+    <label class="chk-wrap"><input type="checkbox">Exibir Todas</label>
+  </div>
+</div>
+
+</div>
+
+</body>
+</html>
