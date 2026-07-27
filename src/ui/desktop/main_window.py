@@ -136,6 +136,7 @@ class MainWindow(QMainWindow):
         self._ultimos_colares = []
         self._ultimos_colares_cal = []
         self._ultimos_boxes = []
+        self._ultimos_put_ratio = []
         self._ultimos_mpp = []
         self._ultimos_mre = []
 
@@ -153,6 +154,7 @@ class MainWindow(QMainWindow):
 
         self._worker.colares_calendario_atualizados.connect(self._on_colares_calendario_atualizados)
         self._worker.boxes_atualizados.connect(self._on_boxes_atualizados)
+        self._worker.put_ratio_atualizados.connect(self._on_put_ratio_atualizados)
         self._worker.mpp_atualizados.connect(self._on_mpp_atualizados)
         self._worker.mpp_status_changed.connect(self._on_mpp_status_changed)
         self._worker.mre_atualizados.connect(self._on_mre_atualizados)
@@ -161,6 +163,7 @@ class MainWindow(QMainWindow):
         self._colar_dialog = None
         self._colar_cal_dialog = None
         self._box_dialog = None
+        self._put_ratio_dialog = None
         self._mpp_dialog = None
         self._som_ativado = False
         self._som_vendidas_ativado = False
@@ -672,6 +675,18 @@ class MainWindow(QMainWindow):
             + "QPushButton:hover {{ background-color: #3d0e0e; border-color: #e74c3c; }}"
         )
         btn_layout.addWidget(self.btn_box)
+
+        self.btn_put_ratio = QPushButton("\U0001f4c9  Put Ratio")
+        self.btn_put_ratio.setAutoDefault(False)
+        self.btn_put_ratio.clicked.connect(self._abrir_put_ratio)
+        self.btn_put_ratio.setToolTip("Put Ratio Spread: estrategia directional/neutra com credito liquido")
+        self.btn_put_ratio.setStyleSheet(
+            _btn_base
+            + "QPushButton {{ color: #27ae60; border-color: rgba(39,174,96,0.5); border-width: 1px; }}"
+            + _btn_hover
+            + "QPushButton:hover {{ background-color: #0e3d1e; border-color: #27ae60; }}"
+        )
+        btn_layout.addWidget(self.btn_put_ratio)
 
         self.btn_mpp = QPushButton("\U0001f3af  MPP")
         self.btn_mpp.setAutoDefault(False)
@@ -1371,7 +1386,6 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)
         widget = ParametrosWidget(self.db_path)
-        widget.bind_monitor_signals(self._worker)
         layout.addWidget(widget)
         btn_fechar = QPushButton("Fechar")
         btn_fechar.clicked.connect(dialog.accept)
@@ -1912,6 +1926,27 @@ class MainWindow(QMainWindow):
     def _on_parar_box(self):
         self._worker.parar_auto_box()
         self._status_box.setText("📦 0")
+
+    def _on_put_ratio_atualizados(self, resultados: list):
+        self._ultimos_put_ratio = resultados
+        if self._put_ratio_dialog and self._put_ratio_dialog.isVisible():
+            self._put_ratio_dialog.atualizar_resultados(resultados)
+
+    def _abrir_put_ratio(self):
+        from src.ui.desktop.put_ratio_dialog import PutRatioDialog
+        if self._put_ratio_dialog and self._put_ratio_dialog.isVisible():
+            self._put_ratio_dialog.raise_()
+            return
+        self._put_ratio_dialog = PutRatioDialog(self, self.db_path)
+        self._put_ratio_dialog.iniciar_scan_signal.connect(self._worker.iniciar_auto_put_ratio)
+        self._put_ratio_dialog.parar_scan_signal.connect(self._on_parar_put_ratio)
+        self._put_ratio_dialog.atualizar_resultados(self._ultimos_put_ratio)
+        self._put_ratio_dialog.setAttribute(Qt.WA_DeleteOnClose, True)
+        self._put_ratio_dialog.destroyed.connect(lambda: setattr(self, "_put_ratio_dialog", None))
+        self._put_ratio_dialog.show()
+
+    def _on_parar_put_ratio(self):
+        self._worker.parar_auto_put_ratio()
 
     def _on_mpp_atualizados(self, resultados: list):
         self._ultimos_mpp = resultados

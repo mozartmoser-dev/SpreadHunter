@@ -37,11 +37,12 @@ ESTRATEGIA_LABELS = {
     "COLLAR_CALENDARIO": "Collar Calendário",
     "BOX_4P": "Box Spread 4 Pontas",
     "MPP": "Motor de Priorização de Pescaria (MPP)",
-    "VENDA_COBERTA": "Taxa",
-    "SBTH_VENDIDA": "SBTH Vendida",
-    "TAXA_COMPRADA": "Taxa Comprada",
+    "PUT_RATIO": "Put Ratio Spread",
+    "VENDA_COBERTA": "Taxa (Vendida)",
+    "TAXA_COMPRADA": "Taxa (Comprada)",
     "RATIOS_OTIMIZADOS": "Ratios Otimizados",
     "PROTECAO_CAUDA": "Protecao de Cauda (BWB)",
+    "IMPORTACAO": "Importacao",
 }
 
 ESTRATEGIA_COLORS = {
@@ -56,7 +57,9 @@ ESTRATEGIA_COLORS = {
     "COLLAR_CALENDARIO": "#f39c12",
     "BOX_4P": "#e74c3c",
     "MPP": "#9b59b6",
+    "PUT_RATIO": "#27ae60",
     "VENDA_COBERTA": "#2ecc71",
+    "SBTH_VENDIDA": "#e67e22",
     "IMPORTACAO": "#8e44ad",
     "RATIOS_OTIMIZADOS": "#e67e22",
     "PROTECAO_CAUDA": "#c0392b",
@@ -73,10 +76,13 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("rtd_refresh_timeout_ms", "Timeout RTD RefreshData (ms, 0=sem timeout)"),
         ("taxa_aluguel_habilitado", "Habilitar Coleta Taxa Aluguel"),
         ("investsite_timeout_ms", "Timeout InvestSite (ms)"),
-        ("investsite_delay_ms", "Delay entre Requisições InvestSite (ms)"),
+        ("investsite_delay_ms", "Delay entre Requisicoes InvestSite (ms)"),
         ("taxa_emolumento_pct", "Taxa de Emolumento B3 (% do financeiro)"),
-        ("taxa_liquidacao_pct", "Taxa de Liquidação B3 (% do financeiro)"),
-        ("taxa_ir_pct", "Alíquota de IR sobre lucro (15% swing trade)"),
+        ("taxa_liquidacao_pct", "Taxa de Liquidacao B3 (% do financeiro)"),
+        ("taxa_registro_pct", "Taxa de Registro B3 (% do financeiro)"),
+        ("taxa_iss_pct", "ISS sobre corretagem (% do financeiro)"),
+        ("taxa_ir_pct", "Aliquota de IR sobre lucro (15% swing trade)"),
+        ("ex_dividendo_lookback_dias", "Janela ex-dividendo (dias uteis)"),
     ],
     "BOX": [
         ("premio_risco_box", "Premio risco BOX (x CDI)"),
@@ -89,6 +95,8 @@ PARAMETROS_POR_ESTRATEGIA = {
     ],
     "SBTH": [
         ("premio_risco_sbth", "Premio risco SBTH (x CDI)"),
+        ("sbth_vendida_dist_ativo", "Distancia Minima Strike/Spot (x)"),
+        ("vendidas_premio_risco", "Premio Risco (x CDI) — BOX e SBTH Vendidos"),
         ("sbth_qtd_ativo", "Qtd compra ativo"),
         ("sbth_prof_ativo", "Profund. book ativo"),
         ("sbth_qtd_put", "Qtd compra PUT"),
@@ -102,6 +110,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("basket_prof_put", "Profund. PUT"),
         ("basket_qtd_call", "Qtd venda Call ATM"),
         ("basket_prof_call", "Profund. Call ATM"),
+        ("elegibilidade_strike_max_pct", "Strike maximo % do spot para pescaria"),
     ],
     "PERFORMANCE": [
         ("perf_carga_inteligente", "Habilitar Carga Inteligente (0=Off, 1=On)"),
@@ -130,11 +139,8 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("venda_coberta_premio_risco", "Premio Risco (x CDI)"),
         ("venda_coberta_lote_liquidez", "Lote Liquidez CALL"),
         ("venda_coberta_dias_maximos", "Dias Maximos Vencimento"),
+        ("venda_coberta_dias_minimos", "Dias Minimos Vencimento"),
         ("venda_coberta_dist_max_pct", "Distancia Max Strike Abaixo Spot"),
-    ],
-    "SBTH_VENDIDA": [
-        ("sbth_vendida_dist_ativo", "Distancia Minima Strike/Spot (x)"),
-        ("vendidas_premio_risco", "Premio Risco (x CDI) — BOX e SBTH"),
     ],
     "TAXA_COMPRADA": [
         ("taxa_comprada_premio_risco", "Premio Risco (x CDI)"),
@@ -201,6 +207,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("box_qtd_min", "Qtd min contratos por perna"),
         ("box_soh_europeia", "So aceitar opcoes europeias"),
         ("white_list_box4p", "Whitelist de ativos (separados por virgula)"),
+        ("black_list_box4p", "Blacklist de ativos (separados por virgula)"),
         ("box_scan_interval", "Ciclos entre varreduras de Box 4P"),
     ],
     "MPP": [
@@ -231,8 +238,21 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("mpp_peso_instantaneo", "Peso score instantaneo no score final"),
         ("mpp_bonus_max", "Bonus maximo historico"),
         ("mpp_bonus_taxa", "Taxa conversao sucesso em bonus"),
-        ("mre_lote_base", "Lote base para cálculo de lote sugerido (MRE)"),
-        ("mre_profundidade_max_pct", "Máximo % da profundidade a consumir (MRE)"),
+        ("mre_lote_base", "Lote base para calculo de lote sugerido (MRE)"),
+        ("mre_profundidade_max_pct", "Maximo % da profundidade a consumir (MRE)"),
+        ("mpp_iv_min_negocios", "Num. minimo negocios para IV valida"),
+        ("mpp_iv_min_oi", "OI minimo para IV valida"),
+        ("mpp_iv_delta_min", "Delta minimo para IV valida"),
+        ("mpp_iv_delta_max", "Delta maximo para IV valida"),
+    ],
+    "PUT_RATIO": [
+        ("put_ratio_dte_min", "DTE minimo (dias)"),
+        ("put_ratio_dte_max", "DTE maximo (dias)"),
+        ("put_ratio_iv_rank_min", "IV minima (% - absoluto)"),
+        ("put_ratio_ratios", "Ratios a testar (ex: 1x2,2x3,1x3)"),
+        ("put_ratio_premio_risco", "Premio risco (x CDI)"),
+        ("put_ratio_qtd_min", "Qtd minima por perna (book)"),
+        ("white_list_put_ratio", "Whitelist de ativos (separados por virgula)"),
     ],
     "IMPORTACAO": [
         ("import_max_months", "Meses a frente para importar series"),
@@ -249,6 +269,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("fator_seguranca_liquidez", "Fator Seguranca Liquidez (x qtd)"),
         ("razao_convexidade_max", "Razao Convexidade Max (Protecao)"),
         ("spread_maximo_pct", "Spread Maximo Bid-Ask"),
+        ("bwb_modo", "Modo BWB (simples / borboleta)"),
     ],
 }
 
@@ -797,13 +818,12 @@ class ParametrosWidget(QWidget):
         "COLLAR_CALENDARIO",
         "RATIOS_OTIMIZADOS",
         "PROTECAO_CAUDA",
-        "BOX",
-        "BOX_SINTETICO",
+        "BOX",        # BOX_SINTETICO oculto — feature nao ativa (Pescaria Basket)
         "BOX_4P",
+        "PUT_RATIO",
         "MPP",
         "SBTH",
         "VENDA_COBERTA",
-        "SBTH_VENDIDA",
         "TAXA_COMPRADA",
         "PERFORMANCE",
         "IMPORTACAO",
@@ -887,10 +907,14 @@ class ParametrosWidget(QWidget):
             "BOX": "\U0001F4E6",                      # 📦
             "BOX_SINTETICO": "\U0001F9FA",            # 🧺
             "BOX_4P": "\U0001F9EE",                   # 🧮
+            "PUT_RATIO": "\U0001F4C9",               # 📉
             "MPP": "\U0001F41F",                      # 🐟
             "SBTH": "\U0001F4C8",                     # 📈
-            "VENDA_COBERTA": "\u25CF",                # ● (bullit color)
-            "SBTH_VENDIDA": "\u25CF",
+            "VENDA_COBERTA": "\U0001F4B0",            # 💰
+            "TAXA_COMPRADA": "\U0001F4B3",             # 💳
+            "IMPORTACAO": "\U0001F4E5",                # 📥
+            "RATIOS_OTIMIZADOS": "\U0001F9EE",         # 🧮
+            "PROTECAO_CAUDA": "\U0001F6E1",            # 🛡
             "PERFORMANCE": "\u26A1",                  # ⚡
             "TELEGRAM": "\U0001F4F2",                 # 📲
             "SOM": "\U0001F514",                      # 🔔
@@ -961,7 +985,7 @@ class ParametrosWidget(QWidget):
                 elif "fonte_market_data" in chave:
                     widget = QComboBox()
                     widget.addItems(["Profit RTD", "Open Fast Socket", "Mock (Teste)"])
-                elif "telegram_bot_token" in chave or "telegram_chat_id" in chave or "_list_" in chave:
+                elif "telegram_bot_token" in chave or "telegram_chat_id" in chave or "_list_" in chave or "put_ratio_ratios" in chave:
                     widget = QLineEdit()
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
                 elif chave in ("som_arquivo", "som_arquivo_vendidas", "som_arquivo_coberta"):
@@ -1217,76 +1241,6 @@ class ParametrosWidget(QWidget):
             self.sidebar.setCurrentRow(0)
 
     # ---- Tranche 3: ícones reativos (viáveis por estratégia) ----
-
-    def bind_monitor_signals(self, worker):
-        """Conecta sinais do monitor para atualizar contador 🔴 da estratégia."""
-        if not worker:
-            return
-        self._worker = worker
-        if hasattr(worker, "oportunidades_atualizadas"):
-            worker.oportunidades_atualizadas.connect(
-                lambda lst: self._update_counter("BOX", self._count_viaveis_box_sbth(lst, "box"))
-            )
-            worker.oportunidades_atualizadas.connect(
-                lambda lst: self._update_counter("SBTH", self._count_viaveis_box_sbth(lst, "sbth"))
-            )
-            worker.oportunidades_atualizadas.connect(
-                lambda lst: self._update_counter("BOX_SINTETICO",
-                    self._count_viaveis_box_sbth(lst, "box_sintetico"))
-            )
-        if hasattr(worker, "boxes_atualizados"):
-            worker.boxes_atualizados.connect(
-                lambda lst: self._update_counter("BOX_4P",
-                    sum(1 for it in lst if getattr(it, "viavel", False)))
-            )
-        if hasattr(worker, "colares_atualizados"):
-            worker.colares_atualizados.connect(
-                lambda lst: self._update_counter("COLAR",
-                    sum(1 for it in lst if getattr(it, "viavel", False)))
-            )
-        if hasattr(worker, "colares_calendario_atualizados"):
-            worker.colares_calendario_atualizados.connect(
-                lambda lst: self._update_counter("COLLAR_CALENDARIO",
-                    sum(1 for it in lst if getattr(it, "viavel", False)))
-            )
-        if hasattr(worker, "oportunidades_coberta_atualizadas"):
-            worker.oportunidades_coberta_atualizadas.connect(
-                lambda lst: self._update_counter("VENDA_COBERTA",
-                    sum(1 for it in lst if getattr(it, "viavel", False)))
-            )
-
-    def _count_viaveis_box_sbth(self, lst, kind):
-        n = 0
-        for it in lst:
-            classifica = getattr(it, "operacao", None) or getattr(it, "classificacao", None) or ""
-            if kind == "box" and "BOX" in str(classifica).upper() and getattr(it, "viavel", False):
-                n += 1
-            elif kind == "sbth" and "SBTH" in str(classifica).upper() and getattr(it, "viavel", False):
-                n += 1
-            elif kind == "box_sintetico" and "BOXSBTH" in str(classifica).upper() and getattr(it, "viavel", False):
-                n += 1
-        return n
-
-    def _update_counter(self, key, n):
-        if n is None:
-            return
-        for i in range(self.sidebar.count()):
-            it = self.sidebar.item(i)
-            if it.data(Qt.UserRole) == key:
-                self._set_item_counter(it, n)
-                return
-
-    def _set_item_counter(self, item: QListWidgetItem, n: int):
-        prev = item.data(int(Qt.UserRole) + 2) or 0
-        if prev == n:
-            return
-        item.setData(int(Qt.UserRole) + 2, n)
-        text_base = item.data(int(Qt.UserRole) + 3) or item.text()
-        item.setData(int(Qt.UserRole) + 3, text_base)
-        if n > 0:
-            item.setText("{}  🔴 {}".format(text_base.rstrip(), n))
-        else:
-            item.setText("{}".format(text_base.rstrip()))
 
     def _mostrar_info(self, chave: str, display: str):
         info = PARAMETROS_INFO.get(chave, {})

@@ -490,8 +490,8 @@
     {
       "chave": "box_premio_risco",
       "valor": "1.5",
-      "estrategia": "MPP",
-      "descricao": "Premio risco minimo sobre CDI para pescaria de Box"
+      "estrategia": "BOX_4P",
+      "descricao": "Premio risco minimo sobre CDI para Box 4 Pontas"
     },
     {
       "chave": "mpp_paridade_normalizador",
@@ -532,13 +532,13 @@
     {
       "chave": "mre_lote_base",
       "valor": "100.0",
-      "estrategia": "MRE",
+      "estrategia": "MPP",
       "descricao": "Lote base para calculo de lote sugerido"
     },
     {
       "chave": "mre_profundidade_max_pct",
       "valor": "0.0",
-      "estrategia": "MRE",
+      "estrategia": "MPP",
       "descricao": "Maximo %% da profundidade a consumir"
     },
     {
@@ -850,31 +850,31 @@
     {
       "chave": "otimizado_desvios_sigma",
       "valor": "1.5",
-      "estrategia": "COLLAR_CALENDARIO",
+      "estrategia": "RATIOS_OTIMIZADOS",
       "descricao": "Migrated from calda_desvios_cauda"
     },
     {
       "chave": "otimizado_ratio_put_step",
       "valor": "0.1",
-      "estrategia": "COLLAR_CALENDARIO",
+      "estrategia": "RATIOS_OTIMIZADOS",
       "descricao": "Migrated from calda_ratio_put_step"
     },
     {
       "chave": "otimizado_ratio_put_min",
       "valor": "0.7",
-      "estrategia": "COLLAR_CALENDARIO",
+      "estrategia": "RATIOS_OTIMIZADOS",
       "descricao": "Migrated from limite_min_put"
     },
     {
       "chave": "otimizado_ratio_max",
       "valor": "1.3",
-      "estrategia": "COLLAR_CALENDARIO",
+      "estrategia": "RATIOS_OTIMIZADOS",
       "descricao": "Migrated from limite_max_call"
     },
     {
       "chave": "otimizado_sigma_rendimento",
       "valor": "2.0",
-      "estrategia": "COLLAR_CALENDARIO",
+      "estrategia": "RATIOS_OTIMIZADOS",
       "descricao": "Sigma para exigir CDI no estagio Rendimento"
     },
     {
@@ -978,6 +978,48 @@
       "valor": "ABEV3,AXIA3,B3SA3,BBAS3,BBDC3,BBDC4,BBSE3,BOVA11,BPAC11,CMIG4,CSMG3,EQTL3,ITSA4,ITUB4,PETR3,PETR4,PRIO3,SANB11,SUZB3,VALE3,WEGE3",
       "estrategia": "BOX_4P",
       "descricao": "Blacklist de ativos para Box 4P"
+    },
+    {
+      "chave": "white_list_put_ratio",
+      "valor": "ABEV3,ALOS3,B3SA3,BBAS3,BBDC3,BBDC4,BBSE3,BOVA11,BPAC11,BRAP4,CMIG4,CPFE3,CSMG3,EGIE3,EMBJ3,ENEV3,EQTL3,GGBR4,HYPE3,ITSA4,ITUB4,KLBN11,LREN3,MULT3,PETR3,PETR4,PRIO3,RADL3,SANB11,SBSP3,SUZB3,TOTS3,VALE3,VIVT3,WEGE3",
+      "estrategia": "PUT_RATIO",
+      "descricao": "Whitelist de ativos para Put Ratio Spread"
+    },
+    {
+      "chave": "put_ratio_dte_min",
+      "valor": "20",
+      "estrategia": "PUT_RATIO",
+      "descricao": "DTE minimo para Put Ratio Spread"
+    },
+    {
+      "chave": "put_ratio_dte_max",
+      "valor": "60",
+      "estrategia": "PUT_RATIO",
+      "descricao": "DTE maximo para Put Ratio Spread"
+    },
+    {
+      "chave": "put_ratio_iv_rank_min",
+      "valor": "50.0",
+      "estrategia": "PUT_RATIO",
+      "descricao": "IV minima (% absoluto) para Put Ratio"
+    },
+    {
+      "chave": "put_ratio_ratios",
+      "valor": "1x2,2x3,1x3",
+      "estrategia": "PUT_RATIO",
+      "descricao": "Proporcoes a testar (N1xN2 separados por virgula)"
+    },
+    {
+      "chave": "put_ratio_premio_risco",
+      "valor": "1.5",
+      "estrategia": "PUT_RATIO",
+      "descricao": "Premio risco minimo (x CDI) para Put Ratio"
+    },
+    {
+      "chave": "put_ratio_qtd_min",
+      "valor": "100",
+      "estrategia": "PUT_RATIO",
+      "descricao": "Qtd minima por perna (book) para Put Ratio"
     }
   ]
 }

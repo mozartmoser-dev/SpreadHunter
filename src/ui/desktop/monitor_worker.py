@@ -6,11 +6,13 @@ import psutil
 
 from PySide6.QtCore import QThread, Signal, QMutex, QWaitCondition
 
+from src.application.dtos.dtos import EngineStatsDTO
 from src.application.use_cases.monitor_oportunidades import MonitorOportunidadesUseCase
 from src.application.use_cases.monitor_vendidas import MonitorVendidasUseCase
 from src.application.use_cases.monitor_colares import MonitorColaresUseCase
 from src.application.use_cases.monitor_colares_calendario import MonitorColaresCalendarioUseCase
 from src.application.use_cases.monitor_box import MonitorBoxUseCase
+from src.application.use_cases.monitor_put_ratio import MonitorPutRatioUseCase
 from src.application.use_cases.monitor_venda_coberta import MonitorVendaCobertaUseCase
 from src.application.use_cases.mpp_use_case import MPPUseCase
 from src.domain.services.pipeline_tracker import PipelineTracker
@@ -23,7 +25,8 @@ from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
 from src.infrastructure.persistence.repositories.repositories import (
     ParametroRepository, InstrumentoRepository,
 )
-from src.domain.services.market_data_source import FieldName
+from src.domain.services.market_data_source import FieldName, criar_data_source
+from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +86,7 @@ class MonitorWorker(QThread):
     colares_atualizados = Signal(list)
     colares_calendario_atualizados = Signal(list)
     boxes_atualizados = Signal(list)
+    put_ratio_atualizados = Signal(list)
     mpp_atualizados = Signal(list)
     mre_atualizados = Signal(list)
     mpp_status_changed = Signal(bool)
@@ -105,6 +109,7 @@ class MonitorWorker(QThread):
         self._mpp_interval_cache: int | None = None
 
         self._monitor_box_uc = MonitorBoxUseCase(db_path, self._monitor_mpp_uc)
+        self._monitor_put_ratio_uc = MonitorPutRatioUseCase(db_path)
         self._running = False
         self._paused = False
         self._interval_ms = 3000
@@ -114,6 +119,7 @@ class MonitorWorker(QThread):
         self._toggle_colar = StrategyToggle(interval=10)
         self._toggle_colar_cal = StrategyToggle(interval=3)
         self._toggle_box = StrategyToggle(interval=5, use_db_interval="box_scan_interval")
+        self._toggle_put_ratio = StrategyToggle(interval=5)
         self._colar_cal_ativos: list[str] | None = None
         self._colar_cal_params: dict | None = None
         self._ultimo_dados_mercado: dict | None = None
@@ -189,7 +195,11 @@ class MonitorWorker(QThread):
                 self._processar_box_4p(rtd)
                 t4 = time.perf_counter()
 
-                # 5. Manutenção (detecção novos books, Onda 2, background scan)
+                # 5. Varredura de Put Ratio Spread
+                self._processar_put_ratio(rtd)
+                t4b = time.perf_counter()
+
+                # 6. Manutenção (detecção novos books, Onda 2, background scan)
                 self._processar_manutencao()
                 t5 = time.perf_counter()
 
@@ -324,6 +334,7 @@ class MonitorWorker(QThread):
         self._monitor_colares_uc.recarregar_parametros()
         self._monitor_colares_cal_uc.recarregar_parametros()
         self._monitor_box_uc.recarregar_parametros()
+        self._monitor_put_ratio_uc.recarregar_parametros()
         self._monitor_mpp_uc._param_repo.invalidate_cache()
         self.invalidar_cache_mpp_interval()
         if self._mercado_provider:
@@ -372,6 +383,12 @@ class MonitorWorker(QThread):
 
     def parar_auto_box(self):
         self._toggle_box.parar_auto()
+
+    def iniciar_auto_put_ratio(self):
+        self._toggle_put_ratio.iniciar_auto()
+
+    def parar_auto_put_ratio(self):
+        self._toggle_put_ratio.parar_auto()
 
     def set_mostrar_tp_op(self, mostrar: bool):
         self._mostrar_tp_op = mostrar
@@ -1097,6 +1114,14 @@ class MonitorWorker(QThread):
         tracker = PipelineTracker()
         resultados = self._monitor_box_uc.varrer(rtd, pipeline_tracker=tracker)
         self.boxes_atualizados.emit(resultados)
+
+    def _processar_put_ratio(self, rtd):
+        if not self._toggle_put_ratio.deve_escanear():
+            return
+
+        tracker = PipelineTracker()
+        resultados = self._monitor_put_ratio_uc.varrer(rtd, pipeline_tracker=tracker)
+        self.put_ratio_atualizados.emit(resultados)
 
     def _emitir_estatisticas_engine(self, t_start_cycle):
         t_elapsed_ms = int((time.perf_counter() - t_start_cycle) * 1000)
