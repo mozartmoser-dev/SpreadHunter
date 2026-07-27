@@ -34,6 +34,7 @@ class ResultadoPutRatio:
     sigma_be: float
     protecao_pct: float
     score: float
+    zona: str
     custo_b3: float
     custo_ir: float
     lucro_liquido: float
@@ -158,6 +159,12 @@ class CalculadoraPutRatio:
         if preco_ativo > 0 and be_down > 0:
             protecao_pct = (preco_ativo - be_down) / preco_ativo
 
+        zona = "C"
+        if sigma_be >= 2.0:
+            zona = "A"
+        elif sigma_be >= 1.5:
+            zona = "B"
+
         alpha, beta, gamma = self.peso_alpha, self.peso_beta, self.peso_gamma
         score = (alpha * protecao_pct) + (beta * (max_profit / preco_ativo if preco_ativo > 0 else 0.0)) + (gamma * (credito_bruto / preco_ativo if preco_ativo > 0 else 0.0))
         score = round(score * 100, 2)
@@ -206,6 +213,7 @@ class CalculadoraPutRatio:
             sigma_be=round(sigma_be, 2),
             protecao_pct=round(protecao_pct, 4),
             score=round(score, 2),
+            zona=zona,
             custo_b3=round(custo_b3, 4),
             custo_ir=round(custo_ir, 4),
             lucro_liquido=round(lucro_liquido, 2),

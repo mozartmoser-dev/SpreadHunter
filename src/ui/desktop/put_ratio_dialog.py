@@ -41,6 +41,7 @@ PUT_RATIO_COLUMNS = [
     ("Prot%", "protecao_pct"),
     ("BE", "be_down"),
     ("Score", "score"),
+    ("Zona", "zona"),
     ("Dias", "dias"),
     ("Venc", "vencimento"),
     ("Put K1", "cod_put_k1"),
@@ -133,6 +134,13 @@ class PutRatioTableModel(QAbstractTableModel):
                 if val >= 2:
                     return QBrush(QColor(Palette.YELLOW))
                 return QBrush(QColor(Palette.TEXT_MUTED))
+            if col_key == "zona":
+                val = item.get(col_key, "")
+                if val == "A":
+                    return QBrush(QColor(Palette.GREEN))
+                if val == "B":
+                    return QBrush(QColor(Palette.YELLOW))
+                return QBrush(QColor(Palette.RED))
             if col_key in ("credito_bruto", "credit_yield", "yield_cdi", "protecao_pct"):
                 val = item.get(col_key, 0)
                 if val > 0:
@@ -408,6 +416,7 @@ class PutRatioDialog(QDialog):
                 "protecao_pct": getattr(r, 'protecao_pct', 0.0),
                 "be_down": r.be_down,
                 "score": getattr(r, 'score', 0.0),
+                "zona": getattr(r, 'zona', ''),
                 "dias": r.dias,
                 "vencimento": r.vencimento,
                 "cod_put_k1": r.cod_put_k1,
@@ -542,7 +551,7 @@ class PutRatioDialog(QDialog):
             f"<span style='color:{YELLOW};'>Credito: R$ {credito:.2f}</span>  |  "
             f"<span style='color:{GREEN};'>Lucro Max: R$ {lucro_max:.2f}</span>  |  "
             f"<span style='color:{RED};'>BE Down: R$ {be:.2f}</span>  |  "
-            f"<span style='color:{TEXT};'>CDI: {r.pct_cdi:.2f}x</span>"
+            f"<span style='color:{TEXT};'>CDI: {getattr(r, 'yield_cdi', 0):.2f}x</span>"
         )
         footer.setStyleSheet("font-family: Consolas; font-size: 10pt; padding: 4px;")
         payoff_layout.addWidget(footer)
