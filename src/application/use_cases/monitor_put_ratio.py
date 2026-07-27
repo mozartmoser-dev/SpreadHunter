@@ -214,7 +214,6 @@ class MonitorPutRatioUseCase:
                             dias=k1_data["dias"],
                             em_leilao=k1_data["em_leilao"] or k2_data["em_leilao"],
                             preco_ativo=k1_data.get("preco_ativo", 0.0),
-                            iv_put_pct=k1_data["iv_put"],
                             qtd_min_perna=qtd_min,
                             du=du,
                         )

@@ -192,7 +192,7 @@ class ParametroOperacional:
         "put_ratio_min_credit": {"valor": 0.10, "estrategia": "PUT_RATIO", "descricao": "Credito minimo por acao (R$) para considerar"},
         "put_ratio_delta_k1_min": {"valor": -0.55, "estrategia": "PUT_RATIO", "descricao": "Delta minimo da Put comprada (K1)"},
         "put_ratio_delta_k1_max": {"valor": -0.35, "estrategia": "PUT_RATIO", "descricao": "Delta maximo da Put comprada (K1)"},
-        "put_ratio_delta_k2_min": {"valor": -0.28, "estrategia": "PUT_RATIO", "descricao": "Delta minimo da Put vendida (K2)"},
-        "put_ratio_delta_k2_max": {"valor": -0.08, "estrategia": "PUT_RATIO", "descricao": "Delta maximo da Put vendida (K2)"},
+        "put_ratio_delta_k2_min": {"valor": -0.40, "estrategia": "PUT_RATIO", "descricao": "Delta minimo da Put vendida (K2)"},
+        "put_ratio_delta_k2_max": {"valor": -0.03, "estrategia": "PUT_RATIO", "descricao": "Delta maximo da Put vendida (K2)"},
         "white_list_put_ratio": {"valor": "", "estrategia": "PUT_RATIO", "descricao": "Whitelist de ativos para Put Ratio"},
     }
