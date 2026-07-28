@@ -173,11 +173,7 @@ class PutRatioTableModel(QAbstractTableModel):
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if orientation == Qt.Orientation.Horizontal and 0 <= section < len(PUT_RATIO_COLUMNS):
-        if role == Qt.ItemDataRole.UserRole and col_key == "perfil":
-            val = item.get(col_key)
-            return val if isinstance(val, tuple) else (0, 0, 0)
-
-        if role == Qt.ItemDataRole.DisplayRole:
+            if role == Qt.ItemDataRole.DisplayRole:
                 return PUT_RATIO_COLUMNS[section][0]
             if role == Qt.ItemDataRole.ToolTipRole:
                 tips = {
