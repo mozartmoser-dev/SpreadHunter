@@ -4,7 +4,7 @@ import math
 from scipy.stats import norm
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal, QUrl, QRect
-from PySide6.QtGui import QFont, QColor, QBrush, QDesktopServices, QPainter, QPen
+from PySide6.QtGui import QFont, QColor, QBrush, QDesktopServices, QPainter, QPen, QPainterPath
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QFrame, QWidget,
@@ -84,65 +84,80 @@ class _PerfilDelegate(QStyledItemDelegate):
         painter.setRenderHint(QPainter.Antialiasing)
 
         val = index.data(Qt.ItemDataRole.UserRole)
-        p_loss, p_slope, p_credit = (val or (0, 0, 0))
-
-        margin = 4
-        inner = QRect(rect.x() + margin, rect.y() + 3, rect.width() - margin * 2, rect.height() - 6)
+        if not val or not isinstance(val, tuple):
+            painter.restore()
+            return
+        p_loss, p_slope, p_credit = val
+        if p_credit + p_slope + p_loss <= 0:
+            painter.restore()
+            return
 
         if option.state & QStyle.State_Selected:
             painter.fillRect(rect, QColor("#1a2a4a"))
 
-        if p_credit + p_slope + p_loss <= 0:
-            painter.setPen(QColor("#666"))
-            painter.drawText(inner, Qt.AlignCenter, "-")
-            painter.restore()
-            return
-
+        margin = 4
+        w, h = rect.width() - margin * 2, rect.height() - 8
+        x0, y0 = rect.x() + margin, rect.y() + 4
         total = p_loss + p_slope + p_credit
-        w_credit = max(8, int(inner.width() * p_credit / total))
-        w_slope = max(8, int(inner.width() * p_slope / total))
-        w_loss = inner.width() - w_credit - w_slope
-        if w_loss < 8:
-            w_loss = 8
-            w_slope = max(8, inner.width() - w_credit - w_loss)
 
-        h = inner.height()
-        x = inner.x()
+        w_loss = int(w * p_loss / total)
+        w_slope = int(w * p_slope / total)
+        w_credit = w - w_loss - w_slope
 
-        # Loss zone (red)
-        r_loss = QRect(x, inner.y(), w_loss, h)
+        # Fundo area perda
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor("#3d1a1a"))
-        painter.drawRoundedRect(r_loss, 2, 2)
-        painter.setPen(QColor("#ef5350"))
-        painter.setFont(QFont("Consolas", 7, QFont.Bold))
-        if p_loss >= 3:
-            painter.drawText(r_loss, Qt.AlignCenter, f"{p_loss:.0f}%")
+        painter.setBrush(QColor("#2d1010"))
+        painter.drawRoundedRect(QRect(x0, y0, w_loss, h), 3, 3)
+        # Fundo area tenda
+        painter.setBrush(QColor("#102d10"))
+        painter.drawRoundedRect(QRect(x0 + w_loss, y0, w_slope, h), 3, 3)
+        # Fundo area credito
+        painter.setBrush(QColor("#101a2d"))
+        painter.drawRoundedRect(QRect(x0 + w_loss + w_slope, y0, w_credit, h), 3, 3)
 
-        # Slope zone (green — lucro parcial)
-        r_slope = QRect(x + w_loss, inner.y(), w_slope, h)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor("#1a3d1a"))
-        painter.drawRoundedRect(r_slope, 2, 2)
-        painter.setPen(QColor("#4caf50"))
-        painter.setFont(QFont("Consolas", 7, QFont.Bold))
-        if p_slope >= 3:
-            painter.drawText(r_slope, Qt.AlignCenter, f"{p_slope:.0f}%")
+        # Linha do payoff
+        y_top = y0 + 4
+        y_mid = y0 + h // 2
+        y_bot = y0 + h - 4
+        pen = QPen(QColor("#e0e0e0"), 1.5)
+        painter.setPen(pen)
 
-        # Credit zone (blue)
-        r_credit = QRect(x + w_loss + w_slope, inner.y(), w_credit, h)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor("#1a2a3d"))
-        painter.drawRoundedRect(r_credit, 2, 2)
-        painter.setPen(QColor("#42a5f5"))
-        painter.setFont(QFont("Consolas", 7, QFont.Bold))
-        if p_credit >= 3:
-            painter.drawText(r_credit, Qt.AlignCenter, f"{p_credit:.0f}%")
+        path = QPainterPath()
+        # Loss zone: linha reta no fundo (prejuizo maximo)
+        path.moveTo(x0, y_bot)
+        path.lineTo(x0 + w_loss, y_bot)
+        # Slope zone: diagonal subindo do fundo ate o topo
+        path.lineTo(x0 + w_loss + w_slope, y_top)
+        # Credit zone: linha reta no topo (credito)
+        path.lineTo(x0 + w_loss + w_slope + w_credit, y_top)
+        painter.drawPath(path)
+
+        # BE linha tracejada
+        pen_be = QPen(QColor("#ef5350"), 0.8, Qt.DashLine)
+        painter.setPen(pen_be)
+        be_x = x0 + w_loss
+        painter.drawLine(be_x, y0, be_x, y0 + h)
+
+        # K1 linha pontilhada
+        pen_k1 = QPen(QColor("#42a5f5"), 0.6, Qt.DotLine)
+        painter.setPen(pen_k1)
+        k1_x = x0 + w_loss + w_slope
+        painter.drawLine(k1_x, y0, k1_x, y0 + h)
+
+        # Percentuais
+        font = QFont("Consolas", 7, QFont.Bold)
+        painter.setFont(font)
+        if p_loss >= 5:
+            painter.setPen(QColor("#ef5350"))
+            painter.drawText(QRect(x0, y0 + h - 14, w_loss, 12), Qt.AlignCenter, f"{p_loss:.0f}%")
+        if p_credit >= 5:
+            painter.setPen(QColor("#42a5f5"))
+            painter.drawText(QRect(x0 + w_loss + w_slope, y0, w_credit, 12), Qt.AlignCenter, f"{p_credit:.0f}%")
 
         painter.restore()
 
     def sizeHint(self, option, index):
-        return index.data(Qt.ItemDataRole.SizeHintRole) or __import__('PySide6.QtCore').QSize(180, 20)
+        return __import__('PySide6.QtCore').QSize(200, 28)
 
 
 class PutRatioTableModel(QAbstractTableModel):
