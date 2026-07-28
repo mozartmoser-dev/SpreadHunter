@@ -3,12 +3,12 @@ import math
 
 from scipy.stats import norm
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal, QUrl
-from PySide6.QtGui import QFont, QColor, QBrush, QDesktopServices
+from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal, QUrl, QRect
+from PySide6.QtGui import QFont, QColor, QBrush, QDesktopServices, QPainter, QPen
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QFrame, QWidget,
-    QDoubleSpinBox, QRadioButton, QButtonGroup, QCheckBox,
+    QStyledItemDelegate, QStyleOptionViewItem, QDoubleSpinBox, QRadioButton, QButtonGroup, QCheckBox,
 )
 
 from src.ui.desktop.column_utils import salvar_ordem_colunas, salvar_largura_colunas, limpar_e_restaurar_colunas
@@ -60,28 +60,89 @@ PUT_RATIO_COLUMNS = [
 ]
 
 
-def _perfil_payoff(r) -> str:
+def _perfil_payoff(r) -> tuple:
     spot = r.spot
     be = r.be_down
     K1 = r.strike_k1
     iv = getattr(r, 'iv_put_pct', 0.0) / 100.0
     T = r.dias / 365.0
     if spot <= 0 or iv <= 0 or T <= 0 or K1 <= 0:
-        return ""
+        return 0, 0, 0
     sigma_periodo = iv * math.sqrt(T)
     d_K1 = (spot - K1) / (spot * sigma_periodo) if spot > K1 else 0.0
     d_BE = (spot - be) / (spot * sigma_periodo) if spot > be else 0.0
     p_credit = norm.cdf(d_K1) * 100.0
     p_slope = max(0.0, (norm.cdf(d_BE) - norm.cdf(d_K1)) * 100.0)
     p_loss = max(0.0, 100.0 - p_credit - p_slope)
-    parts = []
-    if p_credit >= 1:
-        parts.append(f"\u2550\u2550\u2550 {p_credit:.0f}%")
-    if p_slope >= 1:
-        parts.append(f"\u2572 {p_slope:.0f}%")
-    if p_loss >= 1:
-        parts.append(f"__ {p_loss:.0f}%")
-    return " \u2502 ".join(parts)
+    return p_loss, p_slope, p_credit
+
+
+class _PerfilDelegate(QStyledItemDelegate):
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
+        painter.save()
+        rect = option.rect
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        val = index.data(Qt.ItemDataRole.UserRole)
+        p_loss, p_slope, p_credit = (val or (0, 0, 0))
+
+        margin = 4
+        inner = QRect(rect.x() + margin, rect.y() + 3, rect.width() - margin * 2, rect.height() - 6)
+
+        if option.state & QStyle.State_Selected:
+            painter.fillRect(rect, QColor("#1a2a4a"))
+
+        if p_credit + p_slope + p_loss <= 0:
+            painter.setPen(QColor("#666"))
+            painter.drawText(inner, Qt.AlignCenter, "-")
+            painter.restore()
+            return
+
+        total = p_loss + p_slope + p_credit
+        w_credit = max(8, int(inner.width() * p_credit / total))
+        w_slope = max(8, int(inner.width() * p_slope / total))
+        w_loss = inner.width() - w_credit - w_slope
+        if w_loss < 8:
+            w_loss = 8
+            w_slope = max(8, inner.width() - w_credit - w_loss)
+
+        h = inner.height()
+        x = inner.x()
+
+        # Loss zone (red)
+        r_loss = QRect(x, inner.y(), w_loss, h)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#3d1a1a"))
+        painter.drawRoundedRect(r_loss, 2, 2)
+        painter.setPen(QColor("#ef5350"))
+        painter.setFont(QFont("Consolas", 7, QFont.Bold))
+        if p_loss >= 3:
+            painter.drawText(r_loss, Qt.AlignCenter, f"{p_loss:.0f}%")
+
+        # Slope zone (green — lucro parcial)
+        r_slope = QRect(x + w_loss, inner.y(), w_slope, h)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#1a3d1a"))
+        painter.drawRoundedRect(r_slope, 2, 2)
+        painter.setPen(QColor("#4caf50"))
+        painter.setFont(QFont("Consolas", 7, QFont.Bold))
+        if p_slope >= 3:
+            painter.drawText(r_slope, Qt.AlignCenter, f"{p_slope:.0f}%")
+
+        # Credit zone (blue)
+        r_credit = QRect(x + w_loss + w_slope, inner.y(), w_credit, h)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#1a2a3d"))
+        painter.drawRoundedRect(r_credit, 2, 2)
+        painter.setPen(QColor("#42a5f5"))
+        painter.setFont(QFont("Consolas", 7, QFont.Bold))
+        if p_credit >= 3:
+            painter.drawText(r_credit, Qt.AlignCenter, f"{p_credit:.0f}%")
+
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        return index.data(Qt.ItemDataRole.SizeHintRole) or __import__('PySide6.QtCore').QSize(180, 20)
 
 
 class PutRatioTableModel(QAbstractTableModel):
@@ -97,7 +158,11 @@ class PutRatioTableModel(QAbstractTableModel):
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if orientation == Qt.Orientation.Horizontal and 0 <= section < len(PUT_RATIO_COLUMNS):
-            if role == Qt.ItemDataRole.DisplayRole:
+        if role == Qt.ItemDataRole.UserRole and col_key == "perfil":
+            val = item.get(col_key)
+            return val if isinstance(val, tuple) else (0, 0, 0)
+
+        if role == Qt.ItemDataRole.DisplayRole:
                 return PUT_RATIO_COLUMNS[section][0]
             if role == Qt.ItemDataRole.ToolTipRole:
                 tips = {
@@ -163,6 +228,11 @@ class PutRatioTableModel(QAbstractTableModel):
                 if hasattr(val, "strftime"):
                     return val.strftime("%d/%m/%Y")
                 return str(val)
+            if col_key == "perfil":
+                if isinstance(val, tuple):
+                    p_loss, p_slope, p_credit = val
+                    return f"__ {p_loss:.0f}% | ╲ {p_slope:.0f}% | ═══ {p_credit:.0f}%"
+                return str(val) if val else "-"
             return str(val)
 
         if role == Qt.ItemDataRole.ForegroundRole:
@@ -399,6 +469,10 @@ class PutRatioDialog(QDialog):
 
         for i in range(self.model.columnCount()):
             header_h.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+
+        col_perfil = next((i for i, (_, k) in enumerate(PUT_RATIO_COLUMNS) if k == "perfil"), -1)
+        if col_perfil >= 0:
+            self.table_view.setItemDelegateForColumn(col_perfil, _PerfilDelegate(self))
 
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
 
