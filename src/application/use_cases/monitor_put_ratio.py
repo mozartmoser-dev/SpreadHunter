@@ -161,6 +161,7 @@ class MonitorPutRatioUseCase:
             grupos[grupo_key].append(dados)
             n_passou += 1
 
+        n4 = 0
         if pipeline_tracker is not None:
             pipeline_tracker.nome_estrategia = "PUT_RATIO"
             n0 = filtro["total"]
@@ -222,6 +223,9 @@ class MonitorPutRatioUseCase:
 
             ativo_results.sort(key=lambda r: -r.score)
             resultados.extend(ativo_results[:3])
+
+        if pipeline_tracker is not None:
+            pipeline_tracker.add_stage("5. Pareamento", n4, len(resultados), "")
 
         resultados.sort(key=lambda r: -r.score)
         return resultados
