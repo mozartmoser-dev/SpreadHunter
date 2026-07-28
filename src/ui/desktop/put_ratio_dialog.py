@@ -190,7 +190,7 @@ class PutRatioTableModel(QAbstractTableModel):
                     "protecao_pct": "Queda %% ate o BE = (Spot-BE)/Spot. Quanto maior, mais seguro.",
                     "be_down": "Breakeven inferior — abaixo deste preco a operacao fica no prejuizo.",
                     "pop_pct": "Probabilidade de Lucro = N(sigma_be)*100. Estimativa da chance do BE segurar.",
-                    "perfil": "═══ Credito garantido (S>K1) | ╲ Tenda com lucro parcial (BE<S<K1) | __ Prejuizo (S<BE).",
+                    "perfil": "Perda (S<BE) | Tenda lucro parcial (BE<S<K1) | Credito garantido (S>K1).",
                     "score": "Score = alpha*Prot%% + beta*MaxProfit/Spot + gamma*Credito/Spot.",
                     "zona": "Zona de confianca: A=sigma>=2 (alta), B=sigma>=1.5 (media), C (baixa).",
                     "dias": "Dias corridos ate o vencimento das opcoes.",
@@ -213,6 +213,10 @@ class PutRatioTableModel(QAbstractTableModel):
 
         item = self._items[index.row()]
         col_key = PUT_RATIO_COLUMNS[index.column()][1]
+
+        if role == Qt.ItemDataRole.UserRole and col_key == "perfil":
+            val = item.get(col_key)
+            return val if isinstance(val, tuple) else (0, 0, 0)
 
         if role == Qt.ItemDataRole.DisplayRole:
             val = item.get(col_key)
@@ -242,7 +246,7 @@ class PutRatioTableModel(QAbstractTableModel):
             if col_key == "perfil":
                 if isinstance(val, tuple):
                     p_loss, p_slope, p_credit = val
-                    return f"__ {p_loss:.0f}% | ╲ {p_slope:.0f}% | ═══ {p_credit:.0f}%"
+                    return f"[{p_loss:.0f}% | {p_slope:.0f}% | {p_credit:.0f}%]"
                 return str(val) if val else "-"
             return str(val)
 
