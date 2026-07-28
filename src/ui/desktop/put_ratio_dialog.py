@@ -44,6 +44,7 @@ PUT_RATIO_COLUMNS = [
     ("Prot%", "protecao_pct"),
     ("BE", "be_down"),
     ("POP%", "pop_pct"),
+    ("Perfil", "perfil"),
     ("IV Rank", "iv_rank"),
     ("IV Pct", "iv_percentile"),
     ("Score", "score"),
@@ -57,6 +58,30 @@ PUT_RATIO_COLUMNS = [
     ("Q K2", "qtd_bid_put_k2"),
     ("Detectado", "label_detectado"),
 ]
+
+
+def _perfil_payoff(r) -> str:
+    spot = r.spot
+    be = r.be_down
+    K1 = r.strike_k1
+    iv = getattr(r, 'iv_put_pct', 0.0) / 100.0
+    T = r.dias / 365.0
+    if spot <= 0 or iv <= 0 or T <= 0 or K1 <= 0:
+        return ""
+    sigma_periodo = iv * math.sqrt(T)
+    d_K1 = (spot - K1) / (spot * sigma_periodo) if spot > K1 else 0.0
+    d_BE = (spot - be) / (spot * sigma_periodo) if spot > be else 0.0
+    p_credit = norm.cdf(d_K1) * 100.0
+    p_slope = max(0.0, (norm.cdf(d_BE) - norm.cdf(d_K1)) * 100.0)
+    p_loss = max(0.0, 100.0 - p_credit - p_slope)
+    parts = []
+    if p_credit >= 1:
+        parts.append(f"\u2550\u2550\u2550 {p_credit:.0f}%")
+    if p_slope >= 1:
+        parts.append(f"\u2572 {p_slope:.0f}%")
+    if p_loss >= 1:
+        parts.append(f"__ {p_loss:.0f}%")
+    return " \u2502 ".join(parts)
 
 
 class PutRatioTableModel(QAbstractTableModel):
@@ -89,6 +114,7 @@ class PutRatioTableModel(QAbstractTableModel):
                     "protecao_pct": "Queda %% ate o BE = (Spot-BE)/Spot. Quanto maior, mais seguro.",
                     "be_down": "Breakeven inferior — abaixo deste preco a operacao fica no prejuizo.",
                     "pop_pct": "Probabilidade de Lucro = N(sigma_be)*100. Estimativa da chance do BE segurar.",
+                    "perfil": "═══ Credito garantido (S>K1) | ╲ Tenda com lucro parcial (BE<S<K1) | __ Prejuizo (S<BE).",
                     "score": "Score = alpha*Prot%% + beta*MaxProfit/Spot + gamma*Credito/Spot.",
                     "zona": "Zona de confianca: A=sigma>=2 (alta), B=sigma>=1.5 (media), C (baixa).",
                     "dias": "Dias corridos ate o vencimento das opcoes.",
@@ -447,6 +473,7 @@ class PutRatioDialog(QDialog):
                 "pop_pct": getattr(r, 'pop_pct', 0.0),
                 "score": getattr(r, 'score', 0.0),
                 "zona": getattr(r, 'zona', ''),
+                "perfil": _perfil_payoff(r),
                 "dias": r.dias,
                 "vencimento": r.vencimento,
                 "cod_put_k1": r.cod_put_k1,
