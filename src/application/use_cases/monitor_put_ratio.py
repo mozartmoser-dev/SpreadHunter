@@ -94,7 +94,7 @@ class MonitorPutRatioUseCase:
         if bid_put <= 0 and ask_put <= 0:
             return None
 
-        preco_ativo = rtd.ler_campo_cache(inst.ativo, FieldName.LAST_PRICE) or 0.0
+        preco_ativo = rtd.ler_campo_cache(inst.ativo, FieldName.ASK) or 0.0
 
         status_put = rtd.ler_status_cache(inst.cod_put)
         status_ativo = rtd.ler_status_cache(inst.ativo)
