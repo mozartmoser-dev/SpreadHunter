@@ -173,7 +173,6 @@ class MonitorPutRatioUseCase:
             pipeline_tracker.add_stage("3. Dados RTD", n2, n3, "Sem strike")
             pipeline_tracker.add_stage("4. Filtros DTE/IV", n3, n4,
                                        f"DTE fora [{self._get_param('put_ratio_dte_min', 20)}, {self._get_param('put_ratio_dte_max', 60)}]")
-            pipeline_tracker.add_stage("5. Pareamento", n4, 0, "")
             logger.info("PipelineTracker PUT_RATIO: %d -> %d", n0, n_passou)
             self._ultimo_pipeline = pipeline_tracker
 

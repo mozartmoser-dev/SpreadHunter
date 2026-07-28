@@ -112,6 +112,8 @@ class CalculadoraPutRatio:
     ) -> ResultadoPutRatio | None:
         if strike_k1 <= strike_k2:
             return None
+        if n2 <= n1:
+            return None
         if ask_put_k1 <= 0 or bid_put_k2 <= 0:
             return None
         if dias <= 0:
@@ -146,7 +148,7 @@ class CalculadoraPutRatio:
         custo_ir = self.custos_b3.ajustar_ir(lucro_liquido)
         lucro_liquido_pos_ir = lucro_liquido - custo_ir
 
-        capital_margem = (n2 - n1) * strike_k2 * 100.0
+        capital_margem = (n2 - n1) * strike_k2
         risco_por_acao = (n2 - n1) * strike_k2
 
         du_val = du if du is not None else dc_to_du(None, None, dias)
@@ -159,6 +161,12 @@ class CalculadoraPutRatio:
         if preco_ativo > 0 and be_down > 0:
             protecao_pct = (preco_ativo - be_down) / preco_ativo
 
+        sigma_be = 0.0
+        if preco_ativo > 0 and iv_media > 0:
+            sigma_periodo = iv_media * math.sqrt(T)
+            if sigma_periodo > 0 and be_down > 0:
+                sigma_be = (preco_ativo - be_down) / (preco_ativo * sigma_periodo)
+
         zona = "C"
         if sigma_be >= 2.0:
             zona = "A"
@@ -169,17 +177,10 @@ class CalculadoraPutRatio:
         score = (alpha * protecao_pct) + (beta * (max_profit / preco_ativo if preco_ativo > 0 else 0.0)) + (gamma * (credito_bruto / preco_ativo if preco_ativo > 0 else 0.0))
         score = round(score * 100, 2)
 
-        sigma_be = 0.0
-        if preco_ativo > 0 and iv_media > 0:
-            sigma_periodo = iv_media * math.sqrt(T)
-            if sigma_periodo > 0 and be_down > 0:
-                sigma_be = (preco_ativo - be_down) / (preco_ativo * sigma_periodo)
-
         tem_profundidade = qtd_ask_put_k1 > 0 or qtd_bid_put_k2 > 0
         profundidade_ok = (
-            not tem_profundidade
-            or qtd_min_perna <= 0
-            or (qtd_ask_put_k1 >= qtd_min_perna and qtd_bid_put_k2 >= qtd_min_perna)
+            qtd_min_perna <= 0
+            or (tem_profundidade and qtd_ask_put_k1 >= qtd_min_perna and qtd_bid_put_k2 >= qtd_min_perna)
         )
 
         viavel = (
