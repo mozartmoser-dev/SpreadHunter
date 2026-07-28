@@ -18,6 +18,7 @@ class FieldName(Enum):
     CLOSE = auto()
     VOLUME = auto()
     VOLUME_FIN = auto()
+    VARIATION = auto()
 
 
 PROFIT_FIELD_STR: dict[FieldName, str] = {
@@ -30,6 +31,8 @@ PROFIT_FIELD_STR: dict[FieldName, str] = {
     FieldName.VOL_BID:      "VOC",
     FieldName.VOL_ASK:      "VOV",
     FieldName.BOOK_HEADER:  "CAB",
+    FieldName.CLOSE:        "PRI",
+    FieldName.VARIATION:    "VAR",
 }
 
 OPENFAST_FIELD_STR: dict[FieldName, str] = {
@@ -41,6 +44,9 @@ OPENFAST_FIELD_STR: dict[FieldName, str] = {
     FieldName.QTD_LAST:     "QTLAST",
     FieldName.VOL_BID:      "VOLBID",
     FieldName.VOL_ASK:      "VOLASK",
+    FieldName.CLOSE:        "CLOSE",
+    FieldName.OPEN:         "OPEN",
+    FieldName.VARIATION:    "VAR",
 }
 
 

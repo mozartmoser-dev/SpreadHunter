@@ -117,13 +117,13 @@ class OpenFastSocketAdapter:
 
     def _re_registrar_pendentes(self):
         for codigo, campo_str in self._subscriptions:
-            self._enviar_raw(f"on{_SEP}SQT{_SEP}{codigo}{_SEP}{campo_str}")
+            self._enviar_raw(f"on{_SEP}SQT{_SEP}{codigo.upper()}{_SEP}{campo_str}")
 
     def registrar_topico(self, codigo: str, campo: FieldName) -> int:
         campo_str = OPENFAST_FIELD_STR.get(campo)
         if campo_str is None:
             return -1
-        self._enviar_raw(f"on{_SEP}SQT{_SEP}{codigo}{_SEP}{campo_str}")
+        self._enviar_raw(f"on{_SEP}SQT{_SEP}{codigo.upper()}{_SEP}{campo_str}")
         with self._mutex:
             entry = (codigo.upper(), campo_str)
             if entry not in self._subs_set:
@@ -177,7 +177,7 @@ class OpenFastSocketAdapter:
             return None
         try:
             v = float(str(raw).replace(",", "."))
-            return v if v > 0 else 0.0
+            return 0.0 if v == 0 else v
         except (ValueError, TypeError):
             return None
 
@@ -196,7 +196,7 @@ class OpenFastSocketAdapter:
                     continue
                 try:
                     v = float(str(raw).replace(",", "."))
-                    resultado[campo] = v if v > 0 else 0.0
+                    resultado[campo] = 0.0 if v == 0 else v
                 except (ValueError, TypeError):
                     resultado[campo] = None
         return resultado

@@ -16,14 +16,18 @@ def _prox_mes(ano: int, mes: int) -> tuple[int, int]:
     return (ano + 1, 1) if mes == 12 else (ano, mes + 1)
 
 
-def _formatar_data_curta(data_iso: str) -> str:
-    if not data_iso or len(data_iso) < 10:
-        return data_iso
-    try:
-        partes = data_iso[:10].split("-")
-        return f"{partes[2]}/{partes[1]}"
-    except (ValueError, IndexError):
-        return data_iso
+def _formatar_data_completa(data_iso: str) -> str:
+    if not data_iso:
+        return ""
+    data_clean = data_iso[:10]
+    if "-" in data_clean:
+        try:
+            partes = data_clean.split("-")
+            if len(partes) == 3:
+                return f"{partes[2]}/{partes[1]}/{partes[0]}"
+        except Exception:
+            pass
+    return data_iso
 
 
 class TickerWidget(QWidget):
@@ -258,11 +262,15 @@ class MercadoTopBarWidget(QFrame):
 
     def conectar_fonte(self, source):
         self._source = source
-        if source and source.disponivel:
+        if source:
             for cod in self._gerar_defaults():
                 try:
+                    source.registrar_topico(cod, FieldName.BID)
                     source.registrar_topico(cod, FieldName.ASK)
                     source.registrar_topico(cod, FieldName.LAST_PRICE)
+                    source.registrar_topico(cod, FieldName.CLOSE)
+                    source.registrar_topico(cod, FieldName.VARIATION)
+                    source.registrar_topico(cod, FieldName.OPEN)
                 except Exception:
                     pass
 
@@ -296,22 +304,24 @@ class MercadoTopBarWidget(QFrame):
         seta = self._seta(var)
         return f"<b>{nome}:</b> {valor:{fmt}}{suffix} <span style='color:{cor};'>{seta}{var:+.2f}%</span>"
 
-    def _buscar_vix(self):
+    def _buscar_vix(self) -> tuple[float, float | None]:
         import time
         agora = time.time()
-        if agora - self._vix_cache[1] < 60:
-            return self._vix_cache[0] if self._vix_cache[0] > 0 else None
+        if agora - self._vix_cache[1] < 60 and self._vix_cache[0] > 0:
+            return self._vix_cache[0], getattr(self, '_vix_prev_close', None)
         try:
             import yfinance as yf
             t = yf.Ticker("^VIX")
             info = t.fast_info
-            preco = getattr(info, 'last_price', None) or getattr(info, 'regular_market_previous_close', None)
+            preco = getattr(info, 'last_price', None) or getattr(info, 'regular_market_price', None)
+            prev_close = getattr(info, 'regular_market_previous_close', None) or getattr(info, 'previous_close', None)
             if preco and preco > 0:
                 self._vix_cache = (preco, agora)
-                return preco
+                self._vix_prev_close = float(prev_close) if prev_close and prev_close > 0 else None
+                return preco, self._vix_prev_close
         except Exception:
             pass
-        return self._vix_cache[0] if self._vix_cache[0] > 0 else None
+        return (self._vix_cache[0], getattr(self, '_vix_prev_close', None)) if self._vix_cache[0] > 0 else (0.0, None)
 
     def _atualizar_tudo(self):
         self._atualizar_cotacoes()
@@ -350,14 +360,30 @@ class MercadoTopBarWidget(QFrame):
         if self._source and self._source.disponivel:
             try:
                 for cod, (nome, _fallback) in defaults.items():
-                    dados = self._source.ler_campos(cod, FieldName.ASK, FieldName.LAST_PRICE) or {}
-                    preco = dados.get(FieldName.LAST_PRICE) or dados.get(FieldName.ASK) or 0
+                    dados = self._source.ler_campos(
+                        cod, FieldName.BID, FieldName.ASK, FieldName.LAST_PRICE,
+                        FieldName.CLOSE, FieldName.VARIATION, FieldName.OPEN
+                    ) or {}
+                    preco = dados.get(FieldName.LAST_PRICE) or dados.get(FieldName.ASK) or dados.get(FieldName.BID) or 0
                     if preco and preco > 0:
-                        if cod not in self._ref_prices:
-                            self._ref_prices[cod] = preco
-                        ref = self._ref_prices.get(cod, preco)
-                        var = (preco - ref) / ref * 100 if ref > 0 else 0.0
-                        partes.append(self._fmt_variacao(nome, preco, ref, variacao_manual=var))
+                        var_oficial = dados.get(FieldName.VARIATION)
+                        close_oficial = dados.get(FieldName.CLOSE)
+
+                        if var_oficial is not None and isinstance(var_oficial, (int, float)) and var_oficial != 0.0:
+                            var = float(var_oficial)
+                        elif close_oficial is not None and isinstance(close_oficial, (int, float)) and close_oficial > 0:
+                            var = (preco - float(close_oficial)) / float(close_oficial) * 100.0
+                        else:
+                            open_price = dados.get(FieldName.OPEN)
+                            if open_price is not None and isinstance(open_price, (int, float)) and open_price > 0:
+                                var = (preco - open_price) / open_price * 100.0
+                            else:
+                                if cod not in self._ref_prices:
+                                    self._ref_prices[cod] = preco
+                                ref = self._ref_prices.get(cod, preco)
+                                var = (preco - ref) / ref * 100 if ref > 0 else 0.0
+
+                        partes.append(self._fmt_variacao(nome, preco, None, variacao_manual=var))
                         self._precos_anteriores[cod] = preco
                         if cod == "IBOV":
                             self.term_ibov.setValue(int(min(max((preco - 170000) / 20000 * 100, 0), 100)))
@@ -372,13 +398,16 @@ class MercadoTopBarWidget(QFrame):
 
         partes.append("<b>Vetor:</b> MISTO")
 
-        vix_val = self._buscar_vix()
-        if vix_val:
-            if "VIX" not in self._ref_prices:
-                self._ref_prices["VIX"] = vix_val
-            ref = self._ref_prices.get("VIX", vix_val)
-            var = (vix_val - ref) / ref * 100 if ref > 0 else 0.0
-            partes.append(self._fmt_variacao("VIX", vix_val, ref, variacao_manual=var))
+        vix_val, vix_prev = self._buscar_vix()
+        if vix_val > 0:
+            if vix_prev and vix_prev > 0:
+                var = (vix_val - vix_prev) / vix_prev * 100.0
+            else:
+                if "VIX" not in self._ref_prices:
+                    self._ref_prices["VIX"] = vix_val
+                ref = self._ref_prices.get("VIX", vix_val)
+                var = (vix_val - ref) / ref * 100 if ref > 0 else 0.0
+            partes.append(self._fmt_variacao("VIX", vix_val, None, variacao_manual=var))
             self._precos_anteriores["VIX"] = vix_val
         else:
             partes.append("<b>VIX:</b> --")
@@ -410,7 +439,7 @@ class MercadoTopBarWidget(QFrame):
                 valor = d.get("valor", 0)
                 tipo = d.get("tipo", "Provento")
                 data_com = d.get("data_com", "")
-                data_com_fmt = _formatar_data_curta(data_com)
+                data_com_fmt = _formatar_data_completa(data_com)
                 itens.append((f"[{ativo}] {tipo}: R$ {valor:.4f} | COM: {data_com_fmt}", TickerWidget.COR_PROVENTO))
 
             repo_cal = CalendarioResultadosRepository(self.db_path)
@@ -418,7 +447,7 @@ class MercadoTopBarWidget(QFrame):
             for b in balancos:
                 ativo = b.get("ativo", "?")
                 data_pub = b.get("data_publicacao", "")
-                data_pub_fmt = _formatar_data_curta(data_pub)
+                data_pub_fmt = _formatar_data_completa(data_pub)
                 tri = b.get("trimestre_referencia", "")
                 itens.append((f"[{ativo}] Balanco {tri}: {data_pub_fmt}", TickerWidget.COR_BALANCO))
         except Exception:

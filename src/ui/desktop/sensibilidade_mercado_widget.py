@@ -485,8 +485,10 @@ class SensibilidadeMercadoWidget(QWidget):
                     of.registrar_topico(c, FieldName.LAST_PRICE)
                     of.registrar_topico(c, FieldName.BID)
                     of.registrar_topico(c, FieldName.ASK)
+                    of.registrar_topico(c, FieldName.CLOSE)
+                    of.registrar_topico(c, FieldName.VARIATION)
                     assinados.add(c)
-                    log.info("SM sub: %s LAST/BID/ASK", c)
+                    log.info("SM sub: %s LAST/BID/ASK/CLOSE/VAR", c)
 
     def _carregar_cdi(self):
         agora = time.time()
@@ -644,25 +646,34 @@ class SensibilidadeMercadoWidget(QWidget):
         for rows in (self._rows_fut, self._rows_ibov):
             for item in rows:
                 cod = item["cod"]
-                last = None
+                var_oficial = None
+                close_oficial = None
                 if of is not None:
                     last = of.ler_campo_cache(cod, FieldName.LAST_PRICE)
                     if last in (None, 0.0):
                         last = of.ler_campo_cache(cod, FieldName.BID)
                     if last in (None, 0.0):
                         last = of.ler_campo_cache(cod, FieldName.ASK)
+                    var_oficial = of.ler_campo_cache(cod, FieldName.VARIATION)
+                    close_oficial = of.ler_campo_cache(cod, FieldName.CLOSE)
                 v = float(last) if last is not None and last > 0 else 0.0
 
-                if cod not in self._ref_prices and v > 0:
-                    self._ref_prices[cod] = v
-                ref = self._ref_prices.get(cod, v)
-                if v > 0 and ref > 0:
-                    var = ((v - ref) / ref * 100)
-                    var_str = _fmt_var(var)
-                    var_float = var
+                if var_oficial is not None and isinstance(var_oficial, (int, float)) and var_oficial != 0.0:
+                    var_float = float(var_oficial)
+                    var_str = _fmt_var(var_float)
+                elif close_oficial is not None and isinstance(close_oficial, (int, float)) and close_oficial > 0 and v > 0:
+                    var_float = ((v - float(close_oficial)) / float(close_oficial) * 100.0)
+                    var_str = _fmt_var(var_float)
                 else:
-                    var_str = "+0.00%"
-                    var_float = 0.0
+                    if cod not in self._ref_prices and v > 0:
+                        self._ref_prices[cod] = v
+                    ref = self._ref_prices.get(cod, v)
+                    if v > 0 and ref > 0:
+                        var_float = ((v - ref) / ref * 100)
+                        var_str = _fmt_var(var_float)
+                    else:
+                        var_str = "+0.00%"
+                        var_float = 0.0
 
                 cor = MarketAnalyzer.cor_heatmap(var_float)
                 item["_last_raw"] = v
