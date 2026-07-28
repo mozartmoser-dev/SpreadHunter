@@ -548,7 +548,15 @@ class PutRatioDialog(QDialog):
         ax.axvline(K1, color=BLUE, linewidth=0.8, linestyle=':', alpha=0.6, label=f'K1=R$ {K1:.2f}')
         ax.axvline(K2, color=YELLOW, linewidth=0.8, linestyle=':', alpha=0.6, label=f'K2=R$ {K2:.2f}')
 
-        ax.set_title(f'{r.ativo} — Put Ratio {r.ratio_label} ({r.vencimento})', color=WHITE, fontsize=11, fontweight='bold')
+        zona_label = getattr(r, 'zona', '?')
+        pop_val = getattr(r, 'pop_pct', 0.0)
+        title = f'{r.ativo} — Put Ratio {r.ratio_label} ({r.vencimento})  [Zona {zona_label} · POP {pop_val:.1f}%]'
+        ax.set_title(title, color=WHITE, fontsize=11, fontweight='bold')
+
+        if pop_val > 0:
+            ax.annotate(f'{pop_val:.0f}%', xy=(be, 0), xytext=(be, credito * 1.5),
+                        color=WHITE, fontsize=8, ha='center', fontweight='bold',
+                        bbox=dict(boxstyle='round,pad=0.2', facecolor='#1a1a2e', edgecolor=RED, alpha=0.85))
         ax.set_xlabel('Preco do Ativo no Vencimento (R$)', color=TEXT, fontsize=9)
         ax.set_ylabel('Lucro/Prejuizo (R$)', color=TEXT, fontsize=9)
         ax.tick_params(colors=TEXT, labelsize=8)
