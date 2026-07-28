@@ -288,10 +288,11 @@ class MonitorPutRatioUseCase:
                             iv_hist = self._carregar_iv_historico(ativo)
                             if iv_hist:
                                 iv_put_pct = k1_data.get("iv_put", 0.0)
+                                iv_put_dec = iv_put_pct / 100.0
                                 iv_min_h, iv_max_h, _, valores_h = iv_hist
                                 if iv_max_h > iv_min_h:
-                                    resultado.iv_rank = round((iv_put_pct - iv_min_h) / (iv_max_h - iv_min_h) * 100, 1)
-                                    cnt_below = sum(1 for v in valores_h if v < iv_put_pct)
+                                    resultado.iv_rank = round((iv_put_dec - iv_min_h) / (iv_max_h - iv_min_h) * 100, 1)
+                                    cnt_below = sum(1 for v in valores_h if v < iv_put_dec)
                                     resultado.iv_percentile = round(cnt_below / len(valores_h) * 100, 1)
                             resultado.detectado_em = agora
                             ativo_results.append(resultado)
