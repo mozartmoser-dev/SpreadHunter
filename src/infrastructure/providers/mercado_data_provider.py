@@ -18,7 +18,7 @@ class MercadoDataProvider:
     _GIL_YIELD_INTERVAL = 100
 
     _CAMPOS_PUT = [FieldName.STRIKE, FieldName.ASK, FieldName.BID,
-                   FieldName.BOOK_HEADER, FieldName.QTD_LAST, FieldName.VOL_ASK]
+                   FieldName.BOOK_HEADER, FieldName.QTD_LAST, FieldName.VOL_ASK, FieldName.VOL_BID]
     _CAMPOS_CALL = [FieldName.STRIKE, FieldName.ASK, FieldName.BID,
                     FieldName.BOOK_HEADER, FieldName.QTD_LAST, FieldName.VOL_BID]
 
