@@ -526,9 +526,10 @@ class PutRatioDialog(QDialog):
             ax.plot(x[i:i + 2], payoff[i:i + 2], color=cor, linewidth=2.5)
 
         ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='--', alpha=0.4)
-        ax.axvline(be, color=RED, linewidth=1.0, linestyle='--', alpha=0.7, label=f'BE={be:.2f}')
-        ax.axvline(K1, color=BLUE, linewidth=0.8, linestyle=':', alpha=0.6, label=f'K1={K1:.2f}')
-        ax.axvline(K2, color=YELLOW, linewidth=0.8, linestyle=':', alpha=0.6, label=f'K2={K2:.2f}')
+        ax.axvline(r.spot, color=WHITE, linewidth=1.2, linestyle='-', alpha=0.8, label=f'Spot=R$ {r.spot:.2f}')
+        ax.axvline(be, color=RED, linewidth=1.0, linestyle='--', alpha=0.7, label=f'BE=R$ {be:.2f}')
+        ax.axvline(K1, color=BLUE, linewidth=0.8, linestyle=':', alpha=0.6, label=f'K1=R$ {K1:.2f}')
+        ax.axvline(K2, color=YELLOW, linewidth=0.8, linestyle=':', alpha=0.6, label=f'K2=R$ {K2:.2f}')
 
         ax.set_title(f'{r.ativo} — Put Ratio {r.ratio_label} ({r.vencimento})', color=WHITE, fontsize=11, fontweight='bold')
         ax.set_xlabel('Preco do Ativo no Vencimento (R$)', color=TEXT, fontsize=9)
