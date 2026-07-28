@@ -82,7 +82,18 @@ class PipelineDialog(QDialog):
         self.setWindowTitle(title)
         self.setMinimumWidth(820)
         self.setMinimumHeight(320)
-        self.setStyleSheet(f"background-color: {_BG}; color: {_TEXT};")
+        self.setStyleSheet(f"""
+            QDialog {{ background-color: {_BG}; color: {_TEXT}; }}
+            QToolTip {{
+                background-color: #0d0d1a;
+                color: #e0e0e0;
+                border: 1px solid #2d2d44;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-family: Consolas;
+                font-size: 9pt;
+            }}
+        """)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 10)

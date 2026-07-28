@@ -226,8 +226,13 @@ class MonitorPutRatioUseCase:
             pipeline_tracker.add_stage("1. Vencimento", n0, n1, "Fora do prazo")
             pipeline_tracker.add_stage("2. Ativo (whitelist)", n1, n2, "Fora da whitelist")
             pipeline_tracker.add_stage("3. Dados RTD", n2, n3, "Sem strike")
-            pipeline_tracker.add_stage("4. Filtros DTE/IV", n3, n4,
-                                       f"DTE [{self._get_param('put_ratio_dte_min', 20)}, {self._get_param('put_ratio_dte_max', 60)}] | IV >= {self._get_iv_rank_min()}%")
+            dte_min_v = self._get_param('put_ratio_dte_min', 20)
+            dte_max_v = self._get_param('put_ratio_dte_max', 60)
+            iv_rank_v = self._get_iv_rank_min()
+            otm_max_v = self._get_param('put_ratio_k1_otm_max_pct', 0.15)
+            otm_min_v = self._get_param('put_ratio_k1_otm_min_pct', 0.03)
+            pipeline_tracker.add_stage("4. Filtros DTE/IV/K1", n3, n4,
+                                       f"DTE [{dte_min_v}, {dte_max_v}] | IV >= {iv_rank_v}% | K1 OTM [{otm_min_v*100:.0f}%, {otm_max_v*100:.0f}%]")
             logger.info("PipelineTracker PUT_RATIO: %d -> %d", n0, n_passou)
             self._ultimo_pipeline = pipeline_tracker
 
@@ -295,7 +300,8 @@ class MonitorPutRatioUseCase:
             resultados.extend(ativo_results[:3])
 
         if pipeline_tracker is not None:
-            pipeline_tracker.add_stage("5. Pareamento", n4, len(resultados), "")
+            pipeline_tracker.add_stage("5. Pareamento", n4, len(resultados),
+                                       f"Spread >= {spread_min_pct*100:.0f}% | Cred >= R$ {min_credit:.2f} | Ratios: {','.join(f'{a}x{b}' for a,b in ratios)}")
 
         resultados.sort(key=lambda r: -r.score)
         return resultados
