@@ -1,6 +1,6 @@
 import sys
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from functools import partial
 from pathlib import Path
 
@@ -700,6 +700,31 @@ class MainWindow(QMainWindow):
         )
         btn_layout.addWidget(self.btn_mpp)
 
+        btn_layout.addSpacing(16)
+
+        hoje = date.today()
+        ontem = hoje - timedelta(days=1)
+        amanha = hoje + timedelta(days=1)
+        fmt = "%d/%m"
+        for texto, data_ref, cor, bg in [
+            (f"D-1 {ontem.strftime(fmt)}", ontem, "#8899aa", "#1a1e22"),
+            (f" D0 {hoje.strftime(fmt)} ", hoje, "#e8e8e8", "#1e2a2e"),
+            (f"D+1 {amanha.strftime(fmt)}", amanha, "#8899aa", "#1a1e22"),
+        ]:
+            lbl = QLabel(texto)
+            lbl.setToolTip(data_ref.strftime("%d/%m/%Y"))
+            lbl.setStyleSheet(f"""
+                QLabel {{
+                    color: {cor}; background-color: {bg};
+                    border: 1px solid #2d2d44; border-radius: 4px;
+                    padding: 2px 8px; font-size: 8pt; font-weight: bold;
+                    font-family: Consolas;
+                }}
+            """)
+            btn_layout.addWidget(lbl)
+
+        self.chk_tp_op = QCheckBox("Exibir Todas")
+
         self.btn_varrer = QPushButton("\u25b6  Ligar")
         self.btn_varrer.setAutoDefault(False)
         self.btn_varrer.setCheckable(True)
@@ -714,12 +739,6 @@ class MainWindow(QMainWindow):
             + "QPushButton:checked {{ background-color: #3d0e0e; color: {}; border-color: #e74c3c; }}".format(Palette.TEXT_PRIMARY)
             + "QPushButton:checked:hover {{ background-color: #5d1e1e; border-color: #f06050; }}"
         )
-        # btn_varrer é adicionado depois, ao lado do indicador RTD (lado direito da toolbar):
-        # btn_layout.addWidget(self.btn_varrer)
-
-        btn_layout.addSpacing(16)
-
-        self.chk_tp_op = QCheckBox("Exibir Todas")
         self.chk_tp_op.setChecked(False)
         self.chk_tp_op.setStyleSheet(
             "QCheckBox {{ color: {}; spacing: 4px; font-size: 9pt; }}"
