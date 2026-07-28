@@ -1,5 +1,7 @@
 from collections import Counter
 
+from scipy.stats import norm
+
 from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal, QUrl
 from PySide6.QtGui import QFont, QColor, QBrush, QDesktopServices
 from PySide6.QtWidgets import (
@@ -40,6 +42,7 @@ PUT_RATIO_COLUMNS = [
     ("x CDI", "yield_cdi"),
     ("Prot%", "protecao_pct"),
     ("BE", "be_down"),
+    ("POP%", "pop_pct"),
     ("Score", "score"),
     ("Zona", "zona"),
     ("Dias", "dias"),
@@ -71,26 +74,27 @@ class PutRatioTableModel(QAbstractTableModel):
             if role == Qt.ItemDataRole.ToolTipRole:
                 tips = {
                     "ativo": "Codigo da acao objeto.",
-                    "spot": "Preco atual do ativo (spot).",
-                    "ratio_label": "Proporcao de Puts compradas x vendidas (ex: 1x2).",
-                    "strike_k1": "Strike da Put comprada (ATM/OTM proximo).",
-                    "strike_k2": "Strike da Put vendida (mais OTM).",
-                    "ask_put_k1": "Preco de compra da Put K1 (Ask).",
-                    "bid_put_k2": "Preco de venda da Put K2 (Bid).",
-                    "credito_bruto": "Credito liquido recebido na montagem (N2*Bid_K2 - N1*Ask_K1).",
-                    "credit_yield": "Rentabilidade: credito / capital em risco (N2-N1)*K2.",
-                    "yield_cdi": "Quantas vezes o CDI do periodo o yield representa.",
-                    "protecao_pct": "Queda %% suportada ate o breakeven (Spot-BE)/Spot.",
-                    "max_profit": "Lucro maximo se o spot fechar exatamente em K2.",
-                    "be_down": "Breakeven inferior — abaixo disso entra em prejuizo.",
-                    "score": "Score combinado = Protecao%% * Yield * 10000 (ranking).",
-                    "dias": "Dias corridos ate o vencimento.",
+                    "spot": "Preco atual do ativo (Ask do book RTD).",
+                    "ratio_label": "Proporcao N1xN2: compra N1 Puts K1, vende N2 Puts K2.",
+                    "strike_k1": "Strike da Put COMPRADA (K1 > K2). Ideal: 3-15% abaixo do spot.",
+                    "strike_k2": "Strike da Put VENDIDA (K2 < K1). 1 a 3 strikes abaixo de K1.",
+                    "ask_put_k1": "Preco Ask da Put K1 — voce PAGA isso para comprar a protecao.",
+                    "bid_put_k2": "Preco Bid da Put K2 — voce RECEBE isso ao vender a descoberto.",
+                    "credito_bruto": "Credito liquido = N2*Bid_K2 - N1*Ask_K1. Deve ser positivo.",
+                    "credit_yield": "Yield %% = Credito / Capital em Risco ((N2-N1)*K2).",
+                    "yield_cdi": "x CDI = Yield%% / CDI_do_periodo. >1x = bate o CDI no periodo.",
+                    "protecao_pct": "Queda %% ate o BE = (Spot-BE)/Spot. Quanto maior, mais seguro.",
+                    "be_down": "Breakeven inferior — abaixo deste preco a operacao fica no prejuizo.",
+                    "pop_pct": "Probabilidade de Lucro = N(sigma_be)*100. Estimativa da chance do BE segurar.",
+                    "score": "Score = alpha*Prot%% + beta*MaxProfit/Spot + gamma*Credito/Spot.",
+                    "zona": "Zona de confianca: A=sigma>=2 (alta), B=sigma>=1.5 (media), C (baixa).",
+                    "dias": "Dias corridos ate o vencimento das opcoes.",
                     "vencimento": "Data de expiracao das opcoes.",
-                    "cod_put_k1": "Codigo da Put K1.",
-                    "cod_put_k2": "Codigo da Put K2.",
-                    "iv_put_pct": "Volatilidade Implicita da Put K1 (%%).",
-                    "qtd_ask_put_k1": "Quantidade no Ask da Put K1.",
-                    "qtd_bid_put_k2": "Quantidade no Bid da Put K2.",
+                    "cod_put_k1": "Codigo B3 da Put K1 (comprada). Ex: PETRH300.",
+                    "cod_put_k2": "Codigo B3 da Put K2 (vendida). Ex: PETRH285.",
+                    "iv_put_pct": "IV media das Puts (estimada via Newton-Raphson). Cap em 100%% no sigma_be.",
+                    "qtd_ask_put_k1": "Volume no Ask da Put K1. Deve >= qtd_min para ser viavel.",
+                    "qtd_bid_put_k2": "Volume no Bid da Put K2. Deve >= qtd_min para ser viavel.",
                     "label_detectado": "Data e hora da deteccao pelo monitor.",
                 }
                 return tips.get(PUT_RATIO_COLUMNS[section][1])
@@ -116,6 +120,8 @@ class PutRatioTableModel(QAbstractTableModel):
                 return "{:.2f}x".format(val)
             if col_key == "protecao_pct":
                 return "{:.1f}%".format(val * 100)
+            if col_key == "pop_pct":
+                return "{:.1f}%".format(val)
             if col_key == "score":
                 return "{:.1f}".format(val)
             if col_key == "iv_put_pct":
@@ -139,6 +145,13 @@ class PutRatioTableModel(QAbstractTableModel):
                 if val == "A":
                     return QBrush(QColor(Palette.GREEN))
                 if val == "B":
+                    return QBrush(QColor(Palette.YELLOW))
+                return QBrush(QColor(Palette.RED))
+            if col_key == "pop_pct":
+                val = item.get(col_key, 0)
+                if val >= 95:
+                    return QBrush(QColor(Palette.GREEN))
+                if val >= 85:
                     return QBrush(QColor(Palette.YELLOW))
                 return QBrush(QColor(Palette.RED))
             if col_key in ("credito_bruto", "credit_yield", "yield_cdi", "protecao_pct"):
@@ -415,6 +428,7 @@ class PutRatioDialog(QDialog):
                 "yield_cdi": getattr(r, 'yield_cdi', 0.0),
                 "protecao_pct": getattr(r, 'protecao_pct', 0.0),
                 "be_down": r.be_down,
+                "pop_pct": getattr(r, 'pop_pct', 0.0),
                 "score": getattr(r, 'score', 0.0),
                 "zona": getattr(r, 'zona', ''),
                 "dias": r.dias,
@@ -536,14 +550,42 @@ class PutRatioDialog(QDialog):
         payoff_layout.setContentsMargins(8, 8, 8, 8)
         payoff_layout.addWidget(canvas)
 
-        footer = QLabel(
-            f"<span style='color:{YELLOW};'>Credito: R$ {credito:.2f}</span>  |  "
-            f"<span style='color:{GREEN};'>Lucro Max: R$ {lucro_max:.2f}</span>  |  "
-            f"<span style='color:{RED};'>BE Down: R$ {be:.2f}</span>  |  "
-            f"<span style='color:{TEXT};'>CDI: {getattr(r, 'yield_cdi', 0):.2f}x</span>"
+        K1_cod = r.cod_put_k1
+        K2_cod = r.cod_put_k2
+        askK1 = r.ask_put_k1
+        bidK2 = r.bid_put_k2
+        qK1 = r.qtd_ask_put_k1
+        qK2 = r.qtd_bid_put_k2
+        ratio = r.ratio_label
+        n1, n2 = r.n1, r.n2
+        pop = getattr(r, 'pop_pct', 0.0)
+
+        footer_ops = QLabel(
+            f"<span style='color:{BLUE};'>{K1_cod}</span>"
+            f"<span style='color:{TEXT};'> K1={K1:.2f} Ask={askK1:.2f} Q={qK1}</span>"
+            f"<span style='color:{TEXT};'>  |  </span>"
+            f"<span style='color:{YELLOW};'>{K2_cod}</span>"
+            f"<span style='color:{TEXT};'> K2={K2:.2f} Bid={bidK2:.2f} Q={qK2}</span>"
         )
-        footer.setStyleSheet("font-family: Consolas; font-size: 10pt; padding: 4px;")
-        payoff_layout.addWidget(footer)
+        footer_ops.setStyleSheet("font-family: Consolas; font-size: 9pt; padding: 2px;")
+
+        footer_line2 = QLabel(
+            f"<span style='color:{TEXT};'>Compra {n1}x {K1_cod}</span>"
+            f"<span style='color:{TEXT};'>  |  Vende {n2}x {K2_cod}</span>"
+            f"<span style='color:{TEXT};'>  |  </span>"
+            f"<span style='color:{YELLOW};'>Credito: R$ {credito:.2f}</span>"
+            f"<span style='color:{TEXT};'>  |  </span>"
+            f"<span style='color:{GREEN};'>Lucro Max: R$ {lucro_max:.2f}</span>"
+            f"<span style='color:{TEXT};'>  |  </span>"
+            f"<span style='color:{RED};'>BE: R$ {be:.2f}</span>"
+            f"<span style='color:{TEXT};'>  |  </span>"
+            f"<span style='color:{TEXT};'>POP: {pop:.1f}%</span>"
+            f"<span style='color:{TEXT};'>  |  CDI: {getattr(r, 'yield_cdi', 0):.2f}x</span>"
+        )
+        footer_line2.setStyleSheet("font-family: Consolas; font-size: 9pt; padding: 2px;")
+
+        payoff_layout.addWidget(footer_ops)
+        payoff_layout.addWidget(footer_line2)
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()

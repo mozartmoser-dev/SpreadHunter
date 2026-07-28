@@ -33,6 +33,7 @@ class ResultadoPutRatio:
     yield_cdi: float
     sigma_be: float
     protecao_pct: float
+    pop_pct: float
     score: float
     zona: str
     custo_b3: float
@@ -162,9 +163,10 @@ class CalculadoraPutRatio:
             protecao_pct = (preco_ativo - be_down) / preco_ativo
 
         sigma_be = 0.0
-        if preco_ativo > 0 and iv_media > 0:
-            sigma_periodo = iv_media * math.sqrt(T)
-            if sigma_periodo > 0 and be_down > 0:
+        if preco_ativo > 0 and iv_media > 0 and be_down > 0:
+            iv_mod = min(iv_media, 1.0)
+            sigma_periodo = iv_mod * math.sqrt(T)
+            if sigma_periodo > 0:
                 sigma_be = (preco_ativo - be_down) / (preco_ativo * sigma_periodo)
 
         zona = "C"
@@ -172,6 +174,8 @@ class CalculadoraPutRatio:
             zona = "A"
         elif sigma_be >= 1.5:
             zona = "B"
+
+        pop_pct = round(norm.cdf(sigma_be) * 100.0, 1) if sigma_be > 0 else 0.0
 
         alpha, beta, gamma = self.peso_alpha, self.peso_beta, self.peso_gamma
         score = (alpha * protecao_pct) + (beta * (max_profit / preco_ativo if preco_ativo > 0 else 0.0)) + (gamma * (credito_bruto / preco_ativo if preco_ativo > 0 else 0.0))
@@ -213,6 +217,7 @@ class CalculadoraPutRatio:
             yield_cdi=round(yield_cdi, 4),
             sigma_be=round(sigma_be, 2),
             protecao_pct=round(protecao_pct, 4),
+            pop_pct=pop_pct,
             score=round(score, 2),
             zona=zona,
             custo_b3=round(custo_b3, 4),
