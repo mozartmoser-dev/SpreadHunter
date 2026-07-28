@@ -495,21 +495,10 @@ class PutRatioDialog(QDialog):
         lucro_max = r.max_profit
 
         x_min = K2 * 0.85
-        x_max = K1 * 1.15
+        x_max = K1 * 1.20
         x = np.linspace(x_min, x_max, 500)
 
-        payoff = np.where(x >= K1, credito,
-                 np.where(x >= K2, N1 * (K1 - x) + N2 * (x - K2) + credito,
-                 np.where(x >= be, N1 * (K1 - x) + N2 * (x - K2) + credito,
-                 N1 * (K1 - x) + N2 * (x - K2) + credito)))
-
-        payoff = np.where(x >= K1, credito,
-                 np.where(x >= K2, N1 * (K1 - K2) + credito - (N1 - N2) * (x - K2) + credito - credito,
-                 # Simplified: at x, short puts = max(K2-x,0), long puts = max(K1-x,0)
-                 # payoff = N2 * max(K2-x,0) - N2*premio_k2 - N1*max(K1-x,0) + N1*premio_k1
-                 #         = credito + N2*max(K2-x,0) - N1*max(K1-x,0)
-                 # Let me recalculate with option intrinsic values
-                 np.maximum(K2 - x, 0) * N2 - np.maximum(K1 - x, 0) * N1 + credito))
+        payoff = credito + N1 * np.maximum(K1 - x, 0) - N2 * np.maximum(K2 - x, 0)
 
         BG = '#0d0d0d'; GREEN = '#4caf50'; RED = '#ff3355'; BLUE = '#42a5f5'
         YELLOW = '#ffc107'; WHITE = '#ffffff'; TEXT = '#c0c0c0'
@@ -523,9 +512,9 @@ class PutRatioDialog(QDialog):
             ax.plot(x[i:i + 2], payoff[i:i + 2], color=cor, linewidth=2.5)
 
         ax.axhline(0, color=TEXT, linewidth=0.5, linestyle='--', alpha=0.4)
+        ax.axvline(be, color=RED, linewidth=1.0, linestyle='--', alpha=0.7, label=f'BE={be:.2f}')
         ax.axvline(K1, color=BLUE, linewidth=0.8, linestyle=':', alpha=0.6, label=f'K1={K1:.2f}')
         ax.axvline(K2, color=YELLOW, linewidth=0.8, linestyle=':', alpha=0.6, label=f'K2={K2:.2f}')
-        ax.axvline(be, color=RED, linewidth=0.8, linestyle='--', alpha=0.5, label=f'BE={be:.2f}')
 
         ax.set_title(f'{r.ativo} — Put Ratio {r.ratio_label} ({r.vencimento})', color=WHITE, fontsize=11, fontweight='bold')
         ax.set_xlabel('Preco do Ativo no Vencimento (R$)', color=TEXT, fontsize=9)
