@@ -1,4 +1,5 @@
 import logging
+import math
 import time
 from collections import defaultdict
 from datetime import date, datetime
@@ -82,7 +83,7 @@ class MonitorPutRatioUseCase:
             return ratios if ratios else RATIOS_DEFAULT
         return RATIOS_DEFAULT
 
-    def _extrair(self, inst: InstrumentoOpcional, rtd) -> dict | None:
+    def _extrair(self, inst: InstrumentoOpcional, rtd, r_cont: float = 0.0) -> dict | None:
         strike = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
         if not strike or strike <= 0:
             return None
@@ -99,6 +100,11 @@ class MonitorPutRatioUseCase:
         status_ativo = rtd.ler_status_cache(inst.ativo)
 
         iv_put = 0.0
+        if preco_ativo > 0 and strike > 0 and inst.dias_ate_vencimento > 0:
+            mid = ask_put if ask_put > 0 else bid_put
+            if mid > 0 and r_cont > 0:
+                T = inst.dias_ate_vencimento / 365.0
+                iv_put = CalculadoraPutRatio.estimar_iv(mid, preco_ativo, strike, T, r_cont) * 100.0
 
         return {
             "strike": strike,
@@ -122,10 +128,15 @@ class MonitorPutRatioUseCase:
         dte_max = self._get_param("put_ratio_dte_max", 60)
         if dados["dias"] < dte_min or dados["dias"] > dte_max:
             return False
+        iv_min = self._get_iv_rank_min()
+        iv_put = dados.get("iv_put", 0.0)
+        if iv_put > 0 and iv_put < iv_min:
+            return False
         return True
 
     def varrer(self, rtd, pipeline_tracker: PipelineTracker | None = None) -> list[ResultadoPutRatio]:
         calc = self._get_calculadora()
+        r_cont = math.log(1 + calc.taxa_cdi)
         inst_map = self.inst_repo.get_all_mapped()
         qtd_min = self._get_qtd_min_perna()
         iv_min = self._get_iv_rank_min()
@@ -149,7 +160,7 @@ class MonitorPutRatioUseCase:
                 filtro["white"] += 1
                 continue
 
-            dados = self._extrair(inst, rtd)
+            dados = self._extrair(inst, rtd, r_cont)
             if not dados:
                 filtro["rtd"] += 1
                 continue
@@ -173,7 +184,7 @@ class MonitorPutRatioUseCase:
             pipeline_tracker.add_stage("2. Ativo (whitelist)", n1, n2, "Fora da whitelist")
             pipeline_tracker.add_stage("3. Dados RTD", n2, n3, "Sem strike")
             pipeline_tracker.add_stage("4. Filtros DTE/IV", n3, n4,
-                                       f"DTE fora [{self._get_param('put_ratio_dte_min', 20)}, {self._get_param('put_ratio_dte_max', 60)}]")
+                                       f"DTE [{self._get_param('put_ratio_dte_min', 20)}, {self._get_param('put_ratio_dte_max', 60)}] | IV >= {self._get_iv_rank_min()}%")
             logger.info("PipelineTracker PUT_RATIO: %d -> %d", n0, n_passou)
             self._ultimo_pipeline = pipeline_tracker
 
