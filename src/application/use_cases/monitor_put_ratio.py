@@ -17,6 +17,18 @@ from src.infrastructure.persistence.repositories.repositories import (
 
 logger = logging.getLogger(__name__)
 
+FILTROS_PUT_RATIO = [
+    "1. Vencimento",
+    "2. Ativo (whitelist)",
+    "3. Dados RTD (strike/book)",
+    "4. DTE + IV minima",
+    "5. K1 OTM (% do spot)",
+    "6. Spread K1-K2 minimo",
+    "7. Credito minimo (R$/acao)",
+    "8. Profundidade minima (book)",
+    "9. Pareamento (K1>K2, credit>0)",
+]
+
 
 class MonitorPutRatioUseCase:
     def __init__(self, db_path=None):
@@ -134,6 +146,14 @@ class MonitorPutRatioUseCase:
         iv_put = dados.get("iv_put", 0.0)
         if iv_put > 0 and iv_put < iv_min:
             return False
+        preco_ativo = dados.get("preco_ativo", 0.0)
+        strike = dados.get("strike", 0.0)
+        if preco_ativo > 0 and strike > 0:
+            otm_max_pct = self._get_param("put_ratio_k1_otm_max_pct", 0.15)
+            otm_min_pct = self._get_param("put_ratio_k1_otm_min_pct", 0.03)
+            otm_pct = (preco_ativo - strike) / preco_ativo
+            if otm_pct > otm_max_pct or otm_pct < otm_min_pct:
+                return False
         return True
 
     def varrer(self, rtd, pipeline_tracker: PipelineTracker | None = None) -> list[ResultadoPutRatio]:
@@ -144,6 +164,8 @@ class MonitorPutRatioUseCase:
         iv_min = self._get_iv_rank_min()
         ratios = self._get_ratios()
         whitelist = self._get_whitelist()
+        spread_min_pct = self._get_param("put_ratio_spread_min_pct", 0.02)
+        min_credit = self._get_param("put_ratio_min_credit", 0.10)
 
         hoje = date.today()
         agora = datetime.now()
@@ -210,6 +232,12 @@ class MonitorPutRatioUseCase:
 
                     du = dc_to_du(hoje, vencimento) if vencimento else None
 
+                    preco_ref = k1_data.get("preco_ativo", 0.0)
+                    if preco_ref > 0:
+                        spread = k1_data["strike"] - k2_data["strike"]
+                        if spread / preco_ref < spread_min_pct:
+                            continue
+
                     for n1, n2 in ratios:
                         resultado = calc.calcular(
                             strike_k1=k1_data["strike"],
@@ -231,6 +259,8 @@ class MonitorPutRatioUseCase:
                             du=du,
                         )
                         if resultado:
+                            if resultado.credito_bruto < min_credit:
+                                continue
                             resultado.detectado_em = agora
                             ativo_results.append(resultado)
 

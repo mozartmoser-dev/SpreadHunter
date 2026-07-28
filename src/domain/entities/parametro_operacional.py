@@ -194,5 +194,8 @@ class ParametroOperacional:
         "put_ratio_delta_k1_max": {"valor": -0.35, "estrategia": "PUT_RATIO", "descricao": "Delta maximo da Put comprada (K1)"},
         "put_ratio_delta_k2_min": {"valor": -0.40, "estrategia": "PUT_RATIO", "descricao": "Delta minimo da Put vendida (K2)"},
         "put_ratio_delta_k2_max": {"valor": -0.03, "estrategia": "PUT_RATIO", "descricao": "Delta maximo da Put vendida (K2)"},
+        "put_ratio_k1_otm_max_pct": {"valor": 0.15, "estrategia": "PUT_RATIO", "descricao": "K1 OTM maximo (% abaixo do spot)"},
+        "put_ratio_k1_otm_min_pct": {"valor": 0.03, "estrategia": "PUT_RATIO", "descricao": "K1 OTM minimo (% abaixo do spot)"},
+        "put_ratio_spread_min_pct": {"valor": 0.02, "estrategia": "PUT_RATIO", "descricao": "Spread K1-K2 minimo (% do spot)"},
         "white_list_put_ratio": {"valor": "", "estrategia": "PUT_RATIO", "descricao": "Whitelist de ativos para Put Ratio"},
     }

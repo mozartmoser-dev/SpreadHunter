@@ -252,6 +252,9 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("put_ratio_ratios", "Ratios a testar (ex: 1x2,2x3,1x3)"),
         ("put_ratio_premio_risco", "Premio risco (x CDI)"),
         ("put_ratio_qtd_min", "Qtd minima por perna (book)"),
+        ("put_ratio_k1_otm_max_pct", "K1 OTM maximo (% abaixo do spot)"),
+        ("put_ratio_k1_otm_min_pct", "K1 OTM minimo (% abaixo do spot)"),
+        ("put_ratio_spread_min_pct", "Spread K1-K2 minimo (% do spot)"),
         ("white_list_put_ratio", "Whitelist de ativos (separados por virgula)"),
     ],
     "IMPORTACAO": [
