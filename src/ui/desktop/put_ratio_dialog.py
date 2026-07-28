@@ -467,16 +467,37 @@ class PutRatioDialog(QDialog):
 
     def _atualizar_dashboard(self, resultados):
         contagem: Counter = Counter()
+        zonas: dict[str, list[float]] = {"A": [], "B": [], "C": []}
         for r in resultados:
             if r.viavel:
                 key = r.vencimento.strftime("%d/%m/%y") if hasattr(r.vencimento, "strftime") else str(r.vencimento)
                 contagem[key] += 1
+            zona = getattr(r, 'zona', '')
+            pop = getattr(r, 'pop_pct', 0.0)
+            if zona in zonas:
+                zonas[zona].append(pop)
 
         while self._footer_layout.count() > 2:
             item = self._footer_layout.takeAt(1)
             w = item.widget()
             if w:
                 w.deleteLater()
+
+        for z in ("A", "B", "C"):
+            pops = zonas[z]
+            if pops:
+                avg = sum(pops) / len(pops)
+                badge = QLabel(f" Z{z} {len(pops)}op · POP {avg:.0f}% ")
+                cores = {"A": ("#1e3a1e", "#4caf50"), "B": ("#3a351e", "#ffc107"), "C": ("#3a1e1e", "#ef5350")}
+                bg, fg = cores.get(z, ("#222", "#aaa"))
+                badge.setStyleSheet(f"""
+                    QLabel {{
+                        background-color: {bg}; color: {fg};
+                        border: 1px solid {fg}44; border-radius: 4px;
+                        padding: 2px 6px; font-size: 8pt; font-weight: bold;
+                    }}
+                """)
+                self._footer_layout.insertWidget(self._footer_layout.count() - 1, badge)
 
         for data, qtd in sorted(contagem.items()):
             badge = QLabel(f" {data}  {qtd} ")
@@ -550,13 +571,15 @@ class PutRatioDialog(QDialog):
 
         zona_label = getattr(r, 'zona', '?')
         pop_val = getattr(r, 'pop_pct', 0.0)
-        title = f'{r.ativo} — Put Ratio {r.ratio_label} ({r.vencimento})  [Zona {zona_label} · POP {pop_val:.1f}%]'
+        sigma = getattr(r, 'sigma_be', 0.0)
+        title = f'{r.ativo} — Put Ratio {r.ratio_label} ({r.vencimento})  [Zona {zona_label} · {sigma:.1f}σ · POP {pop_val:.1f}%]'
         ax.set_title(title, color=WHITE, fontsize=11, fontweight='bold')
 
         if pop_val > 0:
-            ax.annotate(f'{pop_val:.0f}%', xy=(be, 0), xytext=(be, credito * 1.5),
-                        color=WHITE, fontsize=8, ha='center', fontweight='bold',
-                        bbox=dict(boxstyle='round,pad=0.2', facecolor='#1a1a2e', edgecolor=RED, alpha=0.85))
+            ax.annotate(f'POP {pop_val:.0f}%', xy=(be, 0), xytext=(be + (K1-be)*0.3, credito * 1.8),
+                        color=RED, fontsize=9, ha='center', fontweight='bold',
+                        arrowprops=dict(arrowstyle='->', color=RED, lw=1.2),
+                        bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a2e', edgecolor=RED, alpha=0.9))
         ax.set_xlabel('Preco do Ativo no Vencimento (R$)', color=TEXT, fontsize=9)
         ax.set_ylabel('Lucro/Prejuizo (R$)', color=TEXT, fontsize=9)
         ax.tick_params(colors=TEXT, labelsize=8)
