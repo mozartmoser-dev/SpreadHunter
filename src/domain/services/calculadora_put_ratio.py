@@ -46,6 +46,8 @@ class ResultadoPutRatio:
     delta_k2: float
     em_leilao: bool
     viavel: bool
+    iv_rank: float = 0.0
+    iv_percentile: float = 0.0
     detectado_em: datetime | None = None
 
 

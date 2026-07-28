@@ -11,6 +11,7 @@ from src.domain.services.calculadora_put_ratio import (
 )
 from src.domain.services.market_data_source import FieldName
 from src.domain.services.pipeline_tracker import PipelineTracker
+from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.infrastructure.persistence.repositories.repositories import (
     InstrumentoRepository, ParametroRepository,
 )
@@ -29,13 +30,31 @@ FILTROS_PUT_RATIO = [
     "9. Pareamento (K1>K2, credit>0)",
 ]
 
-
 class MonitorPutRatioUseCase:
+    _cache_iv_historico: dict[str, tuple[float, float, float, list[float]]] = {}
+
     def __init__(self, db_path=None):
         self.db_path = db_path
         self.inst_repo = InstrumentoRepository(db_path)
         self.param_repo = ParametroRepository(db_path)
         self._calculadora = None
+
+    def _carregar_iv_historico(self, ativo: str) -> tuple[float, float, float, list[float]] | None:
+        if ativo in self._cache_iv_historico:
+            return self._cache_iv_historico[ativo]
+        try:
+            client = OpcoesNetClient()
+            hist = client.get_stock_history_formatted(ativo, 252)
+            if not hist:
+                return None
+            valores = [c["vol_impl"] for c in hist if c.get("vol_impl") and c["vol_impl"] > 0]
+            if len(valores) < 60:
+                return None
+            stats = (min(valores), max(valores), valores[-1], valores)
+            self._cache_iv_historico[ativo] = stats
+            return stats
+        except Exception:
+            return None
 
     def _get_calculadora(self) -> CalculadoraPutRatio:
         if self._calculadora is None:
@@ -261,6 +280,14 @@ class MonitorPutRatioUseCase:
                         if resultado:
                             if resultado.credito_bruto < min_credit:
                                 continue
+                            iv_hist = self._carregar_iv_historico(ativo)
+                            if iv_hist:
+                                iv_put_pct = k1_data.get("iv_put", 0.0)
+                                iv_min_h, iv_max_h, _, valores_h = iv_hist
+                                if iv_max_h > iv_min_h:
+                                    resultado.iv_rank = round((iv_put_pct - iv_min_h) / (iv_max_h - iv_min_h) * 100, 1)
+                                    cnt_below = sum(1 for v in valores_h if v < iv_put_pct)
+                                    resultado.iv_percentile = round(cnt_below / len(valores_h) * 100, 1)
                             resultado.detectado_em = agora
                             ativo_results.append(resultado)
 

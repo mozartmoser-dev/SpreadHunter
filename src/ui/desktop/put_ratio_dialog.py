@@ -43,6 +43,8 @@ PUT_RATIO_COLUMNS = [
     ("Prot%", "protecao_pct"),
     ("BE", "be_down"),
     ("POP%", "pop_pct"),
+    ("IV Rank", "iv_rank"),
+    ("IV Pct", "iv_percentile"),
     ("Score", "score"),
     ("Zona", "zona"),
     ("Dias", "dias"),
@@ -93,6 +95,8 @@ class PutRatioTableModel(QAbstractTableModel):
                     "cod_put_k1": "Codigo B3 da Put K1 (comprada). Ex: PETRH300.",
                     "cod_put_k2": "Codigo B3 da Put K2 (vendida). Ex: PETRH285.",
                     "iv_put_pct": "IV media das Puts (estimada via Newton-Raphson). Cap em 100%% no sigma_be.",
+                    "iv_rank": "IV Rank 0-100 = (IV_atual - min_252d) / (max_252d - min_252d). >50 = volatilidade acima da media historica.",
+                    "iv_percentile": "Percentil da IV atual na serie 252d. Ex: 80 = IV maior que 80%% dos dias.",
                     "qtd_ask_put_k1": "Volume no Ask da Put K1. Deve >= qtd_min para ser viavel.",
                     "qtd_bid_put_k2": "Volume no Bid da Put K2. Deve >= qtd_min para ser viavel.",
                     "label_detectado": "Data e hora da deteccao pelo monitor.",
@@ -126,6 +130,8 @@ class PutRatioTableModel(QAbstractTableModel):
                 return "{:.1f}".format(val)
             if col_key == "iv_put_pct":
                 return "{:.1f}%".format(val)
+            if col_key in ("iv_rank", "iv_percentile"):
+                return "{:.1f}".format(val) if val else "-"
             if col_key == "vencimento":
                 if hasattr(val, "strftime"):
                     return val.strftime("%d/%m/%Y")
@@ -167,14 +173,23 @@ class PutRatioTableModel(QAbstractTableModel):
                 if val <= 0:
                     return QBrush(QColor(Palette.RED))
                 return QBrush(QColor(Palette.TEXT_PRIMARY))
+            if col_key == "iv_rank":
+                val = item.get(col_key, 0)
+                if val >= 70:
+                    return QBrush(QColor(Palette.GREEN))
+                if val >= 40:
+                    return QBrush(QColor(Palette.YELLOW))
+                if val > 0:
+                    return QBrush(QColor(Palette.RED))
             return QBrush(QColor(Palette.TEXT_MUTED))
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
             center_cols = {"strike_k1", "strike_k2", "ask_put_k1", "bid_put_k2",
                            "credito_bruto", "max_profit", "be_down",
                            "pct_cdi", "pct_cdi_liquido", "capital_margem",
-                           "iv_put_pct", "dias", "qtd_ask_put_k1", "qtd_bid_put_k2",
-                           "ratio_label"}
+                           "iv_put_pct", "iv_rank", "iv_percentile", "dias",
+                           "qtd_ask_put_k1", "qtd_bid_put_k2",
+                           "pop_pct", "ratio_label"}
             if col_key in center_cols:
                 return Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
             return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
@@ -436,6 +451,8 @@ class PutRatioDialog(QDialog):
                 "cod_put_k1": r.cod_put_k1,
                 "cod_put_k2": r.cod_put_k2,
                 "iv_put_pct": r.iv_put_pct,
+                "iv_rank": getattr(r, 'iv_rank', 0.0),
+                "iv_percentile": getattr(r, 'iv_percentile', 0.0),
                 "qtd_ask_put_k1": r.qtd_ask_put_k1,
                 "qtd_bid_put_k2": r.qtd_bid_put_k2,
                 "viavel": r.viavel,
