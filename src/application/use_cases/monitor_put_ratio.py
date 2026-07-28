@@ -99,6 +99,8 @@ class MonitorPutRatioUseCase:
         status_put = rtd.ler_status_cache(inst.cod_put)
         status_ativo = rtd.ler_status_cache(inst.ativo)
 
+        # TODO IV Rank/Percentile: bootstrap com get_stock_history_formatted()
+        # (opcoesnet_client) → 252d de vol_impl → rank rolante diario
         iv_put = 0.0
         if preco_ativo > 0 and strike > 0 and inst.dias_ate_vencimento > 0:
             mid = ask_put if ask_put > 0 else bid_put
