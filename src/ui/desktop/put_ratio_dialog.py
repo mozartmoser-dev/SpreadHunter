@@ -1,4 +1,5 @@
 from collections import Counter
+import math
 
 from scipy.stats import norm
 
@@ -487,7 +488,7 @@ class PutRatioDialog(QDialog):
             pops = zonas[z]
             if pops:
                 avg = sum(pops) / len(pops)
-                badge = QLabel(f" Z{z} {len(pops)}op · POP {avg:.0f}% ")
+                badge = QLabel(f" Zona {z}  {len(pops)}  · POP {avg:.0f}% ")
                 cores = {"A": ("#1e3a1e", "#4caf50"), "B": ("#3a351e", "#ffc107"), "C": ("#3a1e1e", "#ef5350")}
                 bg, fg = cores.get(z, ("#222", "#aaa"))
                 badge.setStyleSheet(f"""
@@ -572,14 +573,24 @@ class PutRatioDialog(QDialog):
         zona_label = getattr(r, 'zona', '?')
         pop_val = getattr(r, 'pop_pct', 0.0)
         sigma = getattr(r, 'sigma_be', 0.0)
-        title = f'{r.ativo} — Put Ratio {r.ratio_label} ({r.vencimento})  [Zona {zona_label} · {sigma:.1f}σ · POP {pop_val:.1f}%]'
+        iv = getattr(r, 'iv_put_pct', 0.0) / 100.0 if getattr(r, 'iv_put_pct', 0.0) > 0 else 0.0
+        T_val = r.dias / 365.0
+        spot_val = r.spot
+        title = (f'{r.ativo} — Put Ratio {r.ratio_label} ({r.vencimento})  '
+                 f'[Zona {zona_label} · {sigma:.1f}σ · POP {pop_val:.1f}%]')
         ax.set_title(title, color=WHITE, fontsize=11, fontweight='bold')
 
-        if pop_val > 0:
-            ax.annotate(f'POP {pop_val:.0f}%', xy=(be, 0), xytext=(be + (K1-be)*0.3, credito * 1.8),
-                        color=RED, fontsize=9, ha='center', fontweight='bold',
-                        arrowprops=dict(arrowstyle='->', color=RED, lw=1.2),
-                        bbox=dict(boxstyle='round,pad=0.3', facecolor='#1a1a2e', edgecolor=RED, alpha=0.9))
+        if iv > 0 and spot_val > 0:
+            s1 = spot_val * iv * math.sqrt(T_val)
+            for n_sig, color_s, alpha_s, ls in [(1, '#336699', 0.3, '--'), (2, '#335577', 0.2, ':')]:
+                up = spot_val + n_sig * s1
+                lo = spot_val - n_sig * s1
+                ax.axvline(up, color=color_s, linewidth=0.6, linestyle=ls, alpha=alpha_s)
+                ax.axvline(lo, color=color_s, linewidth=0.6, linestyle=ls, alpha=alpha_s)
+                if x_min <= up <= x_max:
+                    ax.text(up, ax.get_ylim()[1] * 0.92, f'+{n_sig}σ', color=color_s, fontsize=7, ha='center', alpha=0.7)
+                if x_min <= lo <= x_max:
+                    ax.text(lo, ax.get_ylim()[1] * 0.92, f'-{n_sig}σ', color=color_s, fontsize=7, ha='center', alpha=0.7)
         ax.set_xlabel('Preco do Ativo no Vencimento (R$)', color=TEXT, fontsize=9)
         ax.set_ylabel('Lucro/Prejuizo (R$)', color=TEXT, fontsize=9)
         ax.tick_params(colors=TEXT, labelsize=8)
