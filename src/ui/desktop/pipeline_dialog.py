@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QPushButton, QTableWidget,
     QTableWidgetItem, QHeaderView, QWidget, QToolTip,
 )
-from PySide6.QtCore import Qt, QRectF, QPoint
+from PySide6.QtCore import Qt, QRectF, QPoint, QTimer
 from PySide6.QtGui import QPainter, QColor, QPen, QFont, QBrush, QLinearGradient, QGuiApplication
 
 from src.domain.services.pipeline_tracker import PipelineTracker
@@ -134,6 +134,15 @@ class PipelineDialog(QDialog):
                 padding: 4px 8px;
                 border-bottom: 1px solid {_BORDER};
             }}
+            QTableWidget QToolTip {{
+                background-color: #0d0d1a;
+                color: #e0e0e0;
+                border: 1px solid #4fc3f7;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-family: Consolas;
+                font-size: 9pt;
+            }}
             QHeaderView::section {{
                 background-color: {_HDR_BG};
                 color: {_HDR_FG};
@@ -225,9 +234,15 @@ class PipelineDialog(QDialog):
                 "border:1px solid #2d2d44; border-radius:6px; font-family:Consolas; font-size:9pt;'>"
                 + "<br>".join(lines)
                 + "</div>")
-        QToolTip.showText(QPoint(self.mapToGlobal(self.pos()).x() + 40,
-                                 self.mapToGlobal(self.pos()).y() + 100),
-                          html)
+
+        popup = QLabel(html)
+        popup.setWindowFlags(Qt.ToolTip | Qt.FramelessWindowHint)
+        popup.setAttribute(Qt.WA_ShowWithoutActivating)
+        popup.setStyleSheet("background: transparent;")
+        popup.setMargin(4)
+        popup.show()
+        QTimer.singleShot(5000, popup.close)
+        self._popup = popup
 
     def _copiar_texto(self, tracker):
         linhas = [
