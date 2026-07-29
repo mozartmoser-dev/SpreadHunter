@@ -80,6 +80,15 @@ class MppTableModel(QAbstractTableModel):
         return None
 
     def atualizar(self, boxes: list, mres: list):
+        h = (len(boxes), len(mres))
+        if boxes:
+            h = hash((h, id(boxes[0]), id(boxes[-1])))
+        if mres:
+            h = hash((h, id(mres[0]), id(mres[-1])))
+        if h == getattr(self, '_ultimo_hash', None):
+            return
+        self._ultimo_hash = h
+
         mre_map = {}
         for m in mres:
             key = (m.ativo, m.strike1, m.strike2)

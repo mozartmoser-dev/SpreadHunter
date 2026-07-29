@@ -352,6 +352,12 @@ class MonitorTableModel(QAbstractTableModel):
         return opp.instrumento_id
 
     def atualizar(self, oportunidades: list[OportunidadeMonitor]):
+        h = len(oportunidades)
+        if oportunidades:
+            h = hash((h, id(oportunidades[0]), id(oportunidades[-1])))
+        if h == getattr(self, '_ultimo_hash', None):
+            return
+        self._ultimo_hash = h
         self.layoutAboutToBeChanged.emit()
         self._oportunidades = oportunidades
         self._key_map = {self._item_key(opp): i for i, opp in enumerate(oportunidades)}

@@ -294,6 +294,12 @@ class VendidasTableModel(QAbstractTableModel):
         return None
 
     def atualizar(self, items: list[OportunidadeVendida]):
+        h = len(items)
+        if items:
+            h = hash((h, id(items[0]), id(items[-1])))
+        if h == getattr(self, '_ultimo_hash', None):
+            return
+        self._ultimo_hash = h
         self.beginResetModel()
         self._items = items
         self.endResetModel()
