@@ -330,21 +330,24 @@ class MPPUseCase:
             if inst["ativo"].upper() not in ativos:
                 continue
 
-            bid_call = rtd.ler_campo_cache(inst["cod_call"], FieldName.BID) or 0.0
-            ask_call = rtd.ler_campo_cache(inst["cod_call"], FieldName.ASK) or 0.0
-            bid_put = rtd.ler_campo_cache(inst["cod_put"], FieldName.BID) or 0.0
-            ask_put = rtd.ler_campo_cache(inst["cod_put"], FieldName.ASK) or 0.0
-            qtd_bid_call = int(rtd.ler_campo_cache(inst["cod_call"], FieldName.VOL_BID) or 0)
-            qtd_ask_call = int(rtd.ler_campo_cache(inst["cod_call"], FieldName.VOL_ASK) or 0)
-            qtd_bid_put = int(rtd.ler_campo_cache(inst["cod_put"], FieldName.VOL_BID) or 0)
-            qtd_ask_put = int(rtd.ler_campo_cache(inst["cod_put"], FieldName.VOL_ASK) or 0)
+            c_call = rtd.ler_campos(inst["cod_call"], FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK, FieldName.STRIKE)
+            c_put = rtd.ler_campos(inst["cod_put"], FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK, FieldName.STRIKE)
+
+            bid_call = c_call.get(FieldName.BID) or 0.0
+            ask_call = c_call.get(FieldName.ASK) or 0.0
+            bid_put = c_put.get(FieldName.BID) or 0.0
+            ask_put = c_put.get(FieldName.ASK) or 0.0
+            qtd_bid_call = int(c_call.get(FieldName.VOL_BID) or 0)
+            qtd_ask_call = int(c_call.get(FieldName.VOL_ASK) or 0)
+            qtd_bid_put = int(c_put.get(FieldName.VOL_BID) or 0)
+            qtd_ask_put = int(c_put.get(FieldName.VOL_ASK) or 0)
 
             if bid_call <= 0 or ask_call <= 0 or bid_put <= 0 or ask_put <= 0:
                 continue
 
-            strike = rtd.ler_campo_cache(inst["cod_put"], FieldName.STRIKE) or 0.0
+            strike = c_put.get(FieldName.STRIKE) or 0.0
             if not strike or strike <= 0:
-                strike = rtd.ler_campo_cache(inst["cod_call"], FieldName.STRIKE) or 0.0
+                strike = c_call.get(FieldName.STRIKE) or 0.0
             if not strike or strike <= 0:
                 continue
 

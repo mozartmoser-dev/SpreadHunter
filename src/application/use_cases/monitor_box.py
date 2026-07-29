@@ -60,9 +60,12 @@ class MonitorBoxUseCase:
         return None
 
     def _extrair(self, inst: InstrumentoOpcional, rtd) -> dict | None:
-        strike = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
+        c_put = rtd.ler_campos(inst.cod_put, FieldName.STRIKE, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
+        c_call = rtd.ler_campos(inst.cod_call, FieldName.STRIKE, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
+
+        strike = c_put.get(FieldName.STRIKE)
         if not strike or strike <= 0:
-            strike = rtd.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
+            strike = c_call.get(FieldName.STRIKE)
         if not strike or strike <= 0:
             return None
 
@@ -74,14 +77,14 @@ class MonitorBoxUseCase:
             "strike": strike,
             "cod_put": inst.cod_put,
             "cod_call": inst.cod_call,
-            "bid_call": rtd.ler_campo_cache(inst.cod_call, FieldName.BID) or 0.0,
-            "ask_call": rtd.ler_campo_cache(inst.cod_call, FieldName.ASK) or 0.0,
-            "bid_put": rtd.ler_campo_cache(inst.cod_put, FieldName.BID) or 0.0,
-            "ask_put": rtd.ler_campo_cache(inst.cod_put, FieldName.ASK) or 0.0,
-            "qtd_bid_call": int(rtd.ler_campo_cache(inst.cod_call, FieldName.VOL_BID) or 0),
-            "qtd_ask_call": int(rtd.ler_campo_cache(inst.cod_call, FieldName.VOL_ASK) or 0),
-            "qtd_bid_put": int(rtd.ler_campo_cache(inst.cod_put, FieldName.VOL_BID) or 0),
-            "qtd_ask_put": int(rtd.ler_campo_cache(inst.cod_put, FieldName.VOL_ASK) or 0),
+            "bid_call": c_call.get(FieldName.BID) or 0.0,
+            "ask_call": c_call.get(FieldName.ASK) or 0.0,
+            "bid_put": c_put.get(FieldName.BID) or 0.0,
+            "ask_put": c_put.get(FieldName.ASK) or 0.0,
+            "qtd_bid_call": int(c_call.get(FieldName.VOL_BID) or 0),
+            "qtd_ask_call": int(c_call.get(FieldName.VOL_ASK) or 0),
+            "qtd_bid_put": int(c_put.get(FieldName.VOL_BID) or 0),
+            "qtd_ask_put": int(c_put.get(FieldName.VOL_ASK) or 0),
             "em_leilao": not (
                 status_put.lower() == "aberto"
                 and status_call.lower() == "aberto"
