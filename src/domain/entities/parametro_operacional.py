@@ -101,6 +101,7 @@ class ParametroOperacional:
         "box_premio_risco": {"valor": 1.08, "estrategia": "BOX_4P", "descricao": "Premio risco Box 4P (x CDI)"},
         "box_qtd_min": {"valor": 100, "estrategia": "BOX_4P", "descricao": "Qtd min contratos por perna"},
         "box_soh_europeia": {"valor": 1.0, "estrategia": "BOX_4P", "descricao": "So aceitar opcoes europeias (1=sim, 0=aceita americanas)"},
+        "box_spread_max_pct": {"valor": 0.40, "estrategia": "BOX_4P", "descricao": "Spread maximo K1-K2 (% do spot) para pareamento"},
         "box_scan_interval": {"valor": 5.0, "estrategia": "BOX_4P", "descricao": "Ciclos entre varreduras de Box 4P"},
         "colar_risco_baixo_vov_min": {"valor": 1000.0, "estrategia": "COLAR", "descricao": "VOV/VOC mínimo para risco baixo de despernamento"},
         "elegibilidade_strike_max_pct": {"valor": 0.70, "estrategia": "BOX_SINTETICO", "descricao": "Strike máximo % do spot para elegibilidade de pescaria"},

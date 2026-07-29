@@ -206,6 +206,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("box_premio_risco", "Premio risco (x CDI)"),
         ("box_qtd_min", "Qtd min contratos por perna"),
         ("box_soh_europeia", "So aceitar opcoes europeias"),
+        ("box_spread_max_pct", "Spread K1-K2 maximo (% spot)"),
         ("white_list_box4p", "Whitelist de ativos (separados por virgula)"),
         ("black_list_box4p", "Blacklist de ativos (separados por virgula)"),
         ("box_scan_interval", "Ciclos entre varreduras de Box 4P"),

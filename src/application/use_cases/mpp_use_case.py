@@ -321,6 +321,7 @@ class MPPUseCase:
             return [], []
 
         soh_europeia = bool(self._get_param("box_soh_europeia", 1))
+        spread_max_pct = self._get_param("box_spread_max_pct", 0.40)
         inst_map = self._obter_instrumentos_mapa(ativos)
         hoje = date.today()
         grupos: dict[tuple[str, date], list[dict]] = defaultdict(list)
@@ -386,11 +387,15 @@ class MPPUseCase:
                 continue
 
             members.sort(key=lambda m: m["strike"])
+            spread_limite = spot * spread_max_pct if spot > 0 and spread_max_pct > 0 else float("inf")
 
             for i in range(len(members)):
                 for j in range(i + 1, len(members)):
                     k1 = members[i]
                     k2 = members[j]
+
+                    if (k2["strike"] - k1["strike"]) > spread_limite:
+                        break
 
                     if soh_europeia and k1.get("tipo_opcao") != "E":
                         continue

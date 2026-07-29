@@ -109,6 +109,7 @@ class MonitorBoxUseCase:
         inst_map = self.inst_repo.get_all_mapped()
         qtd_min = self._get_qtd_min_perna()
         soh_europeia = self._soh_europeia()
+        spread_max_pct = self._get_param("box_spread_max_pct", 0.40)
         whitelist = self._get_whitelist()
         taxa_repo = TaxaAluguelRepository(self.db_path)
         taxa_map = taxa_repo.get_latest_all()
@@ -175,12 +176,18 @@ class MonitorBoxUseCase:
             if len(members) < 2:
                 continue
 
+            spot = rtd.ler_campo_cache(ativo, FieldName.ASK) or 0.0
+            spread_limite = spot * spread_max_pct if spot > 0 and spread_max_pct > 0 else float("inf")
+
             members.sort(key=lambda m: m["strike"])
 
             for i in range(len(members)):
                 for j in range(i + 1, len(members)):
                     k1_data = members[i]
                     k2_data = members[j]
+
+                    if (k2_data["strike"] - k1_data["strike"]) > spread_limite:
+                        break
 
                     if soh_europeia and k1_data["tipo_opcao"] != TipoOpcao.EUROPEIA:
                         continue

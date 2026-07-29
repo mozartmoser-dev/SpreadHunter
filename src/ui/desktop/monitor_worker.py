@@ -31,6 +31,11 @@ from src.infrastructure.providers.mercado_data_provider import MercadoDataProvid
 logger = logging.getLogger(__name__)
 
 
+def _profile_log_path():
+    import tempfile
+    return os.path.join(tempfile.gettempdir(), "spreadhunter_profile.tsv")
+
+
 class StrategyToggle:
     """Controle genérico de scan cíclico com mutex."""
 
@@ -223,12 +228,18 @@ class MonitorWorker(QThread):
                 dt_colar = t2 - t1
                 dt_cal = t3 - t2
                 dt_box = t4 - t3
-                dt_manut = t5 - t4
+                dt_put_ratio = t4b - t4
+                dt_manut = t5 - t4b
                 dt_mpp = t6 - t5
                 dt_cycle = t6 - t_start_cycle
-                if dt_cycle > 0.5:
-                    logger.info("Ciclo: monitor=%.3fs colar=%.3fs cal=%.3fs box=%.3fs manut=%.3fs mpp=%.3fs total=%.3fs",
-                                 dt_monitor, dt_colar, dt_cal, dt_box, dt_manut, dt_mpp, dt_cycle)
+
+                n_inst = len(getattr(self._mercado_provider, '_chaves_com_book', set()))
+                n_onda2 = len(getattr(self._mercado_provider, '_chaves_detalhes_completos', set()))
+                self._profile_cycle = getattr(self, '_profile_cycle', 0) + 1
+                with open(_profile_log_path(), "a") as pf:
+                    pf.write(f"{self._profile_cycle}\t{dt_cycle:.4f}\t{dt_monitor:.4f}\t{dt_colar:.4f}\t"
+                             f"{dt_cal:.4f}\t{dt_box:.4f}\t{dt_put_ratio:.4f}\t{dt_manut:.4f}\t{dt_mpp:.4f}\t"
+                             f"{n_inst}\t{n_onda2}\n")
 
                 # 7. Coleta Estatísticas do Motor
                 self._emitir_estatisticas_engine(t_start_cycle)
