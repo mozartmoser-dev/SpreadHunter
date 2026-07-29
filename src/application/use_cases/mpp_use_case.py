@@ -77,6 +77,7 @@ class MPPUseCase:
         self.taxa_sucesso_cache: dict[str, float] = {}
         self.score_estrutural_cache: dict[str, dict] = {}
         self._snapshot_counter: dict[str, int] = {}
+        self._snapshot_buffer: list[tuple] = []
         self._estrutural_carregado = False
         self._carregar_spread_history()
 
@@ -407,6 +408,7 @@ class MPPUseCase:
 
         resultados_box.sort(key=lambda b: -b.score_final_pct)
         self._flush_spread_history()
+        self._flush_snapshot_buffer()
         return resultados_box, resultados_mre
 
     def _obter_instrumentos_mapa(self, ativos: list[str] | None = None) -> dict:
@@ -827,20 +829,26 @@ class MPPUseCase:
             self._snapshot_counter[chave] = count
             return
         self._snapshot_counter[chave] = 0
+        self._snapshot_buffer.append((
+            box.ativo, box.strike1, box.strike2, box.vencimento.isoformat(),
+            box.score_final_pct, box.score_estrutural_box, box.score_instantaneo_box
+        ))
 
+    def _flush_snapshot_buffer(self):
+        if not self._snapshot_buffer:
+            return
         conn = get_connection(self.db_path)
         try:
-            conn.execute("""
+            conn.executemany("""
                 INSERT INTO mpp_snapshot
                 (ativo, strike1, strike2, vencimento, score_final, score_estrutural, score_instantaneo)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                box.ativo, box.strike1, box.strike2, box.vencimento.isoformat(),
-                box.score_final_pct, box.score_estrutural_box, box.score_instantaneo_box
-            ))
+            """, self._snapshot_buffer)
             conn.commit()
         finally:
             conn.close()
+        self._snapshot_buffer.clear()
+
 
     def limpar_snapshots_antigos(self):
         conn = get_connection(self.db_path)
