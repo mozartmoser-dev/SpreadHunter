@@ -3,6 +3,7 @@ import math
 import time
 from collections import defaultdict
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from typing import Optional
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
@@ -73,7 +74,7 @@ class MonitorColaresUseCase:
             }
 
         hoje = date.today()
-        agora = datetime.now()
+        agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
         if dados_mercado is not None:
             dados = self._extrair_de_dados_mercado(dados_mercado, inst_map, params, hoje, pipeline_tracker)
@@ -330,7 +331,7 @@ class MonitorColaresUseCase:
 
     def _combinar_pares(self, grupos: dict, calc: CalculadoraColar, params: dict, pipeline_tracker=None, agora: datetime | None = None) -> list[ResultadoColar]:
         if agora is None:
-            agora = datetime.now()
+            agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
         resultados = []
         c_grupos = c_poucos = c_pares = c_invalid = c_dist = c_calc_ok = c_calc_none = 0
         total_members = sum(len(m) for m in grupos.values())

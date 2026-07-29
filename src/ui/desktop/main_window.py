@@ -1976,7 +1976,8 @@ class MainWindow(QMainWindow):
         opp = self.table_model.get_oportunidade(index.row())
         if opp is None:
             return
-        dialog = ExportDialog(opp, self.exportar_uc, self, self.db_path)
+        source = self._worker.market_data_source if self._worker else None
+        dialog = ExportDialog(opp, self.exportar_uc, self, self.db_path, source=source)
         dialog.exec_()
 
     def _on_vendidas_row_double_clicked(self, index):
@@ -2062,13 +2063,10 @@ class MainWindow(QMainWindow):
         f2.addRow(_muted("Retorno Líq. (B3+IR):"), QLabel("{:.2f}% / {:.2f}x CDI".format(pct_liq * 100, cdi_liq)))
 
         from datetime import datetime
-        from zoneinfo import ZoneInfo
         det = getattr(r, "detectado_em", None)
         det_txt = "-"
         if isinstance(det, datetime):
-            if det.tzinfo is None:
-                det = det.replace(tzinfo=ZoneInfo("America/Sao_Paulo"))
-            det_txt = det.astimezone(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M:%S (Brasília)")
+            det_txt = det.strftime("%d/%m/%Y %H:%M:%S (Brasília)")
         elif det is not None:
             det_txt = str(det)
         det_lbl = QLabel(det_txt)
@@ -2212,13 +2210,10 @@ class MainWindow(QMainWindow):
         f2.addRow(_muted("Retorno Líq. (B3+IR):"), QLabel("{:.2f}% / {:.2f}x CDI".format(pct_liq_cob * 100, cdi_liq_cob)))
 
         from datetime import datetime
-        from zoneinfo import ZoneInfo
         det = getattr(r, "detectado_em", None)
         det_txt = "-"
         if isinstance(det, datetime):
-            if det.tzinfo is None:
-                det = det.replace(tzinfo=ZoneInfo("America/Sao_Paulo"))
-            det_txt = det.astimezone(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M:%S (Brasília)")
+            det_txt = det.strftime("%d/%m/%Y %H:%M:%S (Brasília)")
         elif det is not None:
             det_txt = str(det)
         det_lbl = QLabel(det_txt)

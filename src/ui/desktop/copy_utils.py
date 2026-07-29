@@ -76,12 +76,9 @@ def _valor_csv(r, chave: str, model=None, model_row: int | None = None,
 
     if chave == "label_detectado" and not hasattr(r, "label_detectado"):
         from datetime import datetime as _dt
-        from zoneinfo import ZoneInfo as _zi
         _d = getattr(r, "detectado_em", None)
         if isinstance(_d, _dt):
-            if _d.tzinfo is None:
-                _d = _d.replace(tzinfo=_zi("America/Sao_Paulo"))
-            return _d.astimezone(_zi("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M:%S (Brasília)")
+            return _d.strftime("%d/%m/%Y %H:%M:%S (Brasília)")
         if _d is not None:
             return str(_d)
         return None

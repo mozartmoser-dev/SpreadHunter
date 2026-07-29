@@ -28,11 +28,7 @@ CUSTOS_DISCLOSURE = (
 def _formatar_detectado(detectado_em):
     if detectado_em is None:
         return ""
-    from zoneinfo import ZoneInfo
-    dt = detectado_em
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Sao_Paulo"))
-    return dt.strftime("%d/%m/%Y %H:%M:%S")
+    return detectado_em.strftime("%d/%m/%Y %H:%M:%S")
 
 
 WHITELIST_CHAVE_COLAR = "white_list_colar"

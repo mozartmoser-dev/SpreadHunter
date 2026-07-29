@@ -92,8 +92,8 @@ class OportunidadeVendaCoberta:
 
     @property
     def rent_cdi_bruto_display(self) -> str:
-        return "{:.2f}x CDI".format(self.pct_cdi_bruto)
+        return "{:.0f}% CDI".format(self.pct_cdi_bruto * 100)
 
     @property
     def rent_cdi_liq_display(self) -> str:
-        return "{:.2f}x CDI".format(self.pct_cdi_liquido)
+        return "{:.0f}% CDI".format(self.pct_cdi_liquido * 100)

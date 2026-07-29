@@ -1,12 +1,11 @@
-from collections import Counter
 import math
 
 from scipy.stats import norm
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTimer, Signal, QUrl, QRect
-from PySide6.QtGui import QFont, QColor, QBrush, QDesktopServices, QPainter, QPen, QPainterPath
+from PySide6.QtGui import QFont, QColor, QBrush, QDesktopServices, QPainter, QPen
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
+    QDialog, QStyle, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
     QAbstractItemView, QLabel, QHeaderView, QFrame, QWidget,
     QStyledItemDelegate, QStyleOptionViewItem, QDoubleSpinBox, QRadioButton, QButtonGroup, QCheckBox,
 )
@@ -23,11 +22,7 @@ CUSTOS_DISCLOSURE = (
 def _formatar_detectado(detectado_em):
     if detectado_em is None:
         return ""
-    from zoneinfo import ZoneInfo
-    dt = detectado_em
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Sao_Paulo"))
-    return dt.strftime("%d/%m/%Y %H:%M:%S")
+    return detectado_em.strftime("%d/%m/%Y %H:%M:%S")
 
 
 PUT_RATIO_COLUMNS = [
@@ -40,7 +35,7 @@ PUT_RATIO_COLUMNS = [
     ("Bid K2", "bid_put_k2"),
     ("Credito", "credito_bruto"),
     ("Yield%", "credit_yield"),
-    ("x CDI", "yield_cdi"),
+    ("% CDI", "yield_cdi"),
     ("Prot%", "protecao_pct"),
     ("BE", "be_down"),
     ("POP%", "pop_pct"),
@@ -86,10 +81,12 @@ class _PerfilDelegate(QStyledItemDelegate):
         val = index.data(Qt.ItemDataRole.UserRole)
         if not val or not isinstance(val, tuple):
             painter.restore()
+            QStyledItemDelegate.paint(self, painter, option, index)
             return
         p_loss, p_slope, p_credit = val
         if p_credit + p_slope + p_loss <= 0:
             painter.restore()
+            QStyledItemDelegate.paint(self, painter, option, index)
             return
 
         if option.state & QStyle.State_Selected:
@@ -104,55 +101,25 @@ class _PerfilDelegate(QStyledItemDelegate):
         w_slope = int(w * p_slope / total)
         w_credit = w - w_loss - w_slope
 
-        # Fundo area perda
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor("#2d1010"))
+        painter.setBrush(QColor("#c0392b"))
         painter.drawRoundedRect(QRect(x0, y0, w_loss, h), 3, 3)
-        # Fundo area tenda
-        painter.setBrush(QColor("#102d10"))
+        painter.setBrush(QColor("#27ae60"))
         painter.drawRoundedRect(QRect(x0 + w_loss, y0, w_slope, h), 3, 3)
-        # Fundo area credito
-        painter.setBrush(QColor("#101a2d"))
+        painter.setBrush(QColor("#2980b9"))
         painter.drawRoundedRect(QRect(x0 + w_loss + w_slope, y0, w_credit, h), 3, 3)
 
-        # Linha do payoff
-        y_top = y0 + 4
-        y_mid = y0 + h // 2
-        y_bot = y0 + h - 4
-        pen = QPen(QColor("#e0e0e0"), 1.5)
-        painter.setPen(pen)
-
-        path = QPainterPath()
-        # Loss zone: linha reta no fundo (prejuizo maximo)
-        path.moveTo(x0, y_bot)
-        path.lineTo(x0 + w_loss, y_bot)
-        # Slope zone: diagonal subindo do fundo ate o topo
-        path.lineTo(x0 + w_loss + w_slope, y_top)
-        # Credit zone: linha reta no topo (credito)
-        path.lineTo(x0 + w_loss + w_slope + w_credit, y_top)
-        painter.drawPath(path)
-
-        # BE linha tracejada
-        pen_be = QPen(QColor("#ef5350"), 0.8, Qt.DashLine)
-        painter.setPen(pen_be)
-        be_x = x0 + w_loss
-        painter.drawLine(be_x, y0, be_x, y0 + h)
-
-        # K1 linha pontilhada
-        pen_k1 = QPen(QColor("#42a5f5"), 0.6, Qt.DotLine)
-        painter.setPen(pen_k1)
-        k1_x = x0 + w_loss + w_slope
-        painter.drawLine(k1_x, y0, k1_x, y0 + h)
-
-        # Percentuais
         font = QFont("Consolas", 7, QFont.Bold)
         painter.setFont(font)
-        if p_loss >= 5:
-            painter.setPen(QColor("#ef5350"))
-            painter.drawText(QRect(x0, y0 + h - 14, w_loss, 12), Qt.AlignCenter, f"{p_loss:.0f}%")
-        if p_credit >= 5:
-            painter.setPen(QColor("#42a5f5"))
-            painter.drawText(QRect(x0 + w_loss + w_slope, y0, w_credit, 12), Qt.AlignCenter, f"{p_credit:.0f}%")
+        if w_loss > 14:
+            painter.setPen(QColor("#ffffff"))
+            painter.drawText(QRect(x0, y0, w_loss, h), Qt.AlignCenter, f"{p_loss:.0f}%")
+        if w_slope > 14:
+            painter.setPen(QColor("#ffffff"))
+            painter.drawText(QRect(x0 + w_loss, y0, w_slope, h), Qt.AlignCenter, f"{p_slope:.0f}%")
+        if w_credit > 14:
+            painter.setPen(QColor("#ffffff"))
+            painter.drawText(QRect(x0 + w_loss + w_slope, y0, w_credit, h), Qt.AlignCenter, f"{p_credit:.0f}%")
 
         painter.restore()
 
@@ -186,7 +153,7 @@ class PutRatioTableModel(QAbstractTableModel):
                     "bid_put_k2": "Preco Bid da Put K2 — voce RECEBE isso ao vender a descoberto.",
                     "credito_bruto": "Credito liquido = N2*Bid_K2 - N1*Ask_K1. Deve ser positivo.",
                     "credit_yield": "Yield %% = Credito / Capital em Risco ((N2-N1)*K2).",
-                    "yield_cdi": "x CDI = Yield%% / CDI_do_periodo. >1x = bate o CDI no periodo.",
+                    "yield_cdi": "% CDI = Yield%% / CDI_do_periodo. >100%% = bate o CDI no periodo.",
                     "protecao_pct": "Queda %% ate o BE = (Spot-BE)/Spot. Quanto maior, mais seguro.",
                     "be_down": "Breakeven inferior — abaixo deste preco a operacao fica no prejuizo.",
                     "pop_pct": "Probabilidade de Lucro = N(sigma_be)*100. Estimativa da chance do BE segurar.",
@@ -228,7 +195,7 @@ class PutRatioTableModel(QAbstractTableModel):
             if col_key == "credit_yield":
                 return "{:.2f}%".format(val * 100)
             if col_key == "yield_cdi":
-                return "{:.2f}x".format(val)
+                return "{:.0f}%".format(val * 100)
             if col_key == "protecao_pct":
                 return "{:.1f}%".format(val * 100)
             if col_key == "pop_pct":
@@ -338,9 +305,9 @@ class PutRatioSortProxy(QSortFilterProxyModel):
         if self._cdi_min > 0:
             col_cdi = next((i for i, (_, k) in enumerate(PUT_RATIO_COLUMNS) if k == "yield_cdi"), -1)
             if col_cdi >= 0:
-                val = src.data(src.index(row, col_cdi), Qt.ItemDataRole.DisplayRole) or "0.00x"
+                val = src.data(src.index(row, col_cdi), Qt.ItemDataRole.DisplayRole) or "0%"
                 try:
-                    num = float(val.replace("x", "").strip())
+                    num = float(val.replace("%", "").strip())
                     if num < self._cdi_min:
                         return False
                 except ValueError:
@@ -424,16 +391,16 @@ class PutRatioDialog(QDialog):
         left_panel.setContentsMargins(0, 0, 0, 0)
         left_panel.setSpacing(6)
 
-        lbl_cdi = QLabel("Filtrar >= (x CDI):")
+        lbl_cdi = QLabel("Filtrar >= (% CDI):")
         lbl_cdi.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold;".format(Palette.TEXT_MUTED))
         left_panel.addWidget(lbl_cdi)
 
         self.spin_cdi_min = QDoubleSpinBox()
-        self.spin_cdi_min.setRange(0.0, 999.0)
-        self.spin_cdi_min.setValue(0.0)
-        self.spin_cdi_min.setSingleStep(0.1)
-        self.spin_cdi_min.setDecimals(1)
-        self.spin_cdi_min.setSuffix("x CDI")
+        self.spin_cdi_min.setRange(0, 500)
+        self.spin_cdi_min.setValue(0)
+        self.spin_cdi_min.setSingleStep(5)
+        self.spin_cdi_min.setDecimals(0)
+        self.spin_cdi_min.setSuffix("% CDI")
         self.spin_cdi_min.setStyleSheet("""
             QDoubleSpinBox {
                 background-color: #1e1e2f; color: #e0e0e0;
@@ -487,6 +454,8 @@ class PutRatioDialog(QDialog):
 
         col_perfil = next((i for i, (_, k) in enumerate(PUT_RATIO_COLUMNS) if k == "perfil"), -1)
         if col_perfil >= 0:
+            header_h.setSectionResizeMode(col_perfil, QHeaderView.Interactive)
+            header_h.resizeSection(col_perfil, 200)
             self.table_view.setItemDelegateForColumn(col_perfil, _PerfilDelegate(self))
 
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
@@ -500,7 +469,7 @@ class PutRatioDialog(QDialog):
         self._footer_layout = QHBoxLayout(self._footer)
         self._footer_layout.setContentsMargins(8, 4, 8, 4)
         self._footer_layout.setSpacing(8)
-        lbl_dash = QLabel("📊 Series:")
+        lbl_dash = QLabel("Status:")
         lbl_dash.setStyleSheet("color: #8888cc; font-size: 8pt; font-weight: bold; background: transparent; border: none;")
         self._footer_layout.addWidget(lbl_dash)
         self._footer_layout.addStretch()
@@ -583,16 +552,7 @@ class PutRatioDialog(QDialog):
         self._atualizar_dashboard(resultados)
 
     def _atualizar_dashboard(self, resultados):
-        contagem: Counter = Counter()
-        zonas: dict[str, list[float]] = {"A": [], "B": [], "C": []}
-        for r in resultados:
-            if r.viavel:
-                key = r.vencimento.strftime("%d/%m/%y") if hasattr(r.vencimento, "strftime") else str(r.vencimento)
-                contagem[key] += 1
-            zona = getattr(r, 'zona', '')
-            pop = getattr(r, 'pop_pct', 0.0)
-            if zona in zonas:
-                zonas[zona].append(pop)
+        n_viaveis = sum(1 for r in resultados if r.viavel)
 
         while self._footer_layout.count() > 2:
             item = self._footer_layout.takeAt(1)
@@ -600,32 +560,15 @@ class PutRatioDialog(QDialog):
             if w:
                 w.deleteLater()
 
-        for z in ("A", "B", "C"):
-            pops = zonas[z]
-            if pops:
-                avg = sum(pops) / len(pops)
-                badge = QLabel(f" Zona {z}  {len(pops)}  · POP {avg:.0f}% ")
-                cores = {"A": ("#1e3a1e", "#4caf50"), "B": ("#3a351e", "#ffc107"), "C": ("#3a1e1e", "#ef5350")}
-                bg, fg = cores.get(z, ("#222", "#aaa"))
-                badge.setStyleSheet(f"""
-                    QLabel {{
-                        background-color: {bg}; color: {fg};
-                        border: 1px solid {fg}44; border-radius: 4px;
-                        padding: 2px 6px; font-size: 8pt; font-weight: bold;
-                    }}
-                """)
-                self._footer_layout.insertWidget(self._footer_layout.count() - 1, badge)
-
-        for data, qtd in sorted(contagem.items()):
-            badge = QLabel(f" {data}  {qtd} ")
-            badge.setStyleSheet(f"""
-                QLabel {{
-                    background-color: #1e3a1e; color: #4caf50;
-                    border: 1px solid #2e5a2e; border-radius: 4px;
-                    padding: 2px 6px; font-size: 8pt; font-weight: bold;
-                }}
-            """)
-            self._footer_layout.insertWidget(self._footer_layout.count() - 1, badge)
+        badge = QLabel(f" {n_viaveis} viaveis ")
+        badge.setStyleSheet("""
+            QLabel {
+                background-color: #1e3a1e; color: #4caf50;
+                border: 1px solid #2e5a2e; border-radius: 4px;
+                padding: 2px 6px; font-size: 8pt; font-weight: bold;
+            }
+        """)
+        self._footer_layout.insertWidget(self._footer_layout.count() - 1, badge)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_F and event.modifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
@@ -756,7 +699,7 @@ class PutRatioDialog(QDialog):
             f"<span style='color:{RED};'>BE: R$ {be:.2f}</span>"
             f"<span style='color:{TEXT};'>  |  </span>"
             f"<span style='color:{TEXT};'>POP: {pop:.1f}%</span>"
-            f"<span style='color:{TEXT};'>  |  CDI: {getattr(r, 'yield_cdi', 0):.2f}x</span>"
+            f"<span style='color:{TEXT};'>  |  CDI: {getattr(r, 'yield_cdi', 0) * 100:.0f}%</span>"
         )
         footer_line2.setStyleSheet("font-family: Consolas; font-size: 9pt; padding: 2px;")
 

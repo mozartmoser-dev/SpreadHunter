@@ -993,15 +993,21 @@
     },
     {
       "chave": "put_ratio_iv_rank_min",
-      "valor": "40.0",
+      "valor": "50.0",
       "estrategia": "PUT_RATIO",
-      "descricao": "IV minima (% absoluto) para Put Ratio"
+      "descricao": "IV Rank minimo (0-100) para Put Ratio"
+    },
+    {
+      "chave": "put_ratio_iv_percentile_min",
+      "valor": "50.0",
+      "estrategia": "PUT_RATIO",
+      "descricao": "IV Percentile minimo (0-100) para Put Ratio"
     },
     {
       "chave": "put_ratio_ratios",
-      "valor": "1x2,2x3,1x3",
+      "valor": "1x2,2x3,1x3,2x5",
       "estrategia": "PUT_RATIO",
-      "descricao": "Proporcoes a testar (N1xN2 separados por virgula)"
+      "descricao": ""
     },
     {
       "chave": "put_ratio_premio_risco",
@@ -1029,15 +1035,15 @@
     },
     {
       "chave": "put_ratio_peso_beta",
-      "valor": "0.3",
+      "valor": "0.15",
       "estrategia": "PUT_RATIO",
-      "descricao": "Peso do lucro maximo no Score"
+      "descricao": ""
     },
     {
       "chave": "put_ratio_peso_gamma",
-      "valor": "0.2",
+      "valor": "0.35",
       "estrategia": "PUT_RATIO",
-      "descricao": "Peso do credito liquido no Score"
+      "descricao": ""
     },
     {
       "chave": "put_ratio_min_credit",
@@ -1071,9 +1077,9 @@
     },
     {
       "chave": "put_ratio_k1_otm_max_pct",
-      "valor": "0.15",
+      "valor": "0.18",
       "estrategia": "PUT_RATIO",
-      "descricao": "K1 OTM maximo (% abaixo do spot)"
+      "descricao": ""
     },
     {
       "chave": "put_ratio_k1_otm_min_pct",

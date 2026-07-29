@@ -19,11 +19,13 @@ class ExportDialog(QDialog):
         use_case: ExportarOperacaoUseCase,
         parent=None,
         db_path=None,
+        source=None,
     ):
         super().__init__(parent)
         self.oportunidade = oportunidade
         self.use_case = use_case
         self.db_path = db_path
+        self._source = source
         self._result = None
 
         self.setWindowTitle("Exportar Operacao - {}".format(oportunidade.ativo))
@@ -111,7 +113,8 @@ class ExportDialog(QDialog):
         pernas_group = QGroupBox("Pernas da Estrutura")
         pernas_form = QFormLayout()
         pernas_form.setSpacing(8)
-        pernas_form.addRow(self._label_muted("Compra Ativo ({}):".format(opp.ativo)), QLabel("{:.2f} (of. venda)".format(opp.preco_compra_ativo)))
+        pernas_form.addRow(self._label_muted("Compra Ativo ({}):".format(opp.ativo)),
+                           self._criar_label_preco_ativo(opp))
         
         # Compra Put com Strike à direita
         put_layout = QHBoxLayout()
@@ -147,7 +150,7 @@ class ExportDialog(QDialog):
 
         lbl_custo_sbth = QLabel("{:.2f}".format(opp.custo_sbth) if opp.custo_sbth > 0 else "-")
         lbl_ganho_sbth = QLabel("{:.2f}%".format(opp.pct_ganho_sbth * 100) if opp.pct_ganho_sbth > 0 else "-")
-        lbl_cdi_sbth = QLabel("{:.2f}x CDI".format(opp.pct_cdi_sbth) if opp.pct_cdi_sbth > 0 else "-")
+        lbl_cdi_sbth = QLabel("{:.0f}% CDI".format(opp.pct_cdi_sbth * 100) if opp.pct_cdi_sbth > 0 else "-")
 
         if is_sbth:
             lbl_custo_sbth.setStyleSheet("color: {}; font-weight: bold;".format(Palette.CYAN))
@@ -168,7 +171,7 @@ class ExportDialog(QDialog):
 
         lbl_custo_box = QLabel("{:.2f}".format(opp.custo_box) if opp.custo_box > 0 else "-")
         lbl_ganho_box = QLabel("{:.2f}%".format(opp.pct_ganho_box * 100) if opp.pct_ganho_box > 0 else "-")
-        lbl_cdi_box = QLabel("{:.2f}x CDI".format(opp.pct_cdi_box) if opp.pct_cdi_box > 0 else "-")
+        lbl_cdi_box = QLabel("{:.0f}% CDI".format(opp.pct_cdi_box * 100) if opp.pct_cdi_box > 0 else "-")
 
         if is_box:
             lbl_custo_box.setStyleSheet("color: {}; font-weight: bold;".format(Palette.ACCENT_BLUE_BRIGHT))
@@ -191,13 +194,7 @@ class ExportDialog(QDialog):
         det = getattr(self.oportunidade, "detectado_em", None)
         if det is not None:
             try:
-                from datetime import datetime, timezone
-                from zoneinfo import ZoneInfo
-                dt = det if isinstance(det, datetime) else None
-                if dt and dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=ZoneInfo("America/Sao_Paulo"))
-                if dt:
-                    detectado_txt = dt.astimezone(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M:%S (Brasília)")
+                detectado_txt = det.strftime("%d/%m/%Y %H:%M:%S (Brasília)")
             except Exception:
                 detectado_txt = str(det)
         lbl_detectado = QLabel(detectado_txt)
@@ -331,6 +328,19 @@ class ExportDialog(QDialog):
 
         self._atualizar_coeficientes()
         return widget
+
+    def _criar_label_preco_ativo(self, opp):
+        dto_val = opp.preco_compra_ativo
+        if self._source:
+            try:
+                from src.domain.services.market_data_source import FieldName
+                live = self._source.ler_campo_cache(opp.ativo, FieldName.ASK)
+                if live and live > 0 and abs(live - dto_val) > 0.01:
+                    return QLabel("{:.2f} (ao vivo)  [{:.2f} detectado]".format(live, dto_val))
+            except Exception:
+                pass
+        return QLabel("{:.2f} (of. venda)".format(dto_val))
+
 
     @staticmethod
     def _label_muted(text: str) -> QLabel:

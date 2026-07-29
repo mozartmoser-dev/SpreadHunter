@@ -676,15 +676,16 @@ class DividendoRepository:
         finally:
             conn.close()
 
-    def get_proximos(self, dias: int = 30) -> list[dict]:
+    def get_proximos(self, dias: int = 30, dias_antes: int = 0) -> list[dict]:
         from datetime import date, timedelta
-        hoje = date.today().isoformat()
-        fim = (date.today() + timedelta(days=dias)).isoformat()
+        hoje = date.today()
+        inicio = (hoje - timedelta(days=dias_antes)).isoformat()
+        fim = (hoje + timedelta(days=dias)).isoformat()
         conn = get_connection(self.db_path)
         try:
             rows = conn.execute(
                 "SELECT * FROM dividendos WHERE data_com >= ? AND data_com <= ? ORDER BY data_com, ativo",
-                (hoje, fim)
+                (inicio, fim)
             ).fetchall()
             return [dict(r) for r in rows]
         finally:
@@ -900,15 +901,16 @@ class CalendarioResultadosRepository:
         finally:
             conn.close()
 
-    def get_proximos(self, dias: int = 60) -> list[dict]:
+    def get_proximos(self, dias: int = 60, dias_antes: int = 0) -> list[dict]:
         from datetime import date, timedelta
-        hoje = date.today().isoformat()
-        fim = (date.today() + timedelta(days=dias)).isoformat()
+        hoje = date.today()
+        inicio = (hoje - timedelta(days=dias_antes)).isoformat()
+        fim = (hoje + timedelta(days=dias)).isoformat()
         conn = get_connection(self.db_path)
         try:
             rows = conn.execute(
                 "SELECT * FROM calendario_resultados WHERE data_publicacao >= ? AND data_publicacao <= ? ORDER BY data_publicacao, ativo",
-                (hoje, fim)
+                (inicio, fim)
             ).fetchall()
             return [dict(r) for r in rows]
         finally:

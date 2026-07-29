@@ -3,6 +3,7 @@ import math
 import time
 from collections import defaultdict
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from typing import Optional
 
 from src.domain.services.calendario_b3 import dc_to_du
@@ -110,7 +111,7 @@ class MonitorColaresCalendarioUseCase:
                 params.setdefault(k, v)
 
         hoje = date.today()
-        agora = datetime.now()
+        agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
         calls_por_ativo: dict[str, list] = defaultdict(list)
         puts_por_ativo: dict[str, list] = defaultdict(list)
         stats = {"total": 0, "sem_vencimento": 0, "sem_codigos": 0, "sem_dias": 0, "sem_strike": 0, "sem_strike_registrado": 0, "sem_ocp_ovd": 0, "sem_ocp_registrado": 0, "sem_ovd_registrado": 0, "sem_preco": 0, "sem_qul": 0, "calls": 0, "puts": 0, "fora_dte": 0, "fora_ativo": 0}

@@ -347,8 +347,8 @@ def _monitor_col_key(key):
     ("strike", "30.00"),
     ("ganho_bruto_display", "10.00% (BOX)"),
     ("ganho_liq_display", "7.00% (BOX)"),
-    ("rent_cdi_bruto_display", "2.00x CDI (BOX)"),
-    ("rent_cdi_liq_display", "1.50x CDI (BOX)"),
+    ("rent_cdi_bruto_display", "200% CDI (BOX)"),
+    ("rent_cdi_liq_display", "150% CDI (BOX)"),
     ("label_dias", "29d"),
     ("vencimento", "17/07/2026"),
     ("liq_indicator", "\u2713"),
@@ -657,7 +657,7 @@ def test_export_dialog_custos_display(qapp):
     assert _field(g, "vs CDI SBTH:") == "-", "pct_cdi_sbth=0 deve mostrar -"
     assert _field(g, "Custo BOX:") == "1.50"
     assert _field(g, "Ganho % BOX:") == "10.00%"
-    assert _field(g, "vs CDI BOX:") == "2.00x CDI"
+    assert _field(g, "vs CDI BOX:") == "200% CDI"
 
 
 def test_export_dialog_custos_display_sbth_active(qapp):
@@ -697,7 +697,7 @@ def test_export_dialog_custos_display_sbth_active(qapp):
     g = "Custos e Rentabilidade"
     assert _field(g, "Custo SBTH:") == "2.00"
     assert _field(g, "Ganho % SBTH:") == "7.00%"
-    assert _field(g, "vs CDI SBTH:") == "1.50x CDI"
+    assert _field(g, "vs CDI SBTH:") == "150% CDI"
     assert _field(g, "Custo BOX:") == "-"
     assert _field(g, "Ganho % BOX:") == "-"
     assert _field(g, "vs CDI BOX:") == "-"

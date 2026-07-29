@@ -978,6 +978,120 @@
       "valor": "ABEV3,AXIA3,B3SA3,BBAS3,BBDC3,BBDC4,BBSE3,BOVA11,BPAC11,CMIG4,CSMG3,EQTL3,ITSA4,ITUB4,PETR3,PETR4,PRIO3,SANB11,SUZB3,VALE3,WEGE3",
       "estrategia": "BOX_4P",
       "descricao": "Blacklist de ativos para Box 4P"
+    },
+    {
+      "chave": "put_ratio_dte_min",
+      "valor": "20.0",
+      "estrategia": "PUT_RATIO",
+      "descricao": "DTE minimo para Put Ratio Spread"
+    },
+    {
+      "chave": "put_ratio_dte_max",
+      "valor": "60.0",
+      "estrategia": "PUT_RATIO",
+      "descricao": "DTE maximo para Put Ratio Spread"
+    },
+    {
+      "chave": "put_ratio_iv_rank_min",
+      "valor": "50.0",
+      "estrategia": "PUT_RATIO",
+      "descricao": "IV Rank minimo (0-100) para Put Ratio"
+    },
+    {
+      "chave": "put_ratio_iv_percentile_min",
+      "valor": "50.0",
+      "estrategia": "PUT_RATIO",
+      "descricao": "IV Percentile minimo (0-100) para Put Ratio"
+    },
+    {
+      "chave": "put_ratio_ratios",
+      "valor": "1x2,2x3,1x3,2x5",
+      "estrategia": "PUT_RATIO",
+      "descricao": ""
+    },
+    {
+      "chave": "put_ratio_premio_risco",
+      "valor": "1.5",
+      "estrategia": "PUT_RATIO",
+      "descricao": "Premio risco minimo (x CDI) para Put Ratio"
+    },
+    {
+      "chave": "put_ratio_qtd_min",
+      "valor": "100.0",
+      "estrategia": "PUT_RATIO",
+      "descricao": "Qtd minima por perna (book) para Put Ratio"
+    },
+    {
+      "chave": "white_list_put_ratio",
+      "valor": "ABEV3,ALOS3,B3SA3,BBAS3,BBDC3,BBDC4,BBSE3,BOVA11,BPAC11,BRAP4,CMIG4,CPFE3,CSMG3,EGIE3,EMBJ3,ENEV3,EQTL3,GGBR4,HYPE3,ITSA4,ITUB4,KLBN11,LREN3,MULT3,PETR3,PETR4,PRIO3,RADL3,SANB11,SBSP3,SUZB3,TOTS3,VALE3,VIVT3,WEGE3",
+      "estrategia": "PUT_RATIO",
+      "descricao": "Whitelist de ativos para Put Ratio"
+    },
+    {
+      "chave": "put_ratio_peso_alpha",
+      "valor": "0.5",
+      "estrategia": "PUT_RATIO",
+      "descricao": "Peso da protecao (distancia %% BE) no Score"
+    },
+    {
+      "chave": "put_ratio_peso_beta",
+      "valor": "0.15",
+      "estrategia": "PUT_RATIO",
+      "descricao": ""
+    },
+    {
+      "chave": "put_ratio_peso_gamma",
+      "valor": "0.35",
+      "estrategia": "PUT_RATIO",
+      "descricao": ""
+    },
+    {
+      "chave": "put_ratio_min_credit",
+      "valor": "0.1",
+      "estrategia": "PUT_RATIO",
+      "descricao": "Credito minimo por acao (R$) para considerar"
+    },
+    {
+      "chave": "put_ratio_delta_k1_min",
+      "valor": "-0.55",
+      "estrategia": "PUT_RATIO",
+      "descricao": "Delta minimo da Put comprada (K1)"
+    },
+    {
+      "chave": "put_ratio_delta_k1_max",
+      "valor": "-0.35",
+      "estrategia": "PUT_RATIO",
+      "descricao": "Delta maximo da Put comprada (K1)"
+    },
+    {
+      "chave": "put_ratio_delta_k2_min",
+      "valor": "-0.28",
+      "estrategia": "PUT_RATIO",
+      "descricao": "Delta minimo da Put vendida (K2)"
+    },
+    {
+      "chave": "put_ratio_delta_k2_max",
+      "valor": "-0.08",
+      "estrategia": "PUT_RATIO",
+      "descricao": "Delta maximo da Put vendida (K2)"
+    },
+    {
+      "chave": "put_ratio_k1_otm_max_pct",
+      "valor": "0.18",
+      "estrategia": "PUT_RATIO",
+      "descricao": ""
+    },
+    {
+      "chave": "put_ratio_k1_otm_min_pct",
+      "valor": "0.03",
+      "estrategia": "PUT_RATIO",
+      "descricao": "K1 OTM minimo (% abaixo do spot)"
+    },
+    {
+      "chave": "put_ratio_spread_min_pct",
+      "valor": "0.02",
+      "estrategia": "PUT_RATIO",
+      "descricao": "Spread K1-K2 minimo (% do spot)"
     }
   ]
 }

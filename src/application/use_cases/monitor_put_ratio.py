@@ -3,6 +3,7 @@ import math
 import time
 from collections import defaultdict
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
 from src.domain.services.calendario_b3 import dc_to_du
@@ -22,7 +23,7 @@ FILTROS_PUT_RATIO = [
     "1. Vencimento",
     "2. Ativo (whitelist)",
     "3. Dados RTD (strike/book)",
-    "4. DTE + IV minima",
+    "4. DTE + IV Rank/Percentile",
     "5. K1 OTM (% do spot)",
     "6. Spread K1-K2 minimo",
     "7. Credito minimo (R$/acao)",
@@ -161,10 +162,16 @@ class MonitorPutRatioUseCase:
         dte_max = self._get_param("put_ratio_dte_max", 60)
         if dados["dias"] < dte_min or dados["dias"] > dte_max:
             return False
-        iv_min = self._get_iv_rank_min()
-        iv_put = dados.get("iv_put", 0.0)
-        if iv_put > 0 and iv_put < iv_min:
-            return False
+        iv_rank_min = self._get_iv_rank_min()
+        if iv_rank_min > 0:
+            iv_rank = dados.get("iv_rank", 0.0)
+            if iv_rank < iv_rank_min:
+                return False
+        iv_pct_min = self._get_param("put_ratio_iv_percentile_min", 0.0)
+        if iv_pct_min > 0:
+            iv_pct = dados.get("iv_percentile", 0.0)
+            if iv_pct < iv_pct_min:
+                return False
         preco_ativo = dados.get("preco_ativo", 0.0)
         strike = dados.get("strike", 0.0)
         if preco_ativo > 0 and strike > 0:
@@ -187,7 +194,7 @@ class MonitorPutRatioUseCase:
         min_credit = self._get_param("put_ratio_min_credit", 0.10)
 
         hoje = date.today()
-        agora = datetime.now()
+        agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
         grupos: dict[tuple[str, date], list[dict]] = defaultdict(list)
 
         filtro = {"total": 0, "venc": 0, "white": 0, "rtd": 0, "filtros": 0}
@@ -207,6 +214,18 @@ class MonitorPutRatioUseCase:
             if not dados:
                 filtro["rtd"] += 1
                 continue
+
+            iv_put_pct = dados.get("iv_put", 0.0)
+            if iv_put_pct > 0:
+                iv_hist = self._carregar_iv_historico(inst.ativo)
+                if iv_hist:
+                    iv_put_dec = iv_put_pct / 100.0
+                    iv_min_h, iv_max_h, _, valores_h = iv_hist
+                    if iv_max_h > iv_min_h:
+                        dados["iv_rank"] = round(min((iv_put_dec - iv_min_h) / (iv_max_h - iv_min_h) * 100, 100.0), 1)
+                        cnt_below = sum(1 for v in valores_h if v < iv_put_dec)
+                        dados["iv_percentile"] = round(min(cnt_below / len(valores_h) * 100, 100.0), 1)
+
             if not self._passa_filtros(dados):
                 filtro["filtros"] += 1
                 continue
@@ -232,7 +251,7 @@ class MonitorPutRatioUseCase:
             otm_max_v = self._get_param('put_ratio_k1_otm_max_pct', 0.15)
             otm_min_v = self._get_param('put_ratio_k1_otm_min_pct', 0.03)
             pipeline_tracker.add_stage("4. Filtros DTE/IV/K1", n3, n4,
-                                       f"DTE [{dte_min_v}, {dte_max_v}] | IV >= {iv_rank_v}% | K1 OTM [{otm_min_v*100:.0f}%, {otm_max_v*100:.0f}%]")
+                                       f"DTE [{dte_min_v}, {dte_max_v}] | IV Rank >= {iv_rank_v}% | IV Pct >= {self._get_param('put_ratio_iv_percentile_min', 0.0):.0f}% | K1 OTM [{otm_min_v*100:.0f}%, {otm_max_v*100:.0f}%]")
             logger.info("PipelineTracker PUT_RATIO: %d -> %d", n0, n_passou)
             self._ultimo_pipeline = pipeline_tracker
 
@@ -249,10 +268,6 @@ class MonitorPutRatioUseCase:
                 for j in range(i + 1, len(members)):
                     k1_data = members[i]
                     k2_data = members[j]
-
-                    iv_put = k1_data["iv_put"]
-                    if iv_put > 0 and iv_put < iv_min:
-                        continue
 
                     du = dc_to_du(hoje, vencimento) if vencimento else None
 
@@ -285,15 +300,8 @@ class MonitorPutRatioUseCase:
                         if resultado:
                             if resultado.credito_bruto < min_credit:
                                 continue
-                            iv_hist = self._carregar_iv_historico(ativo)
-                            if iv_hist:
-                                iv_put_pct = k1_data.get("iv_put", 0.0)
-                                iv_put_dec = iv_put_pct / 100.0
-                                iv_min_h, iv_max_h, _, valores_h = iv_hist
-                                if iv_max_h > iv_min_h:
-                                    resultado.iv_rank = round(min((iv_put_dec - iv_min_h) / (iv_max_h - iv_min_h) * 100, 100.0), 1)
-                                    cnt_below = sum(1 for v in valores_h if v < iv_put_dec)
-                                    resultado.iv_percentile = round(min(cnt_below / len(valores_h) * 100, 100.0), 1)
+                            resultado.iv_rank = k1_data.get("iv_rank", 0.0)
+                            resultado.iv_percentile = k1_data.get("iv_percentile", 0.0)
                             resultado.detectado_em = agora
                             ativo_results.append(resultado)
 

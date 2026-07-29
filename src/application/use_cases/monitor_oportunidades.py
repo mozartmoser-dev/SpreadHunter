@@ -2,7 +2,8 @@ import logging
 import time
 
 import numpy as np
-from datetime import date, datetime
+from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 from src.application.dtos.dtos import OportunidadeMonitor
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
@@ -76,7 +77,7 @@ class MonitorOportunidadesUseCase:
         taxa_repo = TaxaAluguelRepository(self.db_path)
         taxa_map = taxa_repo.get_latest_all()
         resultados = []
-        agora = datetime.now()
+        agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
         hoje = date.today()
 
         if not dados_mercado:

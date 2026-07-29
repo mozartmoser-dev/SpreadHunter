@@ -539,6 +539,7 @@ class MercadoDataProvider:
                                 p_ativo = self._precos_ativo_cache.get(inst.ativo)
                                 if p_ativo:
                                     entry["preco_ativo"] = p_ativo
+                                    entry["of_venda_ativo"] = p_ativo
                             of_compra = c_ativo.get(FieldName.BID)
                             if of_compra is not None:
                                 entry["of_compra_ativo"] = of_compra

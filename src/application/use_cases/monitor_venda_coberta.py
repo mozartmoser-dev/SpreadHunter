@@ -1,6 +1,7 @@
 import logging
 
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from src.application.dtos.dtos_venda_coberta import OportunidadeVendaCoberta
 from src.domain.services.calendario_b3 import dc_to_du
@@ -42,7 +43,7 @@ class MonitorVendaCobertaUseCase:
         return int(self._get_param("venda_coberta_lote_liquidez", 100))
 
     def varrer(self, dados_mercado: dict[str, dict], pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeVendaCoberta]:
-        agora = datetime.now()
+        agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
         hoje = date.today()
         inst_map = self.inst_repo.get_all_mapped()
         taxa_repo = TaxaAluguelRepository(self.db_path)
@@ -171,7 +172,7 @@ class MonitorVendaCobertaUseCase:
         return resultados
 
     def varrer_comprada(self, dados_mercado: dict[str, dict], pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeVendaCoberta]:
-        agora = datetime.now()
+        agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
         hoje = date.today()
         inst_map = self.inst_repo.get_all_mapped()
         taxa_repo = TaxaAluguelRepository(self.db_path)

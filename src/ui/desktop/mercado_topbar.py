@@ -35,7 +35,9 @@ class TickerWidget(QWidget):
 
     BG = QColor("#121212")
     COR_BALANCO = QColor("#f1c40f")
+    COR_BALANCO_FADED = QColor("#8a7a20")
     COR_PROVENTO = QColor("#2ecc71")
+    COR_PROVENTO_FADED = QColor("#1a7a3e")
     COR_AGENDA = QColor("#747d8c")
     SEPARADOR = "    ◆    "
 
@@ -426,35 +428,38 @@ class MercadoTopBarWidget(QFrame):
         return 14.25
 
     def _carregar_eventos_do_dia(self):
-        hoje = date.today().isoformat()
+        hoje = date.today()
+        hoje_iso = hoje.isoformat()
         itens: list[tuple[str, QColor]] = []
         try:
             from src.infrastructure.persistence.repositories.repositories import (
                 DividendoRepository, CalendarioResultadosRepository,
             )
             repo_div = DividendoRepository(self.db_path)
-            divs = repo_div.get_proximos(dias=1)
+            divs = repo_div.get_proximos(dias=1, dias_antes=1)
             for d in divs:
                 ativo = d.get("ativo", "?")
                 valor = d.get("valor", 0)
                 tipo = d.get("tipo", "Provento")
                 data_com = d.get("data_com", "")
                 data_com_fmt = _formatar_data_completa(data_com)
-                itens.append((f"[{ativo}] {tipo}: R$ {valor:.4f} | COM: {data_com_fmt}", TickerWidget.COR_PROVENTO))
+                cor = TickerWidget.COR_PROVENTO if data_com == hoje_iso else TickerWidget.COR_PROVENTO_FADED
+                itens.append((f"[{ativo}] {tipo}: R$ {valor:.4f} | COM: {data_com_fmt}", cor))
 
             repo_cal = CalendarioResultadosRepository(self.db_path)
-            balancos = repo_cal.get_proximos(dias=1)
+            balancos = repo_cal.get_proximos(dias=1, dias_antes=1)
             for b in balancos:
                 ativo = b.get("ativo", "?")
                 data_pub = b.get("data_publicacao", "")
                 data_pub_fmt = _formatar_data_completa(data_pub)
                 tri = b.get("trimestre_referencia", "")
-                itens.append((f"[{ativo}] Balanco {tri}: {data_pub_fmt}", TickerWidget.COR_BALANCO))
+                cor = TickerWidget.COR_BALANCO if data_pub == hoje_iso else TickerWidget.COR_BALANCO_FADED
+                itens.append((f"[{ativo}] Balanco {tri}: {data_pub_fmt}", cor))
         except Exception:
             pass
 
         if not itens:
-            itens.append((f"[AGENDA] Nenhum evento corporativo ou Data Com para hoje/amanha.", TickerWidget.COR_AGENDA))
+            itens.append((f"[AGENDA] Nenhum evento corporativo ou Data Com para ontem/hoje/amanha.", TickerWidget.COR_AGENDA))
 
         self.ticker.set_eventos(itens)
 

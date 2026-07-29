@@ -136,24 +136,24 @@ class OportunidadeMonitor:
     @property
     def rent_cdi_bruto_display(self) -> str:
         if self.classificacao == "1BOX":
-            return "{:.2f}x CDI (BOX)".format(self.pct_cdi_box_bruto)
+            return "{:.0f}% CDI (BOX)".format(self.pct_cdi_box_bruto * 100)
         if self.classificacao == "2SBTH":
-            return "{:.2f}x CDI (SBTH)".format(self.pct_cdi_sbth_bruto)
+            return "{:.0f}% CDI (SBTH)".format(self.pct_cdi_sbth_bruto * 100)
         if self.classificacao == "3BOXSBTH":
-            return "{:.2f}x CDI (SBTH) | {:.2f}x CDI (BOX)".format(
-                self.pct_cdi_sbth_bruto, self.pct_cdi_box_bruto
+            return "{:.0f}% CDI (SBTH) | {:.0f}% CDI (BOX)".format(
+                self.pct_cdi_sbth_bruto * 100, self.pct_cdi_box_bruto * 100
             )
         return "-"
 
     @property
     def rent_cdi_liq_display(self) -> str:
         if self.classificacao == "1BOX":
-            return "{:.2f}x CDI (BOX)".format(self.pct_cdi_box_liquido)
+            return "{:.0f}% CDI (BOX)".format(self.pct_cdi_box_liquido * 100)
         if self.classificacao == "2SBTH":
-            return "{:.2f}x CDI (SBTH)".format(self.pct_cdi_sbth_liquido)
+            return "{:.0f}% CDI (SBTH)".format(self.pct_cdi_sbth_liquido * 100)
         if self.classificacao == "3BOXSBTH":
-            return "{:.2f}x CDI (SBTH) | {:.2f}x CDI (BOX)".format(
-                self.pct_cdi_sbth_liquido, self.pct_cdi_box_liquido
+            return "{:.0f}% CDI (SBTH) | {:.0f}% CDI (BOX)".format(
+                self.pct_cdi_sbth_liquido * 100, self.pct_cdi_box_liquido * 100
             )
         return "-"
 

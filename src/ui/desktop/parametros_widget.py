@@ -248,7 +248,8 @@ PARAMETROS_POR_ESTRATEGIA = {
     "PUT_RATIO": [
         ("put_ratio_dte_min", "DTE minimo (dias)"),
         ("put_ratio_dte_max", "DTE maximo (dias)"),
-        ("put_ratio_iv_rank_min", "IV minima (% - absoluto)"),
+        ("put_ratio_iv_rank_min", "IV Rank minimo (0-100)"),
+        ("put_ratio_iv_percentile_min", "IV Percentile minimo (0-100)"),
         ("put_ratio_ratios", "Ratios a testar (ex: 1x2,2x3,1x3)"),
         ("put_ratio_premio_risco", "Premio risco (x CDI)"),
         ("put_ratio_qtd_min", "Qtd minima por perna (book)"),

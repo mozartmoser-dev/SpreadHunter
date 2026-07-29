@@ -2,6 +2,7 @@ import logging
 import time
 from collections import defaultdict
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,7 @@ class MonitorBoxUseCase:
         taxa_map = taxa_repo.get_latest_all()
 
         hoje = date.today()
-        agora = datetime.now()
+        agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
         grupos: dict[tuple[str, date], list[dict]] = defaultdict(list)
 
         filtro = {"total": 0, "venc": 0, "white": 0, "rtd": 0, "filtros": 0, "grupos": 0}
