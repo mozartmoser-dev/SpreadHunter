@@ -1973,7 +1973,8 @@ class MainWindow(QMainWindow):
         self._mpp_dialog.show()
 
     def _on_row_double_clicked(self, index):
-        opp = self.table_model.get_oportunidade(index.row())
+        src_idx = self._main_proxy.mapToSource(index)
+        opp = self.table_model.get_oportunidade(src_idx.row())
         if opp is None:
             return
         source = self._worker.market_data_source if self._worker else None
