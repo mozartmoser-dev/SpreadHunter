@@ -702,27 +702,6 @@ class MainWindow(QMainWindow):
 
         btn_layout.addSpacing(16)
 
-        hoje = date.today()
-        ontem = hoje - timedelta(days=1)
-        amanha = hoje + timedelta(days=1)
-        fmt = "%d/%m"
-        for texto, data_ref, cor, bg in [
-            (f"D-1 {ontem.strftime(fmt)}", ontem, "#8899aa", "#1a1e22"),
-            (f" D0 {hoje.strftime(fmt)} ", hoje, "#e8e8e8", "#1e2a2e"),
-            (f"D+1 {amanha.strftime(fmt)}", amanha, "#8899aa", "#1a1e22"),
-        ]:
-            lbl = QLabel(texto)
-            lbl.setToolTip(data_ref.strftime("%d/%m/%Y"))
-            lbl.setStyleSheet(f"""
-                QLabel {{
-                    color: {cor}; background-color: {bg};
-                    border: 1px solid #2d2d44; border-radius: 4px;
-                    padding: 2px 8px; font-size: 8pt; font-weight: bold;
-                    font-family: Consolas;
-                }}
-            """)
-            btn_layout.addWidget(lbl)
-
         self.chk_tp_op = QCheckBox("Exibir Todas")
 
         self.btn_varrer = QPushButton("\u25b6  Ligar")
@@ -2624,8 +2603,9 @@ class MainWindow(QMainWindow):
 
                     self.progress_item.emit(1, 4, "Webwallet (previstos)...")
                     previstos = web.buscar_todos()
-                    crepo.delete_by_fonte("webwallet")
-                    crepo.save_batch(previstos)
+                    if previstos:
+                        crepo.delete_by_fonte("webwallet")
+                        crepo.save_batch(previstos)
 
                     resultado["etapas"]["resultados"] = {
                         "ok": True,

@@ -131,8 +131,9 @@ class CalendarioFetchWorker(QThread):
 
             self.progresso.emit(1, 2, "Webwallet (previstos)...")
             previstos = web.buscar_todos()
-            repo.delete_by_fonte("webwallet")
-            repo.save_batch(previstos)
+            if previstos:
+                repo.delete_by_fonte("webwallet")
+                repo.save_batch(previstos)
 
             self.progresso.emit(2, 2, "Finalizando...")
             msg = f"{len(previstos)} previstos"
