@@ -1,6 +1,6 @@
 # Spreadhunter — Regras para Agentes
 
-Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, taxa, SBTH vendida). Desktop Python/PySide6, SQLite, RTD via COM do Profit, socket OpenFast, API opcoes.net.br. **Windows-only.** Sem CI; 527 testes rodam localmente.
+Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, taxa, SBTH vendida, put ratio, venda coberta). Desktop Python/PySide6, SQLite, RTD via COM do Profit, socket OpenFast, API opcoes.net.br. **Windows-only.** Sem CI; 573 testes rodam localmente.
 
 ## Confirmação obrigatória
 
@@ -9,7 +9,7 @@ Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, 
 ## Comandos essenciais
 
 ```powershell
-python -m pytest tests/ -x -q --tb=short            # todos (527)
+python -m pytest tests/ -x -q --tb=short            # todos (573)
 python -m pytest tests/domain/test_calculadora_cauda_assincrona.py -q
 python -m pytest tests/test_fase3.py::TestX::test_y -q
 python main.py                                       # dev
@@ -18,16 +18,19 @@ python -m PyInstaller --clean --distpath "$env:USERPROFILE\Desktop\dist" `
   --workpath "$env:USERPROFILE\Desktop\build_pyi" spreadhunter.spec
 ```
 
-Stack: Python ≥3.12, PySide6 6.11.1, sqlite3, scipy, numpy, matplotlib, pywin32, pillow, opencv-python, requests, python-dotenv, pyautogui, psutil, pytest, yfinance. `pyproject.toml` seta `pythonpath = ["."]` (imports from root). `requirements.txt` pinado. Regras completas em `.opencode/skills/spreadhunter/SKILL.md` (`skill spreadhunter`).
+Stack: Python ≥3.13, PySide6 6.11.1, sqlite3, scipy, numpy, matplotlib, pywin32, pillow, opencv-python, requests, python-dotenv, pyautogui, psutil, pytest, yfinance. `pyproject.toml` seta `pythonpath = ["."]` (imports from root). `requirements.txt` pinado. Regras completas em `.opencode/skills/spreadhunter/SKILL.md` (`skill spreadhunter`).
 
 ## Arquitetura não-óbvia
 
-- `monitor_worker.py` em `src/ui/desktop/` (QThread que coordena use cases via sinais)
+- `monitor_worker.py` em `src/ui/desktop/` (QThread que coordena 7+ use cases via sinais)
+- Pipeline real no worker: 1. Geral → 2. Colares → 3. Collar Calendário → 4. Box 4P → 5. Put Ratio → 6. Manutenção → 7. Reconexão → 8. MPP. Onda 2 roda dentro da Manutenção.
+- Use cases em `src/application/use_cases/`, calculadoras em `src/domain/services/`
 - Bootstrap: `src/infrastructure/persistence/bootstrap.py` → `main.py`
 - `_ImportThread` em `grade_opcoes_dialog.py` (não em `main_window.py`)
 - Duas fontes de market data: Profit RTD (COM, `rtd_profit.py`) e OpenFast (socket TCP, `openfast_socket_adapter.py`). Config `fonte_market_data` no banco. **Atenção:** `parametro_operacional.py` default hardcoded = `"profit"`, mas `parametros_default.json` seed = `"openfast"` — o JSON vence no seed. Script `scripts/set_openfast.py` alterna.
 - `.env` contém credenciais opcoes.net.br — `.gitignore` exclui, nunca commitar
-- DB em `%APPDATA%/Spreadhunter/spreadhunter.db` via `get_db_path()` — nunca hardcoded
+- DB em `%APPDATA%/Spreadhunter/spreadhunter.db` via `get_db_path()` — nunca hardcoded. Migração automática de `config/spreadhunter.db` na 1ª execução.
+- Conexão SQLite: `threading.local` pool, `journal_mode=WAL`, `cache_size=-8000`, `temp_store=MEMORY`, `synchronous=NORMAL`
 - `config/spreadhunter_prioridade.json` — prioridades de ativos
 - Graphify: `graphify-out/` — use `skill graphify` para consultas de arquitetura
 
@@ -61,11 +64,9 @@ Mercado: seg-sex **10:00–17:00** (Brasília). Fora disso RTD/OpenFast não ret
 - **Persistência de colunas** via QSettings em `column_utils.py`.
 - **Filtros auto-documentados** nos use cases (`FILTROS_COLAR`, `FILTROS_COLLAR_CALENDARIO`). `regras_dialog.py` importa dinamicamente via `_FILTROS_POR_ESTRATEGIA`.
 
-## Pipeline (worker)
+## `_flush_buffer` (crítico)
 
-`monitor_worker.py` ciclo: 1. Geral → 2. Colar → 3. Collar Calendário → 4. Box 4P → 5. Manutenção → 6. Reconexão → 7. MPP. Onda 2: `_processar_otimizado()` → `CalculadoraCaudaAssincrona.processar_otimizado()` → persiste em `historico_simulacoes`.
-
-**`_flush_buffer` (crítico):** em `mercado_data_provider.py` — sempre que mexer em `_registrar_batch_inteligente()` ou `capturar_dados_mercado()`, TODOS os branches devem chamar `self._flush_buffer()`. Esquecer → opções nunca assinadas → book=0 mesmo com FAST conectado.
+Em `mercado_data_provider.py` — sempre que mexer em `_registrar_batch_inteligente()` ou `capturar_dados_mercado()`, TODOS os branches devem chamar `self._flush_buffer()`. Esquecer → opções nunca assinadas → book=0 mesmo com FAST conectado.
 
 ## Refatoração: crítico vs. rotineiro
 
@@ -76,6 +77,7 @@ Mercado: seg-sex **10:00–17:00** (Brasília). Fora disso RTD/OpenFast não ret
 ## Referências
 
 - `.opencode/skills/spreadhunter/SKILL.md` — use `skill spreadhunter` para regras completas + histórico de sessões
+- `.claude.md` — resumo adicional de stack e convenções
 - `docs/DISTRIBUICAO.md`, `docs/pnt_importacao.md` — deploy/PNT
 - `pendenciascalendario.md` — diagnóstico BWB + simulações
 - `planoprotecaocauda.md` — planejamento de proteção de cauda

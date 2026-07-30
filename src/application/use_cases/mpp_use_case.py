@@ -79,6 +79,9 @@ class MPPUseCase:
         self._snapshot_counter: dict[str, int] = {}
         self._snapshot_buffer: list[tuple] = []
         self._estrutural_carregado = False
+        self._ultimo_rtd_counter: int = 0
+        self._cached_box_scores: list[BoxScore] = []
+        self._cached_mre: list[MreResultado] = []
         self._carregar_spread_history()
 
     def _get_param(self, chave: str, default: float = 0.0) -> float:
@@ -320,6 +323,12 @@ class MPPUseCase:
         if not ativos:
             return [], []
 
+        if hasattr(rtd, 'update_counter'):
+            counter = rtd.update_counter
+            if counter == self._ultimo_rtd_counter and self._cached_box_scores:
+                return self._cached_box_scores, self._cached_mre
+            self._ultimo_rtd_counter = counter
+
         soh_europeia = bool(self._get_param("box_soh_europeia", 1))
         spread_max_pct = self._get_param("box_spread_max_pct", 0.40)
         inst_map = self._obter_instrumentos_mapa(ativos)
@@ -414,6 +423,8 @@ class MPPUseCase:
         resultados_box.sort(key=lambda b: -b.score_final_pct)
         self._flush_spread_history()
         self._flush_snapshot_buffer()
+        self._cached_box_scores = resultados_box
+        self._cached_mre = resultados_mre
         return resultados_box, resultados_mre
 
     def _obter_instrumentos_mapa(self, ativos: list[str] | None = None) -> dict:

@@ -26,7 +26,9 @@ class OpenFastSocketAdapter:
         self._socket: socket.socket | None = None
         self._conectado: bool = False
         self._cache: dict[tuple[str, str], object] = {}
+        self._cache_ts: dict[tuple[str, str], float] = {}
         self._dirty_keys: set[tuple[str, str]] = set()
+        self._update_counter: int = 0
         self._ultimo_syn: float = 0.0
         self._mutex = threading.Lock()
         self._subscriptions: list[tuple[str, str]] = []
@@ -45,7 +47,10 @@ class OpenFastSocketAdapter:
         self._conectar()
 
     def __del__(self):
-        self.desconectar()
+        try:
+            self.desconectar()
+        except Exception:
+            pass
 
     def set_send_delay(self, delay_ms: int):
         self._send_delay_s = max(0.0, delay_ms / 1000.0)
@@ -55,6 +60,11 @@ class OpenFastSocketAdapter:
         if not self._conectado:
             return False
         return time.time() - self._ultimo_syn < 20.0
+
+    @property
+    def update_counter(self) -> int:
+        with self._mutex:
+            return self._update_counter
 
     def _conectar(self):
         try:
@@ -207,13 +217,15 @@ class OpenFastSocketAdapter:
         return _STATUS_NORMALIZE.get(str(raw).upper(), str(raw))
 
     def forcar_leitura(self, codigo: str, campo: FieldName) -> float | None:
+        old = self.ler_campo_cache(codigo, campo)
+        self.invalidar_cache(codigo, campo)
         self.registrar_topico(codigo, campo)
-        for _ in range(5):
+        for _ in range(50):
             v = self.ler_campo_cache(codigo, campo)
-            if v is not None:
+            if v is not None and v > 0:
                 return v
             time.sleep(0.01)
-        return self.ler_campo_cache(codigo, campo)
+        return old
 
     def refresh(self, timeout_ms: int = 0) -> dict[str, object]:
         with self._mutex:
@@ -291,10 +303,13 @@ class OpenFastSocketAdapter:
 
                 if atualizacoes:
                     t0 = time.perf_counter()
+                    agora = time.time()
                     with self._mutex:
                         for chave, valor in atualizacoes:
                             self._cache[chave] = valor
+                            self._cache_ts[chave] = agora
                             self._dirty_keys.add(chave)
+                        self._update_counter += 1
                     self._prof_mutex_time += time.perf_counter() - t0
                     atualizacoes.clear()
             except socket.timeout:
@@ -335,9 +350,22 @@ class OpenFastSocketAdapter:
         with self._mutex:
             self._cache.pop((codigo.upper(), campo_str), None)
 
+    def get_idade_campo(self, codigo: str, campo: FieldName) -> float | None:
+        campo_str = OPENFAST_FIELD_STR.get(campo)
+        if not campo_str:
+            return None
+        with self._mutex:
+            ts = self._cache_ts.get((codigo.upper(), campo_str))
+        if ts is None:
+            return None
+        return time.time() - ts
+
     def desconectar(self):
         self._conectado = False
         time.sleep(0.05)
+        with self._mutex:
+            self._cache.clear()
+            self._cache_ts.clear()
         try:
             if self._socket:
                 self._socket.shutdown(socket.SHUT_RDWR)

@@ -334,7 +334,10 @@ class ExportDialog(QDialog):
         if self._source:
             try:
                 from src.domain.services.market_data_source import FieldName
-                live = self._source.ler_campo_cache(opp.ativo, FieldName.ASK)
+                if hasattr(self._source, 'forcar_leitura'):
+                    live = self._source.forcar_leitura(opp.ativo, FieldName.ASK)
+                else:
+                    live = self._source.ler_campo_cache(opp.ativo, FieldName.ASK)
                 if live and live > 0 and abs(live - dto_val) > 0.01:
                     return QLabel("{:.2f} (ao vivo)  [{:.2f} detectado]".format(live, dto_val))
             except Exception:

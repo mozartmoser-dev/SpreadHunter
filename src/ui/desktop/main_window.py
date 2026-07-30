@@ -1978,6 +1978,19 @@ class MainWindow(QMainWindow):
         if opp is None:
             return
         source = self._worker.market_data_source if self._worker else None
+
+        if source and hasattr(source, 'forcar_leitura'):
+            try:
+                from src.domain.services.market_data_source import FieldName
+                fresh_ask = source.forcar_leitura(opp.ativo, FieldName.ASK)
+                if fresh_ask and fresh_ask > 0 and abs(fresh_ask - opp.preco_compra_ativo) > 0.01:
+                    novo_custo = fresh_ask + opp.of_venda_put - opp.of_compra_call
+                    if novo_custo >= opp.strike * 0.995:
+                        return
+                    opp.preco_compra_ativo = fresh_ask
+            except Exception:
+                pass
+
         dialog = ExportDialog(opp, self.exportar_uc, self, self.db_path, source=source)
         dialog.exec_()
 

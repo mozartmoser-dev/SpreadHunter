@@ -29,7 +29,8 @@ class CalendarioResultadosWebwalletProvider:
 
     def _buscar_pagina(self, pagina: int) -> list[dict]:
         url = WEBWALLET_URL
-        params = {}
+        hoje_br = date.today().strftime("%d/%m/%Y")
+        params = {"TBLPF_TBL_AAGR_DT_PUBLICACAO_FINI": hoje_br}
         if pagina > 1:
             params["TBLPL_TBL_PG"] = str(pagina)
 
