@@ -264,12 +264,12 @@ class MonitorPutRatioUseCase:
             members.sort(key=lambda m: m["strike"], reverse=True)
             ativo_results = []
 
+            du = dc_to_du(hoje, vencimento) if vencimento else None
+
             for i in range(len(members)):
                 for j in range(i + 1, len(members)):
                     k1_data = members[i]
                     k2_data = members[j]
-
-                    du = dc_to_du(hoje, vencimento) if vencimento else None
 
                     preco_ref = k1_data.get("preco_ativo", 0.0)
                     if preco_ref > 0:
@@ -278,6 +278,8 @@ class MonitorPutRatioUseCase:
                             continue
 
                     for n1, n2 in ratios:
+                        iv_k1_dec = (k1_data.get("iv_put", 0.0) / 100.0) or None
+                        iv_k2_dec = (k2_data.get("iv_put", 0.0) / 100.0) or None
                         resultado = calc.calcular(
                             strike_k1=k1_data["strike"],
                             strike_k2=k2_data["strike"],
@@ -296,6 +298,8 @@ class MonitorPutRatioUseCase:
                             preco_ativo=k1_data.get("preco_ativo", 0.0),
                             qtd_min_perna=qtd_min,
                             du=du,
+                            iv_k1=iv_k1_dec,
+                            iv_k2=iv_k2_dec,
                         )
                         if resultado:
                             if resultado.credito_bruto < min_credit:

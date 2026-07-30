@@ -181,6 +181,8 @@ class MonitorBoxUseCase:
 
             members.sort(key=lambda m: m["strike"])
 
+            du = dc_to_du(hoje, vencimento) if vencimento else None
+
             for i in range(len(members)):
                 for j in range(i + 1, len(members)):
                     k1_data = members[i]
@@ -191,8 +193,6 @@ class MonitorBoxUseCase:
 
                     if soh_europeia and k1_data["tipo_opcao"] != TipoOpcao.EUROPEIA:
                         continue
-
-                    du = dc_to_du(hoje, vencimento) if vencimento else None
 
                     resultado = calc.calcular(
                         strike_k1=k1_data["strike"],

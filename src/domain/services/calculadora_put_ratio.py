@@ -112,6 +112,8 @@ class CalculadoraPutRatio:
         preco_ativo: float = 0.0,
         qtd_min_perna: int = 0,
         du: int | None = None,
+        iv_k1: float | None = None,
+        iv_k2: float | None = None,
     ) -> ResultadoPutRatio | None:
         if strike_k1 <= strike_k2:
             return None
@@ -135,10 +137,15 @@ class CalculadoraPutRatio:
 
         T = dias / 365.0
         r_cont = math.log(1 + self.taxa_cdi)
-        mid_k1 = ask_put_k1
-        mid_k2 = bid_put_k2
-        iv_k1 = self.estimar_iv(mid_k1, preco_ativo, strike_k1, T, r_cont) if preco_ativo > 0 else 0.0
-        iv_k2 = self.estimar_iv(mid_k2, preco_ativo, strike_k2, T, r_cont) if preco_ativo > 0 else 0.0
+        if iv_k1 is not None and iv_k2 is not None:
+            pass
+        else:
+            mid_k1 = ask_put_k1
+            mid_k2 = bid_put_k2
+            if iv_k1 is None:
+                iv_k1 = self.estimar_iv(mid_k1, preco_ativo, strike_k1, T, r_cont) if preco_ativo > 0 else 0.0
+            if iv_k2 is None:
+                iv_k2 = self.estimar_iv(mid_k2, preco_ativo, strike_k2, T, r_cont) if preco_ativo > 0 else 0.0
         iv_media = (iv_k1 + iv_k2) / 2 if iv_k1 > 0 and iv_k2 > 0 else max(iv_k1, iv_k2)
 
         delta_k1 = self.delta_put(preco_ativo, strike_k1, T, r_cont, iv_k1) if iv_k1 > 0 else 0.0
