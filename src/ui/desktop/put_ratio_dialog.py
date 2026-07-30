@@ -6,12 +6,26 @@ from PySide6.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel, QTime
 from PySide6.QtGui import QFont, QColor, QBrush, QDesktopServices, QPainter, QPen
 from PySide6.QtWidgets import (
     QDialog, QStyle, QVBoxLayout, QHBoxLayout, QPushButton, QTableView,
-    QAbstractItemView, QLabel, QHeaderView, QFrame, QWidget,
+    QAbstractItemView, QLabel, QHeaderView, QFrame, QWidget, QLineEdit,
     QStyledItemDelegate, QStyleOptionViewItem, QDoubleSpinBox, QRadioButton, QButtonGroup, QCheckBox,
+    QListWidget, QListWidgetItem, QSpinBox,
 )
 
 from src.ui.desktop.column_utils import salvar_ordem_colunas, salvar_largura_colunas, limpar_e_restaurar_colunas
+from src.ui.desktop.constants import SELETOR_TODOS
 from src.ui.desktop.theme import Palette
+
+WHITELIST_CHAVE_PUT_RATIO = "white_list_put_ratio"
+
+
+def ler_whitelist_put_ratio(db_path: str | None = None) -> list[str]:
+    from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+    repo = ParametroRepository(db_path)
+    param = repo.get_by_chave(WHITELIST_CHAVE_PUT_RATIO)
+    if param and param.valor:
+        raw = str(param.valor)
+        return [a.strip().upper() for a in raw.split(",") if a.strip()]
+    return []
 
 CUSTOS_DISCLOSURE = (
     "\n\n* Custos ja incluem taxa B3 (emolumento 0,025%% + liquidacao 0,0275%% por perna) "
@@ -93,8 +107,8 @@ class _PerfilDelegate(QStyledItemDelegate):
             painter.fillRect(rect, QColor("#1a2a4a"))
 
         margin = 4
-        w, h = rect.width() - margin * 2, rect.height() - 8
-        x0, y0 = rect.x() + margin, rect.y() + 4
+        w, h = rect.width() - margin * 2, rect.height() - 6
+        x0, y0 = rect.x() + margin, rect.y() + 3
         total = p_loss + p_slope + p_credit
 
         w_loss = int(w * p_loss / total)
@@ -109,7 +123,7 @@ class _PerfilDelegate(QStyledItemDelegate):
         painter.setBrush(QColor("#2980b9"))
         painter.drawRoundedRect(QRect(x0 + w_loss + w_slope, y0, w_credit, h), 3, 3)
 
-        font = QFont("Consolas", 7, QFont.Bold)
+        font = QFont("Consolas", 8, QFont.Bold)
         painter.setFont(font)
         if w_loss > 14:
             painter.setPen(QColor("#ffffff"))
@@ -124,7 +138,7 @@ class _PerfilDelegate(QStyledItemDelegate):
         painter.restore()
 
     def sizeHint(self, option, index):
-        return __import__('PySide6.QtCore').QSize(200, 28)
+        return __import__('PySide6.QtCore').QSize(200, 34)
 
 
 class PutRatioTableModel(QAbstractTableModel):
@@ -291,6 +305,10 @@ class PutRatioSortProxy(QSortFilterProxyModel):
         super().__init__(parent)
         self._cdi_min = 0.0
         self._only_viaveis = False
+        self._filtro_ativo = ""
+        self._filtro_lista: set | None = None
+        self._top_n = 0
+        self._top_n_accept_set: set[int] | None = None
 
     def set_filtro_cdi_min(self, valor: float):
         self._cdi_min = valor
@@ -300,8 +318,67 @@ class PutRatioSortProxy(QSortFilterProxyModel):
         self._only_viaveis = valor
         self.invalidate()
 
+    def set_filtro_ativo(self, texto: str):
+        self._filtro_ativo = texto.strip().upper()
+        self._filtro_lista = None
+        self._top_n_accept_set = None
+        self.invalidate()
+
+    def set_filtro_lista(self, ativos: set):
+        self._filtro_lista = ativos
+        self._filtro_ativo = ""
+        self._top_n_accept_set = None
+        self.invalidate()
+
+    def set_top_n(self, n: int):
+        self._top_n = n
+        self._top_n_accept_set = None
+        self.invalidate()
+
+    def sort(self, column, order):
+        super().sort(column, order)
+        self._top_n_accept_set = None
+
+    def _recompute_top_n(self):
+        src = self.sourceModel()
+        n = self._top_n
+        sort_col = self.sortColumn()
+        if sort_col < 0:
+            sort_col = 16
+        sort_order = self.sortOrder()
+
+        rows_by_ativo: dict[str, list[int]] = {}
+        for row in range(src.rowCount()):
+            idx = src.index(row, 0)
+            ativo = src.data(idx, Qt.ItemDataRole.DisplayRole) or ""
+            rows_by_ativo.setdefault(ativo, []).append(row)
+
+        accept: set[int] = set()
+        for ativo, rows in rows_by_ativo.items():
+            def _sort_key(r):
+                idx = src.index(r, sort_col)
+                raw = src.data(idx, Qt.ItemDataRole.DisplayRole) or "0"
+                try:
+                    return float(str(raw).replace("R$", "").replace("x", "").replace("%", "").replace(",", ".").strip())
+                except Exception:
+                    return 0.0
+            sorted_rows = sorted(rows, key=_sort_key, reverse=(sort_order == Qt.DescendingOrder))
+            accept.update(sorted_rows[:n])
+
+        self._top_n_accept_set = accept
+
     def filterAcceptsRow(self, row, parent):
         src = self.sourceModel()
+        idx = src.index(row, 0)
+        ativo = src.data(idx, Qt.ItemDataRole.DisplayRole) or ""
+
+        if self._filtro_lista is not None:
+            if ativo not in self._filtro_lista:
+                return False
+        elif self._filtro_ativo:
+            if self._filtro_ativo not in ativo.upper():
+                return False
+
         if self._cdi_min > 0:
             col_cdi = next((i for i, (_, k) in enumerate(PUT_RATIO_COLUMNS) if k == "yield_cdi"), -1)
             if col_cdi >= 0:
@@ -312,9 +389,17 @@ class PutRatioSortProxy(QSortFilterProxyModel):
                         return False
                 except ValueError:
                     pass
+
         if self._only_viaveis:
             if not src._items[row].get("viavel", False):
                 return False
+
+        if self._top_n > 0:
+            if self._top_n_accept_set is None:
+                self._recompute_top_n()
+            if row not in self._top_n_accept_set:
+                return False
+
         return True
 
 
@@ -333,7 +418,9 @@ class PutRatioDialog(QDialog):
         self._scanning = False
         self._som_ativado = False
         self._db_path = db_path
+        self._ativos_carregados = False
         self._setup_ui()
+        self._carregar_ativos()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -386,10 +473,68 @@ class PutRatioDialog(QDialog):
         body.setSpacing(10)
 
         left = QWidget()
-        left.setFixedWidth(160)
+        left.setFixedWidth(200)
         left_panel = QVBoxLayout(left)
         left_panel.setContentsMargins(0, 0, 0, 0)
         left_panel.setSpacing(6)
+
+        lbl_filtro = QLabel("Filtrar Ativo:")
+        lbl_filtro.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold;".format(Palette.TEXT_MUTED))
+        left_panel.addWidget(lbl_filtro)
+
+        self.txt_filtro = QLineEdit()
+        self.txt_filtro.setPlaceholderText("Digite 3+ letras...")
+        self.txt_filtro.setStyleSheet("""
+            QLineEdit {
+                background-color: #1e1e2f;
+                color: #e0e0e0;
+                border: 1px solid #2d2d44;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 9pt;
+            }
+            QLineEdit:focus { border-color: #1abc9c; }
+        """)
+        self._debounce_timer = QTimer()
+        self._debounce_timer.setSingleShot(True)
+        self._debounce_timer.setInterval(200)
+        self._debounce_timer.timeout.connect(self._on_search_ativos_debounced)
+        self.txt_filtro.textChanged.connect(self._debounce_timer.start)
+        left_panel.addWidget(self.txt_filtro)
+
+        self.lista_ativos = QListWidget()
+        self.lista_ativos.setStyleSheet("""
+            QListWidget {
+                background-color: #1a1a2e;
+                color: #e0e0e0;
+                border: 1px solid #2d2d44;
+                border-radius: 4px;
+                font-size: 9pt;
+            }
+            QListWidget::item:selected {
+                background-color: #2d2d44;
+                color: #1abc9c;
+            }
+        """)
+        self.lista_ativos.itemChanged.connect(self._on_asset_check_changed)
+        left_panel.addWidget(self.lista_ativos, stretch=1)
+
+        self.btn_todos = QPushButton("(Des)marcar TODOS")
+        self.btn_todos.setStyleSheet("""
+            QPushButton {
+                background-color: #1e1e2f; color: #e0e0e0;
+                border: 1px solid #2d2d44; border-radius: 4px;
+                padding: 4px; font-size: 8pt;
+            }
+            QPushButton:hover { background-color: #2d2d44; color: #1abc9c; }
+        """)
+        self.btn_todos.clicked.connect(self._toggle_todos)
+        left_panel.addWidget(self.btn_todos)
+
+        sep_filtro = QFrame()
+        sep_filtro.setFrameShape(QFrame.HLine)
+        sep_filtro.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
+        left_panel.addWidget(sep_filtro)
 
         lbl_cdi = QLabel("Filtrar >= (% CDI):")
         lbl_cdi.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold;".format(Palette.TEXT_MUTED))
@@ -422,6 +567,35 @@ class PutRatioDialog(QDialog):
         )
         self._chk_apenas_viaveis.toggled.connect(self._on_filtro_viaveis)
         left_panel.addWidget(self._chk_apenas_viaveis)
+
+        sep_topn = QFrame()
+        sep_topn.setFrameShape(QFrame.HLine)
+        sep_topn.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
+        left_panel.addWidget(sep_topn)
+
+        lbl_topn = QLabel("Top N por Ativo:")
+        lbl_topn.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold;".format(Palette.TEXT_MUTED))
+        left_panel.addWidget(lbl_topn)
+
+        topn_row = QHBoxLayout()
+        topn_row.setSpacing(4)
+        self.spin_topn = QSpinBox()
+        self.spin_topn.setRange(0, 20)
+        self.spin_topn.setValue(0)
+        self.spin_topn.setFixedWidth(60)
+        self.spin_topn.setToolTip("0 = mostra todos. 1 = so o melhor de cada ativo. 2 = ate 2 por ativo, etc.")
+        self.spin_topn.setStyleSheet("""
+            QSpinBox {
+                background-color: #1e1e2f; color: #e0e0e0;
+                border: 1px solid #2d2d44; border-radius: 3px;
+                padding: 2px 4px; font-size: 8pt;
+            }
+            QSpinBox:focus { border-color: #1abc9c; }
+        """)
+        self.spin_topn.valueChanged.connect(self._on_topn_changed)
+        topn_row.addWidget(self.spin_topn)
+        topn_row.addStretch()
+        left_panel.addLayout(topn_row)
 
         left_panel.addStretch()
         body.addWidget(left)
@@ -474,6 +648,104 @@ class PutRatioDialog(QDialog):
         self._footer_layout.addWidget(lbl_dash)
         self._footer_layout.addStretch()
         layout.addWidget(self._footer)
+
+    def _on_topn_changed(self, n: int):
+        self.proxy.set_top_n(n)
+
+    def _carregar_ativos(self):
+        if self._ativos_carregados:
+            return
+        self._ativos_carregados = True
+        ativos = self._carregar_todos_ativos()
+        if ativos:
+            self._popular_lista_ativos(ativos)
+
+    def _carregar_todos_ativos(self) -> list[str]:
+        if not self._db_path:
+            return []
+        try:
+            from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
+            repo = InstrumentoRepository(self._db_path)
+            inst_map = repo.get_all_mapped()
+            ativos = sorted(set(
+                inst.ativo for inst in inst_map.values()
+                if inst.ativo
+            ))
+            return ativos
+        except Exception:
+            return []
+
+    def _popular_lista_ativos(self, ativos: list[str]):
+        whitelist = ler_whitelist_put_ratio(self._db_path)
+        usar_whitelist = bool(whitelist)
+        self.lista_ativos.blockSignals(True)
+        self.lista_ativos.clear()
+
+        item_todos = QListWidgetItem(SELETOR_TODOS)
+        item_todos.setFlags(item_todos.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
+        item_todos.setForeground(QColor(Palette.YELLOW))
+        item_todos.setToolTip("Mostrar todos os ativos")
+        font_todos = QFont()
+        font_todos.setBold(True)
+        item_todos.setFont(font_todos)
+        self.lista_ativos.addItem(item_todos)
+
+        for ativo in ativos:
+            item = QListWidgetItem(ativo)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            if usar_whitelist:
+                item.setCheckState(Qt.Checked if ativo in whitelist else Qt.Unchecked)
+            else:
+                item.setCheckState(Qt.Checked)
+            item.setForeground(QColor(Palette.TEXT_PRIMARY))
+            self.lista_ativos.addItem(item)
+
+        self.lista_ativos.blockSignals(False)
+        self._aplicar_filtro_lista()
+
+    def _on_asset_check_changed(self, item):
+        if self.lista_ativos.signalsBlocked():
+            return
+        self._aplicar_filtro_lista()
+
+    def _toggle_todos(self):
+        self.lista_ativos.blockSignals(True)
+        todos = True
+        for i in range(1, self.lista_ativos.count()):
+            if self.lista_ativos.item(i).checkState() != Qt.Checked:
+                todos = False
+                break
+        novo = Qt.Checked if not todos else Qt.Unchecked
+        for i in range(1, self.lista_ativos.count()):
+            self.lista_ativos.item(i).setCheckState(novo)
+        self.lista_ativos.blockSignals(False)
+        self._aplicar_filtro_lista()
+
+    def _aplicar_filtro_lista(self):
+        selecionados = []
+        todos_marcados = True
+        tem_algum = False
+        for i in range(1, self.lista_ativos.count()):
+            item = self.lista_ativos.item(i)
+            if item.checkState() == Qt.Checked:
+                selecionados.append(item.text())
+                tem_algum = True
+            else:
+                todos_marcados = False
+        selecionados_set = set(selecionados)
+        if not tem_algum or todos_marcados:
+            self.proxy.set_filtro_ativo("")
+        else:
+            self.proxy.set_filtro_lista(selecionados_set)
+
+    def _on_search_ativos_debounced(self):
+        texto = self.txt_filtro.text().strip().upper()
+        item_todos = self.lista_ativos.item(0) if self.lista_ativos.count() > 0 else None
+        if item_todos:
+            item_todos.setHidden(bool(texto))
+        for i in range(1, self.lista_ativos.count()):
+            item = self.lista_ativos.item(i)
+            item.setHidden(bool(texto and texto not in item.text().upper()))
 
     def _exportar_csv(self):
         from src.ui.desktop.copy_utils import exportar_monitor_csv

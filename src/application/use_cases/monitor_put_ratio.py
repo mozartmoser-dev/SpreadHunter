@@ -310,7 +310,7 @@ class MonitorPutRatioUseCase:
                             ativo_results.append(resultado)
 
             ativo_results.sort(key=lambda r: -r.score)
-            resultados.extend(ativo_results[:3])
+            resultados.extend(ativo_results)
 
         if pipeline_tracker is not None:
             pipeline_tracker.add_stage("5. Pareamento", n4, len(resultados),

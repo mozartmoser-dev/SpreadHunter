@@ -257,6 +257,10 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("put_ratio_k1_otm_max_pct", "K1 OTM maximo (% abaixo do spot)"),
         ("put_ratio_k1_otm_min_pct", "K1 OTM minimo (% abaixo do spot)"),
         ("put_ratio_spread_min_pct", "Spread K1-K2 minimo (% do spot)"),
+        ("put_ratio_peso_alpha", "Peso Protecao (alpha) no Score"),
+        ("put_ratio_peso_beta", "Peso Lucro Max (beta) no Score"),
+        ("put_ratio_peso_gamma", "Peso Credito (gamma) no Score"),
+        ("put_ratio_min_credit", "Credito minimo (R$)"),
         ("white_list_put_ratio", "Whitelist de ativos (separados por virgula)"),
     ],
     "IMPORTACAO": [

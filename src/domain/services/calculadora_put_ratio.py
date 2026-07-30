@@ -57,7 +57,7 @@ class CalculadoraPutRatio:
                  taxa_emolumento: float | None = None, taxa_liquidacao: float | None = None,
                  taxa_ir: float | None = None, taxa_registro: float | None = None,
                  iss: float | None = None,
-                 peso_alpha: float = 0.5, peso_beta: float = 0.3, peso_gamma: float = 0.2):
+                 peso_alpha: float = 0.7, peso_beta: float = 0.0, peso_gamma: float = 0.3):
         self.taxa_cdi = taxa_cdi
         self.premio_risco = premio_risco
         self.custos_b3 = CalculadoraCustosB3(taxa_emolumento, taxa_liquidacao, taxa_ir, taxa_registro, iss)

@@ -1029,19 +1029,19 @@
     },
     {
       "chave": "put_ratio_peso_alpha",
-      "valor": "0.5",
+      "valor": "0.7",
       "estrategia": "PUT_RATIO",
       "descricao": "Peso da protecao (distancia %% BE) no Score"
     },
     {
       "chave": "put_ratio_peso_beta",
-      "valor": "0.15",
+      "valor": "0.0",
       "estrategia": "PUT_RATIO",
       "descricao": ""
     },
     {
       "chave": "put_ratio_peso_gamma",
-      "valor": "0.35",
+      "valor": "0.3",
       "estrategia": "PUT_RATIO",
       "descricao": ""
     },
