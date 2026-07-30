@@ -756,6 +756,8 @@ class MainWindow(QMainWindow):
         self._status_box.setStyleSheet("color: {}; font-size: 9pt; font-weight: bold; padding: 0 6px;".format(Palette.RED))
         self._status_vendidas = QLabel("")
         self._status_vendidas.setStyleSheet("color: #8888ff; font-size: 9pt; font-weight: bold; padding: 0 6px;")
+        self._status_put_ratio = QLabel("")
+        self._status_put_ratio.setStyleSheet("color: #e91e63; font-size: 9pt; font-weight: bold; padding: 0 6px;")
         self._status_coberta = QLabel("")
         self._status_coberta.setStyleSheet("color: #2ecc71; font-size: 9pt; font-weight: bold; padding: 0 6px;")
 
@@ -1147,9 +1149,10 @@ class MainWindow(QMainWindow):
         self._status_colar_cal.setVisible(True)
         self._status_box.setVisible(True)
         self._status_vendidas.setVisible(True)
+        self._status_put_ratio.setVisible(True)
         self._status_coberta.setVisible(True)
 
-        for w in (self.lbl_count, self._status_colar, self._status_colar_cal, self._status_box, self._status_vendidas, self._status_coberta):
+        for w in (self.lbl_count, self._status_colar, self._status_colar_cal, self._status_box, self._status_put_ratio, self._status_vendidas, self._status_coberta):
             self.statusBar().addPermanentWidget(w)
 
         self._status_right = QPushButton("")
@@ -1482,6 +1485,13 @@ class MainWindow(QMainWindow):
             self._update_rtd_indicator(False)
             if self._worker.isRunning():
                 self._worker.pausar()
+            self.lbl_count.setText("0 opps | 0 viav")
+            self._status_colar.setText("🛡 0")
+            self._status_colar_cal.setText("📅 0")
+            self._status_box.setText("📦 0")
+            self._status_put_ratio.setText("📊 0")
+            self._status_vendidas.setText("📉 0 (0 viav)")
+            self._status_coberta.setText("📈 0 (0 viav)")
             self._status_left.setText("Monitor pausado")
             self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.ORANGE))
 
@@ -1927,6 +1937,8 @@ class MainWindow(QMainWindow):
 
     def _on_put_ratio_atualizados(self, resultados: list):
         self._ultimos_put_ratio = resultados
+        n_viaveis = sum(1 for r in resultados if r.viavel)
+        self._status_put_ratio.setText(f"📊 {n_viaveis}")
         if self._put_ratio_dialog and self._put_ratio_dialog.isVisible():
             self._put_ratio_dialog.atualizar_resultados(resultados)
 
@@ -1945,6 +1957,10 @@ class MainWindow(QMainWindow):
 
     def _on_parar_put_ratio(self):
         self._worker.parar_auto_put_ratio()
+        self._ultimos_put_ratio = []
+        self._status_put_ratio.setText("📊 0")
+        if self._put_ratio_dialog and self._put_ratio_dialog.isVisible():
+            self._put_ratio_dialog.lbl_scan_status.setText("⏹ Scanner parado")
 
     def _on_mpp_atualizados(self, resultados: list):
         self._ultimos_mpp = resultados

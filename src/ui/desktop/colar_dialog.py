@@ -2368,3 +2368,7 @@ class ColarDialog(QDialog):
     def _toggle_som(self, ativo: bool):
         self._som_ativado = ativo
         self.btn_bell.setToolTip("Som: ligado" if ativo else "Som: desligado")
+
+    def closeEvent(self, event):
+        self.parar_scan_signal.emit()
+        super().closeEvent(event)

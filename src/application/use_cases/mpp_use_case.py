@@ -82,11 +82,19 @@ class MPPUseCase:
         self._ultimo_rtd_counter: int = 0
         self._cached_box_scores: list[BoxScore] = []
         self._cached_mre: list[MreResultado] = []
+        self._params_cache: dict[str, float] = {}
         self._carregar_spread_history()
 
     def _get_param(self, chave: str, default: float = 0.0) -> float:
+        cached = self._params_cache.get(chave)
+        if cached is not None:
+            return cached
         param = self._param_repo.get_by_chave(chave)
-        return param.valor if param else default
+        if param:
+            self._params_cache[chave] = param.valor
+            return param.valor
+        self._params_cache[chave] = default
+        return default
 
     def _get_whitelist(self) -> list[str]:
         param = self._param_repo.get_by_chave("white_list_box4p")
@@ -412,13 +420,11 @@ class MPPUseCase:
                     score = self._calcular_score_box(
                         k1, k2, ativo, vencimento, spot, cdi, dias_uteis
                     )
-                    if score is None:
-                        continue
-
-                    resultados_box.append(score)
-                    self.salvar_snapshot(score)
-                    mre = self._calcular_mre(k1, k2, score, cdi, dias_uteis, spot)
-                    resultados_mre.append(mre)
+                    if score is not None:
+                        resultados_box.append(score)
+                        self.salvar_snapshot(score)
+                        mre = self._calcular_mre(k1, k2, score, cdi, dias_uteis, spot)
+                        resultados_mre.append(mre)
 
         resultados_box.sort(key=lambda b: -b.score_final_pct)
         self._flush_spread_history()

@@ -3156,3 +3156,7 @@ class ColarCalendarioDialog(QDialog):
         """)
         msg.setStandardButtons(QMessageBox.StandardButton.Ok)
         msg.exec_()
+
+    def closeEvent(self, event):
+        self.parar_scan_signal.emit()
+        super().closeEvent(event)
