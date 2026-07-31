@@ -1124,6 +1124,7 @@ class MonitorWorker(QThread):
 
         tracker = PipelineTracker()
         resultados = self._monitor_box_uc.varrer(rtd, pipeline_tracker=tracker)
+        resultados = self._monitor_box_uc.confirmar_resultados(rtd, resultados)
         self.boxes_atualizados.emit(resultados)
 
     def _processar_put_ratio(self, rtd):
@@ -1132,6 +1133,7 @@ class MonitorWorker(QThread):
 
         tracker = PipelineTracker()
         resultados = self._monitor_put_ratio_uc.varrer(rtd, pipeline_tracker=tracker)
+        resultados = self._monitor_put_ratio_uc.confirmar_resultados(rtd, resultados)
         self.put_ratio_atualizados.emit(resultados)
 
     def _emitir_estatisticas_engine(self, t_start_cycle):

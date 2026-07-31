@@ -28,11 +28,11 @@ Stack: Python ≥3.13, PySide6 6.11.1, sqlite3, scipy, numpy, matplotlib, pywin3
 - Bootstrap: `src/infrastructure/persistence/bootstrap.py` → `main.py`
 - `_ImportThread` em `grade_opcoes_dialog.py` (não em `main_window.py`)
 - Duas fontes de market data: Profit RTD (COM, `rtd_profit.py`) e OpenFast (socket TCP, `openfast_socket_adapter.py`). Config `fonte_market_data` no banco. **Atenção:** `parametro_operacional.py` default hardcoded = `"profit"`, mas `parametros_default.json` seed = `"openfast"` — o JSON vence no seed. Script `scripts/set_openfast.py` alterna.
-- `.env` contém credenciais opcoes.net.br — `.gitignore` exclui, nunca commitar
+- `.env` contém credenciais opcoes.net.br — `.gitignore` exclui, nunca commitar. `load_dotenv()` é chamado em `opcoesnet_client.py` (linha ~11, no import do módulo), não globalmente.
 - DB em `%APPDATA%/Spreadhunter/spreadhunter.db` via `get_db_path()` — nunca hardcoded. Migração automática de `config/spreadhunter.db` na 1ª execução.
 - Conexão SQLite: `threading.local` pool, `journal_mode=WAL`, `cache_size=-8000`, `temp_store=MEMORY`, `synchronous=NORMAL`
 - `config/spreadhunter_prioridade.json` — prioridades de ativos
-- Graphify: `graphify-out/` — use `skill graphify` para consultas de arquitetura
+- Graphify: `graphify-out/` — use `skill graphify` para consultas de arquitetura. Para perguntas focadas, prefira graphify query (subgrafo escopado) ao invés de grep nos arquivos fonte. Leia `GRAPH_REPORT.md` apenas para contexto arquitetural amplo.
 
 ## Regras de negócio (resumo; detalhes em SKILL.md)
 

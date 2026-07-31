@@ -318,3 +318,39 @@ class MonitorPutRatioUseCase:
 
         resultados.sort(key=lambda r: -r.score)
         return resultados
+
+    def confirmar_resultados(self, rtd, resultados):
+        if not hasattr(rtd, 'forcar_leitura'):
+            return resultados
+        calc = self._get_calculadora()
+        qtd_min = self._get_qtd_min_perna()
+        hoje = date.today()
+        min_credit = self._get_param("put_ratio_min_credit", 0.10)
+        confirmados = []
+        for r in resultados:
+            if not r.viavel:
+                confirmados.append(r)
+                continue
+            ask_p1 = rtd.forcar_leitura(r.cod_put_k1, FieldName.ASK)
+            bid_p2 = rtd.forcar_leitura(r.cod_put_k2, FieldName.BID)
+            if any(v is None or v <= 0 for v in (ask_p1, bid_p2)):
+                continue
+            du = dc_to_du(hoje, r.vencimento) if r.vencimento else None
+            novo = calc.calcular(
+                strike_k1=r.strike_k1, strike_k2=r.strike_k2,
+                n1=r.n1, n2=r.n2,
+                ask_put_k1=ask_p1, bid_put_k2=bid_p2,
+                qtd_ask_put_k1=r.qtd_ask_put_k1, qtd_bid_put_k2=r.qtd_bid_put_k2,
+                cod_put_k1=r.cod_put_k1, cod_put_k2=r.cod_put_k2,
+                ativo=r.ativo, vencimento=r.vencimento, dias=r.dias,
+                em_leilao=r.em_leilao, preco_ativo=r.spot,
+                qtd_min_perna=qtd_min, du=du,
+                iv_k1=(r.iv_put_pct / 100.0) if r.iv_put_pct > 0 else None,
+                iv_k2=None,
+            )
+            if novo and novo.credito_bruto >= min_credit and novo.viavel:
+                novo.iv_rank = r.iv_rank
+                novo.iv_percentile = r.iv_percentile
+                novo.detectado_em = r.detectado_em
+                confirmados.append(novo)
+        return confirmados

@@ -265,3 +265,39 @@ class MonitorBoxUseCase:
 
         resultados.sort(key=lambda r: -r.lucro_pct)
         return resultados
+
+    def confirmar_resultados(self, rtd, resultados):
+        if not hasattr(rtd, 'forcar_leitura'):
+            return resultados
+        calc = self._get_calculadora()
+        qtd_min = self._get_qtd_min_perna()
+        hoje = date.today()
+        confirmados = []
+        for r in resultados:
+            if not r.viavel:
+                confirmados.append(r)
+                continue
+            bid_c1 = rtd.forcar_leitura(r.cod_call_k1, FieldName.BID)
+            ask_p1 = rtd.forcar_leitura(r.cod_put_k1, FieldName.ASK)
+            ask_c2 = rtd.forcar_leitura(r.cod_call_k2, FieldName.ASK)
+            bid_p2 = rtd.forcar_leitura(r.cod_put_k2, FieldName.BID)
+            if any(v is None or v <= 0 for v in (bid_c1, ask_p1, ask_c2, bid_p2)):
+                continue
+            du = dc_to_du(hoje, r.vencimento) if r.vencimento else None
+            novo = calc.calcular(
+                strike_k1=r.strike_k1, strike_k2=r.strike_k2,
+                bid_call_k1=bid_c1, ask_put_k1=ask_p1,
+                ask_call_k2=ask_c2, bid_put_k2=bid_p2,
+                qtd_bid_call_k1=r.qtd_bid_call_k1, qtd_ask_put_k1=r.qtd_ask_put_k1,
+                qtd_ask_call_k2=r.qtd_ask_call_k2, qtd_bid_put_k2=r.qtd_bid_put_k2,
+                cod_call_k1=r.cod_call_k1, cod_put_k1=r.cod_put_k1,
+                cod_call_k2=r.cod_call_k2, cod_put_k2=r.cod_put_k2,
+                ativo=r.ativo, vencimento=r.vencimento, dias=r.dias,
+                em_leilao=r.em_leilao, qtd_min_perna=qtd_min,
+                tipo_opcao=r.tipo_opcao, du=du,
+            )
+            if novo and novo.viavel:
+                novo.taxa_aluguel = r.taxa_aluguel
+                novo.detectado_em = r.detectado_em
+                confirmados.append(novo)
+        return confirmados
