@@ -39,7 +39,6 @@ from src.ui.desktop.theme import Palette
 
 # ─── Constantes de UI ──────────────────────────────────────────────────────
 
-_CDI_FALLBACK = 0.1425  # alinha com JSON default (config/parametros_default.json)
 
 
 _LABEL_STYLE = f"color: {Palette.TEXT_SECONDARY}; font-size: 9pt; font-weight: bold;"
@@ -71,15 +70,9 @@ _RESULT_STYLE = f"""
 
 
 def _read_taxa_cdi(db_path) -> float:
-    """Lê ParametroRepository.get_by_chave('taxa_cdi'); fallback = JSON default."""
-    try:
-        repo = ParametroRepository(db_path)
-        p = repo.get_by_chave("taxa_cdi")
-        if p is not None and p.valor is not None:
-            return float(p.valor)
-    except Exception:
-        pass
-    return _CDI_FALLBACK
+    """Lê ParametroRepository.get_by_chave('taxa_cdi')."""
+    repo = ParametroRepository(db_path)
+    return float(repo.get_by_chave("taxa_cdi").valor)
 
 
 def _brl(val: float, casas: int = 2) -> str:

@@ -250,6 +250,8 @@ class EstudosCalendarioDialog(QDialog):
                 CalculadoraColarCalendario, ResultadoColarCalendario, TipoColarCalendario,
             )
             from datetime import date
+            from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+            taxa_cdi = float(ParametroRepository(get_db_path()).get_by_chave("taxa_cdi").valor)
             r = ResultadoColarCalendario(
                 ativo=item.get("ativo", ""),
                 vencimento_call=date.today(),
@@ -279,7 +281,7 @@ class EstudosCalendarioDialog(QDialog):
                 theta_liquido=item.get("theta_liquido", 0) or 0,
                 viavel=bool(item.get("viavel", 1)),
                 tipo=TipoColarCalendario.NEUTRO,
-                r=0.1425,
+                r=taxa_cdi,
                 custo_b3=item.get("custo_b3", 0) or 0,
                 custo_ir=item.get("custo_ir", 0) or 0,
                 pct_cdi_liquido=item.get("pct_cdi_liquido", 0) or 0,
@@ -317,7 +319,7 @@ class EstudosCalendarioDialog(QDialog):
                 custo_protecao_put=item.get("custo_protecao_put", 0) or 0,
                 viavel_protecao=bool(item.get("viavel", 0)),
             )
-            html = CalculadoraColarCalendario.gerar_explicacao(r)
+            html = CalculadoraColarCalendario.gerar_explicacao(r, r.r)
             from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit
             dialog = QDialog(self)
             dialog.setWindowTitle(f"Explicação — {r.ativo} | {r.estagio_otimizado}")
@@ -740,7 +742,7 @@ class EstudosCalendarioDialog(QDialog):
 
             repo = ParametroRepository(db_path)
             param = repo.get_by_chave("taxa_cdi")
-            rf = param.valor if param else 0.1450
+            rf = param.valor
 
             if S0 <= 0 or Kc <= 0 or Kp <= 0:
                 QMessageBox.warning(self, "Grafico", "Dados insuficientes para gerar payoff.")

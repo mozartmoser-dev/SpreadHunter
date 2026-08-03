@@ -104,7 +104,7 @@ class MPPUseCase:
         return []
 
     def obter_taxa_cdi(self) -> float:
-        return self._get_param("taxa_cdi", 0.145)
+        return float(self._param_repo.get_by_chave("taxa_cdi").valor)
 
     def precisa_atualizar_cache(self) -> bool:
         from src.domain.services.calendario_b3 import eh_feriado

@@ -35,8 +35,8 @@ class MonitorTableModel(QAbstractTableModel):
         ("Qul Put", "qul_put"),
         ("Qul Call", "qul_call"),
         ("MOD", "tipo_opcao"),
-        ("Cod Put", "cod_put"),
-        ("Cod Call", "cod_call"),
+        ("Cód.Put", "cod_put"),
+        ("Cód.Call", "cod_call"),
         ("BTC", "taxa_aluguel"),
         ("Detectado", "label_detectado"),
     ]

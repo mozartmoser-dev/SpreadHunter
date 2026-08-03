@@ -60,7 +60,7 @@ class MonitorPutRatioUseCase:
     def _get_calculadora(self) -> CalculadoraPutRatio:
         if self._calculadora is None:
             param_cdi = self.param_repo.get_by_chave("taxa_cdi")
-            taxa_cdi = param_cdi.valor if param_cdi else 0.1450
+            taxa_cdi = param_cdi.valor
             param_risco = self.param_repo.get_by_chave("put_ratio_premio_risco")
             premio = param_risco.valor if param_risco else 1.0
             emol = self._get_param("taxa_emolumento_pct", 0.00025)

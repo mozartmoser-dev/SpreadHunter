@@ -60,8 +60,8 @@ PUT_RATIO_COLUMNS = [
     ("Zona", "zona"),
     ("Dias", "dias"),
     ("Venc", "vencimento"),
-    ("Put K1", "cod_put_k1"),
-    ("Put K2", "cod_put_k2"),
+    ("Cód.Put C.K1", "cod_put_k1"),
+    ("Cód.Put V.K2", "cod_put_k2"),
     ("IV PUT", "iv_put_pct"),
     ("Q K1", "qtd_ask_put_k1"),
     ("Q K2", "qtd_bid_put_k2"),
@@ -176,8 +176,8 @@ class PutRatioTableModel(QAbstractTableModel):
                     "zona": "Zona de confianca: A=sigma>=2 (alta), B=sigma>=1.5 (media), C (baixa).",
                     "dias": "Dias corridos ate o vencimento das opcoes.",
                     "vencimento": "Data de expiracao das opcoes.",
-                    "cod_put_k1": "Codigo B3 da Put K1 (comprada). Ex: PETRH300.",
-                    "cod_put_k2": "Codigo B3 da Put K2 (vendida). Ex: PETRH285.",
+                    "cod_put_k1": "Código B3 da Put comprada (K1). Ex: PETRH300.",
+                    "cod_put_k2": "Código B3 da Put vendida (K2). Ex: PETRH285.",
                     "iv_put_pct": "IV media das Puts (estimada via Newton-Raphson). Cap em 100%% no sigma_be.",
                     "iv_rank": "IV Rank 0-100 = (IV_atual - min_252d) / (max_252d - min_252d). >50 = volatilidade acima da media historica.",
                     "iv_percentile": "Percentil da IV atual na serie 252d. Ex: 80 = IV maior que 80%% dos dias.",
@@ -952,10 +952,10 @@ class PutRatioDialog(QDialog):
         pop = getattr(r, 'pop_pct', 0.0)
 
         footer_ops = QLabel(
-            f"<span style='color:{BLUE};'>{K1_cod}</span>"
+            f"<span style='color:{BLUE};'>C.Put C.K1: {K1_cod}</span>"
             f"<span style='color:{TEXT};'> K1={K1:.2f} Ask={askK1:.2f} Q={qK1}</span>"
             f"<span style='color:{TEXT};'>  |  </span>"
-            f"<span style='color:{YELLOW};'>{K2_cod}</span>"
+            f"<span style='color:{YELLOW};'>C.Put V.K2: {K2_cod}</span>"
             f"<span style='color:{TEXT};'> K2={K2:.2f} Bid={bidK2:.2f} Q={qK2}</span>"
         )
         footer_ops.setStyleSheet("font-family: Consolas; font-size: 9pt; padding: 2px;")

@@ -309,7 +309,7 @@ class FeriadosDialog(QDialog):
         from src.infrastructure.persistence.repositories.repositories import ParametroRepository
         repo = ParametroRepository(self.db_path)
         p = repo.get_by_chave("taxa_cdi")
-        return p.valor if p else 0.1450
+        return p.valor
 
     def _calcular_cdi(self):
         from src.domain.services.calendario_b3 import dc_to_du_aproximado

@@ -37,7 +37,7 @@ class MonitorOportunidadesUseCase:
 
     def _get_calculadoras(self):
         if self._calculadora is None:
-            taxa_cdi = self._get_param("taxa_cdi", 0.1450)
+            taxa_cdi = float(self.param_repo.get_by_chave("taxa_cdi").valor)
             premio_box = self._get_param("premio_risco_box", 1.5)
             premio_sbth = self._get_param("premio_risco_sbth", 1.2)
             emol = self._get_param("taxa_emolumento_pct", 0.00025)

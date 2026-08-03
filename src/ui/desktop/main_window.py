@@ -177,6 +177,9 @@ class MainWindow(QMainWindow):
         self._sensibilidade_mercado: SensibilidadeMercadoWidget | None = None
 
         QShortcut(QKeySequence("Ctrl+Shift+F"), self, self._abrir_pipeline)
+        QShortcut(QKeySequence(Qt.CTRL | Qt.Key_Equal), self, self._aumentar_fonte)
+        QShortcut(QKeySequence(Qt.CTRL | Qt.Key_Minus), self, self._diminuir_fonte)
+        QShortcut(QKeySequence(Qt.CTRL | Qt.Key_0), self, self._resetar_fonte)
 
         self._scan_timer = QTimer(self)
         self._scan_timer.timeout.connect(self._update_scan_status)
@@ -1219,7 +1222,7 @@ class MainWindow(QMainWindow):
 
         param_repo = ParametroRepository(self.db_path)
         param = param_repo.get_by_chave("taxa_cdi")
-        taxa_cdi = param.valor if param else 0.1450
+        taxa_cdi = param.valor
         hoje = date.today()
 
         dialog = QDialog(self, Qt.Window)
@@ -1753,6 +1756,29 @@ class MainWindow(QMainWindow):
                 "QHeaderView::section {{ background-color: #1e1e1e; color: {}; "
                 "font-weight: bold; font-size: {}pt; padding: 4px 8px; border: 1px solid #333; }}".format(cor, tamanho)
             )
+
+    def _ajustar_fonte(self, delta: int):
+        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+        repo = ParametroRepository(self.db_path)
+        p = repo.get_by_chave("fonte_tamanho")
+        tamanho = int(p.valor) if p else 9
+        novo = max(8, min(16, tamanho + delta))
+        if novo == tamanho:
+            return
+        repo.save("fonte_tamanho", str(novo), "GERAL", "Tamanho da fonte do sistema (8-16)")
+        self._aplicar_fonte_tamanho()
+
+    def _aumentar_fonte(self):
+        self._ajustar_fonte(+1)
+
+    def _diminuir_fonte(self):
+        self._ajustar_fonte(-1)
+
+    def _resetar_fonte(self):
+        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+        repo = ParametroRepository(self.db_path)
+        repo.save("fonte_tamanho", "9", "GERAL", "Tamanho da fonte do sistema (8-16)")
+        self._aplicar_fonte_tamanho()
 
     def _on_status_message(self, msg: str):
         self._status_left.setText(msg)

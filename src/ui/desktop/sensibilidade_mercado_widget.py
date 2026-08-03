@@ -243,7 +243,7 @@ class SensibilidadeMercadoWidget(QWidget):
         self._ref_date: date | None = None
         self._rows_fut: list[dict[str, Any]] = []
         self._rows_ibov: list[dict[str, Any]] = []
-        self._taxa_cdi = 0.1425
+        self._taxa_cdi = 0.0
         self._cdi_ultima_leitura = 0.0
         self._cdi_cache_interval_s = 300
         self._timer = QTimer(self)
@@ -494,12 +494,9 @@ class SensibilidadeMercadoWidget(QWidget):
         agora = time.time()
         if self._cdi_ultima_leitura > 0 and (agora - self._cdi_ultima_leitura) < self._cdi_cache_interval_s:
             return
-        try:
-            p = ParametroRepository(self._db_path).get_by_chave("taxa_cdi")
-            self._taxa_cdi = float(p.valor) if p else 0.1425
-            self._cdi_ultima_leitura = agora
-        except Exception:
-            self._taxa_cdi = 0.1425
+        p = ParametroRepository(self._db_path).get_by_chave("taxa_cdi")
+        self._taxa_cdi = float(p.valor)
+        self._cdi_ultima_leitura = agora
 
     def _mount_rows(self):
         hoje = date.today()

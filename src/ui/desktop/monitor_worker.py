@@ -485,7 +485,7 @@ class MonitorWorker(QThread):
         from src.domain.services.calculadora_colar import ResultadoColar, TipoColar
         ui_results: list = []
         repo = HistoricoSimulacoesRepository(self.db_path)
-        taxa_cdi = self._ler_param_float("taxa_cdi", 0.145)
+        taxa_cdi = float(ParametroRepository(self.db_path).get_by_chave("taxa_cdi").valor)
         otimizado_desvios_sigma = self._ler_param_float("otimizado_desvios_sigma", 2.2)
         otimizado_sigma_rendimento = self._ler_param_float("otimizado_sigma_rendimento", 2.0)
         otimizado_ratio_put_min = self._ler_param_float("otimizado_ratio_put_min", 0.80)

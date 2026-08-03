@@ -28,11 +28,11 @@ Stack: Python ≥3.13, PySide6 6.11.1, sqlite3, scipy, numpy, matplotlib, pywin3
 - Bootstrap: `src/infrastructure/persistence/bootstrap.py` → `main.py`
 - `_ImportThread` em `grade_opcoes_dialog.py` (não em `main_window.py`)
 - Duas fontes de market data: Profit RTD (COM, `rtd_profit.py`) e OpenFast (socket TCP, `openfast_socket_adapter.py`). Config `fonte_market_data` no banco. **Atenção:** `parametro_operacional.py` default hardcoded = `"profit"`, mas `parametros_default.json` seed = `"openfast"` — o JSON vence no seed. Script `scripts/set_openfast.py` alterna.
-- `.env` contém credenciais opcoes.net.br — `.gitignore` exclui, nunca commitar. `load_dotenv()` é chamado em `opcoesnet_client.py` (linha ~11, no import do módulo), não globalmente.
+- `.env` contém credenciais opcoes.net.br (`OPCOESNET_CPF`, `OPCOESNET_SENHA`) — `.gitignore` exclui, nunca commitar. `load_dotenv()` é chamado em `opcoesnet_client.py` (linha ~11, no import do módulo), não globalmente.
 - DB em `%APPDATA%/Spreadhunter/spreadhunter.db` via `get_db_path()` — nunca hardcoded. Migração automática de `config/spreadhunter.db` na 1ª execução.
 - Conexão SQLite: `threading.local` pool, `journal_mode=WAL`, `cache_size=-8000`, `temp_store=MEMORY`, `synchronous=NORMAL`
 - `config/spreadhunter_prioridade.json` — prioridades de ativos
-- Graphify: `graphify-out/` — use `skill graphify` para consultas de arquitetura. Para perguntas focadas, prefira graphify query (subgrafo escopado) ao invés de grep nos arquivos fonte. Leia `GRAPH_REPORT.md` apenas para contexto arquitetural amplo.
+- Graphify: `graphify-out/` — use `skill graphify` para consultas de arquitetura. Para perguntas focadas, prefira graphify query (subgrafo escopado) ao invés de grep nos arquivos fonte. Leia `graphify-out/GRAPH_REPORT.md` apenas para contexto arquitetural amplo.
 
 ## Regras de negócio (resumo; detalhes em SKILL.md)
 
@@ -48,7 +48,7 @@ Stack: Python ≥3.13, PySide6 6.11.1, sqlite3, scipy, numpy, matplotlib, pywin3
 
 ## Operação B3
 
-Mercado: seg-sex **10:00–17:00** (Brasília). Fora disso RTD/OpenFast não retornam dados. Testar com cotação dummy ou mock (`mock_market_data.py`).
+Mercado: seg-sex **10:00–17:00** (Brasília). Fora disso RTD/OpenFast não retornam dados. Testar com cotação dummy ou `src/infrastructure/providers/mock_market_data.py`.
 
 ## Windows / PyInstaller gotchas
 
@@ -76,8 +76,8 @@ Em `mercado_data_provider.py` — sempre que mexer em `_registrar_batch_intelige
 
 ## Referências
 
-- `.opencode/skills/spreadhunter/SKILL.md` — use `skill spreadhunter` para regras completas + histórico de sessões
-- `.claude.md` — resumo adicional de stack e convenções
+- `.opencode/skills/spreadhunter/SKILL.md` — use `skill spreadhunter` para regras completas + histórico de sessões (nota: SKILL.md tem contagem de testes desatualizada; 573 é o número real)
+- `.claude.md` — resumo adicional de stack e convenções (atenção: regra #5 duplicada com numeração quebrada)
 - `docs/DISTRIBUICAO.md`, `docs/pnt_importacao.md` — deploy/PNT
 - `pendenciascalendario.md` — diagnóstico BWB + simulações
 - `planoprotecaocauda.md` — planejamento de proteção de cauda

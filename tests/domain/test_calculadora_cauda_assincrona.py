@@ -25,6 +25,7 @@ class TestCaudaBasics:
         pnl_projetado_base=0.90,
         capital_empregado_base=24.20,
         pct_cdi_base=2.5,
+        taxa_cdi=0.1425,
         calda_ratio_max=300,
         calda_ratio_put_min=0.3,
         calda_ratio_put_step=0.05,

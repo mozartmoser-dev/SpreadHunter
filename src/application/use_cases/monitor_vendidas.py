@@ -31,7 +31,7 @@ class MonitorVendidasUseCase:
         return param.valor if param else default
 
     def _get_taxa_cdi(self) -> float:
-        return self._get_param("taxa_cdi", 0.1450)
+        return float(self.param_repo.get_by_chave("taxa_cdi").valor)
 
     def _calcular_cdi_periodo(self, dias_corridos: int) -> float:
         du = dc_to_du(None, None, dias_corridos)

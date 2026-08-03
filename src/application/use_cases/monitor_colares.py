@@ -38,7 +38,7 @@ class MonitorColaresUseCase:
     def _get_calculadora(self) -> CalculadoraColar:
         if self._calculadora is None:
             param = self.param_repo.get_by_chave("taxa_cdi")
-            taxa_cdi = param.valor if param else 0.1450
+            taxa_cdi = param.valor
             param_risco = self.param_repo.get_by_chave("premio_risco_colar")
             premio = param_risco.valor if param_risco else 0.7
             param_vov = self.param_repo.get_by_chave("colar_risco_baixo_vov_min")

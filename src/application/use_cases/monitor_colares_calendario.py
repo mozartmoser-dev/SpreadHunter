@@ -49,7 +49,7 @@ class MonitorColaresCalendarioUseCase:
     def _get_calculadora(self) -> CalculadoraColarCalendario:
         if self._calculadora is None:
             param = self.param_repo.get_by_chave("taxa_cdi")
-            taxa_cdi = param.valor if param else 0.1450
+            taxa_cdi = param.valor
             premio_risco = self._get_param("premio_risco_colar_calendario", 1.2)
             emol = self._get_param("taxa_emolumento_pct", 0.00025)
             liq = self._get_param("taxa_liquidacao_pct", 0.000275)

@@ -580,8 +580,8 @@ class ColarCalTableModel(QAbstractTableModel):
         ("Venc Put", "vencimento_put"),
         ("K Call", "strike_call"),
         ("K Put", "strike_put"),
-        ("Cód Call", "cod_call"),
-        ("Cód Put", "cod_put"),
+        ("Cód.Call", "cod_call"),
+        ("Cód.Put", "cod_put"),
         # — Qualidade & Decisão —
         ("★", "qualidade"),
         ("Score", "score"),
@@ -1827,7 +1827,7 @@ class ColarCalendarioDialog(QDialog):
             "strike_put": r.strike_put,
             "dte_put": r.dte_put,
             "iv_put": r.iv_put / 100.0,
-            "taxa_cdi": getattr(r, 'r', 0.145),
+            "taxa_cdi": r.r,
         }
         exportar_para_simulador(dados)
 
@@ -1855,7 +1855,7 @@ class ColarCalendarioDialog(QDialog):
         du = dc_to_du(None, None, r.dte_call)
         repo = ParametroRepository(self._db_path)
         param = repo.get_by_chave("taxa_cdi")
-        rf = param.valor if param else 0.1450
+        rf = param.valor
         cdi_periodo = (1 + rf) ** (du / 252) - 1
         S_custo_debug = getattr(r, 'preco_compra', None) or r.preco_ativo
         pnl_stk = (min(r.preco_ativo, r.strike_call) - S_custo_debug) * qtd_a
@@ -1881,9 +1881,9 @@ class ColarCalendarioDialog(QDialog):
             "--- INPUTS ---",
             f"Ativo:          {r.ativo}",
             f"Spot:           R$ {r.preco_ativo:.4f}",
-            f"Cod Call:       {r.cod_call}",
+            f"Cód.Call:       {r.cod_call}",
             f"Strike Call:    R$ {r.strike_call:.4f}",
-            f"Cod Put:        {r.cod_put}",
+            f"Cód.Put:        {r.cod_put}",
             f"Strike Put:     R$ {r.strike_put:.4f}",
             f"Premio Call:    R$ {r.premio_call:.4f}",
             f"Premio Put:     R$ {r.premio_put:.4f}",
@@ -1947,7 +1947,7 @@ class ColarCalendarioDialog(QDialog):
     def _explicar_estrategia(self, r):
         from src.domain.services.calculadora_colar_calendario import CalculadoraColarCalendario
 
-        html = CalculadoraColarCalendario.gerar_explicacao(r)
+        html = CalculadoraColarCalendario.gerar_explicacao(r, r.r)
         dialog = QDialog(self, Qt.Window)
         dialog.setWindowTitle(f"Explicação — Collar Calendário {r.ativo}")
         dialog.setMinimumSize(700, 500)
@@ -2036,7 +2036,7 @@ class ColarCalendarioDialog(QDialog):
 
             repo = ParametroRepository(self._db_path)
             param = repo.get_by_chave("taxa_cdi")
-            rf_disc = param.valor if param else 0.1450
+            rf_disc = param.valor
             rf = np.log(1 + rf_disc)
 
             sigma_spot = S0 * iv_c * np.sqrt(T_call)
