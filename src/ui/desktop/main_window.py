@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QAbstractSpinBox, QCheckBox, QComboBox, QSpinBox, QStackedWidget, QGraphicsOpacityEffect,
     QSplitter,
 )
-from PySide6.QtCore import Qt, QTimer, QSize, QPropertyAnimation, QEasingCurve, QThread, Signal, QUrl, QSortFilterProxyModel
+from PySide6.QtCore import Qt, QTimer, QSize, QPropertyAnimation, QEasingCurve, QThread, Signal, QUrl, QSortFilterProxyModel, QObject, QEvent
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtGui import QFont, QColor, QBrush, QIcon, QPixmap, QPainter, QAction, QShortcut, QKeySequence, QMovie
@@ -178,6 +178,7 @@ class MainWindow(QMainWindow):
 
         QShortcut(QKeySequence("Ctrl+Shift+F"), self, self._abrir_pipeline)
         QShortcut(QKeySequence(Qt.CTRL | Qt.Key_Equal), self, self._aumentar_fonte)
+        QShortcut(QKeySequence(Qt.CTRL | Qt.Key_Plus), self, self._aumentar_fonte)
         QShortcut(QKeySequence(Qt.CTRL | Qt.Key_Minus), self, self._diminuir_fonte)
         QShortcut(QKeySequence(Qt.CTRL | Qt.Key_0), self, self._resetar_fonte)
 
@@ -476,6 +477,21 @@ class MainWindow(QMainWindow):
         self.coberta_table_view.doubleClicked.connect(self._on_coberta_row_double_clicked)
 
         self._aplicar_fonte_tamanho()
+
+        class _FonteWheelFilter(QObject):
+            def __init__(self, mw):
+                super().__init__()
+                self._mw = mw
+            def eventFilter(self, obj, event):
+                if event.type() == QEvent.Wheel and event.modifiers() == Qt.CTRL:
+                    delta = 1 if event.angleDelta().y() > 0 else -1
+                    self._mw._ajustar_fonte(delta)
+                    return True
+                return False
+        self._fonte_wheel_filter = _FonteWheelFilter(self)
+        self.table_view.installEventFilter(self._fonte_wheel_filter)
+        self.vendidas_table_view.installEventFilter(self._fonte_wheel_filter)
+        self.coberta_table_view.installEventFilter(self._fonte_wheel_filter)
 
         # --- QSplitter ---
         self._splitter = QSplitter(Qt.Vertical)
@@ -1370,6 +1386,13 @@ class MainWindow(QMainWindow):
         else:
             super().keyPressEvent(event)
 
+    def wheelEvent(self, event):
+        if event.modifiers() == Qt.CTRL:
+            delta = 1 if event.angleDelta().y() > 0 else -1
+            self._ajustar_fonte(delta)
+        else:
+            super().wheelEvent(event)
+
     def _abrir_pipeline(self):
         from src.ui.desktop.pipeline_dialog import PipelineDialog
         if not hasattr(self, '_worker'):
@@ -1745,10 +1768,12 @@ class MainWindow(QMainWindow):
         tamanho = int(p.valor) if p else 9
         tamanho = max(8, min(16, tamanho))
         font = QFont("Consolas", tamanho)
-        self.table_view.setFont(font)
-        self.vendidas_table_view.setFont(font)
-        self.coberta_table_view.setFont(font)
-        # Aplica no header stylesheet também
+        for view in (self.table_view, self.vendidas_table_view, self.coberta_table_view):
+            view.setFont(font)
+            view.setStyleSheet(
+                "QTableView {{ font-size: {}pt; font-family: 'Consolas', monospace; }}".format(tamanho)
+            )
+            view.verticalHeader().setDefaultSectionSize(tamanho + 14)
         for h, cor in [(self.table_view.horizontalHeader(), "#4caf50"),
                         (self.vendidas_table_view.horizontalHeader(), "#e57373"),
                         (self.coberta_table_view.horizontalHeader(), "#42a5f5")]:
@@ -1759,13 +1784,14 @@ class MainWindow(QMainWindow):
 
     def _ajustar_fonte(self, delta: int):
         from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+        from src.domain.entities.parametro_operacional import ParametroOperacional
         repo = ParametroRepository(self.db_path)
         p = repo.get_by_chave("fonte_tamanho")
         tamanho = int(p.valor) if p else 9
         novo = max(8, min(16, tamanho + delta))
         if novo == tamanho:
             return
-        repo.save("fonte_tamanho", str(novo), "GERAL", "Tamanho da fonte do sistema (8-16)")
+        repo.save(ParametroOperacional(chave="fonte_tamanho", valor=float(novo), estrategia="GERAL", descricao="Tamanho da fonte do sistema (8-16)"))
         self._aplicar_fonte_tamanho()
 
     def _aumentar_fonte(self):
@@ -1776,8 +1802,9 @@ class MainWindow(QMainWindow):
 
     def _resetar_fonte(self):
         from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+        from src.domain.entities.parametro_operacional import ParametroOperacional
         repo = ParametroRepository(self.db_path)
-        repo.save("fonte_tamanho", "9", "GERAL", "Tamanho da fonte do sistema (8-16)")
+        repo.save(ParametroOperacional(chave="fonte_tamanho", valor=9.0, estrategia="GERAL", descricao="Tamanho da fonte do sistema (8-16)"))
         self._aplicar_fonte_tamanho()
 
     def _on_status_message(self, msg: str):
@@ -1986,7 +2013,7 @@ class MainWindow(QMainWindow):
         self._ultimos_put_ratio = []
         self._status_put_ratio.setText("📊 0")
         if self._put_ratio_dialog and self._put_ratio_dialog.isVisible():
-            self._put_ratio_dialog.lbl_scan_status.setText("⏹ Scanner parado")
+            self._put_ratio_dialog.lbl_status.setText("⏹ Scanner parado")
 
     def _on_mpp_atualizados(self, resultados: list):
         self._ultimos_mpp = resultados

@@ -179,7 +179,7 @@ class MercadoTopBarWidget(QFrame):
         """)
         layout_compact.addWidget(self.term_ibov)
 
-        self.lbl_hint = QLabel("[Hover para Acoes & ADRs]")
+        self.lbl_hint = QLabel("[Duplo-clique para Ações & ADRs]")
         self.lbl_hint.setStyleSheet("color: #747d8c; font-size: 9.5px; font-style: italic;")
         layout_compact.addWidget(self.lbl_hint)
         self.main_layout.addWidget(self.bar_compact)
@@ -472,12 +472,15 @@ class MercadoTopBarWidget(QFrame):
         if style: lbl.setStyleSheet(style)
         return lbl
 
-    def enterEvent(self, event):
-        self.setFixedHeight(self.height_expanded)
-        self.panel_expanded.show()
-        self.lbl_hint.hide()
+    def _toggle(self):
+        if self.panel_expanded.isVisible():
+            self.setFixedHeight(self.height_compact)
+            self.panel_expanded.hide()
+            self.lbl_hint.show()
+        else:
+            self.setFixedHeight(self.height_expanded)
+            self.panel_expanded.show()
+            self.lbl_hint.hide()
 
-    def leaveEvent(self, event):
-        self.setFixedHeight(self.height_compact)
-        self.panel_expanded.hide()
-        self.lbl_hint.show()
+    def mouseDoubleClickEvent(self, event):
+        self._toggle()
