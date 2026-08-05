@@ -3,7 +3,7 @@
   "parametros": [
     {
       "chave": "premio_risco_colar",
-      "valor": "0.95",
+      "valor": "0.85",
       "estrategia": "COLAR",
       "descricao": "Premio risco Colar (x CDI)"
     },
@@ -879,9 +879,9 @@
     },
     {
       "chave": "limite_protecao_pct",
-      "valor": "0.40",
+      "valor": "0.0099",
       "estrategia": "PROTECAO_CAUDA",
-      "descricao": "Fracao maxima do ganho extra consumida pela protecao (0.40 = 40%)"
+      "descricao": "Fracao maxima do ganho extra consumida pela protecao (0.35 = 35%)"
     },
     {
       "chave": "calda_preco_min_opcao",
@@ -903,7 +903,7 @@
     },
     {
       "chave": "fator_seguranca_liquidez",
-      "valor": "0.2",
+      "valor": "0.01",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Volume diario minimo como multiplo da qtd comprada (0.2 = volume >= 5x a ordem)"
     },
@@ -915,19 +915,19 @@
     },
     {
       "chave": "limite_protecao_pct_rendimento",
-      "valor": "0.20",
+      "valor": "0.0099",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Fracao do ganho extra para protecao — estagio Rendimento (0.20 = 20%)"
     },
     {
       "chave": "limite_protecao_pct_plato",
-      "valor": "0.45",
+      "valor": "0.0099",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Fracao do ganho extra para protecao — estagio Plato (0.45 = 45%)"
     },
     {
       "chave": "limite_protecao_pct_protecao",
-      "valor": "0.70",
+      "valor": "0.0099",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Fracao do ganho extra para protecao — estagio Protecao (0.70 = 70%)"
     },
@@ -939,7 +939,7 @@
     },
     {
       "chave": "spread_maximo_pct",
-      "valor": "0.20",
+      "valor": "0.01",
       "estrategia": "PROTECAO_CAUDA",
       "descricao": "Spread bid-ask maximo para considerar cotacao confiavel (0.20 = 20%)"
     },
