@@ -309,9 +309,9 @@ class BoletaDialog(QDialog):
             prof_ativo = _int_param(self.repo, "coberta_prof_ativo", 1)
             qtd_call = _int_param(self.repo, "coberta_qtd_call", 100)
             prof_call = _int_param(self.repo, "coberta_prof_call", -1)
-            self._add_perna(getattr(r, "ativo", ""), "C", qtd_ativo, prof_ativo)
-            self._add_perna(getattr(r, "cod_call", ""), "V", qtd_call, prof_call)
-            self.lbl_coeficiente.setText(f"R$ {fmt_br(-getattr(r, 'recebimento', 0))}")
+            self._add_perna(getattr(r, "ativo", ""), "V", qtd_ativo, prof_ativo)
+            self._add_perna(getattr(r, "cod_call", ""), "C", qtd_call, prof_call)
+            self.lbl_coeficiente.setText(f"R$ {fmt_br(getattr(r, 'recebimento', 0))}")
 
         elif self.strategy == "BASKET ITM":
             qtd_itm = _int_param(self.repo, "basket_qtd_call_itm", 100)
