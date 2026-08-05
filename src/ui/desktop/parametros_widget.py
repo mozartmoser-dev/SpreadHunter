@@ -1102,7 +1102,7 @@ class ParametrosWidget(QWidget):
                         widget.setDecimals(0)
                         widget.setSingleStep(1)
                     elif chave == "perf_range_max":
-                        widget.setRange(0.0, 100.0)
+                        widget.setRange(0.0, 999.0)
                         widget.setSuffix(" %")
                         widget.setDecimals(0)
                         widget.setSingleStep(1)

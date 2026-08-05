@@ -213,7 +213,7 @@
     },
     {
       "chave": "white_list_box4p",
-      "valor": "AERI3,AGRO3,ALOS3,ALPA4,ALUP11,AMAR3,AMBP3,ANIM3,ARML3,ASAI3,AUAU3,AURE3,AZZA3,BEEF3,BHIA3,BLAU3,BMGB4,BMOB3,BRAV3,BRKM5,BRSR6,BSLV39,CAML3,CASH3,CBAV3,CEAB3,CMIG3,CMIN3,COGN3,CPFE3,CPLE3,CSAN3,CURY3,CVCB3,DASA3,DIRR3,DXCO3,ECOM3,ECOR3,EGIE3,EMBJ3,ENEV3,ENGI11,ENJU3,ESPA3,EVEN3,EZTC3,FESA4,FLRY3,GFSA3,GGBR4,GGPS3,GMAT3,GOAU4,GOLD11,GRND3,HAPV3,HASH11,HBOR3,HBSA3,HYPE3,IBBR11,IFCM3,IGTI11,INTB3,IRBR3,JALL3,JHSF3,KEPL3,KLBN11,LAVV3,LEVE3,LJQQ3,LOGG3,LOGN3,LREN3,LWSA3,MATD3,MBRF3,MDIA3,MDNE3,MEAL3,MGLU3,MILS3,MLAS3,MOTV3,MOVI3,MRVE3,MTRE3,MULT3,MYPK3,NASD11,NATU3,ONCO3,ORVR3,PCAR3,PGMN3,PIBB11,PLPL3,PNVL3,POMO4,POSI3,PSSA3,PTBL3,QBTC11,QUAL3,RADL3,RAIL3,RAIZ4,RANI3,RAPT4,RDOR3,RECV3,RENT3,RENT4,RIAA3,ROMI3,SSBFG3,SBSP3,SEER3,SEQL3,SIMH3,SLCE3,SMFT3,SMLL11,SMTO3,SOJA3,TASA4,TCSA3,TEND3,TIMS3,TRIS3,TTEN3,TUPY3,UGPA3,UNIP6,VAMO3,VBBR3,VIVA3,VLID3,VULC3,WIZC3",
+      "valor": "AMBP3, ANIM3, ARML3, AUAU3, AURE3, AZZA3, BHIA3, BRAV3, BRKM5, BRSR6, CBAV3, CMIG4, COGN3, CSMG3, CVCB3, CXSE3, DXCO3, EGIE3, EZTC3, GFSA3, GMAT3, GRND3, HAPV3, HBOR3, JALL3, JHSF3, KEPL3, LEVE3, MDIA3, MILS3, MOTV3, MRVE3, MULT3, MYPK3, NATU3, ONCO3, PCAR3, PGMN3, PNVL3, POMO4, POSI3, RAIZ4, RECV3, RIIA3, ROMI3, SLCE3, SMFT3, SMTO3, SOJA3, TASA4, TEND3, TUPY3, UNIP6, USIM5, VAMO3, VIVA3",
       "estrategia": "BOX_4P",
       "descricao": "Whitelist de ativos para Box 4P"
     },
@@ -315,19 +315,19 @@
     },
     {
       "chave": "perf_carga_inteligente",
-      "valor": "1.0",
+      "valor": "0.0",
       "estrategia": "PERFORMANCE",
       "descricao": "Habilitar carga inteligente"
     },
     {
       "chave": "perf_range_min",
-      "valor": "-70.0",
+      "valor": "-99.0",
       "estrategia": "PERFORMANCE",
       "descricao": "Range minimo de strike (%)"
     },
     {
       "chave": "perf_range_max",
-      "valor": "70.0",
+      "valor": "100.0",
       "estrategia": "PERFORMANCE",
       "descricao": "Range maximo de strike (%)"
     },
@@ -710,12 +710,6 @@
       "descricao": "So aceitar opcoes europeias (1=sim, 0=aceita americanas)"
     },
     {
-      "chave": "box_spread_max_pct",
-      "valor": "0.40",
-      "estrategia": "BOX_4P",
-      "descricao": "Spread maximo K1-K2 (% do spot) para pareamento"
-    },
-    {
       "chave": "mpp_iv_min_negocios",
       "valor": "10.0",
       "estrategia": "MPP",
@@ -801,7 +795,7 @@
     },
     {
       "chave": "fonte_tamanho",
-      "valor": "9.61",
+      "valor": "9.0",
       "estrategia": "GERAL",
       "descricao": "Tamanho da fonte do sistema (8-16)"
     },
@@ -999,7 +993,7 @@
     },
     {
       "chave": "put_ratio_iv_rank_min",
-      "valor": "50.0",
+      "valor": "70.0",
       "estrategia": "PUT_RATIO",
       "descricao": "IV minima (% absoluto) para Put Ratio"
     },
@@ -1095,9 +1089,15 @@
     },
     {
       "chave": "put_ratio_iv_percentile_min",
-      "valor": "50.0",
+      "valor": "80.0",
       "estrategia": "PUT_RATIO",
       "descricao": "IV Percentile minimo (0-100) para Put Ratio"
+    },
+    {
+      "chave": "box_spread_max_pct",
+      "valor": "0.7",
+      "estrategia": "BOX_4P",
+      "descricao": "Spread maximo K1-K2 (% do spot) para pareamento"
     }
   ]
 }
