@@ -634,6 +634,8 @@ class MercadoDataProvider:
                     entry = {
                         "preco_ativo": preco_ativo,
                         "strike_rtd": strike_put,
+                        "of_compra_ativo": self.source.ler_campo_cache(inst.ativo, FieldName.BID) or 0.0,
+                        "of_venda_ativo": preco_ativo,
                         "of_compra_call": ocp,
                         "of_venda_put": ovd,
                         "of_compra_put": self.source.ler_campo_cache(inst.cod_put, FieldName.BID) or 0.0,
