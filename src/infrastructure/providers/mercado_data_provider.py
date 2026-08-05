@@ -637,6 +637,8 @@ class MercadoDataProvider:
                         "of_venda_ativo": preco_ativo,
                         "of_compra_call": ocp,
                         "of_venda_put": ovd,
+                        "premio_call": ocp,
+                        "premio_put": ovd,
                         "of_compra_put": self.source.ler_campo_cache(inst.cod_put, FieldName.BID) or 0.0,
                         "of_venda_call": self.source.ler_campo_cache(inst.cod_call, FieldName.ASK) or 0.0,
                         "qul_put": 0,
