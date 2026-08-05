@@ -1,6 +1,6 @@
 # Spreadhunter — Regras para Agentes
 
-Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, taxa, SBTH vendida, put ratio, venda coberta). Desktop Python/PySide6, SQLite, RTD via COM do Profit, socket OpenFast, API opcoes.net.br. **Windows-only.** Sem CI; 573 testes rodam localmente.
+Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, taxa, SBTH vendida, put ratio, venda coberta). Desktop Python/PySide6, SQLite, RTD via COM do Profit, socket OpenFast, API opcoes.net.br. **Windows-only.** Sem CI; 579 testes rodam localmente.
 
 ## Confirmação obrigatória
 
@@ -9,7 +9,7 @@ Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, 
 ## Comandos essenciais
 
 ```powershell
-python -m pytest tests/ -x -q --tb=short            # todos (573)
+python -m pytest tests/ -x -q --tb=short            # todos (579)
 python -m pytest tests/domain/test_calculadora_cauda_assincrona.py -q
 python -m pytest tests/test_fase3.py::TestX::test_y -q
 python main.py                                       # dev
@@ -37,7 +37,7 @@ Stack: Python ≥3.13, PySide6 6.11.1, sqlite3, scipy, numpy, matplotlib, pywin3
 ## Regras de negócio (resumo; detalhes em SKILL.md)
 
 1. **Strike NUNCA persistido.** Vem do RTD em tempo real. Se RTD não fornecer, falhar. NUNCA extrair do sufixo B3 (`G445` ≠ 44.50).
-2. **MOD (`tipo_opcao`) só da CALL.** PUTs B3 são Europeias (`E`). Ler `r["mod"]` apenas quando `r["tipo"] == "CALL"`. O scanner Box 4P rejeita pares onde a CALL K1 não é Europeia se `box_soh_europeia=1` (default, `monitor_box.py:178`). `box_soh_europeia=0` aceita CALL Americanas (PUT sempre E).
+2. **MOD (`tipo_opcao`) só da CALL.** PUTs B3 são Europeias (`E`). Ler `r["mod"]` apenas quando `r["tipo"] == "CALL"`. O scanner Box 4P rejeita pares onde a CALL K1 não é Europeia se `box_soh_europeia=1` (default, `monitor_box.py:50`). `box_soh_europeia=0` aceita CALL Americanas (PUT sempre E).
 3. **Parametrização obrigatória do banco.** TODO valor de negócio via `repo.get_by_chave()`. Nunca hardcoded. Ao adicionar parâmetro, tocar: `config/parametros_default.json` (seed) + `parametro_operacional.py` (fallback) + `parametros_widget.py` + `regras_dialog.py`.
 4. **Custos B3** usam prêmio/preço (NUNCA strike). Ida-e-volta (×2).
 5. **Chave composta `(ativo, cod_opcao)`.** Toda cache/mapa usa `f"{ativo}|{cod}"`.
@@ -59,7 +59,7 @@ Mercado: seg-sex **10:00–17:00** (Brasília). Fora disso RTD/OpenFast não ret
 
 ## UI / Qt
 
-- **Segfault ao arrastar coluna:** Qt conflita `sectionMoved` (drag) + `layoutChanged` (sort). Sempre usar `QTimer.singleShot(0, lambda: ...)` no handler. **Não mexer** em `main_window.py:364` e `mpp_dialog.py:94` sem resolver.
+- **Segfault ao arrastar coluna:** Qt conflita `sectionMoved` (drag) + `layoutChanged` (sort). Sempre usar `QTimer.singleShot(0, lambda: ...)` no handler. **Não mexer** nos `sectionMoved` handlers em `main_window.py` e `mpp_dialog.py` sem resolver.
 - Em `atualizar_resultados()`: `sectionsMovable(False)` + `blockSignals(True)` durante `beginResetModel()`/`endResetModel()`.
 - **Persistência de colunas** via QSettings em `column_utils.py`.
 - **Filtros auto-documentados** nos use cases (`FILTROS_COLAR`, `FILTROS_COLLAR_CALENDARIO`). `regras_dialog.py` importa dinamicamente via `_FILTROS_POR_ESTRATEGIA`.
@@ -76,7 +76,7 @@ Em `mercado_data_provider.py` — sempre que mexer em `_registrar_batch_intelige
 
 ## Referências
 
-- `.opencode/skills/spreadhunter/SKILL.md` — use `skill spreadhunter` para regras completas + histórico de sessões (nota: SKILL.md tem contagem de testes desatualizada; 573 é o número real)
+- `.opencode/skills/spreadhunter/SKILL.md` — use `skill spreadhunter` para regras completas + histórico de sessões (nota: SKILL.md tem contagem de testes desatualizada; 579 é o número real)
 - `.claude.md` — resumo adicional de stack e convenções (atenção: regra #5 duplicada com numeração quebrada)
 - `docs/DISTRIBUICAO.md`, `docs/pnt_importacao.md` — deploy/PNT
 - `pendenciascalendario.md` — diagnóstico BWB + simulações
