@@ -621,7 +621,7 @@ class MercadoDataProvider:
                         continue
                     ocp = self.source.ler_campo_cache(inst.cod_call, FieldName.BID)
                     ovd = self.source.ler_campo_cache(inst.cod_put, FieldName.ASK)
-                    if not ocp or not ovd:
+                    if not ocp:
                         continue
                     preco_ativo_rtd = self.source.ler_campo_cache(inst.ativo, FieldName.ASK)
                     if preco_ativo_rtd is not None and preco_ativo_rtd > 0:
