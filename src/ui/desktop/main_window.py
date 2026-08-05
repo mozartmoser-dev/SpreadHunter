@@ -2362,8 +2362,8 @@ class MainWindow(QMainWindow):
         g1 = QGroupBox("Pernas da Estrutura")
         f1 = QFormLayout()
         f1.setSpacing(8)
-        f1.addRow(_muted("Venda Ativo ({})".format(r.ativo)), QLabel("R$ {:.2f} (of. compra)".format(r.preco_ativo)))
-        f1.addRow(_muted("Venda Call ({})".format(r.cod_call)), QLabel("R$ {:.2f} (of. venda)  Strike: {:.2f}".format(r.of_venda_call, r.strike)))
+        f1.addRow(_muted("Venda Ativo ({})".format(r.ativo)), QLabel("R$ {:.2f} (of. compra)".format(r.recebimento + r.of_venda_call)))
+        f1.addRow(_muted("Compra Call ({})".format(r.cod_call)), QLabel("R$ {:.2f} (of. venda)  Strike: {:.2f}".format(r.of_venda_call, r.strike)))
         g1.setLayout(f1)
         pl.addWidget(g1)
 
