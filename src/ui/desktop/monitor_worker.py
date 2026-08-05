@@ -95,6 +95,7 @@ class MonitorWorker(QThread):
     mpp_atualizados = Signal(list)
     mre_atualizados = Signal(list)
     mpp_status_changed = Signal(bool)
+    integridade_params_verificada = Signal(list)
 
     def __init__(self, db_path: str, rtd: object = None, parent=None):
         super().__init__(parent)
@@ -131,6 +132,7 @@ class MonitorWorker(QThread):
         self._rtd_estava_stale: bool = False
         self._manutencao_cycle = 0
         self._rtd_reconnect_cycle = 0
+        self._verificacao_integridade_feita = False
 
     def run(self):
         com_initialized = False
@@ -244,6 +246,10 @@ class MonitorWorker(QThread):
                 # 7. Coleta Estatísticas do Motor
                 self._emitir_estatisticas_engine(t_start_cycle)
 
+                if not self._verificacao_integridade_feita:
+                    self._verificar_integridade_params()
+                    self._verificacao_integridade_feita = True
+
             except Exception as e:
                 logger.exception("MonitorWorker: erro na varredura: %s", e)
                 self.status_message.emit("Erro na varredura: {}".format(str(e)))
@@ -337,6 +343,19 @@ class MonitorWorker(QThread):
             except (ValueError, TypeError):
                 pass
         return default
+
+    def _verificar_integridade_params(self):
+        try:
+            from scripts.verificar_integridade_params import verificar as verificar_integridade
+            divergencias = verificar_integridade(db_path=self.db_path)
+            if divergencias:
+                logger.warning(
+                    "MonitorWorker: %d parâmetro(s) com divergência de integridade",
+                    len(divergencias),
+                )
+                self.integridade_params_verificada.emit(divergencias)
+        except Exception:
+            logger.exception("MonitorWorker: erro ao verificar integridade dos parâmetros")
 
     def recarregar_parametros(self):
         self._monitor_uc.recarregar_parametros()

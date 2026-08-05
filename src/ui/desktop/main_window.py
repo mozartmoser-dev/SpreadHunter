@@ -158,6 +158,7 @@ class MainWindow(QMainWindow):
         self._worker.mpp_atualizados.connect(self._on_mpp_atualizados)
         self._worker.mpp_status_changed.connect(self._on_mpp_status_changed)
         self._worker.mre_atualizados.connect(self._on_mre_atualizados)
+        self._worker.integridade_params_verificada.connect(self._on_integridade_verificada)
 
         self._engine_dialog = EngineDashboard(self)
         self._colar_dialog = None
@@ -349,6 +350,73 @@ class MainWindow(QMainWindow):
         self.btn_atualizar_tudo = _BtnProxy(self.action_btn_atualizar_tudo, "🔄 Atualizar")
 
         return btn
+
+    def _criar_dropup_ferramentas(self, _btn_base: str, _btn_hover: str) -> QToolButton:
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #1a1a2e;
+                color: #e0e0e0;
+                border: 1px solid #2d2d44;
+                border-radius: 6px;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 6px 18px 6px 12px;
+                border-radius: 4px;
+                font-size: 9pt;
+            }
+            QMenu::item:selected { background-color: #2d4a7a; color: #ffffff; }
+            QMenu::item:disabled { color: #5a5a6e; }
+        """)
+
+        action_integridade = QAction("\u2699\ufe0f  Verificar Integridade dos Parâmetros", menu)
+        action_integridade.triggered.connect(self._verificar_integridade_sob_demanda)
+        menu.addAction(action_integridade)
+
+        btn = QToolButton(self)
+        btn.setText("\U0001f6e0  Ferramentas")
+        btn.setToolTip("Ferramentas: diagnóstico e manutenção do sistema")
+        btn.setPopupMode(QToolButton.InstantPopup)
+        btn.setMenu(menu)
+        btn.setAutoRaise(False)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setStyleSheet(
+            _btn_base
+            + "QToolButton {{ color: #95a5a6; border-color: rgba(149,165,166,0.5); border-width: 1px; }}"
+            + _btn_hover
+            + "QToolButton:hover {{ background-color: #2d2d35; border-color: #95a5a6; }}"
+            + "QToolButton:menu-indicator { image: none; subcontrol-position: right center; width: 12px; }"
+        )
+
+        def _show_dropup():
+            size = menu.sizeHint()
+            from PySide6.QtCore import QPoint
+            top_left = btn.mapToGlobal(QPoint(0, 0))
+            x = top_left.x()
+            y = top_left.y() - size.height()
+            menu.move(x, y)
+            menu.exec_()
+
+        btn.clicked.connect(_show_dropup)
+        self._ferramentas_menu = menu
+        return btn
+
+    def _verificar_integridade_sob_demanda(self):
+        try:
+            from scripts.verificar_integridade_params import verificar as verificar_integridade
+            divergencias = verificar_integridade(db_path=self.db_path)
+            if not divergencias:
+                QMessageBox.information(self, "Integridade", "Nenhuma divergência encontrada — parâmetros íntegros.")
+                return
+            lines = [f"{len(divergencias)} parâmetro(s) com divergência:\n"]
+            for d in divergencias:
+                sinais = " + ".join(d["sinais"])
+                lines.append(f"\u2022 {sinais}  {d['chave']}")
+                lines.append(f"  hardcoded={d['hardcoded']}, banco={d['banco']}, json={d['json']}")
+            QMessageBox.warning(self, "Integridade dos Parâmetros", "\n".join(lines))
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Erro ao verificar integridade:\n{e}")
 
     def _setup_ui(self):
         self.setWindowTitle("SpreadHunter — Monitor de Oportunidades")
@@ -658,6 +726,9 @@ class MainWindow(QMainWindow):
 
         self.btn_paineis = self._criar_dropup_paineis(_btn_base, _btn_hover)
         btn_layout.addWidget(self.btn_paineis)
+
+        self.btn_ferramentas = self._criar_dropup_ferramentas(_btn_base, _btn_hover)
+        btn_layout.addWidget(self.btn_ferramentas)
 
         self.btn_colar = QPushButton("\U0001f6e1  Collar Tradicional")
         self.btn_colar.setAutoDefault(False)
@@ -1179,6 +1250,11 @@ class MainWindow(QMainWindow):
         self._status_right.setCursor(Qt.PointingHandCursor)
         self._status_right.clicked.connect(self._mostrar_vencimentos)
         self.statusBar().addPermanentWidget(self._status_right)
+
+        self._status_integridade = QLabel("")
+        self._status_integridade.setStyleSheet("color: #f1c40f; font-size: 8pt; padding: 0 6px;")
+        self._status_integridade.setVisible(False)
+        self.statusBar().addPermanentWidget(self._status_integridade)
         self._update_cdi_display()
 
     def _update_rtd_indicator(self, connected: bool):
@@ -1549,6 +1625,15 @@ class MainWindow(QMainWindow):
             source = self._worker.market_data_source if hasattr(self._worker, 'market_data_source') else None
             if source:
                 self.top_bar.conectar_fonte(source)
+
+    def _on_integridade_verificada(self, divergencias: list):
+        self._status_integridade.setVisible(True)
+        text = f"\u26a0\ufe0f  Parâmetros ({len(divergencias)})"
+        self._status_integridade.setText(text)
+        self._status_integridade.setToolTip(
+            "Divergências de integridade nos parâmetros (Verificar em Ferramentas):\n"
+            + "\n".join(d["chave"] for d in divergencias)
+        )
 
     def _on_oportunidades_atualizadas(self, resultados: list):
         self._resultados_brutos = resultados
