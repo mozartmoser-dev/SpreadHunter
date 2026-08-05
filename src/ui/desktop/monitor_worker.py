@@ -23,7 +23,7 @@ from src.domain.services.calculadora_colar import ResultadoColar, TipoColar
 from src.domain.services.calendario_b3 import dc_to_du
 from src.domain.services.calculadora_custos_b3 import CalculadoraCustosB3
 from src.infrastructure.persistence.repositories.repositories import (
-    ParametroRepository, InstrumentoRepository,
+    ParametroRepository, InstrumentoRepository, HistoricoSimulacoesRepository,
 )
 from src.domain.services.market_data_source import FieldName, criar_data_source
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
