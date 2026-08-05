@@ -84,8 +84,7 @@ class MercadoDataProvider:
     def _salvar_prioridades(self):
         try:
             import json
-            # Salva apenas quem tem dados reais de mercado (passou _ler_instrumento_cache)
-            chaves = list(self._dados_cache.keys())
+            chaves = list(self._dados_cache.keys()) + list(self._chaves_com_book - self._dados_cache.keys())
             with open(self._caminho_prioridade, "w") as f:
                 json.dump(chaves, f)
             self._prioridade_salva = set(chaves)
@@ -717,16 +716,23 @@ class MercadoDataProvider:
                 inst = inst_map.get((ativo, cod_put))
                 if not inst:
                     continue
-                # Usa OVD (ask da put) como sinal primário de liquidez real.
+                # Usa OVD (ask da put) e OCP (bid da call) como sinais de liquidez.
                 # CAB isolado não é confiável para opções B3 (retorna > 0 mesmo sem book ativo).
-                # Batch reads: 1 lock por símbolo
+                # Para OpenFAST (push-based), CAB não existe — usar call BID como proxy.
                 c_put = self.source.ler_campos(inst.cod_put, FieldName.ASK, FieldName.BOOK_HEADER)
-                c_call = self.source.ler_campos(inst.cod_call, FieldName.BOOK_HEADER)
+                c_call = self.source.ler_campos(inst.cod_call, FieldName.BID, FieldName.ASK, FieldName.BOOK_HEADER)
                 ovd_put = c_put.get(FieldName.ASK)
+                ocp_call = c_call.get(FieldName.BID)
+                ovd_call = c_call.get(FieldName.ASK)
                 cab_put = c_put.get(FieldName.BOOK_HEADER)
                 cab_call = c_call.get(FieldName.BOOK_HEADER)
-                tem_negocio = (ovd_put is not None and ovd_put > 0)
-                tem_book = (cab_put is not None and cab_put > 0) or (cab_call is not None and cab_call > 0)
+                tem_negocio = (
+                    (ovd_put is not None and ovd_put > 0)
+                    or (ovd_call is not None and ovd_call > 0)
+                    or (ocp_call is not None and ocp_call > 0)
+                )
+                tem_book = ((cab_put is not None and cab_put > 0)
+                            or (cab_call is not None and cab_call > 0))
                 if not (tem_negocio or tem_book):
                     self._sem_book_skip[key] = self._MAX_SEM_BOOK_SKIP
                     continue
