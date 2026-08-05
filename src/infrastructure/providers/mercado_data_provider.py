@@ -381,7 +381,7 @@ class MercadoDataProvider:
         if count > 0:
             logger.info("Background scan: %d novos instrumentos registrados", count)
         if self._registro_remaining_idx >= total:
-            self._registro_remaining_idx = self._background_offset
+            self._registro_remaining_idx = 0
             logger.info("Background scan: ciclo completo. Total monitorados: %d", len(self._chaves_registradas))
 
         return registros_acum
