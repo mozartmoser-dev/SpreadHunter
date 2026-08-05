@@ -16,6 +16,8 @@ scipy==1.17.1
 python-dotenv==1.2.2
 opencv-python==4.13.0.92
 pillow==12.2.0
+pytesseract==0.3.13
+pyperclip==1.9.0
 yfinance==0.2.66
 
 # Dev / Simulador (Gregas, etc.)

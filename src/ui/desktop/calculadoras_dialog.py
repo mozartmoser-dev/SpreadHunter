@@ -2,7 +2,8 @@
 
 A aba B&S mantém a mesma lógica de `calculadora_dialog.py` (preço, IV, gregas,
 sensibilidade ±2σ). A aba CDI mantém a lógica de `calculadora_cdi_dialog.py`
-(quanto investir hoje para receber o strike no vencimento).
+(quanto investir hoje para receber o strike no vencimento) e agora suporta
+captura OCR do código da opção direto do ProfitPro.
 
 Ambos leem `taxa_cdi` de `ParametroRepository` (Banco -> fallback 0.1425),
 eliminando os valores hardcoded 14.50/14.15 que ficavam fora de sincronia
@@ -15,6 +16,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
     QTabWidget,
     QVBoxLayout,
@@ -29,12 +31,17 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QButtonGroup,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QRect, QPoint
+from PySide6.QtGui import QPainter, QColor, QCursor, QPen
 
 from src.domain.services.calculadora_colar import CalculadoraColar
 from src.domain.services.calendario_b3 import dc_to_du
+from src.infrastructure.persistence.database import get_connection
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
 from src.ui.desktop.theme import Palette
+
+import pytesseract
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 
 # ─── Constantes de UI ──────────────────────────────────────────────────────
@@ -79,6 +86,88 @@ def _brl(val: float, casas: int = 2) -> str:
     """Formata float no padrão BR: 1.234,56."""
     txt = f"{val:,.{casas}f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return txt
+
+
+# ─── Overlay de Captura OCR ─────────────────────────────────────────────────
+
+class _CaptureOverlay(QWidget):
+    """Janela fullscreen semi-transparente para selecionar área de OCR."""
+
+    def __init__(self, ocr_config: str = "", on_result=None):
+        super().__init__(None, Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        self._ocr_config = ocr_config
+        self._on_result = on_result
+        self._start: QPoint | None = None
+        self._end: QPoint | None = None
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self.setCursor(QCursor(Qt.CrossCursor))
+        screen = QApplication.primaryScreen()
+        if screen:
+            self.setGeometry(screen.geometry())
+        self.show()
+
+    def paintEvent(self, _event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.fillRect(self.rect(), QColor(0, 0, 0, 80))
+        if self._start and self._end:
+            sel = QRect(self._start, self._end).normalized()
+            p.setPen(QPen(QColor("#1abc9c"), 2))
+            p.fillRect(sel, QColor(26, 188, 156, 40))
+
+    def mousePressEvent(self, event):
+        self._start = event.pos()
+        self._end = event.pos()
+        self.update()
+
+    def mouseMoveEvent(self, event):
+        if self._start:
+            self._end = event.pos()
+            self.update()
+
+    def mouseReleaseEvent(self, event):
+        self._end = event.pos()
+        self.hide()
+        if self._start and self._end:
+            rect = QRect(self._start, self._end).normalized()
+            if rect.width() > 5 and rect.height() > 5:
+                self._do_ocr(rect)
+                return
+        self._emit_result("")
+
+    def _emit_result(self, text: str):
+        if self._on_result:
+            self._on_result(text)
+        self.close()
+
+    def _do_ocr(self, rect: QRect):
+        try:
+            from PIL import Image, ImageEnhance, ImageGrab
+            QApplication.processEvents()
+            x1, y1, x2, y2 = rect.x(), rect.y(), rect.x() + rect.width(), rect.y() + rect.height()
+            pil_img = ImageGrab.grab(bbox=(x1, y1, x2, y2), all_screens=True)
+            pil_img = pil_img.convert("L")
+            w, h = pil_img.size
+            pil_img = pil_img.resize((w * 3, h * 3), Image.LANCZOS)
+            enhancer = ImageEnhance.Contrast(pil_img)
+            pil_img = enhancer.enhance(2.0)
+
+            import pytesseract
+            config = self._ocr_config or "--psm 7"
+            text = pytesseract.image_to_string(pil_img, config=config).strip()
+            text = text.replace(" ", "").replace("\n", "").replace("\r", "").replace("\t", "")
+            import logging
+            logging.getLogger(__name__).info("OCR capturado: '%s'", text)
+            self._emit_result(text)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("OCR overlay falhou: %s", e)
+            self._emit_result("")
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape:
+            self._emit_result("")
 
 
 # ─── Aba 1: Black-Scholes ──────────────────────────────────────────────────
@@ -274,9 +363,10 @@ class BlackScholesWidget(QWidget):
 # ─── Aba 2: CDI ───────────────────────────────────────────────────────────
 
 class CdiWidget(QWidget):
-    def __init__(self, taxa_cdi_padrao: float, parent=None):
+    def __init__(self, taxa_cdi_padrao: float, db_path: str | None = None, parent=None):
         super().__init__(parent)
         self._taxa_cdi_padrao = taxa_cdi_padrao
+        self._db_path = db_path
         self._setup_ui()
         self._calcular()  # pré-popula com valores default
 
@@ -290,8 +380,8 @@ class CdiWidget(QWidget):
         layout.addWidget(title)
 
         sub = QLabel(
-            "Valor a investir hoje para receber o Strike no vencimento. "
-            "A taxa anual vem do Banco de Dados (Parâmetros > Geral)."
+            "Capture o código da opção direto do ProfitPro ou preencha manualmente. "
+            "O strike e vencimento são preenchidos automaticamente do banco de dados."
         )
         sub.setStyleSheet(f"font-size: 9pt; color: {Palette.TEXT_MUTED};")
         sub.setWordWrap(True)
@@ -302,8 +392,36 @@ class CdiWidget(QWidget):
         sep.setStyleSheet(f"background-color: {Palette.BORDER}; max-height: 1px;")
         layout.addWidget(sep)
 
+        # ── Código da Opção com captura OCR ──
+        codigo_layout = QHBoxLayout()
+        codigo_layout.setSpacing(4)
+        self.ed_codigo = QLineEdit()
+        self.ed_codigo.setPlaceholderText("Ex: PETRD300")
+        self.ed_codigo.setStyleSheet(_INPUT_STYLE_CDI)
+        self.ed_codigo.setAlignment(Qt.AlignCenter)
+        self.ed_codigo.setFixedWidth(160)
+        self.ed_codigo.textChanged.connect(self._on_codigo_changed)
+        codigo_layout.addWidget(self.ed_codigo)
+
+        self.btn_capturar = QPushButton("🔍 Capturar Código")
+        self.btn_capturar.setStyleSheet("""
+            QPushButton {
+                background-color: #1abc9c; color: #0d0d1a;
+                border: none; border-radius: 4px;
+                padding: 6px 12px; font-size: 9pt; font-weight: bold;
+            }
+            QPushButton:hover { background-color: #16a085; }
+        """)
+        self.btn_capturar.clicked.connect(self._capturar_codigo)
+        codigo_layout.addWidget(self.btn_capturar)
+        codigo_layout.addStretch()
+
+        lbl_codigo = QLabel("Código da Opção:")
+        lbl_codigo.setStyleSheet(_LABEL_STYLE)
+
         form = QFormLayout()
         form.setSpacing(8)
+        form.addRow(lbl_codigo, codigo_layout)
 
         # CDI Anual — pré-preenchido com o do banco (formato BR com vírgula)
         cdi_default = f"{self._taxa_cdi_padrao * 100:.2f}".replace(".", ",")
@@ -323,7 +441,7 @@ class CdiWidget(QWidget):
         self.ed_data.setAlignment(Qt.AlignCenter)
         form.addRow(QLabel("Vencimento (DD/MM/AAAA):"), self.ed_data)
 
-        self.ed_pct = QLineEdit("100")
+        self.ed_pct = QLineEdit("140")
         self.ed_pct.setStyleSheet(_INPUT_STYLE_CDI)
         self.ed_pct.setAlignment(Qt.AlignCenter)
         form.addRow(QLabel("% do CDI:"), self.ed_pct)
@@ -386,6 +504,59 @@ class CdiWidget(QWidget):
         btn_close.clicked.connect(self._on_close_clicked)
         layout.addWidget(btn_close, alignment=Qt.AlignmentFlag.AlignCenter)
 
+    def _on_codigo_changed(self, text: str):
+        codigo = text.strip().upper()
+        if len(codigo) < 4:
+            return
+        resultado = self._buscar_opcao(codigo)
+        if resultado:
+            strike, venc_str = resultado
+            self.ed_strike.blockSignals(True)
+            self.ed_strike.setText(f"{strike:.2f}".replace(".", ","))
+            self.ed_strike.blockSignals(False)
+            self.ed_data.blockSignals(True)
+            self.ed_data.setText(venc_str)
+            self.ed_data.blockSignals(False)
+            self._calcular()
+
+    def _buscar_opcao(self, codigo: str) -> tuple[float, str] | None:
+        """Busca strike e vencimento em instrumentos_base pelo código da opção."""
+        try:
+            conn = get_connection(self._db_path)
+            try:
+                row = conn.execute(
+                    "SELECT strike, vencimento FROM instrumentos_base "
+                    "WHERE cod_put = ? OR cod_call = ?",
+                    (codigo, codigo),
+                ).fetchone()
+                if row and row["strike"] and row["strike"] > 0 and row["vencimento"]:
+                    strike = float(row["strike"])
+                    venc = row["vencimento"]
+                    if isinstance(venc, str):
+                        venc_date = date.fromisoformat(venc)
+                    else:
+                        venc_date = venc
+                    venc_str = venc_date.strftime("%d/%m/%Y")
+                    return (strike, venc_str)
+            finally:
+                conn.close()
+        except Exception:
+            pass
+        return None
+
+    def _capturar_codigo(self):
+        self._overlay = _CaptureOverlay(
+            ocr_config="--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+            on_result=self._on_codigo_capturado,
+        )
+
+    def _on_codigo_capturado(self, text: str):
+        if text:
+            import pyperclip
+            codigo = text.strip().upper()
+            self.ed_codigo.setText(codigo)
+            pyperclip.copy(codigo)
+
     def _on_close_clicked(self):
         # Permite fechar o parent dialog (não a aba)
         parent = self.parent()
@@ -436,7 +607,30 @@ class CalculadorasDialog(QDialog):
         super().__init__(parent, Qt.Window)
         self.db_path = db_path
         self.setWindowTitle("🧮 Calculadoras")
-        self.setMinimumSize(720, 640)
+        self.setMinimumSize(720, 680)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: #0d0d1a;
+            }}
+            QTabWidget::pane {{
+                background-color: #0d0d1a;
+                border: none;
+            }}
+            QTabBar::tab {{
+                background-color: #1e1e2f;
+                color: {Palette.TEXT_SECONDARY};
+                padding: 6px 16px;
+                border: 1px solid {Palette.BORDER};
+                border-bottom: none;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }}
+            QTabBar::tab:selected {{
+                background-color: #0d0d1a;
+                color: {Palette.TEXT_PRIMARY};
+            }}
+        """)
         self._taxa_cdi_padrao = _read_taxa_cdi(db_path)
         self._setup_ui()
 
@@ -462,7 +656,7 @@ class CalculadorasDialog(QDialog):
 
         self.tabs = QTabWidget()
         self.tabs.addTab(BlackScholesWidget(self._taxa_cdi_padrao, self), "⚖ Black-Scholes")
-        self.tabs.addTab(CdiWidget(self._taxa_cdi_padrao, self), "📊 CDI")
+        self.tabs.addTab(CdiWidget(self._taxa_cdi_padrao, self.db_path, self), "📊 CDI")
         layout.addWidget(self.tabs, stretch=1)
 
         # Rodapé único com botão Fechar (cobre ambas as abas)

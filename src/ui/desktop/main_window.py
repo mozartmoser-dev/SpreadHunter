@@ -166,6 +166,7 @@ class MainWindow(QMainWindow):
         self._box_dialog = None
         self._put_ratio_dialog = None
         self._mpp_dialog = None
+        self._calculadoras_dialog = None
         self._som_ativado = False
         self._som_vendidas_ativado = False
         self._som_coberta_ativado = False
@@ -1915,8 +1916,12 @@ class MainWindow(QMainWindow):
 
     def _abrir_calculadoras(self):
         from src.ui.desktop.calculadoras_dialog import CalculadorasDialog
-        dlg = CalculadorasDialog(self.db_path, self)
-        dlg.exec_()
+        if self._calculadoras_dialog is None or not self._calculadoras_dialog.isVisible():
+            self._calculadoras_dialog = CalculadorasDialog(self.db_path, None)
+            self._calculadoras_dialog.show()
+        else:
+            self._calculadoras_dialog.raise_()
+            self._calculadoras_dialog.activateWindow()
 
     def _abrir_importflash(self):
         from src.ui.desktop.grade_opcoes_dialog import GradeOpcoesDialog
