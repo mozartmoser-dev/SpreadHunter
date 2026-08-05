@@ -487,27 +487,63 @@ class TestDiagnosticLogs:
 # ═══════════════════════════════════════════════════════════════
 
 class TestLimitePorEstagio:
-    RESULT = _chassi(
-        ratio_call=1.25, ratio_put=1.0,
-        pnl_com_ratio=1700.0, pnl_base=1386.23,
-        sigma_periodo=0.085, preco_ativo=40.64,
-    )
+    STRIKE = {"strike": 48.00, "premio_ask": 0.02, "vol_ask": 500, "vol_bid": 400}
 
-    def test_usa_limite_global(self):
-        """Todos os estagios usam limite_protecao_pct global."""
+    def test_rendimento_usa_limite_rendimento(self):
         r = _chassi(
             ratio_call=1.25, ratio_put=1.0,
             pnl_com_ratio=1700.0, pnl_base=1386.23,
             sigma_periodo=0.085, preco_ativo=40.64,
-            estagio="Otimizado",
+            estagio="Rendimento",
         )
-        strike_ok = {"strike": 48.00, "premio_ask": 0.02, "vol_ask": 500, "vol_bid": 400}
         prot = CalculadoraProtecaoCauda.avaliar(
-            r, strikes_call_candidatos=[strike_ok], qtd_acao=1000,
-            limite_protecao_pct=0.35,
+            r, strikes_call_candidatos=[self.STRIKE], qtd_acao=1000,
+            limite_protecao_pct_rendimento=0.99, limite_protecao_pct=0.001,
+        )
+        assert prot is not None
+        assert prot.viavel_call  # 0.99 permite, 0.001 barraria
+
+    def test_plato_usa_limite_plato(self):
+        r = _chassi(
+            ratio_call=1.25, ratio_put=1.0,
+            pnl_com_ratio=1700.0, pnl_base=1386.23,
+            sigma_periodo=0.085, preco_ativo=40.64,
+            estagio="Platô",
+        )
+        prot = CalculadoraProtecaoCauda.avaliar(
+            r, strikes_call_candidatos=[self.STRIKE], qtd_acao=1000,
+            limite_protecao_pct_plato=0.99, limite_protecao_pct=0.001,
         )
         assert prot is not None
         assert prot.viavel_call
+
+    def test_protecao_usa_limite_protecao(self):
+        r = _chassi(
+            ratio_call=1.25, ratio_put=1.0,
+            pnl_com_ratio=1700.0, pnl_base=1386.23,
+            sigma_periodo=0.085, preco_ativo=40.64,
+            estagio="Proteção",
+        )
+        prot = CalculadoraProtecaoCauda.avaliar(
+            r, strikes_call_candidatos=[self.STRIKE], qtd_acao=1000,
+            limite_protecao_pct_protecao=0.99, limite_protecao_pct=0.001,
+        )
+        assert prot is not None
+        assert prot.viavel_call
+
+    def test_base_usa_limite_global(self):
+        r = _chassi(
+            ratio_call=1.25, ratio_put=1.0,
+            pnl_com_ratio=1700.0, pnl_base=1386.23,
+            sigma_periodo=0.085, preco_ativo=40.64,
+            estagio="Base",
+        )
+        prot = CalculadoraProtecaoCauda.avaliar(
+            r, strikes_call_candidatos=[self.STRIKE], qtd_acao=1000,
+            limite_protecao_pct=0.99,
+        )
+        assert prot is not None
+        assert prot.viavel_call  # usa global, não por estágio
 
 
 # ═══════════════════════════════════════════════════════════════
