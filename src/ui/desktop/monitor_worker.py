@@ -454,6 +454,13 @@ class MonitorWorker(QThread):
         coberta.sort(key=lambda o: (not o.viavel, -o.pct_cdi))
         self.oportunidades_coberta_atualizadas.emit(coberta)
 
+        self._snapshot_pipeline()
+
+    def _snapshot_pipeline(self):
+        self._pipeline_monitor = getattr(self._monitor_uc, '_ultimo_pipeline', None)
+        self._pipeline_vendidas = getattr(self._monitor_vendidas_uc, '_ultimo_pipeline', None)
+        self._pipeline_coberta = getattr(self._monitor_coberta_uc, '_ultimo_pipeline', None)
+
     def _processar_colares(self, rtd):
         if not self._toggle_colar.deve_escanear():
             return

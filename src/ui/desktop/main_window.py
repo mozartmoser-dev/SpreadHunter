@@ -1475,11 +1475,11 @@ class MainWindow(QMainWindow):
         if not hasattr(self, '_worker'):
             return
         if self._foco_coberta:
-            tracker = getattr(self._worker._monitor_coberta_uc, '_ultimo_pipeline', None)
+            tracker = getattr(self._worker, '_pipeline_coberta', None)
         elif self._foco_vendidas:
-            tracker = getattr(self._worker._monitor_vendidas_uc, '_ultimo_pipeline', None)
+            tracker = getattr(self._worker, '_pipeline_vendidas', None)
         else:
-            tracker = getattr(self._worker._monitor_uc, '_ultimo_pipeline', None)
+            tracker = getattr(self._worker, '_pipeline_monitor', None)
         dlg = PipelineDialog(tracker, self)
         dlg.exec_()
 

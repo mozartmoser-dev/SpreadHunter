@@ -435,6 +435,7 @@ class Palette:
     BG_RAISED = "#1e1e34"
     BG_SURFACE = "#16213e"
     BG_HOVER = "#2d2d44"
+    TABLE_BG = "#1e1e34"
 
     BORDER = "#2d2d44"
     BORDER_FOCUS = "#5a5a8a"
