@@ -135,7 +135,8 @@ class CalculadoraPutRatio:
         else:
             be_down = 0.0
 
-        T = dias / 365.0
+        du_val_bs = du if du is not None else dc_to_du(None, None, dias)
+        T = du_val_bs / 252.0
         r_cont = math.log(1 + self.taxa_cdi)
         if iv_k1 is not None and iv_k2 is not None:
             pass

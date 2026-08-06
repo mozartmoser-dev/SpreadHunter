@@ -320,6 +320,79 @@ class TestDeltaPut:
 
 
 # ═══════════════════════════════════════════════════════════════
+# Regressao: T do Black-Scholes deve usar du/252, nao dias/365
+# BUG CORRIGIDO (modulo 7): linha 138 usava T = dias/365.0
+# enquanto todo o sistema padronizou du/252 para BS.
+# A divergencia e real (~21bp na IV, ~0.003 no delta).
+# ═══════════════════════════════════════════════════════════════
+
+class TestConvencaoTBlackScholes:
+    """Prova que T = dias/365 vs T = du/252 produz IV diferente."""
+
+    def test_iv_diverge_entre_convencoes(self):
+        import math
+        dias, du = 45, 30
+        r = math.log(1.145)
+        T_dc = dias / 365.0
+        T_du = du / 252.0
+        iv_dc = CalculadoraPutRatio.estimar_iv(1.00, 29.50, 30.0, T_dc, r)
+        iv_du = CalculadoraPutRatio.estimar_iv(1.00, 29.50, 30.0, T_du, r)
+        assert iv_dc > 0.05
+        assert iv_du > 0.05
+        assert abs(iv_dc - iv_du) > 0.001, (
+            f"IV deve divergir entre convencoes: {iv_dc:.4f} vs {iv_du:.4f}"
+        )
+
+    def test_calcular_usa_du_252_para_bs(self, calc):
+        """Regressao: o T usado internamente pelo calcular() deve
+        corresponder a du/252, nao dias/365."""
+        import math
+        dias, du = 45, 30
+        r = math.log(1 + calc.taxa_cdi)
+        T_du = du / 252.0
+
+        from datetime import date
+        r = calc.calcular(
+            strike_k1=30.0, strike_k2=28.0, n1=1, n2=2,
+            ask_put_k1=1.00, bid_put_k2=0.80,
+            qtd_ask_put_k1=500, qtd_bid_put_k2=800,
+            cod_put_k1="PETRH30", cod_put_k2="PETRH28",
+            ativo="PETR4", vencimento=date(2026, 8, 30),
+            dias=dias, em_leilao=False,
+            preco_ativo=29.50, du=du,
+        )
+        assert r is not None
+        iv_esperada = CalculadoraPutRatio.estimar_iv(
+            1.00, 29.50, 30.0, T_du, math.log(1 + calc.taxa_cdi)
+        )
+        # O calcular() usa a media das IVs de K1 e K2;
+        # a IV de K1 deve bater com estimar_iv com T_du (nao T_dc).
+        T_dc = dias / 365.0
+        iv_com_T_dc = CalculadoraPutRatio.estimar_iv(
+            1.00, 29.50, 30.0, T_dc, math.log(1 + calc.taxa_cdi)
+        )
+        iv_reportada = r.iv_put_pct / 100.0
+        # A IV de K2 usa bid_put_k2=0.80, strike=28; a media (K1+K2)/2
+        # pode puxar um pouco, mas K1 individual deve estar mais perto
+        # de iv_com_T_du do que de iv_com_T_dc.
+        # Verificamos que o delta reflete a convencao correta.
+        delta_k1_com_T_dc = CalculadoraPutRatio.delta_put(
+            29.50, 30.0, T_dc, math.log(1 + calc.taxa_cdi), iv_com_T_dc
+        )
+        delta_k1_com_T_du = CalculadoraPutRatio.delta_put(
+            29.50, 30.0, T_du, math.log(1 + calc.taxa_cdi), iv_esperada
+        )
+        # O delta_k1 reportado deve estar mais proximo da convencao du/252
+        diff_du = abs(r.delta_k1 - delta_k1_com_T_du)
+        diff_dc = abs(r.delta_k1 - delta_k1_com_T_dc)
+        assert diff_du < diff_dc, (
+            f"delta_k1={r.delta_k1:.4f} deve estar mais proximo de "
+            f"T_du={delta_k1_com_T_du:.4f} (diff={diff_du:.4f}) do que "
+            f"T_dc={delta_k1_com_T_dc:.4f} (diff={diff_dc:.4f})"
+        )
+
+
+# ═══════════════════════════════════════════════════════════════
 # estimar_iv
 # ═══════════════════════════════════════════════════════════════
 
