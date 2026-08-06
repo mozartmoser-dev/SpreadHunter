@@ -28,8 +28,6 @@ pré-existente de socket OpenFast).
    `TestConvencaoTBlackScholes` adicionado (falhava antes, passa depois). Spec:
    `calculadora_put_ratio.md` Decisão #3 (BUG CORRIGIDO).
 
-4. **Módulo ? —** [completar]
-
 ## Módulos auditados
 
 | # | Arquivo | Status | Bugs |
@@ -44,5 +42,4 @@ pré-existente de socket OpenFast).
 ## Pendências para amanhã
 
 - Completar auditoria dos módulos 8-20 restantes
-- Preencher bug #4 na lista acima (confirmar com sessão anterior)
 - Atualizar `PENDENCIAS_AMANHA.md`
