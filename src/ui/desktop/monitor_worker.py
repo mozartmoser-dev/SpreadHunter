@@ -186,6 +186,11 @@ class MonitorWorker(QThread):
 
             try:
                 t_start_cycle = time.perf_counter()
+                # 0. Manutenção primeiro — promove novas chaves ANTES do scan
+                #    para instrumentos entrarem no mesmo ciclo (não no próximo)
+                self._processar_manutencao()
+                t0 = time.perf_counter()
+
                 # 1. Varredura Geral de Oportunidades (Monitor Principal)
                 self._processar_monitor_geral(rtd)
                 t1 = time.perf_counter()
@@ -206,10 +211,6 @@ class MonitorWorker(QThread):
                 self._processar_put_ratio(rtd)
                 t4b = time.perf_counter()
 
-                # 6. Manutenção (detecção novos books, Onda 2, background scan)
-                self._processar_manutencao()
-                t5 = time.perf_counter()
-
                 # 6. Tentativa de reconexão da fonte a cada ~30s se estiver offline
                 if not rtd.disponivel:
                     self._rtd_reconnect_cycle += 1
@@ -226,13 +227,13 @@ class MonitorWorker(QThread):
                     self._processar_mpp(rtd)
                 t6 = time.perf_counter()
 
-                dt_monitor = t1 - t_start_cycle
+                dt_manut = t0 - t_start_cycle
+                dt_monitor = t1 - t0
                 dt_colar = t2 - t1
                 dt_cal = t3 - t2
                 dt_box = t4 - t3
                 dt_put_ratio = t4b - t4
-                dt_manut = t5 - t4b
-                dt_mpp = t6 - t5
+                dt_mpp = t6 - t4b
                 dt_cycle = t6 - t_start_cycle
 
                 n_inst = len(getattr(self._mercado_provider, '_chaves_com_book', set()))

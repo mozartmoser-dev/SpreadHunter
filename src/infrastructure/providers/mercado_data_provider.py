@@ -311,6 +311,7 @@ class MercadoDataProvider:
         else:
             rtd.registrar_lista(registros)
         self._chaves_registradas.add(key)
+        self._chaves_com_book.add(key)
         return True
 
     def _flush_buffer(self, buffer: list, max_chunk: int = 1000):

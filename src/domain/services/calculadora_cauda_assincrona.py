@@ -157,8 +157,10 @@ class CalculadoraCaudaAssincrona:
             )
             custo_put = premio_put - bs_put_ref
         else:
-            bs_put_ref = bs_end_l = bs_end_r = 0.0
-            custo_put = premio_put - max(0, strike_put - preco_ativo)
+            bs_put_ref = max(0, strike_put - preco_ativo)
+            bs_end_l = max(0, strike_put - s_end_l)
+            bs_end_r = max(0, strike_put - s_end_r)
+            custo_put = premio_put - bs_put_ref
 
         # Ratios em float: n = 1.00 a 1+calda_ratio_max/100, m = calda_ratio_put_min a 1.00
         base_pct = max(1, int(calda_ratio_put_step * 100))

@@ -78,6 +78,12 @@ class InstrumentoRepository:
             conn.close()
 
     def save_batch(self, instrumentos: list[InstrumentoOpcional]) -> int:
+        """Insere instrumentos em lote via executemany.
+
+        Atencao: diferente de save(), este metodo NAO popula o campo id
+        dos objetos InstrumentoOpcional passados -- executemany nao expoe
+        lastrowid por linha. Se precisar dos IDs, use save() individual.
+        """
         self.invalidate_cache()
         conn = get_connection(self.db_path)
         try:

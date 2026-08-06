@@ -428,6 +428,77 @@ class TestSigmaConsistencia:
             assert res.sigma_periodo == pytest.approx(expected, abs=1e-4)
 
 
+class TestPutIntrinsecoSemBS:
+    """Prova divergencia pre-fix: calcular() ignorava payoff intrinseco da PUT
+    no fallback sem BS, enquanto processar_otimizado() usava intrinsico.
+
+    BUG: no else de calcular() (~linha 160), bs_put_ref = bs_end_l = bs_end_r = 0.0
+    zerava a contribuicao da PUT no delta_pnl. processar_otimizado() sempre usou
+    max(0, Kp - S) como fallback, gerando PnL diferente para a mesma estrutura.
+    """
+
+    def test_calcular_put_intrinseco_sem_bs_protege_cauda(self):
+        """PUT ITM sem BS: pnl_na_cauda_esquerda deve refletir protecao intrinseca.
+
+        Cenário: strike_put > preco_ativo (ITM), sem iv_put/dte_put (usar_bs=False).
+        O fallback correto usa max(0, Kp - S), igual ao processar_otimizado().
+        Antes do fix, calcular() usava bs_put_ref=bs_end_l=0.0 → delta_pnl da PUT = 0.
+        """
+        preco_ativo = 25.0
+        strike_put = 26.0
+        premio_put = 3.0
+        qtd_acao = 1000
+        calda_desvios_cauda = 1.0
+
+        r = CalculadoraCaudaAssincrona.calcular(
+            preco_ativo=preco_ativo,
+            strike_call=27.50,
+            strike_put=strike_put,
+            premio_call=1.00,
+            premio_put=premio_put,
+            dte_call=40,
+            ativo="PETR4",
+            iv_call_pct=50.0,
+            pnl_projetado_base=90.0,
+            capital_empregado_base=2420.0,
+            pct_cdi_base=2.5,
+            calda_ratio_max=300,
+            calda_ratio_put_min=0.3,
+            calda_ratio_put_step=0.1,
+            calda_desvios_cauda=calda_desvios_cauda,
+            qtd_acao=qtd_acao,
+        )
+        assert r is not None, "calcular() deveria encontrar solucao com pequeno sigma"
+        assert r.ratio_put < 1.0, "PUT ITM deve permitir ratio < 1"
+
+        du = dc_to_du(None, None, 40)
+        sigma_p_exato = (50.0 / 100.0) * math.sqrt(du / 252.0)
+        s_end_l = preco_ativo * (1 - calda_desvios_cauda * sigma_p_exato)
+
+        bs_put_ref_intr = max(0, strike_put - preco_ativo)
+        bs_end_l_intr = max(0, strike_put - s_end_l)
+
+        delta_l_put = r.ratio_put * (bs_end_l_intr - bs_put_ref_intr)
+        delta_l_stock = s_end_l - preco_ativo
+        delta_l_call = r.ratio_call * max(0, s_end_l - 27.50) - r.ratio_call * max(0, preco_ativo - 27.50)
+        delta_l_correto = (delta_l_stock + delta_l_call + delta_l_put) * qtd_acao
+
+        extra_call_pnl = 1.00 - max(0, preco_ativo - 27.50)
+        custo_put = premio_put - max(0, strike_put - preco_ativo)
+        pnl_spot = 90.0 + (r.ratio_call - 1) * extra_call_pnl * qtd_acao + (1 - r.ratio_put) * custo_put * qtd_acao
+        expected_pnl_left = round(pnl_spot + delta_l_correto, 4)
+
+        msg = (
+            f"BUG: pnl_na_cauda_esquerda={r.pnl_na_cauda_esquerda} != esperado={expected_pnl_left}. "
+            f"PUT ITM (strike={strike_put} > spot={preco_ativo}) sem BS: "
+            f"bs_put_ref_intr={bs_put_ref_intr}, bs_end_l_intr={bs_end_l_intr:.2f} "
+            f"(s_end_l={s_end_l:.2f}). "
+            f"calcular() usa bs_put_ref=0 (ignora protecao da PUT), "
+            f"processar_otimizado() usa bs_put_ref={bs_put_ref_intr} (correto com intrinseco)."
+        )
+        assert r.pnl_na_cauda_esquerda == expected_pnl_left, msg
+
+
 class TestVencimentoPropagation:
     """Verifica que vencimento_call/vencimento_put são propagados corretamente."""
 

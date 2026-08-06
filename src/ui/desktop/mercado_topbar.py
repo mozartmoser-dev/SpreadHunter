@@ -7,13 +7,19 @@ from src.domain.services.market_data_source import FieldName
 _MC = {1: "F", 2: "G", 3: "H", 4: "J", 5: "K", 6: "M",
        7: "N", 8: "Q", 9: "U", 10: "V", 11: "X", 12: "Z"}
 
+_MESES_BIMESTRAIS = [2, 4, 6, 8, 10, 12]
+_NOME_MES = {2: "Fev", 4: "Abr", 6: "Jun", 8: "Ago", 10: "Out", 12: "Dez"}
+
 
 def _cod_fut(prefixo: str, ano: int, mes: int) -> str:
     return f"{prefixo.lower()}{_MC[mes].lower()}{str(ano)[-2:]}"
 
 
-def _prox_mes(ano: int, mes: int) -> tuple[int, int]:
-    return (ano + 1, 1) if mes == 12 else (ano, mes + 1)
+def _contrato_bimestral_ativo(hoje: date) -> tuple[int, int]:
+    for bm in _MESES_BIMESTRAIS:
+        if hoje.month < bm or (hoje.month == bm and hoje.day <= 14):
+            return (hoje.year, bm)
+    return (hoje.year + 1, _MESES_BIMESTRAIS[0])
 
 
 def _formatar_data_completa(data_iso: str) -> str:
@@ -226,13 +232,16 @@ class MercadoTopBarWidget(QFrame):
         col_fut.addWidget(lbl_fut)
         grid_fut = QGridLayout()
         grid_fut.setSpacing(3)
+        hoje = date.today()
+        a_fut, m_fut = _contrato_bimestral_ativo(hoje)
+        suf  = f"{_NOME_MES[m_fut]}{str(a_fut)[-2:]}"
         for i, (ativo, info, preco) in enumerate([
-            ("WIN$ (Ago24)", "Mini Ibov", "178.775"),
-            ("WDO$ (Ago24)", "Mini Dolar", "5.070"),
+            ("WIN$ (" + suf + ")", "Mini Ibov", "178.775"),
+            ("WDO$ (" + suf + ")", "Mini Dolar", "5.070"),
             ("DI1F27", "Jan/27", "13.95"),
             ("DI1F33", "Jan/33", "14.71"),
-            ("IND$ (Ago24)", "Ibov Cheio", "177.547"),
-            ("DOL$ (Ago24)", "Dolar Cheio", "5.068"),
+            ("IND$ (" + suf + ")", "Ibov Cheio", "177.547"),
+            ("DOL$ (" + suf + ")", "Dolar Cheio", "5.068"),
         ]):
             grid_fut.addWidget(self._lbl(ativo, bold=True), i, 0)
             grid_fut.addWidget(self._lbl(info, cor="#a4b0be"), i, 1)
@@ -334,11 +343,10 @@ class MercadoTopBarWidget(QFrame):
 
     def _gerar_defaults(self) -> dict[str, tuple[str, float]]:
         hoje = date.today()
-        a, m = hoje.year, hoje.month
-        m2 = _prox_mes(a, m)
+        a, m_contrato = _contrato_bimestral_ativo(hoje)
         return {
-            _cod_fut("WIN", *m2): ("WIN", 0.0),
-            _cod_fut("WDO", *m2): ("WDO", 0.0),
+            _cod_fut("WIN", a, m_contrato): ("WIN", 0.0),
+            _cod_fut("WDO", a, m_contrato): ("WDO", 0.0),
             "IBOV": ("IBOV", 0.0),
             "DI1F27": ("DI27", 0.0),
             "DI1F33": ("DI33", 0.0),
