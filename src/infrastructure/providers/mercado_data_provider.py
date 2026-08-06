@@ -629,10 +629,13 @@ class MercadoDataProvider:
                         preco_ativo = self._precos_ativo_cache.get(inst.ativo)
                     if not preco_ativo or preco_ativo <= 0:
                         continue
+                    bid_ativo = self.source.ler_campo_cache(inst.ativo, FieldName.BID) or 0.0
+                    if bid_ativo > preco_ativo * 1.02:
+                        bid_ativo = preco_ativo
                     entry = {
                         "preco_ativo": preco_ativo,
                         "strike_rtd": strike_put,
-                        "of_compra_ativo": self.source.ler_campo_cache(inst.ativo, FieldName.BID) or 0.0,
+                        "of_compra_ativo": bid_ativo,
                         "of_venda_ativo": preco_ativo,
                         "of_compra_call": ocp or 0.0,
                         "of_venda_put": ovd or 0.0,
