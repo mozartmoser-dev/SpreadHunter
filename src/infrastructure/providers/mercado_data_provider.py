@@ -631,7 +631,7 @@ class MercadoDataProvider:
                         continue
                     bid_ativo = self.source.ler_campo_cache(inst.ativo, FieldName.BID) or 0.0
                     if bid_ativo > preco_ativo or bid_ativo <= 0:
-                        bid_ativo = preco_ativo
+                        bid_ativo = 0.0
                     entry = {
                         "preco_ativo": preco_ativo,
                         "strike_rtd": strike_put,
