@@ -183,6 +183,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence(Qt.CTRL | Qt.Key_Plus), self, self._aumentar_fonte)
         QShortcut(QKeySequence(Qt.CTRL | Qt.Key_Minus), self, self._diminuir_fonte)
         QShortcut(QKeySequence(Qt.CTRL | Qt.Key_0), self, self._resetar_fonte)
+        QShortcut(QKeySequence(Qt.ALT | Qt.Key_C), self, self._abrir_calculadoras)
 
         self._scan_timer = QTimer(self)
         self._scan_timer.timeout.connect(self._update_scan_status)
@@ -369,15 +370,42 @@ class MainWindow(QMainWindow):
             }
             QMenu::item:selected { background-color: #2d4a7a; color: #ffffff; }
             QMenu::item:disabled { color: #5a5a6e; }
+            QMenu::separator {
+                height: 1px;
+                background: #2d2d44;
+                margin: 4px 8px;
+            }
         """)
 
+        # ── 📐 Calculadoras ──
+        action_calcs = QAction("\U0001f9ee  Calculadoras (Black-Scholes, Gregas, CDI)\tAlt+C", menu)
+        action_calcs.triggered.connect(self._abrir_calculadoras)
+        menu.addAction(action_calcs)
+
+        menu.addSeparator()
+
+        # ── 💾 Workspace ──
+        action_workspace = QAction("\U0001f4c1  Workspace: Salvar / Restaurar", menu)
+        action_workspace.triggered.connect(self._abrir_workspace)
+        menu.addAction(action_workspace)
+
+        menu.addSeparator()
+
+        # ── 🔬 Simulações ──
+        action_hist_sim = QAction("\U0001f4ca  Histórico de Simulações (Collar Calendário)", menu)
+        action_hist_sim.triggered.connect(self._abrir_historico_simulacoes)
+        menu.addAction(action_hist_sim)
+
+        menu.addSeparator()
+
+        # ── ⚙️ Diagnóstico ──
         action_integridade = QAction("\u2699\ufe0f  Verificar Integridade dos Parâmetros", menu)
         action_integridade.triggered.connect(self._verificar_integridade_sob_demanda)
         menu.addAction(action_integridade)
 
         btn = QToolButton(self)
         btn.setText("\U0001f6e0  Ferramentas")
-        btn.setToolTip("Ferramentas: diagnóstico e manutenção do sistema")
+        btn.setToolTip("Calculadoras · Workspace · Simulações · Diagnóstico")
         btn.setPopupMode(QToolButton.InstantPopup)
         btn.setMenu(menu)
         btn.setAutoRaise(False)
@@ -697,7 +725,7 @@ class MainWindow(QMainWindow):
             + _btn_hover
             + "QPushButton:hover {{ background-color: #2d4a7a; border-color: #4a90d9; }}"
         )
-        btn_layout.addWidget(self.btn_calc)
+        self.btn_calc.hide()  # movido para 🛠 Ferramentas
 
         self.btn_workspace = QPushButton("\U0001f4c1  Workspace")
         self.btn_workspace.setAutoDefault(False)
@@ -711,7 +739,7 @@ class MainWindow(QMainWindow):
             + _btn_hover
             + "QPushButton:hover {{ background-color: #3d2d6a; border-color: #b388ff; }}"
         )
-        btn_layout.addWidget(self.btn_workspace)
+        self.btn_workspace.hide()  # movido para 🛠 Ferramentas
 
         self.btn_historico_sim = QPushButton("\U0001f4ca  Simulações")
         self.btn_historico_sim.setAutoDefault(False)
@@ -723,7 +751,7 @@ class MainWindow(QMainWindow):
             + _btn_hover
             + "QPushButton:hover {{ background-color: #3d2a15; border-color: #e67e22; }}"
         )
-        btn_layout.addWidget(self.btn_historico_sim)
+        self.btn_historico_sim.hide()  # movido para 🛠 Ferramentas
 
         self.btn_paineis = self._criar_dropup_paineis(_btn_base, _btn_hover)
         btn_layout.addWidget(self.btn_paineis)
