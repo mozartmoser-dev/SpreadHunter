@@ -151,7 +151,7 @@ class ParametroOperacional:
         "mpp_bonus_max": {"valor": 0.15, "estrategia": "MPP", "descricao": "Bônus máximo histórico"},
         "mpp_bonus_taxa": {"valor": 0.25, "estrategia": "MPP", "descricao": "Taxa conversão sucesso em bônus"},
         "mre_lote_base": {"valor": 100.0, "estrategia": "MPP", "descricao": "Lote base para execução"},
-        "mre_profundidade_max_pct": {"valor": 0.20, "estrategia": "MPP", "descricao": "Máximo % da profundidade a consumir"},
+        "mre_profundidade_max_pct": {"valor": 0.0, "estrategia": "MPP", "descricao": "Máximo % da profundidade a consumir"},
         "otimizado_desvios_sigma": {"valor": 2.2, "estrategia": "RATIOS_OTIMIZADOS", "descricao": "Desvios padrao para o range do otimizado"},
         "otimizado_sigma_rendimento": {"valor": 2.0, "estrategia": "RATIOS_OTIMIZADOS", "descricao": "Sigma para exigir CDI no estagio Rendimento"},
         "otimizado_ratio_max": {"valor": 1.3, "estrategia": "RATIOS_OTIMIZADOS", "descricao": "Ratio maximo CALL:ativo permitido"},
