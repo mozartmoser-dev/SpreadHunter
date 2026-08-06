@@ -50,7 +50,6 @@ class MonitorVendaCobertaUseCase:
         taxa_map = taxa_repo.get_latest_all()
         premio_risco = self._get_param("venda_coberta_premio_risco", 1.08)
         dias_maximos = int(self._get_param("venda_coberta_dias_maximos", 30))
-        dist_max_pct = self._get_param("venda_coberta_dist_max_pct", 0.20)
         self._ultimo_pipeline = pipeline_tracker
 
         chaves_com_chave = 0
@@ -89,9 +88,8 @@ class MonitorVendaCobertaUseCase:
 
             # Taxa (Venda Coberta Invertida): vende ativo (bid) + compra CALL (ask)
             recebimento = of_compra_ativo - of_venda_call
-            strike_max = preco_ativo * (1.0 - dist_max_pct)
             cond = (
-                strike <= strike_max
+                strike < preco_ativo
                 and recebimento > strike
                 and of_compra_ativo > 0
                 and of_venda_call > 0
@@ -165,7 +163,7 @@ class MonitorVendaCobertaUseCase:
             self._ultimo_pipeline.add_stage("2. Instrumento válido", chaves_com_chave, chaves_com_inst, "Instrumento não encontrado ou vencido")
             self._ultimo_pipeline.add_stage("3. DTE máximo", chaves_com_inst, chaves_dentro_dias, f"DTE > {dias_maximos}d")
             self._ultimo_pipeline.add_stage("4. Strike RTD", chaves_dentro_dias, chaves_com_strike, "Strike ausente/zero")
-            self._ultimo_pipeline.add_stage("5. Condição preço", chaves_com_strike, n_cond, f"Strike>{preco_ativo*(1-dist_max_pct):.0f} ou recebimento<=strike")
+            self._ultimo_pipeline.add_stage("5. Condição preço", chaves_com_strike, n_cond, "Strike >= preço ativo ou recebimento<=strike")
             self._ultimo_pipeline.add_stage("6. Resultados", n_cond, len(resultados))
             self._ultimo_pipeline.add_stage("7. Viáveis", len(resultados), n_viaveis, f"Prêmio-risco {premio_risco}xCDI")
 
