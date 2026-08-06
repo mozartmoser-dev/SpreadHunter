@@ -16,6 +16,7 @@ class MercadoDataProvider:
     SEM_BOOK_SKIP_CYCLES = 6
     SEM_ATIVO_SKIP_CYCLES = 10
     _GIL_YIELD_INTERVAL = 100
+    MAX_ONDA1_POR_CICLO = 20000
 
     _CAMPOS_PUT = [FieldName.STRIKE, FieldName.ASK, FieldName.BID,
                    FieldName.BOOK_HEADER, FieldName.QTD_LAST, FieldName.VOL_ASK, FieldName.VOL_BID]
@@ -605,6 +606,8 @@ class MercadoDataProvider:
                         continue
 
                     # Onda 1: dados basicos para collars (strike + OCP/OVD)
+                    if count_onda1 >= self.MAX_ONDA1_POR_CICLO:
+                        continue
                     t0_onda1 = time.perf_counter()
                     if getattr(self.source, 'suporta_push', False):
                         strike_put = inst.strike
