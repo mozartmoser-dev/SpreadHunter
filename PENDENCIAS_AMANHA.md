@@ -62,6 +62,7 @@ Cadastro de notas de revisão em `inventory.md` (append-only).
 - [ ] `ts_ativo_ask/bid` expor em algum lugar visível (tooltip/pipeline)
 - [ ] Corrigir `_is_weekly()` em `main_window.py:1747` — marca A,B,C,D,M,N,O,P (mensais Jan-Abr) como "S-" semanal. Correto: `W[1-9]$` no final do código.
 - [ ] Filtro de opções semanais na Onda 1 (`mercado_data_provider.py:_deve_pular_instrumento()`), parâmetro `filtro_semanal` (0=incluir, 1=excluir). Usar `W[1-9]$` no sufixo do código, sem coluna nova no banco.
+- [ ] **Ordenar instrumentos por vencimento (asc) antes da Onda 1:** `instrumentos.sort(key=lambda i: i.vencimento)` após `inst_repo.get_all()`, antes de `_registrar_batch_inteligente`. Séries próximas têm mais liquidez e oportunidades — entram no RTD primeiro. Long-dated vão pro background scan. Custo < 5ms por ciclo. Aplica tanto no branch com prioridade quanto sem.
 - [ ] Camada 1 (infraestrutura) — specs pendentes conforme inventário
 - [ ] Camada 3 (UI) — specs pendentes conforme inventário
 

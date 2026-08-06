@@ -44,4 +44,5 @@ pré-existente de socket OpenFast).
 - Completar auditoria dos módulos 8-20 restantes
 - **Bug display:** `_is_weekly()` em `main_window.py:1747` marca mensais Jan-Abr (A,B,C,D,M,N,O,P) como "S-" nos badges. Deveria usar `W[1-9]$` no sufixo do código.
 - **Filtro de semanais:** adicionar parâmetro `filtro_semanal` + cheque em `_deve_pular_instrumento()` no `mercado_data_provider.py`. Detecção: `W[1-9]$` no final do código. Sem coluna nova no banco.
+- **Ordenação por vencimento na Onda 1:** `instrumentos.sort(key=lambda i: i.vencimento)` após `inst_repo.get_all()`, antes do `_registrar_batch_inteligente`. Séries próximas têm mais liquidez → entram no RTD primeiro. Long-dated vão pro background scan. Custo < 5ms.
 - Atualizar `PENDENCIAS_AMANHA.md`
