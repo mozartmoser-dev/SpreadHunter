@@ -1,6 +1,6 @@
 # Spreadhunter — Regras para Agentes
 
-Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, taxa, SBTH vendida, put ratio, venda coberta). Desktop Python/PySide6, SQLite, RTD via COM do Profit, socket OpenFast, API opcoes.net.br. **Windows-only.** Sem CI; 579 testes rodam localmente.
+Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, taxa, SBTH vendida, put ratio, venda coberta). Desktop Python/PySide6, SQLite, RTD via COM do Profit, socket OpenFast, API opcoes.net.br. **Windows-only.** Sem CI; 583 testes rodam localmente.
 
 ## Confirmação obrigatória
 
@@ -9,7 +9,7 @@ Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, 
 ## Comandos essenciais
 
 ```powershell
-python -m pytest tests/ -x -q --tb=short            # todos (579)
+python -m pytest tests/ -x -q --tb=short            # todos (583; --collect-only leva ~18s)
 python -m pytest tests/domain/test_calculadora_cauda_assincrona.py -q
 python -m pytest tests/test_fase3.py::TestX::test_y -q
 python main.py                                       # dev
@@ -76,8 +76,8 @@ Em `mercado_data_provider.py` — sempre que mexer em `_registrar_batch_intelige
 
 ## Referências
 
-- `.opencode/skills/spreadhunter/SKILL.md` — use `skill spreadhunter` para regras completas + histórico de sessões (nota: SKILL.md tem contagem de testes desatualizada; 579 é o número real)
-- `.claude.md` — resumo adicional de stack e convenções (atenção: regra #5 duplicada com numeração quebrada)
+- `.opencode/skills/spreadhunter/SKILL.md` — use `skill spreadhunter` para regras completas + histórico de sessões (nota: contagem de testes no SKILL.md está desatualizada; 583 é o número real)
+- `.claude.md` — cópia parcial/desatualizada do AGENTS.md (regra #5 duplicada com numeração quebrada); ignorar e usar AGENTS.md como fonte autoritativa
 - `docs/DISTRIBUICAO.md`, `docs/pnt_importacao.md` — deploy/PNT
 - `pendenciascalendario.md` — diagnóstico BWB + simulações
 - `planoprotecaocauda.md` — planejamento de proteção de cauda

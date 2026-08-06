@@ -240,3 +240,16 @@
 | **Total** | **122** | **50** | **18** | **54** |
 
 **Maiores lacunas (sem cobertura alguma):** `opcoesnet_client.py` (627 linhas, 0 testes), 6 use cases sem testes (`MonitorColaresUseCase`, `MonitorColaresCalendarioUseCase`, `MonitorBoxUseCase`, `MonitorPutRatioUseCase`, `MonitorVendidasUseCase`, `MonitorVendaCobertaUseCase`), `CalculadoraVetorizada` (0 testes), 4 repositórios sem testes (`DividendoRepository`, `FeriadoB3Repository`, `CalendarioResultadosRepository`, `HistoricoSimulacoesRepository`), 5 providers sem testes (`MercadoEstruturalProvider`, `FeriadosB3Provider`, `CalendarioResultadosCVM`, `CalendarioResultadosWebWallet`, `DividendosStatusInvest`).
+
+---
+
+## Notas de Revisão (capturadas durante geração de specs)
+
+> Append-only. Achados que o inventário não capturou, descobertos durante verificação
+> de código-fonte para geração de specs. Não modificar a tabela original.
+
+- **InstrumentoRepository** (07/08/2026): métodos de escrita (`save`, `save_batch`, `delete_all`)
+  existem na API mas **não são chamados em produção** — o `importflash.py` escreve direto via
+  SQL raw (`DELETE` + `INSERT` na tabela `instrumentos_base`), contornando completamente o
+  repositório. O ciclo real é `importflash.py` → `MonitorWorker.invalidate_cache()` → próximo
+  `get_all_mapped()`. Ver `specs/instrumento_repository.md` para detalhes.
