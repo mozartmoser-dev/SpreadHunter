@@ -1,44 +1,73 @@
-# Pendências 06/08/2026
+# Pendências — 07/08/2026 → 08/08/2026
 
-## Sessão OpenSpec — módulo 3: CalculadoraCaudaAssincrona
+## Specs Camada 2 — CONCLUÍDO (módulos 1-20)
 
-Prompt atualizado em `specs/SESSAO_OPENSPEC_PROMPT.md` (v2, 05/08/2026).
+Todas as 20 specs da Camada 2 geradas e aprovadas. Arquivos em `specs/`.
 
-### Já concluídos
-- ✅ Módulo 1: ParametroRepository (`specs/parametro_repository.md`) — aprovado
-- ✅ Módulo 2: CalculadoraProtecaoCauda (`specs/calculadora_protecao_cauda.md`) — aprovado, correção de per-stage limits aplicada
+- `parametro_repository.md`
+- `calculadora_protecao_cauda.md`
+- `calculadora_cauda_assincrona.md`
+- `instrumento_repository.md`
+- `calculadora_colar_calendario.md`
+- `calculadora_colar.md`
+- `calculadora_put_ratio.md`
+- `calculadora_vetorizada.md`
+- `calculadora_box.md`
+- `calculadora_box_sbth.md`
+- `monitor_colares_calendario_use_case.md`
+- `monitor_colares_use_case.md`
+- `mpp_use_case.md`
+- `monitor_oportunidades_use_case.md`
+- `monitor_box_use_case.md`
+- `monitor_put_ratio_use_case.md`
+- `monitor_vendidas_use_case.md`
+- `monitor_venda_coberta_use_case.md`
+- `coletar_taxas_aluguel_use_case.md`
+- `exportar_operacao_use_case.md`
 
-### Próximo
-- 🔜 Módulo 3: CalculadoraCaudaAssincrona (`src/domain/services/calculadora_cauda_assincrona.py`)
+Cadastro de notas de revisão em `inventory.md` (append-only).
 
-### Atenção especial (do prompt v2)
-- **Contrato crítico:** os termos incrementais do grid de ratio DEVEM ser multiplicados por `qtd_acao` antes de somar a `pnl_projetado_base`. Bug histórico corrigido: versão original não fazia essa multiplicação (~1000x menor que o correto).
-- Dependências: só o que aparece literalmente nos imports do arquivo.
+## Correções aplicadas hoje (07/08)
 
----
+### Pipeline / performance
+- Bootstrap promove chave direto para `_chaves_com_book` (sem esperar manutenção)
+- Manutenção roda ANTES do scan (nova chave entra no mesmo ciclo)
+- Onda 1 não exige CALL BID (scanners filtram o que precisam)
+- `of_venda_put`/`of_compra_call`/prêmios com `or 0.0` (evita NoneType)
+- `bid_ativo = 0.0` quando BID inválido (evita falso positivo tipo EMBJ3)
+- `_snapshot_pipeline` no worker (dialog não perde pipeline entre ciclos)
+- Cap Onda 1 20k → REVERTIDO (desnecessário)
+- Staleness 120s OpenFAST → REVERTIDO (matava operações em mercado calmo)
+- `ts_ativo_ask`/`ts_ativo_bid` gravados no entry (auditoria)
 
-## Correções aplicadas hoje (05/08/2026)
+### Cálculo
+- `bs_put_ref` usa intrínseco no fallback sem BS (`calculadora_cauda_assincrona`)
+- `save_batch` docstring avisa que `id` não é populado
+- Taxa Vendida remove `dist_max_pct` 20% (era regra do SBTH)
 
-### mercado_data_provider.py (6 correções)
-1. `of_compra_ativo`/`of_venda_ativo` no dict Onda 1
-2. `ovd=0` não bloqueia mais o par
-3. Manutenção OpenFAST usa call BID/ASK como proxy (sem CAB)
-4. `_salvar_prioridades` salva Onda 1 + Onda 2
-5. Background scan wrap → 0 (cobrindo índices baixos fora da prioridade)
-6. `premio_put`/`premio_call` no dict Onda 1 (Collar via Onda 1)
-
-### UI (3 correções)
-7. Boleta TAXA: Ativo V(venda), Call C(compra), coeficiente positivo
-8. Dialog TAXA: label "Compra Call" + preço BID real
-9. monitor_worker.py: import `HistoricoSimulacoesRepository` (pós-processamento quebrava silenciosamente)
-
-### calculadora_protecao_cauda.py
-10. Per-stage limits implementados: Rendimento/Platô/Proteção usam limite específico, Base usa global
-11. Testes atualizados: 4 testes em `TestLimitePorEstagio`
-
-### calculadoras_dialog.py
-12. OCR captura código ProfitPro + lookup banco + independente + always-on-top + CDI 140%
+### UI
+- WIN/WDO contrato bimestral dinâmico (`mercado_topbar`)
+- Toolbar agrupada: Calcs/Workspace/Simulações no menu Ferramentas
+- Alt+C global para Calculadoras
+- `Palette.TABLE_BG` adicionado
 
 ### Parâmetros
-13. `premio_risco_colar`: 0.95 → 0.85 (JSON + banco)
-14. Diversos parâmetros PROTECAO_CAUDA/PUT_RATIO/PERFORMANCE corrigidos
+- `limite_protecao_pct*` corrigidos no banco + hardcoded + JSON
+- `fator_seguranca_liquidez`, `spread_maximo_pct` corrigidos
+- `perf_limite_meses`, `mre_profundidade_max_pct` alinhados
+
+## Para amanhã
+
+- [ ] Auditoria de pipeline (log de rejeitados com motivo — discutido, não implementado)
+- [ ] `ts_ativo_ask/bid` expor em algum lugar visível (tooltip/pipeline)
+- [ ] Corrigir `_is_weekly()` em `main_window.py:1747` — marca A,B,C,D,M,N,O,P (mensais Jan-Abr) como "S-" semanal. Correto: `W[1-9]$` no final do código.
+- [ ] Filtro de opções semanais na Onda 1 (`mercado_data_provider.py:_deve_pular_instrumento()`), parâmetro `filtro_semanal` (0=incluir, 1=excluir). Usar `W[1-9]$` no sufixo do código, sem coluna nova no banco.
+- [ ] Camada 1 (infraestrutura) — specs pendentes conforme inventário
+- [ ] Camada 3 (UI) — specs pendentes conforme inventário
+
+## Estado atual
+
+- 582 testes passando
+- Sistema rodando normal (50k instrumentos, 0 viáveis = mercado)
+- 11 commits hoje, todos pushados
+- ZIP diferencial enviado para o amigo (`diferencial_hoje.zip`)
