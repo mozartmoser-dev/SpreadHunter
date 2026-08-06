@@ -181,9 +181,13 @@ class OpenFastSocketAdapter:
         campo_str = OPENFAST_FIELD_STR.get(campo)
         if not campo_str:
             return None
+        chave = (codigo.upper(), campo_str)
         with self._mutex:
-            raw = self._cache.get((codigo.upper(), campo_str))
+            raw = self._cache.get(chave)
+            ts = self._cache_ts.get(chave)
         if raw is None:
+            return None
+        if ts is not None and time.time() - ts > 120:
             return None
         try:
             v = float(str(raw).replace(",", "."))
@@ -194,14 +198,20 @@ class OpenFastSocketAdapter:
     def ler_campos(self, codigo: str, *campos: FieldName) -> dict[FieldName, float | None]:
         resultado: dict[FieldName, float | None] = {}
         upper = codigo.upper()
+        agora = time.time()
         with self._mutex:
             for campo in campos:
                 campo_str = OPENFAST_FIELD_STR.get(campo)
                 if not campo_str:
                     resultado[campo] = None
                     continue
-                raw = self._cache.get((upper, campo_str))
+                chave = (upper, campo_str)
+                raw = self._cache.get(chave)
                 if raw is None:
+                    resultado[campo] = None
+                    continue
+                ts = self._cache_ts.get(chave)
+                if ts is not None and agora - ts > 120:
                     resultado[campo] = None
                     continue
                 try:
@@ -359,6 +369,13 @@ class OpenFastSocketAdapter:
         if ts is None:
             return None
         return time.time() - ts
+
+    def get_ts_campo(self, codigo: str, campo: FieldName) -> float | None:
+        campo_str = OPENFAST_FIELD_STR.get(campo)
+        if not campo_str:
+            return None
+        with self._mutex:
+            return self._cache_ts.get((codigo.upper(), campo_str))
 
     def desconectar(self):
         self._conectado = False

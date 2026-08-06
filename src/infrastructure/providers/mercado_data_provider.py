@@ -632,6 +632,8 @@ class MercadoDataProvider:
                     bid_ativo = self.source.ler_campo_cache(inst.ativo, FieldName.BID) or 0.0
                     if bid_ativo > preco_ativo or bid_ativo <= 0:
                         bid_ativo = 0.0
+                    ts_ask = self.source.get_ts_campo(inst.ativo, FieldName.ASK)
+                    ts_bid = self.source.get_ts_campo(inst.ativo, FieldName.BID)
                     entry = {
                         "preco_ativo": preco_ativo,
                         "strike_rtd": strike_put,
@@ -651,6 +653,8 @@ class MercadoDataProvider:
                         "status_put": self.source.ler_status_cache(inst.cod_put) or "aberto",
                         "status_call": self.source.ler_status_cache(inst.cod_call) or "aberto",
                         "status_ativo": self.source.ler_status_cache(inst.ativo) or "aberto",
+                        "ts_ativo_ask": ts_ask,
+                        "ts_ativo_bid": ts_bid,
                     }
                     dados_mercado[key] = entry
                     t_onda1_basico += time.perf_counter() - t0_onda1

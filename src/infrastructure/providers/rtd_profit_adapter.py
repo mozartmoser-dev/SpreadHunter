@@ -63,3 +63,9 @@ class RTDProfitAdapter:
 
     def desconectar(self):
         self._rtd.desconectar()
+
+    def get_ts_campo(self, codigo: str, campo: FieldName) -> float | None:
+        return None
+
+    def get_idade_campo(self, codigo: str, campo: FieldName) -> float | None:
+        return None
