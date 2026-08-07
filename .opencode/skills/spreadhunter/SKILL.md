@@ -85,6 +85,10 @@ src/
 8. **Import único**: só ⚡ Importar (`importflash.py`). API `OptionsChain`
    para todas as séries (mensais + W1/W2/W3/W4).
 
+9. **Códigos B3**: tabela completa de meses CALL/PUT + detecção de semanais
+   em `docs/codigos_b3.md`. Regra: `W` em `cod[-2]` = semanal, `W` em
+   `cod[4]` = PUT de Novembro (mensal). Nunca confundir.
+
 ## Convenções de Código
 
 - Type hints obrigatórios em funções públicas

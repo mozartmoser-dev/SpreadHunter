@@ -44,6 +44,7 @@ class ParametroOperacional:
         "perf_dias_minimos": {"valor": 10.0, "estrategia": "PERFORMANCE", "descricao": "Dias Minimos para Vencimento"},
         "onda2_dte_min": {"valor": 7.0, "estrategia": "PERFORMANCE", "descricao": "DTE minimo para registrar Onda 2"},
         "onda2_dte_max": {"valor": 180.0, "estrategia": "PERFORMANCE", "descricao": "DTE maximo para registrar Onda 2"},
+        "perf_filtro_semanal": {"valor": 0.0, "estrategia": "PERFORMANCE", "descricao": "Excluir opcoes semanais da Onda 1 (0=incluir, 1=excluir)"},
         "tema_visual": {"valor": 0.0, "estrategia": "GERAL", "descricao": "Tema Visual (0=Marinho, 1=Grafite, 2=Charcoal)"},
         "rtd_refresh_timeout_ms": {"valor": 5000.0, "estrategia": "GERAL", "descricao": "Timeout do RTD RefreshData em ms (0=sem timeout)"},
         "fonte_market_data": {"valor": "profit", "estrategia": "GERAL", "descricao": "Fonte de market data (profit=Profit RTD via COM, openfast=Open Fast Socket TCP, mock=Dados simulados p/ teste)"},

@@ -51,6 +51,7 @@ class MercadoDataProvider:
         self._strike_cache: dict[str, float] = {}  # cache opcional (nao usado atualmente)
         self._onda2_dte_min: int = 7
         self._onda2_dte_max: int = 180
+        self._filtro_semanal: bool = False
         self._inst_map_cache: dict | None = None
         self._inst_map_cache_time: float = 0.0
         self._INST_MAP_CACHE_TTL: float = 30.0
@@ -141,6 +142,9 @@ class MercadoDataProvider:
         p_rtd = repo.get_by_chave("rtd_refresh_timeout_ms")
         self._rtd_refresh_timeout_ms = int(p_rtd.valor) if p_rtd else 5000
         
+        p_fs = repo.get_by_chave("perf_filtro_semanal")
+        self._filtro_semanal = bool(p_fs.valor) if p_fs else False
+        
         # Se houve mudança em parâmetros que afetam a carga, agendamos uma revisão de carga
         if self._registrado:
             # Reseta flags para re-escancar o banco, mas MANTÉM tudo o que já estava registrado
@@ -225,6 +229,10 @@ class MercadoDataProvider:
                 return True
         if self._limite_meses > 0 and inst.vencimento:
             if (inst.vencimento - hoje).days > (self._limite_meses * 30):
+                return True
+        if self._filtro_semanal:
+            cod = inst.cod_put or inst.cod_call
+            if cod and len(cod) >= 2 and cod[-2].upper() == "W":
                 return True
         return False
 
@@ -363,6 +371,7 @@ class MercadoDataProvider:
 
     def _registrar_novos_entrantes(self) -> list[tuple[str, FieldName]]:
         instrumentos = self.inst_repo.get_all()
+        instrumentos.sort(key=lambda i: i.vencimento)
         total = len(instrumentos)
         if self._registro_remaining_idx >= total:
             self._registro_remaining_idx = self._background_offset
@@ -415,6 +424,7 @@ class MercadoDataProvider:
                 # (evita ler 52k linhas do SQLite a cada ciclo)
                 if not self._registrado or not self._ativos_registrados:
                     instrumentos = self.inst_repo.get_all()
+                    instrumentos.sort(key=lambda i: i.vencimento)
                     self._total_instrumentos_cache = len(instrumentos)
 
                     # Primeiro ciclo: registra apenas ativos para pegar preços base

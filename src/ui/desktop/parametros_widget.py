@@ -120,6 +120,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("perf_dias_minimos", "Dias Minimos Vencimento"),
         ("onda2_dte_min", "DTE minimo Onda 2"),
         ("onda2_dte_max", "DTE maximo Onda 2"),
+        ("perf_filtro_semanal", "Excluir Opcoes Semanais da Onda 1"),
     ],
     "TELEGRAM": [
         ("notif_telegram_enable", "Habilitar Telegram"),
@@ -454,6 +455,11 @@ PARAMETROS_INFO = {
         "descricao": "DTE maximo para registro completo Onda 2. Opcoes muito longas (>180D) raramente tem liquidez.",
         "usado_em": "MercadoDataProvider — manutencao Onda 2.",
         "precedencia": "Spinner -> Banco de Dados -> 180 (padrao)",
+    },
+    "perf_filtro_semanal": {
+        "descricao": "Quando ativado, exclui opcoes semanais (W em cod[-2]) do registro da Onda 1. Isso reduz o numero de instrumentos monitorados e acelera a varredura, ja que semanais geralmente tem baixa liquidez.",
+        "usado_em": "MercadoDataProvider — _deve_pular_instrumento na Onda 1.",
+        "precedencia": "Banco de Dados -> Desativado (0=incluir, padrao)",
     },
     "notif_telegram_enable": {
         "descricao": "Ativa o envio de notificacoes via Telegram quando operacoes interessantes sao encontradas.",
@@ -985,7 +991,7 @@ class ParametrosWidget(QWidget):
             self.stack.addWidget(page)
 
     def _build_param_row(self, form, chave, display):
-                if "perf_carga_inteligente" in chave or "notif_telegram_enable" in chave or "box_soh_europeia" in chave or "mpp_habilitado" in chave or "taxa_aluguel_habilitado" in chave:
+                if "perf_carga_inteligente" in chave or "notif_telegram_enable" in chave or "box_soh_europeia" in chave or "mpp_habilitado" in chave or "taxa_aluguel_habilitado" in chave or "perf_filtro_semanal" in chave:
                     widget = QCheckBox("Habilitado")
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
                 elif "tema_visual" in chave:

@@ -356,6 +356,12 @@
       "descricao": "DTE maximo para registrar Onda 2"
     },
     {
+      "chave": "perf_filtro_semanal",
+      "valor": "0.0",
+      "estrategia": "PERFORMANCE",
+      "descricao": "Excluir opcoes semanais da Onda 1 (0=incluir, 1=excluir)"
+    },
+    {
       "chave": "box_scan_interval",
       "valor": "5.0",
       "estrategia": "BOX_4P",

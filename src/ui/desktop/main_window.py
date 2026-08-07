@@ -1745,10 +1745,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _is_weekly(cod: str) -> bool:
-        if len(cod) < 5:
-            return False
-        c = cod[4].upper()
-        return c in ("A", "B", "C", "D", "M", "N", "O", "P")
+        return len(cod) >= 2 and cod[-2].upper() == "W"
 
     def _key_vencimento(self, r) -> str:
         raw = r.vencimento.strftime("%d/%m/%y") if hasattr(r.vencimento, "strftime") else str(r.vencimento)

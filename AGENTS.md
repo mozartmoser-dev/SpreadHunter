@@ -1,6 +1,6 @@
 # Spreadhunter — Regras para Agentes
 
-Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, taxa, SBTH vendida, put ratio, venda coberta). Desktop Python/PySide6, SQLite, RTD via COM do Profit, socket OpenFast, API opcoes.net.br. **Windows-only.** Sem CI; 583 testes rodam localmente.
+Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, taxa, SBTH vendida, put ratio, venda coberta). Desktop Python/PySide6, SQLite, RTD via COM do Profit, socket OpenFast, API opcoes.net.br. **Windows-only.** Sem CI; 585 testes rodam localmente.
 
 ## Confirmação obrigatória
 
@@ -9,7 +9,7 @@ Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, 
 ## Comandos essenciais
 
 ```powershell
-python -m pytest tests/ -x -q --tb=short            # todos (583; --collect-only leva ~18s)
+python -m pytest tests/ -x -q --tb=short            # todos (585; --collect-only leva ~12s)
 python -m pytest tests/domain/test_calculadora_cauda_assincrona.py -q
 python -m pytest tests/test_fase3.py::TestX::test_y -q
 python main.py                                       # dev
@@ -23,7 +23,7 @@ Stack: Python ≥3.13, PySide6 6.11.1, sqlite3, scipy, numpy, matplotlib, pywin3
 ## Arquitetura não-óbvia
 
 - `monitor_worker.py` em `src/ui/desktop/` (QThread que coordena 7+ use cases via sinais)
-- Pipeline real no worker: 1. Geral → 2. Colares → 3. Collar Calendário → 4. Box 4P → 5. Put Ratio → 6. Manutenção → 7. Reconexão → 8. MPP. Onda 2 roda dentro da Manutenção.
+- Pipeline real no worker: 0. Manutenção (promove novas chaves) → 1. Geral → 2. Colares → 3. Collar Calendário → 4. Box 4P → 5. Put Ratio → 6. Reconexão → 7. MPP. Onda 2 roda dentro da Manutenção.
 - Use cases em `src/application/use_cases/`, calculadoras em `src/domain/services/`
 - Bootstrap: `src/infrastructure/persistence/bootstrap.py` → `main.py`
 - `_ImportThread` em `grade_opcoes_dialog.py` (não em `main_window.py`)
@@ -37,7 +37,7 @@ Stack: Python ≥3.13, PySide6 6.11.1, sqlite3, scipy, numpy, matplotlib, pywin3
 ## Regras de negócio (resumo; detalhes em SKILL.md)
 
 1. **Strike NUNCA persistido.** Vem do RTD em tempo real. Se RTD não fornecer, falhar. NUNCA extrair do sufixo B3 (`G445` ≠ 44.50).
-2. **MOD (`tipo_opcao`) só da CALL.** PUTs B3 são Europeias (`E`). Ler `r["mod"]` apenas quando `r["tipo"] == "CALL"`. O scanner Box 4P rejeita pares onde a CALL K1 não é Europeia se `box_soh_europeia=1` (default, `monitor_box.py:50`). `box_soh_europeia=0` aceita CALL Americanas (PUT sempre E).
+2. **MOD (`tipo_opcao`) só da CALL.** PUTs B3 são Europeias (`E`). Ler `r["mod"]` apenas quando `r["tipo"] == "CALL"`. O scanner Box 4P rejeita pares onde a CALL K1 não é Europeia se `box_soh_europeia=1` (default, `monitor_box.py:51`). `box_soh_europeia=0` aceita CALL Americanas (PUT sempre E).
 3. **Parametrização obrigatória do banco.** TODO valor de negócio via `repo.get_by_chave()`. Nunca hardcoded. Ao adicionar parâmetro, tocar: `config/parametros_default.json` (seed) + `parametro_operacional.py` (fallback) + `parametros_widget.py` + `regras_dialog.py`.
 4. **Custos B3** usam prêmio/preço (NUNCA strike). Ida-e-volta (×2).
 5. **Chave composta `(ativo, cod_opcao)`.** Toda cache/mapa usa `f"{ativo}|{cod}"`.
@@ -76,9 +76,9 @@ Em `mercado_data_provider.py` — sempre que mexer em `_registrar_batch_intelige
 
 ## Referências
 
-- `.opencode/skills/spreadhunter/SKILL.md` — use `skill spreadhunter` para regras completas + histórico de sessões (nota: contagem de testes no SKILL.md está desatualizada; 583 é o número real)
+- `.opencode/skills/spreadhunter/SKILL.md` — use `skill spreadhunter` para regras completas + histórico de sessões (nota: contagem de testes no SKILL.md está desatualizada; 585 é o número real)
 - `.claude.md` — cópia parcial/desatualizada do AGENTS.md (regra #5 duplicada com numeração quebrada); ignorar e usar AGENTS.md como fonte autoritativa
-- `docs/DISTRIBUICAO.md`, `docs/pnt_importacao.md` — deploy/PNT
+- `docs/codigos_b3.md` — tabela completa de meses CALL/PUT + detecção de semanais (W em `cod[-2]` vs W de Nov PUT em `cod[4]`)
 - `pendenciascalendario.md` — diagnóstico BWB + simulações
 - `planoprotecaocauda.md` — planejamento de proteção de cauda
 - `INSTRUCOES_AMIGO.txt` — diagnóstico .exe
