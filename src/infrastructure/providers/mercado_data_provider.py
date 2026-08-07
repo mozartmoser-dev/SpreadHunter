@@ -520,6 +520,7 @@ class MercadoDataProvider:
                         elif suporta_push:
                             tem_mudanca = (
                                 codigos_mudados is None
+                                or inst.ativo in codigos_mudados
                                 or inst.cod_put in codigos_mudados
                                 or inst.cod_call in codigos_mudados
                             )
