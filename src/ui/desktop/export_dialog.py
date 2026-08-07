@@ -95,6 +95,10 @@ class ExportDialog(QDialog):
         self.btn_basket.clicked.connect(self._exportar_basket)
         btn_layout.addWidget(self.btn_basket)
 
+        self.btn_debug = QPushButton("Copiar Debug")
+        self.btn_debug.clicked.connect(self._copiar_debug)
+        btn_layout.addWidget(self.btn_debug)
+
         btn_layout.addStretch()
 
         self.btn_fechar = QPushButton("Cancelar")
@@ -332,11 +336,16 @@ class ExportDialog(QDialog):
     def _criar_label_preco_ativo(self, opp):
         dto_val = opp.preco_compra_ativo
         idade = opp.idade_ativo_ask
-        idade_str = " ({}s)".format(int(idade)) if idade is not None else ""
+        idade_str = ""
+        if idade is not None:
+            from datetime import datetime, timezone, timedelta
+            tz = timezone(timedelta(hours=-3))
+            ts_str = datetime.fromtimestamp(opp.ts_ativo_ask, tz=tz).strftime("%H:%M:%S")
+            idade_str = "  {} há {}s".format(ts_str, int(idade))
         label = QLabel("{:.2f} (of. venda){}".format(dto_val, idade_str))
         if idade is not None and idade > 10:
             label.setStyleSheet("color: {}; font-weight: bold; background-color: {}; padding: 2px 4px; border-radius: 2px;".format(Palette.YELLOW, Palette.BG_SURFACE))
-            label.setToolTip("ATENÇÃO: preço de {:.0f}s atrás pode estar desatualizado".format(idade))
+            label.setToolTip("ATENÇÃO: preço de {:.0f}s atrás — último push {}".format(idade, ts_str))
 
         if self._source:
             try:
@@ -442,6 +451,40 @@ class ExportDialog(QDialog):
             "ts_ativo_bid": self.oportunidade.ts_ativo_bid,
             "idade_ativo_ask_s": self.oportunidade.idade_ativo_ask,
         }
+
+    def _copiar_debug(self):
+        import time, json
+        from datetime import datetime, timezone, timedelta
+        tz = timezone(timedelta(hours=-3))
+        opp = self.oportunidade
+        agora = datetime.now(tz).strftime("%H:%M:%S")
+        ts_ask_str = datetime.fromtimestamp(opp.ts_ativo_ask, tz=tz).strftime("%H:%M:%S") if opp.ts_ativo_ask else "N/A"
+        ts_bid_str = datetime.fromtimestamp(opp.ts_ativo_bid, tz=tz).strftime("%H:%M:%S") if opp.ts_ativo_bid else "N/A"
+        idade = int(opp.idade_ativo_ask) if opp.idade_ativo_ask is not None else "N/A"
+
+        lines = [
+            f"=== DEBUG {opp.ativo} | {opp.operacao} | Strike {opp.strike} | {opp.vencimento} ({opp.dias} DTE) ===",
+            f"Hora: {agora}",
+            f"",
+            f"Preço ativo: {opp.preco_compra_ativo} (of. venda)",
+            f"  Timestamp ask: {ts_ask_str} (idade: {idade}s)",
+            f"  Timestamp bid: {ts_bid_str}",
+            f"",
+            f"PUT ({opp.cod_put}): ask={opp.of_venda_put} bid={opp.of_compra_put} QUL={opp.qul_put}",
+            f"CALL ({opp.cod_call}): ask={opp.of_venda_call} bid={opp.of_compra_call} QUL={opp.qul_call}",
+            f"",
+            f"Classificação: {opp.classificacao} | Operação: {opp.operacao}",
+            f"Viavel: {opp.viavel} | Em leilão: {opp.em_leilao}",
+            f"",
+            f"Custo SBTH: {opp.custo_sbth} | Ganho: {opp.pct_ganho_sbth:.6f} | CDI: {opp.pct_cdi_sbth:.2f}x",
+            f"Custo BOX:  {opp.custo_box} | Ganho: {opp.pct_ganho_box:.6f} | CDI: {opp.pct_cdi_box:.2f}x",
+            f"",
+            f"Detectado em: {opp.label_detectado}",
+            f"Liq PUT: {opp.liq_put_x_lote} | Liq CALL: {opp.liq_call_x_lote}",
+        ]
+        text = "\n".join(lines)
+        QApplication.clipboard().setText(text)
+        QMessageBox.information(self, "Debug", "Dados copiados para a área de transferência.")
 
     def _exportar_log(self):
         try:
