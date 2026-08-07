@@ -414,4 +414,6 @@ class MonitorOportunidadesUseCase:
             money_put=max(dados.strike - dados.preco_ativo, 0.0),
             money_call=max(dados.preco_ativo - dados.strike, 0.0),
             taxa_aluguel=taxa_map.get(inst.ativo).taxa_atual if taxa_map and taxa_map.get(inst.ativo) else 0.0,
+            ts_ativo_ask=mercado.get("ts_ativo_ask"),
+            ts_ativo_bid=mercado.get("ts_ativo_bid"),
         )

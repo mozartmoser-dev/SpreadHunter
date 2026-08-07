@@ -331,6 +331,13 @@ class ExportDialog(QDialog):
 
     def _criar_label_preco_ativo(self, opp):
         dto_val = opp.preco_compra_ativo
+        idade = opp.idade_ativo_ask
+        idade_str = " ({}s)".format(int(idade)) if idade is not None else ""
+        label = QLabel("{:.2f} (of. venda){}".format(dto_val, idade_str))
+        if idade is not None and idade > 10:
+            label.setStyleSheet("color: {}; font-weight: bold; background-color: {}; padding: 2px 4px; border-radius: 2px;".format(Palette.YELLOW, Palette.BG_SURFACE))
+            label.setToolTip("ATENÇÃO: preço de {:.0f}s atrás pode estar desatualizado".format(idade))
+
         if self._source:
             try:
                 from src.domain.services.market_data_source import FieldName
@@ -339,10 +346,12 @@ class ExportDialog(QDialog):
                 else:
                     live = self._source.ler_campo_cache(opp.ativo, FieldName.ASK)
                 if live and live > 0 and abs(live - dto_val) > 0.01:
-                    return QLabel("{:.2f} (ao vivo)  [{:.2f} detectado]".format(live, dto_val))
+                    label = QLabel("{:.2f} (ao vivo)  [{:.2f} detectado{}]".format(live, dto_val, idade_str))
+                    if idade is not None:
+                        label.setToolTip("Divergência: ao vivo={:.2f} detectado={:.2f} há {:.0f}s".format(live, dto_val, idade))
             except Exception:
                 pass
-        return QLabel("{:.2f} (of. venda)".format(dto_val))
+        return label
 
 
     @staticmethod
@@ -429,6 +438,9 @@ class ExportDialog(QDialog):
             "money_put": self.oportunidade.money_put,
             "money_call": self.oportunidade.money_call,
             "em_leilao": self.oportunidade.em_leilao,
+            "ts_ativo_ask": self.oportunidade.ts_ativo_ask,
+            "ts_ativo_bid": self.oportunidade.ts_ativo_bid,
+            "idade_ativo_ask_s": self.oportunidade.idade_ativo_ask,
         }
 
     def _exportar_log(self):

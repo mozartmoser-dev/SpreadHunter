@@ -57,6 +57,15 @@ class OportunidadeMonitor:
     money_call: float = 0.0
     taxa_aluguel: float = 0.0
     detectado_em: datetime | None = None
+    ts_ativo_ask: float | None = None
+    ts_ativo_bid: float | None = None
+
+    @property
+    def idade_ativo_ask(self) -> float | None:
+        import time
+        if self.ts_ativo_ask is None:
+            return None
+        return time.time() - self.ts_ativo_ask
 
     @property
     def label_detectado(self) -> str:
@@ -66,7 +75,11 @@ class OportunidadeMonitor:
         if dt.tzinfo is None:
             from zoneinfo import ZoneInfo
             dt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Sao_Paulo"))
-        return dt.strftime("%d/%m/%Y %H:%M:%S")
+        base = dt.strftime("%d/%m/%Y %H:%M:%S")
+        idade = self.idade_ativo_ask
+        if idade is not None and idade > 10:
+            return f"{base} (preço {int(idade)}s atrás)"
+        return base
 
     @property
     def custo_sbth_display(self) -> str:

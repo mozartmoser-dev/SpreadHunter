@@ -584,6 +584,8 @@ class MercadoDataProvider:
                             if qul_c is not None:
                                 entry["qul_call"] = qul_c
                             t_status += time.perf_counter() - t0_status
+                            entry["ts_ativo_ask"] = self.source.get_ts_campo(inst.ativo, FieldName.ASK)
+                            entry["ts_ativo_bid"] = self.source.get_ts_campo(inst.ativo, FieldName.BID)
                             dados_mercado[key] = entry
                             count_cab_skip += 1
                             continue
@@ -609,6 +611,8 @@ class MercadoDataProvider:
                         dados_rtd = self._ler_instrumento_cache(inst, preco_ativo)
                         if dados_rtd:
                             entry = dados_rtd.to_dados_mercado()
+                            entry["ts_ativo_ask"] = self.source.get_ts_campo(inst.ativo, FieldName.ASK)
+                            entry["ts_ativo_bid"] = self.source.get_ts_campo(inst.ativo, FieldName.BID)
                             dados_mercado[key] = entry
                             self._dados_cache[key] = entry
                         else:
