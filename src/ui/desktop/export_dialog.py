@@ -464,7 +464,7 @@ class ExportDialog(QDialog):
 
         lines = [
             f"=== DEBUG {opp.ativo} | {opp.operacao} | Strike {opp.strike} | {opp.vencimento} ({opp.dias} DTE) ===",
-            f"Hora: {agora}",
+            f"Hora: {agora} | Tipo: {opp.tipo_opcao} | CDI periodo: {opp.cdi_periodo:.6f}",
             f"",
             f"Preço ativo: {opp.preco_compra_ativo} (of. venda)",
             f"  Timestamp ask: {ts_ask_str} (idade: {idade}s)",
@@ -475,9 +475,10 @@ class ExportDialog(QDialog):
             f"",
             f"Classificação: {opp.classificacao} | Operação: {opp.operacao}",
             f"Viavel: {opp.viavel} | Em leilão: {opp.em_leilao}",
+            f"Money: put={opp.money_put:.2f} call={opp.money_call:.2f} | Taxa aluguel: {opp.taxa_aluguel:.4f}",
             f"",
-            f"Custo SBTH: {opp.custo_sbth} | Ganho: {opp.pct_ganho_sbth:.6f} | CDI: {opp.pct_cdi_sbth:.2f}x",
-            f"Custo BOX:  {opp.custo_box} | Ganho: {opp.pct_ganho_box:.6f} | CDI: {opp.pct_cdi_box:.2f}x",
+            f"Custo SBTH: {opp.custo_sbth} | Ganho bruto: {opp.pct_ganho_sbth_bruto:.6f} | Ganho: {opp.pct_ganho_sbth:.6f} | CDI bruto: {opp.pct_cdi_sbth_bruto:.2f}x | CDI: {opp.pct_cdi_sbth:.2f}x",
+            f"Custo BOX:  {opp.custo_box} | Ganho bruto: {opp.pct_ganho_box_bruto:.6f} | Ganho: {opp.pct_ganho_box:.6f} | CDI bruto: {opp.pct_cdi_box_bruto:.2f}x | CDI: {opp.pct_cdi_box:.2f}x",
             f"",
             f"Detectado em: {opp.label_detectado}",
             f"Liq PUT: {opp.liq_put_x_lote} | Liq CALL: {opp.liq_call_x_lote}",
