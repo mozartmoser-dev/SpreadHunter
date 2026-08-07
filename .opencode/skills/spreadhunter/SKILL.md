@@ -115,3 +115,28 @@ src/
 - Snapshot MPP: contador agora incrementa corretamente (salva a cada 10 ciclos)
 - **Box 4P**: `lucro = clr - distancia` é short box, fórmula correta
 - **159/159 testes**
+
+### 07/08/2026 — Lições aprendidas (timestamps + diagnóstico)
+
+1. **Nunca culpar a fonte externa sem auditar o próprio código primeiro.**
+   O `ts_ativo_ask` mostrava 43s/194s de atraso — parecia culpa do OpenFast.
+   Mas a causa real era `tem_mudanca` em `mercado_data_provider.py:520-525`:
+   `codigos_mudados` contém `PETR4` (push do ativo), mas o check só verificava
+   `inst.cod_put` e `inst.cod_call` — NUNCA `inst.ativo`. Push do ativo sem
+   push das opções → `cab_mudou = False` → CAB skip → `_precos_ativo_cache`
+   mascara ASK=0 com valor antigo. O timestamp era real, o preço não.
+
+2. **Caches de fallback mascaram zeros.** `_precos_ativo_cache` serve valor
+   antigo quando o source retorna ASK=0. O timestamp avança mas o preço fica
+   parado — inconsistência silenciosa. Ao auditar dados, SEMPRE verificar se o
+   valor veio do cache ou da fonte fresca.
+
+3. **Quando o usuário insiste que algo está errado, está.** Não importa se o
+   código parece correto na inspeção visual — se os timestamps dizem 194s de
+   atraso, há um problema real. Confiar na evidência, não na intuição.
+
+4. **Features de auditoria (timestamps, debug) precisam de auditoria própria.**
+   Implementar `ts_ativo_ask/bid` foi só metade do trabalho. A outra metade é
+   rastrear TODO o fluxo (provider → monitor → DTO → UI) e verificar cada
+   condição que pode distorcer o dado. Só expor o timestamp não basta — é
+   preciso garantir que ele reflete o mesmo dado que está sendo exibido.
