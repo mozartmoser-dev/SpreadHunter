@@ -49,6 +49,25 @@ OPENFAST_FIELD_STR: dict[FieldName, str] = {
     FieldName.VARIATION:    "VAR",
 }
 
+FASTTRADE_FIELD_STR: dict[FieldName, str] = {
+    FieldName.STRIKE:       "PEX",
+    FieldName.LAST_PRICE:   "LAST",
+    FieldName.BID:          "BID",
+    FieldName.ASK:          "ASK",
+    FieldName.STATUS:       "ST",
+    FieldName.QTD_LAST:     "QTLAST",
+    FieldName.VOL_BID:      "VOLBID",
+    FieldName.VOL_ASK:      "VOLASK",
+    FieldName.BOOK_HEADER:  "CAB",
+    FieldName.HIGH:         "HIGH",
+    FieldName.LOW:          "LOW",
+    FieldName.OPEN:         "OPEN",
+    FieldName.CLOSE:        "CLOSE",
+    FieldName.VOLUME:       "VOLQ",
+    FieldName.VOLUME_FIN:   "VOLF",
+    FieldName.VARIATION:    "VAR",
+}
+
 
 @runtime_checkable
 class MarketDataSource(Protocol):
@@ -79,5 +98,8 @@ def criar_data_source(fonte: str, **kwargs) -> MarketDataSource:
     if fonte == "mock":
         from src.infrastructure.providers.mock_market_data import MockDataSource
         return MockDataSource(db_path=kwargs.get("db_path"))
+    if fonte == "fasttrade":
+        from src.infrastructure.providers.fast_trade_rtd_adapter import FastTradeRTDAdapter
+        return FastTradeRTDAdapter()
     from src.infrastructure.providers.rtd_profit_adapter import RTDProfitAdapter
     return RTDProfitAdapter()

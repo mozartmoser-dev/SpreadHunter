@@ -9,10 +9,11 @@ logger = logging.getLogger(__name__)
 
 
 class RTDProfit:
-    def __init__(self):
+    def __init__(self, progid: str | None = None):
         self.disponivel = False
         self._rtd = None
         self._lock = threading.Lock()
+        self._progid = progid or RTD_SERVIDOR
         import random
         # Começa com um número dinâmico e aleatório alto para evitar colisão de IDs 
         # de tópicos com execuções anteriores que possam ter ficado ativas no servidor RTD do Profit
@@ -27,7 +28,7 @@ class RTDProfit:
             import win32com.client
             import win32com.server.util
 
-            srv = win32com.client.Dispatch(RTD_SERVIDOR)
+            srv = win32com.client.Dispatch(self._progid)
 
             class _RTDCallback:
                 _public_methods_ = ["UpdateNotify"]

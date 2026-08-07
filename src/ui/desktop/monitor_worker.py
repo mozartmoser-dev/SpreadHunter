@@ -148,7 +148,7 @@ class MonitorWorker(QThread):
                 logger.warning("MonitorWorker: pythoncom não disponível. Thread rodará sem COM.")
                 self.status_message.emit("Aviso: pythoncom ausente. RTD indisponível.")
 
-        fonte_nome = {"openfast": "Open Fast Socket", "profit": "Profit RTD", "mock": "Mock (Teste)"}.get(fonte, fonte)
+        fonte_nome = {"openfast": "Open Fast Socket", "profit": "Profit RTD", "fasttrade": "Fast Trade RTD", "mock": "Mock (Teste)"}.get(fonte, fonte)
         logger.info("MonitorWorker: iniciando fonte de dados: %s", fonte_nome)
 
         rtd = self._rtd_main
@@ -158,6 +158,8 @@ class MonitorWorker(QThread):
                 rtd = criar_data_source("openfast", send_delay_ms=delay_ms)
             elif fonte == "mock":
                 rtd = criar_data_source("mock", db_path=self.db_path)
+            elif fonte == "fasttrade":
+                rtd = criar_data_source("fasttrade")
             else:
                 rtd = criar_data_source("profit")
             self._rtd_main = rtd

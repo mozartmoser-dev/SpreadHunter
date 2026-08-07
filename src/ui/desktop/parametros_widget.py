@@ -999,7 +999,7 @@ class ParametrosWidget(QWidget):
                     widget.addItems(["Azul Marinho", "Grafite / Slate", "True Dark / Charcoal"])
                 elif "fonte_market_data" in chave:
                     widget = QComboBox()
-                    widget.addItems(["Profit RTD", "Open Fast Socket", "Mock (Teste)"])
+                    widget.addItems(["Profit RTD", "Open Fast Socket", "Fast Trade RTD", "Mock (Teste)"])
                 elif "telegram_bot_token" in chave or "telegram_chat_id" in chave or "_list_" in chave or "put_ratio_ratios" in chave or "bwb_modo" in chave:
                     widget = QLineEdit()
                     widget.setStyleSheet("color: {};".format(Palette.TEXT_PRIMARY))
@@ -1297,7 +1297,7 @@ class ParametrosWidget(QWidget):
                     else:
                         widget.setCurrentIndex(0)
                 elif chave == "fonte_market_data":
-                    idx_map = {"profit": 0, "openfast": 1, "mock": 2}
+                    idx_map = {"profit": 0, "openfast": 1, "fasttrade": 2, "mock": 3}
                     widget.setCurrentIndex(idx_map.get(str(val), 0))
                 else:
                     idx = int(val)
@@ -1321,7 +1321,7 @@ class ParametrosWidget(QWidget):
                     if chave in ("som_arquivo", "som_arquivo_vendidas", "som_arquivo_coberta"):
                         valor = widget.currentData() or ""
                     elif chave == "fonte_market_data":
-                        valor = {1: "openfast", 2: "mock"}.get(widget.currentIndex(), "profit")
+                        valor = {1: "openfast", 2: "fasttrade", 3: "mock"}.get(widget.currentIndex(), "profit")
                     else:
                         valor = int(widget.currentIndex())
                 elif isinstance(widget, QLineEdit):

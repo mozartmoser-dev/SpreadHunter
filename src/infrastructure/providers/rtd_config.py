@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 
 RTD_SERVIDOR = "rtdtrading.rtdserver"
+FASTRADE_SERVIDOR = "srv.rtd"
 
 RTD_CAMPO_ULTIMO_PRECO = "ULT"
 RTD_CAMPO_STRIKE = "PEX"

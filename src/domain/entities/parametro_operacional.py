@@ -47,7 +47,7 @@ class ParametroOperacional:
         "perf_filtro_semanal": {"valor": 1.0, "estrategia": "PERFORMANCE", "descricao": "Excluir opcoes semanais da Onda 1 (0=incluir, 1=excluir)"},
         "tema_visual": {"valor": 0.0, "estrategia": "GERAL", "descricao": "Tema Visual (0=Marinho, 1=Grafite, 2=Charcoal)"},
         "rtd_refresh_timeout_ms": {"valor": 5000.0, "estrategia": "GERAL", "descricao": "Timeout do RTD RefreshData em ms (0=sem timeout)"},
-        "fonte_market_data": {"valor": "profit", "estrategia": "GERAL", "descricao": "Fonte de market data (profit=Profit RTD via COM, openfast=Open Fast Socket TCP, mock=Dados simulados p/ teste)"},
+        "fonte_market_data": {"valor": "profit", "estrategia": "GERAL", "descricao": "Fonte de market data (profit=Profit RTD via COM, openfast=Open Fast Socket TCP, fasttrade=Fast Trade RTD, mock=Dados simulados p/ teste)"},
         "openfast_send_delay_ms": {"valor": 2.0, "estrategia": "GERAL", "descricao": "Delay entre comandos SQT (ms). 0 = delay minimo (1ms)"},
         "taxa_aluguel_habilitado": {"valor": 1.0, "estrategia": "GERAL", "descricao": "Habilitar coleta de taxas de aluguel (InvestSite)"},
         "investsite_timeout_ms": {"valor": 10000.0, "estrategia": "GERAL", "descricao": "Timeout das requisicoes HTTP ao InvestSite (ms)"},
