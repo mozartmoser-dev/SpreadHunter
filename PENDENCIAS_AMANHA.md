@@ -58,17 +58,27 @@ Cadastro de notas de revisão em `inventory.md` (append-only).
 
 ## Para amanhã
 
+- [ ] **Fast Trade RTD:** pedir ao amigo ProgID e nomes de campos da fórmula `=RTD(...)` no Excel. Adaptar `RTDProfitAdapter` para Fast Trade (substituir Profit RTD COM).
 - [ ] Auditoria de pipeline (log de rejeitados com motivo — discutido, não implementado)
-- [ ] `ts_ativo_ask/bid` expor em algum lugar visível (tooltip/pipeline)
-- [ ] Corrigir `_is_weekly()` em `main_window.py:1747` — marca A,B,C,D,M,N,O,P (mensais Jan-Abr) como "S-" semanal. Correto: `W[1-9]$` no final do código.
-- [ ] Filtro de opções semanais na Onda 1 (`mercado_data_provider.py:_deve_pular_instrumento()`), parâmetro `filtro_semanal` (0=incluir, 1=excluir). Usar `W[1-9]$` no sufixo do código, sem coluna nova no banco.
-- [ ] **Ordenar instrumentos por vencimento (asc) antes da Onda 1:** `instrumentos.sort(key=lambda i: i.vencimento)` após `inst_repo.get_all()`, antes de `_registrar_batch_inteligente`. Séries próximas têm mais liquidez e oportunidades — entram no RTD primeiro. Long-dated vão pro background scan. Custo < 5ms por ciclo. Aplica tanto no branch com prioridade quanto sem.
-- [ ] Camada 1 (infraestrutura) — specs pendentes conforme inventário
-- [ ] Camada 3 (UI) — specs pendentes conforme inventário
+
+## Concluído hoje (07/08)
+
+- [x] `_is_weekly()` corrigido: `cod[-2] == 'W'` + `docs/codigos_b3.md`
+- [x] Filtro `perf_filtro_semanal` — Onda 1 + Manutenção + UI
+- [x] Ordenar instrumentos por vencimento (Onda 1 + background scan)
+- [x] Bug `_determinar_operacao` BOXSBTH parcial → fallback individual (BOX/SBTH)
+- [x] `ts_ativo_ask/bid` visível no DTO + ExportDialog + BoletaDialog + BoxDialog
+- [x] Botão "Copiar Debug" em todos os diálogos
+- [x] `inst.ativo in codigos_mudados` — push do ativo não era detectado
+- [x] Re-registro OpenFast para ativos stale (>5s sem push, max 50/ciclo)
+- [x] 6 parâmetros PROTEÇÃO_CAUDA alinhados (hardcoded = JSON = banco)
+- [x] `perf_filtro_semanal` hardcoded alinhado (0.0 → 1.0)
+- [x] Disclaimer.png
+- [x] Lições aprendidas registradas no SKILL.md
 
 ## Estado atual
 
-- 582 testes passando
-- Sistema rodando normal (50k instrumentos, 0 viáveis = mercado)
-- 11 commits hoje, todos pushados
+- 584 testes passando
+- Sistema rodando normal (37k instrumentos com filtro semanal, ~50k sem)
+- ~20 commits hoje, todos pushados
 - ZIP diferencial enviado para o amigo (`diferencial_hoje.zip`)
