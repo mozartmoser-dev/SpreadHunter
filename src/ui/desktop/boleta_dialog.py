@@ -1,4 +1,5 @@
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget,
     QTableWidgetItem, QLabel, QHeaderView, QFrame, QMessageBox,
     QCheckBox,
@@ -161,6 +162,11 @@ class BoletaDialog(QDialog):
         """)
         btn_copiar.clicked.connect(self._copiar)
         btn_row.addWidget(btn_copiar)
+
+        btn_debug = QPushButton("Copiar Debug")
+        btn_debug.setAutoDefault(False)
+        btn_debug.clicked.connect(self._copiar_debug)
+        btn_row.addWidget(btn_debug)
 
         btn_montar = QPushButton("Monta no PNT")
         btn_montar.setAutoDefault(False)
@@ -411,3 +417,39 @@ class BoletaDialog(QDialog):
         else:
             self.lbl_acumulo.setText("")
             self.btn_limpar.hide()
+
+    def _copiar_debug(self):
+        import time
+        from datetime import datetime, timezone, timedelta
+        tz = timezone(timedelta(hours=-3))
+        r = self.r
+        agora = datetime.now(tz).strftime("%H:%M:%S")
+        ativo = getattr(r, "ativo", "N/A")
+        strike = getattr(r, "strike", 0)
+        venc = getattr(r, "vencimento", "N/A")
+        dias = getattr(r, "dias", 0)
+        ts_ask = getattr(r, "ts_ativo_ask", None)
+        ts_bid = getattr(r, "ts_ativo_bid", None)
+        idade = getattr(r, "idade_ativo_ask", None)
+        ts_ask_str = datetime.fromtimestamp(ts_ask, tz=tz).strftime("%H:%M:%S") if ts_ask else "N/A"
+        ts_bid_str = datetime.fromtimestamp(ts_bid, tz=tz).strftime("%H:%M:%S") if ts_bid else "N/A"
+        idade_str = int(idade) if idade is not None else "N/A"
+
+        lines = [
+            f"=== DEBUG {ativo} | {self.strategy} | Strike {strike} | {venc} ({dias} DTE) ===",
+            f"Hora: {agora}",
+            f"Preço ativo: {getattr(r, 'preco_ativo', 'N/A')}",
+            f"  Timestamp ask: {ts_ask_str} (idade: {idade_str}s)",
+            f"  Timestamp bid: {ts_bid_str}",
+            f"Recebimento: {getattr(r, 'recebimento', 'N/A')} | Custo: {getattr(r, 'custo', 'N/A')}",
+            f"Ganho: {getattr(r, 'pct_ganho', 0):.6f} | CDI: {getattr(r, 'pct_cdi', 0):.2f}x",
+            f"CDI bruto: {getattr(r, 'pct_cdi_bruto', 0):.2f}x | Liq: {getattr(r, 'pct_cdi_liquido', 0):.2f}x",
+            f"PUT ({getattr(r, 'cod_put', '')}): ask={getattr(r, 'of_venda_call', 0)} bid={getattr(r, 'of_compra_put', 0)} QUL={getattr(r, 'qul_put', 0)}",
+            f"CALL ({getattr(r, 'cod_call', '')}): ask={getattr(r, 'of_venda_call', 0)} bid={getattr(r, 'of_compra_call', 0)} QUL={getattr(r, 'qul_call', 0)}",
+            f"Viavel: {getattr(r, 'viavel', False)} | Em leilao: {getattr(r, 'em_leilao', False)}",
+            f"Liq PUT: {getattr(r, 'liq_put_x_lote', 0)} | Liq CALL: {getattr(r, 'liq_call_x_lote', 0)}",
+            f"Taxa aluguel: {getattr(r, 'taxa_aluguel', 0)}",
+            f"Detectado em: {getattr(r, 'label_detectado', 'N/A')}",
+        ]
+        QApplication.clipboard().setText("\n".join(lines))
+        QMessageBox.information(self, "Debug", "Dados copiados para a área de transferência.")

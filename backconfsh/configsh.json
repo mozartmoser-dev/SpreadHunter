@@ -3,7 +3,7 @@
   "parametros": [
     {
       "chave": "premio_risco_colar",
-      "valor": "0.95",
+      "valor": "0.85",
       "estrategia": "COLAR",
       "descricao": "Premio risco Colar (x CDI)"
     },
@@ -543,19 +543,19 @@
     },
     {
       "chave": "taxa_cdi",
-      "valor": "0.1425",
+      "valor": "0.14",
       "estrategia": "GERAL",
       "descricao": "Taxa CDI/Selic (usuario atualiza manualmente na tabela, nao e bug estar fixo)"
     },
     {
       "chave": "premio_risco_box",
-      "valor": "1.5",
+      "valor": "1.3",
       "estrategia": "BOX",
       "descricao": "Premio risco BOX"
     },
     {
       "chave": "premio_risco_sbth",
-      "valor": "1.02",
+      "valor": "0.95",
       "estrategia": "SBTH",
       "descricao": "Premio risco SBTH (ajustavel pelo usuario, nao e bug)"
     },
@@ -1098,6 +1098,12 @@
       "valor": "0.7",
       "estrategia": "BOX_4P",
       "descricao": "Spread maximo K1-K2 (% do spot) para pareamento"
+    },
+    {
+      "chave": "perf_filtro_semanal",
+      "valor": "1.0",
+      "estrategia": "PERFORMANCE",
+      "descricao": "Excluir opcoes semanais da Onda 1 (0=incluir, 1=excluir)"
     }
   ]
 }

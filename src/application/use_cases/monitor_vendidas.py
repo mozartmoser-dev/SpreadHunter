@@ -160,6 +160,8 @@ class MonitorVendidasUseCase:
                     pct_ganho_liquido=round(pct_liq, 6),
                     pct_cdi_bruto=round(pct_cdi, 4),
                     pct_cdi_liquido=round(pct_cdi_liq, 4),
+                    ts_ativo_ask=mercado.get("ts_ativo_ask"),
+                    ts_ativo_bid=mercado.get("ts_ativo_bid"),
                 ))
 
             if cond_sbth:
@@ -211,6 +213,8 @@ class MonitorVendidasUseCase:
                     pct_ganho_liquido=round(pct_liq, 6),
                     pct_cdi_bruto=round(pct_cdi, 4),
                     pct_cdi_liquido=round(pct_cdi_liq, 4),
+                    ts_ativo_ask=mercado.get("ts_ativo_ask"),
+                    ts_ativo_bid=mercado.get("ts_ativo_bid"),
                 ))
 
         n_box = sum(1 for r in resultados if r.classificacao == "BOX_VENDIDO")

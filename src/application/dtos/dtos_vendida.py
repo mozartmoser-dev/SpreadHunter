@@ -33,6 +33,15 @@ class OportunidadeVendida:
     pct_cdi_bruto: float = 0.0
     pct_cdi_liquido: float = 0.0
     detectado_em: datetime | None = None
+    ts_ativo_ask: float | None = None
+    ts_ativo_bid: float | None = None
+
+    @property
+    def idade_ativo_ask(self) -> float | None:
+        import time
+        if self.ts_ativo_ask is None:
+            return None
+        return time.time() - self.ts_ativo_ask
 
     @property
     def label_detectado(self) -> str:

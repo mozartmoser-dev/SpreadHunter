@@ -895,6 +895,19 @@ class BoxDialog(QDialog):
         btn_pnt.clicked.connect(lambda: self._abrir_boleta_box(r))
         btn_row.addWidget(btn_pnt)
 
+        btn_debug = QPushButton("\U0001f4cb Copiar Debug")
+        btn_debug.setAutoDefault(False)
+        btn_debug.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #2d2d44; color: {Palette.TEXT_PRIMARY};
+                border: 1px solid {Palette.BORDER}; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }}
+            QPushButton:hover {{ background-color: #3d3d55; }}
+        """)
+        btn_debug.clicked.connect(lambda: self._copiar_debug_box(r))
+        btn_row.addWidget(btn_debug)
+
         btn_row.addStretch()
 
         btn_fechar = QPushButton("Fechar")
@@ -910,6 +923,39 @@ class BoxDialog(QDialog):
         from src.ui.desktop.boleta_dialog import BoletaDialog
         dlg = BoletaDialog("BOX 4P", r, self._db_path, self)
         dlg.exec_()
+
+    def _copiar_debug_box(self, r):
+        from PySide6.QtWidgets import QApplication, QMessageBox
+        from datetime import datetime, timezone, timedelta
+
+        tz = timezone(timedelta(hours=-3))
+        agora = datetime.now(tz).strftime("%H:%M:%S")
+        modo = getattr(r, 'tipo_opcao', '') or ''
+        venc = r.vencimento.strftime("%d/%m/%Y") if hasattr(r.vencimento, "strftime") else str(r.vencimento)
+        detectado = _formatar_detectado(getattr(r, 'detectado_em', None))
+
+        lines = [
+            f"=== DEBUG {r.ativo} | BOX 4P ({r.sentido}) | K1={r.strike_k1:.2f} K2={r.strike_k2:.2f} | {venc} ({r.dias} DTE) ===",
+            f"Hora: {agora} | MOD: {modo}",
+            f"",
+            f"CALL K1 ({r.cod_call_k1}): ask={r.ask_call_k1:.2f} bid={r.bid_call_k1:.2f} qtd={r.qtd_bid_call_k1}",
+            f"PUT  K1 ({r.cod_put_k1}):  ask={r.ask_put_k1:.2f} bid={r.bid_put_k1:.2f} qtd={r.qtd_ask_put_k1}",
+            f"CALL K2 ({r.cod_call_k2}): ask={r.ask_call_k2:.2f} bid={r.bid_call_k2:.2f} qtd={r.qtd_ask_call_k2}",
+            f"PUT  K2 ({r.cod_put_k2}):  ask={r.bid_put_k2:.2f} bid={r.bid_put_k2:.2f} qtd={r.qtd_bid_put_k2}",
+            f"",
+            f"K1: R$ {r.strike_k1:.2f} | K2: R$ {r.strike_k2:.2f} | Distancia: R$ {r.distancia:.2f}",
+            f"CLR: R$ {r.clr:.2f} | Lucro: R$ {r.lucro:.2f} | Lucro%: {r.lucro_pct*100:.2f}%",
+            f"xCDI: {r.pct_cdi:.2f}x | xCDI Liq: {r.pct_cdi_liquido:.2f}x",
+            f"Custo B3: R$ {r.custo_b3:.4f} | Custo IR: R$ {r.custo_ir:.4f}",
+            f"Taxa Aluguel: {r.taxa_aluguel:.2f}%",
+            f"",
+            f"Classificacao: {r.sentido} | MOD: {modo}",
+            f"Viavel: {r.viavel}",
+            f"Detectado em: {detectado}",
+        ]
+        texto = "\n".join(lines)
+        QApplication.clipboard().setText(texto)
+        QMessageBox.information(self, "Debug", "Dados copiados para a area de transferencia.")
 
     def closeEvent(self, event):
         self.parar_scan_signal.emit()

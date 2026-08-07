@@ -152,6 +152,8 @@ class MonitorVendaCobertaUseCase:
                 pct_ganho_liquido=round(pct_liq, 6),
                 pct_cdi_bruto=round(pct_cdi, 4),
                 pct_cdi_liquido=round(pct_cdi_liq, 4),
+                ts_ativo_ask=mercado.get("ts_ativo_ask"),
+                ts_ativo_bid=mercado.get("ts_ativo_bid"),
             ))
 
         n_viaveis = sum(1 for r in resultados if r.viavel)
@@ -270,6 +272,8 @@ class MonitorVendaCobertaUseCase:
                 pct_ganho_liquido=round(pct_liq, 6),
                 pct_cdi_bruto=round(pct_cdi, 4),
                 pct_cdi_liquido=round(pct_cdi_liq, 4),
+                ts_ativo_ask=mercado.get("ts_ativo_ask"),
+                ts_ativo_bid=mercado.get("ts_ativo_bid"),
             ))
 
         resultados.sort(key=lambda o: (not o.viavel, -o.pct_cdi))
