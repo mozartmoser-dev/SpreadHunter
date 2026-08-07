@@ -137,6 +137,33 @@ class TestCalculadoraBoxSbth:
         assert result.custo_sbth == 0
         assert result.custo_box == 0
 
+    def test_determinar_operacao_3boxsbth_somente_box_viavel(self):
+        """Regressão: quando ambos passam CDI bruto mas só BOX sobrevive após B3,
+        _determinar_operacao deve retornar 'BOX', não 'NEUTRA'.
+
+        Cenário real: DTE=1, preco=30, strike=30.68, put_ask=0.65, call_bid=0.48.
+        SBTH: CDI bruto 1.85x (passa), mas B3 custa R$0,032 vs ganho R$0,03 → líquido -0.0075%.
+        BOX: CDI bruto 31.97x, líquido +1.58% → viável.
+        Antes do fix: _determinar_operacao exigia ambos >0 → 'NEUTRA' (bug).
+        Depois do fix: fallback individual → 'BOX'.
+        """
+        calc = CalculadoraBoxSbth(taxa_cdi=0.1425, premio_risco_box=1.0, premio_risco_sbth=1.0)
+        dados = DadosMercado(
+            preco_ativo=30.0, of_compra_ativo=30.0, of_venda_ativo=30.0,
+            of_compra_put=0.55, of_venda_put=0.65,
+            of_compra_call=0.48, of_venda_call=0.50,
+            strike=30.68, premio_put=0.65, premio_call=0.48, dias=1,
+        )
+        result = calc.calcular(dados)
+        assert result.classificacao == "3BOXSBTH"
+        assert result.pct_ganho_sbth < 0
+        assert result.pct_ganho_box > 0
+        assert result.operacao == "BOX", (
+            f"Esperado 'BOX' (só BOX viável após B3), obtido '{result.operacao}'. "
+            f"SBTH bruto={result.pct_cdi_sbth_bruto:.2f}xCDI liq={result.pct_ganho_sbth:.6f}, "
+            f"BOX bruto={result.pct_cdi_box_bruto:.2f}xCDI liq={result.pct_ganho_box:.6f}"
+        )
+
 
 class TestElegibilidadePescaria:
     @pytest.fixture

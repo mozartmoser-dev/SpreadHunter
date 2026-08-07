@@ -159,6 +159,11 @@ class CalculadoraBoxSbth:
             return "BOX"
         if classificacao == "2SBTH" and pct_ganho_sbth > 0:
             return "SBTH"
-        if classificacao == "3BOXSBTH" and pct_ganho_box > 0 and pct_ganho_sbth > 0:
-            return "BOXSBTH"
+        if classificacao == "3BOXSBTH":
+            if pct_ganho_box > 0 and pct_ganho_sbth > 0:
+                return "BOXSBTH"
+            if pct_ganho_box > 0:
+                return "BOX"
+            if pct_ganho_sbth > 0:
+                return "SBTH"
         return "NEUTRA"

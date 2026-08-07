@@ -52,6 +52,7 @@ class MercadoDataProvider:
         self._onda2_dte_min: int = 7
         self._onda2_dte_max: int = 180
         self._filtro_semanal: bool = False
+        self._chaves_semanais_excluidas: set[str] = set()
         self._inst_map_cache: dict | None = None
         self._inst_map_cache_time: float = 0.0
         self._INST_MAP_CACHE_TTL: float = 30.0
@@ -108,6 +109,7 @@ class MercadoDataProvider:
             self._precos_ativo_cache.clear()
             self._cab_anterior.clear()
             self._dados_cache.clear()
+            self._chaves_semanais_excluidas.clear()
             self._invalidar_cache_inst_map()
             self.recarregar_parametros()
             logger.info("MercadoDataProvider: recarregamento de instrumentos agendado.")
@@ -230,10 +232,6 @@ class MercadoDataProvider:
         if self._limite_meses > 0 and inst.vencimento:
             if (inst.vencimento - hoje).days > (self._limite_meses * 30):
                 return True
-        if self._filtro_semanal:
-            cod = inst.cod_put or inst.cod_call
-            if cod and len(cod) >= 2 and cod[-2].upper() == "W":
-                return True
         return False
 
     def _deve_pular_por_strike(self, inst: InstrumentoOpcional) -> bool:
@@ -251,8 +249,14 @@ class MercadoDataProvider:
     def _registrar_instrumento(self, inst: InstrumentoOpcional, registros_acum: list | None = None):
         rtd = self.source
         key = f"{inst.ativo}|{inst.cod_put}"
-        if key in self._chaves_registradas:
+        if key in self._chaves_registradas or key in self._chaves_semanais_excluidas:
             return False
+
+        if self._filtro_semanal:
+            cod = inst.cod_put or inst.cod_call
+            if cod and len(cod) >= 2 and cod[-2].upper() == "W":
+                self._chaves_semanais_excluidas.add(key)
+                return False
 
         if self._deve_pular_instrumento(inst):
             self._chaves_registradas.add(key)
