@@ -707,6 +707,23 @@ class MercadoDataProvider:
                     count_onda1, t_onda1_basico,
                     count_cab_skip, t_status,
                 )
+
+                if suporta_push and self._ativos_registrados:
+                    agora = time.time()
+                    re_registrados = 0
+                    max_re_reg = 50
+                    for ativo_nome in list(self._ativos_registrados)[:max_re_reg * 2]:
+                        ts = self.source.get_ts_campo(ativo_nome, FieldName.ASK)
+                        if ts is not None and (agora - ts) > 5:
+                            self.source.registrar_topico(ativo_nome, FieldName.ASK)
+                            self.source.registrar_topico(ativo_nome, FieldName.BID)
+                            re_registrados += 1
+                            if re_registrados >= max_re_reg:
+                                break
+                    if re_registrados > 0:
+                        logger.debug("Re-registro OpenFast: %d ativos stale (idade >5s) em %.2fs",
+                                     re_registrados, time.time() - agora)
+
                 return dados_mercado
             except Exception as e:
                 logger.error("capturar_dados_mercado: erro inesperado: %s", e, exc_info=True)
