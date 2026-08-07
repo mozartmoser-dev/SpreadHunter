@@ -654,7 +654,7 @@ class MainWindow(QMainWindow):
         self._fade_anim.finished.connect(self._on_fade_finished)
 
         self._disclaimer = QLabel()
-        pix_disc = QPixmap(str(temas_dir / "Disclaimer.jpeg"))
+        pix_disc = QPixmap(str(temas_dir / "Disclaimer.png"))
         if not pix_disc.isNull():
             self._disclaimer.setPixmap(pix_disc.scaled(1200, 600, Qt.KeepAspectRatio, Qt.SmoothTransformation))
             self._disclaimer.setAlignment(Qt.AlignmentFlag.AlignCenter)
