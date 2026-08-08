@@ -47,6 +47,13 @@ Evidências no log:
 
 [] Commitar o diff pendente (opcional; usuário já foi avisado).
 
+## Rollback (ponto de restauração)
+
+- **Se o STALE falhar e quisermos voltar ao estado estável pré-STALE:**
+  `git checkout fd87ccb -- src tests config` (checkpoint 08/08, 631 testes) — remove Fase 1 + refinamentos.
+- **Voltar literalmente à versão de ontem (07/08):** `git checkout 84fc69c` (último commit de 07/08, antes do re-registro e do STALE).
+- Commits da reta STALE: `84fc69c` → `fd87ccb` → `ede0d65` (Fase 1) → `5a798ac` (refinamentos + validação ao vivo, 08/08).
+
 ## Fase 2 — o que falta (do `docs/plano_stale_openfast.md`)
 
 1. **Interface `MarketDataSource.ler_campo_cache(..., allow_stale=False)`** + `is_stale_campo()`:
