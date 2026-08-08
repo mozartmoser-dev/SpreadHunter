@@ -159,7 +159,8 @@ class MonitorWorker(QThread):
             elif fonte == "mock":
                 rtd = criar_data_source("mock", db_path=self.db_path)
             elif fonte == "fasttrade":
-                rtd = criar_data_source("fasttrade")
+                throttle_ms = self._ler_param_int("rtd_throttle_ms", 200)
+                rtd = criar_data_source("fasttrade", throttle_ms=throttle_ms)
             else:
                 rtd = criar_data_source("profit")
             self._rtd_main = rtd

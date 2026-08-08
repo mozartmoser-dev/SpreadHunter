@@ -282,7 +282,7 @@ class MercadoDataProvider:
                             cod_opcao, strike_db, strike_rtd, strike_final,
                         )
                         rtd_raw = getattr(rtd, '_rtd', None)
-                        if rtd_raw is not None:
+                        if rtd_raw is not None and hasattr(rtd_raw, '_topic_id'):
                             tid = rtd_raw._topic_id(cod_opcao, "PEX")
                             with rtd_raw._lock:
                                 rtd_raw._valores[tid] = strike_final
@@ -293,7 +293,7 @@ class MercadoDataProvider:
                 elif strike_db and strike_db > 0:
                     strike_final = strike_db
                     rtd_raw = getattr(rtd, '_rtd', None)
-                    if rtd_raw is not None:
+                    if rtd_raw is not None and hasattr(rtd_raw, '_topic_id'):
                         tid = rtd_raw._topic_id(cod_opcao, "PEX")
                         with rtd_raw._lock:
                             rtd_raw._valores[tid] = strike_final

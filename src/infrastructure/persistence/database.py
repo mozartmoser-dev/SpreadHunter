@@ -225,6 +225,7 @@ def _seed_parametros_colar(conn):
         ("ranking_peso_colar_risco", "1.0", "COLAR", "Peso do risco de leilão (inverso) no Score do Colar Protetivo"),
         ("taxa_ir_pct", "0.15", "GERAL", "Aliquota de IR sobre lucro em operacoes (15% swing trade)"),
         ("rtd_refresh_timeout_ms", "5000", "GERAL", "Timeout do RTD RefreshData em ms (0 = sem timeout)"),
+        ("rtd_throttle_ms", "200", "GERAL", "Throttle RTD (ms) para fonte fasttrade (Excel headless)"),
         ("fonte_market_data", "openfast", "GERAL", "Fonte de market data (profit=Profit RTD via COM, openfast=Open Fast Socket TCP, mock=Dados simulados p/ teste)"),
         ("openfast_send_delay_ms", "2", "GERAL", "Delay entre comandos SQT (ms). 0 = delay minimo (1ms)"),
         ("elegibilidade_strike_max_pct", "0.70", "BOX_SINTETICO", "Strike máximo % do spot para elegibilidade de pescaria"),

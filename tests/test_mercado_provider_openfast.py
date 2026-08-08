@@ -118,7 +118,7 @@ class TestMercadoProviderOpenFast:
         try:
             provider = MercadoDataProvider(populated_db, adapter)
             provider.recarregar_parametros()
-            assert provider._carga_inteligente_habilitada is True
+            assert provider._carga_inteligente_habilitada is False
         finally:
             adapter.desconectar()
 

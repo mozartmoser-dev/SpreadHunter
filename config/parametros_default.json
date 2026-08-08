@@ -741,7 +741,7 @@
     },
     {
       "chave": "fonte_market_data",
-      "valor": "openfast",
+      "valor": "fasttrade",
       "estrategia": "GERAL",
       "descricao": "Fonte de dados"
     },
@@ -1104,6 +1104,12 @@
       "valor": "1.0",
       "estrategia": "PERFORMANCE",
       "descricao": "Excluir opcoes semanais da Onda 1 (0=incluir, 1=excluir)"
+    },
+    {
+      "chave": "rtd_throttle_ms",
+      "valor": "200.0",
+      "estrategia": "GERAL",
+      "descricao": "Throttle RTD (ms) para fonte fasttrade (Excel headless). Menor = atualizacao mais rapida; maior = menos CPU"
     }
   ]
 }

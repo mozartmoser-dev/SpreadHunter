@@ -74,6 +74,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("fonte_tamanho", "Tamanho da Fonte (8-16)"),
         ("openfast_send_delay_ms", "Delay SQT (ms)"),
         ("rtd_refresh_timeout_ms", "Timeout RTD RefreshData (ms, 0=sem timeout)"),
+        ("rtd_throttle_ms", "Throttle RTD (ms) — fonte fasttrade"),
         ("taxa_aluguel_habilitado", "Habilitar Coleta Taxa Aluguel"),
         ("investsite_timeout_ms", "Timeout InvestSite (ms)"),
         ("investsite_delay_ms", "Delay entre Requisicoes InvestSite (ms)"),

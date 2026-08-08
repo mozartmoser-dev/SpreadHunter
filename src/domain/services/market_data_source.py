@@ -100,6 +100,6 @@ def criar_data_source(fonte: str, **kwargs) -> MarketDataSource:
         return MockDataSource(db_path=kwargs.get("db_path"))
     if fonte == "fasttrade":
         from src.infrastructure.providers.fast_trade_rtd_adapter import FastTradeRTDAdapter
-        return FastTradeRTDAdapter()
+        return FastTradeRTDAdapter(**kwargs)
     from src.infrastructure.providers.rtd_profit_adapter import RTDProfitAdapter
     return RTDProfitAdapter()

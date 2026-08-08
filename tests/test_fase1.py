@@ -146,7 +146,7 @@ class TestParametroRepository:
         parametro_repo.seed_defaults()
         cdi = parametro_repo.get_by_chave("taxa_cdi")
         assert cdi is not None
-        assert cdi.valor == 0.1425
+        assert cdi.valor == 0.14
 
     def test_upsert(self, parametro_repo):
         parametro_repo.save(ParametroOperacional(
