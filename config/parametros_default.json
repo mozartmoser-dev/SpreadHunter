@@ -741,7 +741,7 @@
     },
     {
       "chave": "fonte_market_data",
-      "valor": "fasttrade",
+      "valor": "openfast",
       "estrategia": "GERAL",
       "descricao": "Fonte de dados"
     },

@@ -147,3 +147,63 @@ class TestMercadoProviderOpenFast:
             assert v2 is None
         finally:
             adapter.desconectar()
+
+    def test_perna_stale_nao_alimenta_e_retoma_com_push_novo(self, populated_db, server):
+        """E2E: book fresco gera; após a janela de frescor (sem push novo) a perna
+        fica STALE e NÃO alimenta; novo push verdadeiro retoma a geração."""
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001,
+                                        stale_campo_s=1.0)
+        try:
+            def sobe():
+                server.push("PETR4", "LAST", "28.50")
+                server.push("PETR4", "BID", "28.45")
+                server.push("PETR4", "ASK", "28.55")
+                server.push("PETR4", "ST", "A")
+                server.push("PETRG180", "PEX", "18.0")
+                server.push("PETRH180", "PEX", "18.0")
+                server.push("PETRG180", "ASK", "0.85")
+                server.push("PETRG180", "BID", "0.80")
+                server.push("PETRG180", "ST", "A")
+                server.push("PETRH180", "ASK", "0.78")
+                server.push("PETRH180", "BID", "0.75")
+                server.push("PETRH180", "ST", "A")
+
+            sobe()
+            time.sleep(0.15)
+
+            provider = MercadoDataProvider(populated_db, adapter)
+            provider.capturar_dados_mercado()
+            provider.fazer_manutencao()
+            assert len(provider._chaves_com_book) > 0
+
+            # 1) Dados frescos -> entrada gerada e sem contagem de skip
+            sobe()
+            time.sleep(0.15)
+            d1 = provider.capturar_dados_mercado()
+            fresh_keys = [k for k in d1 if k.startswith("PETR4|")]
+            assert len(fresh_keys) > 0, "book fresco deveria gerar entry"
+            skip_antes = provider._cont_stale_skip
+
+            # 2) Envelhece a janela de frescor (sem push novo) -> STALE skip
+            time.sleep(1.3)
+            d2 = provider.capturar_dados_mercado()
+            stale_keys = [k for k in d2 if k.startswith("PETR4|")]
+            assert provider._cont_stale_skip > skip_antes
+            assert len(stale_keys) == 0, "perna stale não pode alimentar d2"
+
+            # 3) Novo push verdadeiro -> freshness volta a gerar
+            server.push("PETR4", "PEX", "28.50")
+            server.push("PETR4", "BID", "28.44")
+            server.push("PETR4", "ASK", "28.56")
+            server.push("PETRG180", "PEX", "18.0")
+            server.push("PETRH180", "PEX", "18.0")
+            server.push("PETRG180", "ASK", "0.86")
+            server.push("PETRG180", "BID", "0.81")
+            server.push("PETRH180", "ASK", "0.77")
+            server.push("PETRH180", "BID", "0.74")
+            time.sleep(0.15)
+            d3 = provider.capturar_dados_mercado()
+            retomou_keys = [k for k in d3 if k.startswith("PETR4|")]
+            assert len(retomou_keys) > 0, "push novo deve retomar geração"
+        finally:
+            adapter.desconectar()

@@ -437,13 +437,22 @@ class OpenFastSocketAdapter:
         return (time.time() - ts) > self._stale_campo_s
 
     def verificar_conexao(self) -> str:
-        """Watchdog: thread leitora morta com _conectado ainda True -> DISCONNECTED."""
+        """Watchdog: thread leitora morta com _conectado ainda True -> DISCONNECTED.
+
+        Invalida o cache: dados da sessão morta não devem ressuscitar no cálculo.
+        """
         thread = self._reader_thread
-        if (self._conectado and self._watchdog_enabled
+        if not (self._conectado and self._watchdog_enabled
                 and (thread is None or not thread.is_alive())):
-            logger.warning("OpenFast watchdog: thread leitora morta — marcando DESCONEXÃO.")
+            return self._feed_state
+        logger.warning("OpenFast watchdog: thread leitora morta — marcando DESCONEXÃO.")
+        with self._mutex:
             self._conectado = False
             self._feed_state = "desconectado"
+            self._cache.clear()
+            self._cache_ts.clear()
+            self._cache_ver.clear()
+            self._dirty_keys.clear()
         return self._feed_state
 
     def desconectar(self):

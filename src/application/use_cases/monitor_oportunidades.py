@@ -147,8 +147,8 @@ class MonitorOportunidadesUseCase:
 
         strikes = np.array([_get_clean_strike(k) for k in keys_validas])
         dias = np.array([inst_map[chaves_parsed[i]].dias_ate_vencimento for i in indices_validos])
-        vov_p = get_arr("vov_put_boca")
-        voc_c = get_arr("voc_call_boca")
+        vov_p = np.where(get_arr("vov_put_boca") > 0, get_arr("vov_put_boca"), get_arr("vov_put"))
+        voc_c = np.where(get_arr("voc_call_boca") > 0, get_arr("voc_call_boca"), get_arr("voc_call"))
         em_leilao = np.array([dados_mercado[chaves[i]].get("em_leilao", False) for i in indices_validos])
 
         # Lotes de liquidez (usamos o padrão do BOX para o filtro grosso da vetorização)
@@ -356,8 +356,8 @@ class MonitorOportunidadesUseCase:
             status_put=mercado.get("status_put", ""),
             status_call=mercado.get("status_call", ""),
             status_ativo=mercado.get("status_ativo", ""),
-            vov_put_boca=mercado.get("vov_put_boca", 0.0),
-            voc_call_boca=mercado.get("voc_call_boca", 0.0),
+            vov_put_boca=mercado.get("vov_put_boca", 0.0) or mercado.get("vov_put", 0.0),
+            voc_call_boca=mercado.get("voc_call_boca", 0.0) or mercado.get("voc_call", 0.0),
             qul_put=mercado.get("qul_put", 0.0),
             qul_call=mercado.get("qul_call", 0.0),
         )

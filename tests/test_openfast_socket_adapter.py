@@ -173,6 +173,26 @@ class TestOpenFastSocketAdapterSync:
         assert adapter.disponivel is True
         adapter.desconectar()
 
+    def test_syn_nao_renova_idade_ask_bid(self, server):
+        """Heartbeat NÃO atualiza _cache_ts de ASK/BID: com janela curta o campo
+        fica STALE mesmo com SYN chegando — e não renova o timestamp."""
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001,
+                                        stale_campo_s=0.2)
+        server.push("PETR4", "ASK", "1.25")
+        time.sleep(0.05)
+        assert adapter.ler_campo_cache("PETR4", FieldName.ASK) == 1.25
+        ts_antes = adapter.get_ts_campo("PETR4", FieldName.ASK)
+        server.send_syn()
+        server.send_syn()
+        time.sleep(0.05)
+        ts_depois = adapter.get_ts_campo("PETR4", FieldName.ASK)
+        assert ts_depois == ts_antes
+        time.sleep(0.35)
+        server.send_syn()
+        assert adapter.is_stale_campo("PETR4", FieldName.ASK) is True
+        assert adapter.ler_campo_cache("PETR4", FieldName.ASK) is None
+        adapter.desconectar()
+
 
 class TestOpenFastSocketAdapterRegistrar:
     def test_registrar_topico_bid(self, server):
@@ -315,6 +335,20 @@ class TestOpenFastSocketAdapterWatchdog:
         st = adapter.verificar_conexao()
         assert st == "desconectado"
         assert adapter._conectado is False
+        adapter.desconectar()
+
+    def test_thread_morta_invalida_cache(self, server):
+        """Thread morta -> DISCONNECTED e cache invalidado (nada ressuscita)."""
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "ASK", "1.25")
+        time.sleep(0.1)
+        assert adapter.ler_campo_cache("PETR4", FieldName.ASK, allow_stale=True) == 1.25
+        adapter._reader_thread = None
+        adapter.verificar_conexao()
+        assert adapter._cache == {}
+        assert adapter._cache_ts == {}
+        assert adapter._cache_ver == {}
+        assert adapter.ler_campo_cache("PETR4", FieldName.ASK, allow_stale=True) is None
         adapter.desconectar()
 
 

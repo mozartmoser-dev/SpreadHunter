@@ -34,6 +34,7 @@ class MercadoDataProvider:
         self._chaves_detalhes_completos: set[str] = set()
         self._sem_ativo_skip: dict[str, int] = {}
         self._precos_ativo_cache: dict[str, float] = {}
+        self._precos_ativo_cache_ts: dict[str, float] = {}
         self._scan_count = 0
         self._total_instrumentos_cache: int = 0
         self._ultimo_refresh_timestamp: float = 0.0
@@ -57,6 +58,7 @@ class MercadoDataProvider:
         self._inst_map_cache_time: float = 0.0
         self._INST_MAP_CACHE_TTL: float = 30.0
         self._cont_stale_skip = 0
+        self._cont_stale_skip_ciclo = 0
         self.recarregar_parametros()
 
     def _resolver_caminho_prioridade(self) -> str:
@@ -74,6 +76,29 @@ class MercadoDataProvider:
             return bool(is_stale(codigo, campo))
         except Exception:
             return False
+
+    def _preco_ativo_cache_fresco(self, ativo: str) -> float | None:
+        """Fallback de preço do ativo apenas se dentro da janela de frescor.
+
+        Valor cacheado com idade > stale_campo_s é tratado como inexistente:
+        nunca devolve preço velho para alimentar cálculo (C2)."""
+        try:
+            janela = float(getattr(self.source, 'stale_campo_s', 15.0))
+        except (TypeError, ValueError):
+            janela = 15.0
+        p = self._precos_ativo_cache.get(ativo)
+        if not p:
+            return None
+        ts = self._precos_ativo_cache_ts.get(ativo, 0.0)
+        if ts and (time.time() - ts) > janela:
+            self._precos_ativo_cache.pop(ativo, None)
+            self._precos_ativo_cache_ts.pop(ativo, None)
+            return None
+        return p
+
+    def _armazenar_preco_ativo(self, ativo: str, preco: float) -> None:
+        self._precos_ativo_cache[ativo] = preco
+        self._precos_ativo_cache_ts[ativo] = time.time()
 
     def _fonte_controla_frescor(self) -> bool:
         return getattr(self.source, 'is_stale_campo', None) is not None
@@ -140,6 +165,7 @@ class MercadoDataProvider:
             self._sem_ativo_skip.clear()
             self._sem_book_skip.clear()
             self._precos_ativo_cache.clear()
+            self._precos_ativo_cache_ts.clear()
             self._cab_anterior.clear()
             self._dados_cache.clear()
             self._chaves_semanais_excluidas.clear()
@@ -187,6 +213,7 @@ class MercadoDataProvider:
             self._registro_idx = 0
             # Limpa cache de preços + books + Onda 2 para forçar re-detecção completa
             self._precos_ativo_cache.clear()
+            self._precos_ativo_cache_ts.clear()
             self._chaves_com_book.clear()
             self._chaves_detalhes_completos.clear()
             self._cab_anterior.clear()
@@ -252,7 +279,7 @@ class MercadoDataProvider:
 
         preco = rtd.ler_campo_cache(inst.ativo, FieldName.ASK)
         if preco and preco > 0:
-            self._precos_ativo_cache[inst.ativo] = preco
+            self._armazenar_preco_ativo(inst.ativo, preco)
             logger.debug("RTD: preco_ativo %s=%.2f forçado com sucesso", inst.ativo, preco)
 
     def _deve_pular_instrumento(self, inst: InstrumentoOpcional) -> bool:
@@ -551,11 +578,7 @@ class MercadoDataProvider:
                         ]
                         if any(self._campo_stale(codigo, campo) for codigo, campo in criticos):
                             self._cont_stale_skip += 1
-                            logger.warning(
-                                "OF STALE skip entry=%s (perna fora da janela %ss) — "
-                                "não alimenta calculadora",
-                                key, getattr(self.source, '_stale_campo_s', '?'),
-                            )
+                            self._cont_stale_skip_ciclo += 1
                             continue
 
                     if key in self._chaves_detalhes_completos:
@@ -599,12 +622,17 @@ class MercadoDataProvider:
                             if p_ativo is not None and p_ativo > 0:
                                 entry["preco_ativo"] = p_ativo
                                 entry["of_venda_ativo"] = p_ativo
-                                self._precos_ativo_cache[inst.ativo] = p_ativo
+                                self._armazenar_preco_ativo(inst.ativo, p_ativo)
                             else:
-                                p_ativo = self._precos_ativo_cache.get(inst.ativo)
+                                p_ativo = self._preco_ativo_cache_fresco(inst.ativo)
                                 if p_ativo:
                                     entry["preco_ativo"] = p_ativo
                                     entry["of_venda_ativo"] = p_ativo
+                                else:
+                                    entry["stale"] = True
+                                    self._cont_stale_skip += 1
+                                    self._cont_stale_skip_ciclo += 1
+                                    continue
                             of_compra = c_ativo.get(FieldName.BID)
                             if of_compra is not None:
                                 entry["of_compra_ativo"] = of_compra
@@ -648,9 +676,9 @@ class MercadoDataProvider:
                         preco_ativo_rtd = self.source.ler_campo_cache(inst.ativo, FieldName.ASK)
                         if preco_ativo_rtd is not None and preco_ativo_rtd > 0:
                             preco_ativo = preco_ativo_rtd
-                            self._precos_ativo_cache[inst.ativo] = preco_ativo
+                            self._armazenar_preco_ativo(inst.ativo, preco_ativo)
                         else:
-                            preco_ativo = self._precos_ativo_cache.get(inst.ativo)
+                            preco_ativo = self._preco_ativo_cache_fresco(inst.ativo)
 
                         if not preco_ativo or preco_ativo <= 0:
                             if inst.ativo in self._sem_ativo_skip:
@@ -695,9 +723,9 @@ class MercadoDataProvider:
                     preco_ativo_rtd = self.source.ler_campo_cache(inst.ativo, FieldName.ASK)
                     if preco_ativo_rtd is not None and preco_ativo_rtd > 0:
                         preco_ativo = preco_ativo_rtd
-                        self._precos_ativo_cache[inst.ativo] = preco_ativo
+                        self._armazenar_preco_ativo(inst.ativo, preco_ativo)
                     else:
-                        preco_ativo = self._precos_ativo_cache.get(inst.ativo)
+                        preco_ativo = self._preco_ativo_cache_fresco(inst.ativo)
                     if not preco_ativo or preco_ativo <= 0:
                         continue
                     bid_ativo = self.source.ler_campo_cache(inst.ativo, FieldName.BID) or 0.0
@@ -761,13 +789,18 @@ class MercadoDataProvider:
                     count_cab_skip, t_status,
                 )
 
-                if self._cont_stale_skip > 0:
+                if self._cont_stale_skip_ciclo > 0:
                     logger.warning(
-                        "OF stale_skip=%d no_new_update=%d (ciclo #%d)",
+                        "OF STALE: %d entries com perna fora da janela (%ss) não "
+                        "alimentaram a calculadora neste ciclo — acumulado=%d "
+                        "no_new_update=%d (ciclo #%d)",
+                        self._cont_stale_skip_ciclo,
+                        getattr(self.source, 'stale_campo_s', '?'),
                         self._cont_stale_skip,
                         getattr(self.source, 'cont_no_new_update', 0),
                         self._scan_count,
                     )
+                    self._cont_stale_skip_ciclo = 0
 
                 if suporta_push and self._ativos_registrados:
                     agora = time.time()
