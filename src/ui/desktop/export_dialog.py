@@ -351,7 +351,12 @@ class ExportDialog(QDialog):
             try:
                 from src.domain.services.market_data_source import FieldName
                 if hasattr(self._source, 'forcar_leitura'):
-                    live = self._source.forcar_leitura(opp.ativo, FieldName.ASK)
+                    is_openfast = hasattr(self._source, 'is_stale_campo')
+                    if is_openfast:
+                        live = self._source.forcar_leitura(
+                            opp.ativo, FieldName.ASK, allow_stale=True)
+                    else:
+                        live = self._source.forcar_leitura(opp.ativo, FieldName.ASK)
                 else:
                     live = self._source.ler_campo_cache(opp.ativo, FieldName.ASK)
                 if live and live > 0 and abs(live - dto_val) > 0.01:

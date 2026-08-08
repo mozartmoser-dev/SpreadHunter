@@ -56,6 +56,7 @@ class MercadoDataProvider:
         self._inst_map_cache: dict | None = None
         self._inst_map_cache_time: float = 0.0
         self._INST_MAP_CACHE_TTL: float = 30.0
+        self._cont_stale_skip = 0
         self.recarregar_parametros()
 
     def _resolver_caminho_prioridade(self) -> str:
@@ -63,6 +64,38 @@ class MercadoDataProvider:
             base = os.path.splitext(str(self.db_path))[0]
             return os.path.abspath(base + "_prioridade.json")
         return os.path.abspath("rtd_prioridade.json")
+
+    def _campo_stale(self, codigo: str, campo: FieldName) -> bool:
+        """True se a fonte expõe frescor e o campo está fora da janela."""
+        is_stale = getattr(self.source, 'is_stale_campo', None)
+        if is_stale is None:
+            return False
+        try:
+            return bool(is_stale(codigo, campo))
+        except Exception:
+            return False
+
+    def _fonte_controla_frescor(self) -> bool:
+        return getattr(self.source, 'is_stale_campo', None) is not None
+
+    def _anotar_frescor(self, entry: dict, inst) -> None:
+        entry.setdefault("stale", False)
+        entry.setdefault("ts_ativo_ask", self._ts_fonte(inst.ativo, FieldName.ASK))
+        entry.setdefault("ts_ativo_bid", self._ts_fonte(inst.ativo, FieldName.BID))
+        entry.setdefault("feed_state", self._feed_fonte())
+        entry.setdefault("subscription_generation", self._geracao_fonte())
+
+    def _ts_fonte(self, codigo: str, campo: FieldName) -> float | None:
+        try:
+            return self.source.get_ts_campo(codigo, campo)
+        except Exception:
+            return None
+
+    def _feed_fonte(self) -> str:
+        return str(getattr(self.source, 'feed_state', ''))
+
+    def _geracao_fonte(self):
+        return getattr(self.source, 'subscription_generation', 0)
 
     def _carregar_prioridades(self) -> set[str]:
         try:
@@ -508,6 +541,23 @@ class MercadoDataProvider:
                     if not inst:
                         continue
 
+                    # Gate de frescor: se a fonte expõe is_stale_campo, qualquer perna
+                    # crítica fora da janela bloqueia o cálculo neste ciclo.
+                    if self._fonte_controla_frescor():
+                        criticos = [
+                            (inst.ativo, FieldName.ASK), (inst.ativo, FieldName.BID),
+                            (inst.cod_put, FieldName.ASK), (inst.cod_put, FieldName.BID),
+                            (inst.cod_call, FieldName.ASK), (inst.cod_call, FieldName.BID),
+                        ]
+                        if any(self._campo_stale(codigo, campo) for codigo, campo in criticos):
+                            self._cont_stale_skip += 1
+                            logger.warning(
+                                "OF STALE skip entry=%s (perna fora da janela %ss) — "
+                                "não alimenta calculadora",
+                                key, getattr(self.source, '_stale_campo_s', '?'),
+                            )
+                            continue
+
                     if key in self._chaves_detalhes_completos:
                         t0_onda2 = time.perf_counter()
 
@@ -587,6 +637,7 @@ class MercadoDataProvider:
                             t_status += time.perf_counter() - t0_status
                             entry["ts_ativo_ask"] = self.source.get_ts_campo(inst.ativo, FieldName.ASK)
                             entry["ts_ativo_bid"] = self.source.get_ts_campo(inst.ativo, FieldName.BID)
+                            self._anotar_frescor(entry, inst)
                             dados_mercado[key] = entry
                             count_cab_skip += 1
                             continue
@@ -614,6 +665,7 @@ class MercadoDataProvider:
                             entry = dados_rtd.to_dados_mercado()
                             entry["ts_ativo_ask"] = self.source.get_ts_campo(inst.ativo, FieldName.ASK)
                             entry["ts_ativo_bid"] = self.source.get_ts_campo(inst.ativo, FieldName.BID)
+                            self._anotar_frescor(entry, inst)
                             dados_mercado[key] = entry
                             self._dados_cache[key] = entry
                         else:
@@ -675,6 +727,7 @@ class MercadoDataProvider:
                         "ts_ativo_ask": ts_ask,
                         "ts_ativo_bid": ts_bid,
                     }
+                    self._anotar_frescor(entry, inst)
                     dados_mercado[key] = entry
                     t_onda1_basico += time.perf_counter() - t0_onda1
                     count_onda1 += 1
@@ -707,6 +760,14 @@ class MercadoDataProvider:
                     count_onda1, t_onda1_basico,
                     count_cab_skip, t_status,
                 )
+
+                if self._cont_stale_skip > 0:
+                    logger.warning(
+                        "OF stale_skip=%d no_new_update=%d (ciclo #%d)",
+                        self._cont_stale_skip,
+                        getattr(self.source, 'cont_no_new_update', 0),
+                        self._scan_count,
+                    )
 
                 if suporta_push and self._ativos_registrados:
                     agora = time.time()
@@ -826,6 +887,8 @@ class MercadoDataProvider:
                 "dados_stale": dados_stale,
                 "ultimo_refresh_ha_segundos": segundos_desde_refresh,
                 "ciclos_sem_dados": self._ciclos_sem_dados,
+                "stale_skip": self._cont_stale_skip,
+                "no_new_update": getattr(self.source, 'cont_no_new_update', 0),
             }
         finally:
             self._lock.unlock()

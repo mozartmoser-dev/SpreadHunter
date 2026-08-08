@@ -195,11 +195,34 @@ class TestOpenFastSocketAdapterRegistrar:
         assert rc == 0
         adapter.desconectar()
 
-    def test_forcar_leitura(self, server):
+    def test_forcar_leitura_aguarda_evento_novo(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        import threading
+        def push_depois():
+            time.sleep(0.1)
+            server.push("PETR4", "BID", "1.23")
+        t = threading.Thread(target=push_depois, daemon=True)
+        t.start()
+        v = adapter.forcar_leitura("PETR4", FieldName.BID)
+        assert v == 1.23
+        adapter.desconectar()
+
+    def test_forcar_leitura_sem_evento_novo_retorna_none(self, server):
+        """Evento anterior à chamada NÃO conta — sem push novo deve retornar None."""
         adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
         server.push("PETR4", "BID", "1.23")
         time.sleep(0.1)
-        v = adapter.forcar_leitura("PETR4", FieldName.BID)
+        v = adapter.forcar_leitura("PETR4", FieldName.BID, timeout_ms=200)
+        assert v is None
+        adapter.desconectar()
+
+    def test_forcar_leitura_evento_novo_permite_allow_stale(self, server):
+        """Com allow_stale=True devolve mesmo sem push novo (valor em cache)."""
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "BID", "1.23")
+        time.sleep(0.1)
+        v = adapter.forcar_leitura("PETR4", FieldName.BID, allow_stale=True,
+                                   timeout_ms=200)
         assert v == 1.23
         adapter.desconectar()
 
@@ -238,3 +261,79 @@ class TestOpenFastSocketAdapterReconexao:
         adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
         adapter.desconectar()
         assert adapter.disponivel is False
+
+
+class TestOpenFastSocketAdapterStale:
+    def test_ler_campo_cache_stale_retorna_none_allow_false(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001,
+                                        stale_campo_s=0.2)
+        server.push("PETR4", "ASK", "1.25")
+        time.sleep(0.05)
+        assert adapter.ler_campo_cache("PETR4", FieldName.ASK) == 1.25
+        time.sleep(0.25)
+        assert adapter.ler_campo_cache("PETR4", FieldName.ASK) is None
+        adapter.desconectar()
+
+    def test_ler_campo_cache_allow_stale_true_retorna_valor_antigo(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001,
+                                        stale_campo_s=0.2)
+        server.push("PETR4", "ASK", "1.25")
+        time.sleep(0.05)
+        time.sleep(0.35)
+        assert adapter.ler_campo_cache("PETR4", FieldName.ASK, allow_stale=True) == 1.25
+        adapter.desconectar()
+
+    def test_is_stale_campo(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001,
+                                        stale_campo_s=0.2)
+        server.push("PETR4", "ASK", "1.25")
+        time.sleep(0.05)
+        assert adapter.is_stale_campo("PETR4", FieldName.ASK) is False
+        time.sleep(0.35)
+        assert adapter.is_stale_campo("PETR4", FieldName.ASK) is True
+        adapter.desconectar()
+
+    def test_ler_campos_allow_stale_respeita_janela(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001,
+                                        stale_campo_s=0.2)
+        server.push("PETR4", "ASK", "1.25")
+        server.push("PETR4", "BID", "1.20")
+        time.sleep(0.05)
+        campos = adapter.ler_campos("PETR4", FieldName.ASK, FieldName.BID)
+        assert campos[FieldName.ASK] == 1.25
+        assert campos[FieldName.BID] == 1.20
+        time.sleep(0.35)
+        assert adapter.ler_campos("PETR4", FieldName.ASK, FieldName.BID)[FieldName.ASK] is None
+        adapter.desconectar()
+
+
+class TestOpenFastSocketAdapterWatchdog:
+    def test_thread_morta_marca_desconectado(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        assert adapter._conectado is True
+        adapter._reader_thread = None
+        st = adapter.verificar_conexao()
+        assert st == "desconectado"
+        assert adapter._conectado is False
+        adapter.desconectar()
+
+
+class TestOpenFastSocketAdapterReconexaoGeneracao:
+    def test_reconectar_incrementa_subscription_generation(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        gen0 = adapter._subscription_generation
+        assert gen0 == 1
+        assert adapter.reconectar() is True
+        assert adapter._subscription_generation == gen0 + 1
+        adapter.desconectar()
+
+    def test_reconexao_nao_ressuscita_dados_antigos(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "ASK", "1.25")
+        time.sleep(0.1)
+        assert adapter.ler_campo_cache("PETR4", FieldName.ASK, allow_stale=True) == 1.25
+        adapter.desconectar()
+        assert adapter._cache == {}
+        assert adapter.reconectar() is True
+        assert adapter.ler_campo_cache("PETR4", FieldName.ASK, allow_stale=True) is None
+        adapter.desconectar()
