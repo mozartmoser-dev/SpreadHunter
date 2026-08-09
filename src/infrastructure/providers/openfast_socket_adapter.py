@@ -3,6 +3,7 @@ import threading
 import time
 import logging
 from src.domain.services.market_data_source import FieldName, OPENFAST_FIELD_STR
+from src.infrastructure.providers import stale_trace
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class OpenFastSocketAdapter:
         self._dirty_keys: set[tuple[str, str]] = set()
         self._update_counter: int = 0
         self._ultimo_syn: float = 0.0
+        self._last_syn_ts: float = 0.0
         self._mutex = threading.Lock()
         self._subscriptions: list[tuple[str, str]] = []
         self._subs_set: set[tuple[str, str]] = set()
@@ -41,6 +43,7 @@ class OpenFastSocketAdapter:
         self._watchdog_enabled: bool = True
         self._last_watchdog_check: float = 0.0
         self._cont_no_new_update: int = 0
+        self._recv_seq = 0
         self._prof_recv_calls = 0
         self._prof_recv_bytes = 0
         self._prof_recv_time = 0.0
@@ -122,6 +125,7 @@ class OpenFastSocketAdapter:
                     self._socket.close()
                     self._socket = None
                     self._conectado = False
+                    stale_trace.log_evento("conectar", f"falha handshake: {erro_msg.strip()[:80]}")
                     return
             if self._socket is not None:
                 self._socket.settimeout(1.0)
@@ -129,6 +133,7 @@ class OpenFastSocketAdapter:
                 self._ultimo_syn = time.time()
                 self._subscription_generation += 1
                 self._feed_state = "conectado"
+                stale_trace.log_evento("conectar", f"ok geracao={self._subscription_generation}", flush=True)
                 self._reader_thread = threading.Thread(
                     target=self._thread_leitora, daemon=True
                 )
@@ -146,13 +151,17 @@ class OpenFastSocketAdapter:
             self._conectar()
             if self._conectado:
                 self._re_registrar_pendentes()
+                stale_trace.log_evento("reconectar", f"ok geracao={self._subscription_generation}", flush=True)
                 return True
             if tentativa < max_attempts:
                 time.sleep(delay_s * tentativa)
+        stale_trace.log_evento("reconectar", "falha", flush=True)
         return False
 
     def _re_registrar_pendentes(self):
         for codigo, campo_str in self._subscriptions:
+            if stale_trace.matches(codigo, campo_str):
+                stale_trace.log_evento("rassinar", f"{codigo.upper()}|{campo_str}")
             self._enviar_raw(f"on{_SEP}SQT{_SEP}{codigo.upper()}{_SEP}{campo_str}")
 
     def registrar_topico(self, codigo: str, campo: FieldName) -> int:
@@ -160,6 +169,8 @@ class OpenFastSocketAdapter:
         if campo_str is None:
             return -1
         self._enviar_raw(f"on{_SEP}SQT{_SEP}{codigo.upper()}{_SEP}{campo_str}")
+        if stale_trace.matches(codigo, campo_str):
+            stale_trace.log_evento("assinar", f"{codigo.upper()}|{campo_str}")
         with self._mutex:
             entry = (codigo.upper(), campo_str)
             if entry not in self._subs_set:
@@ -273,6 +284,7 @@ class OpenFastSocketAdapter:
         if allow_stale:
             return self.ler_campo_cache(codigo, campo, allow_stale=True)
         self._cont_no_new_update += 1
+        stale_trace.log_evento("no_new_update", f"{codigo.upper()}|{campo_str}")
         logger.warning("OpenFast NO_NEW_UPDATE forcar_leitura %s|%s (sem push novo em %dms)",
                        codigo, campo_str, timeout_ms)
         return None
@@ -283,6 +295,9 @@ class OpenFastSocketAdapter:
                 f"{cod}|{campo}": self._cache.get((cod, campo))
                 for cod, campo in self._dirty_keys
             }
+            for cod, campo in list(self._dirty_keys):
+                if stale_trace.matches(cod, campo):
+                    stale_trace.log_t4(cod, campo, self._cache.get((cod, campo)))
             self._dirty_keys.clear()
         return mudancas
 
@@ -329,9 +344,13 @@ class OpenFastSocketAdapter:
                 if not dados:
                     self._conectado = False
                     self._feed_state = "desconectado"
+                    stale_trace.log_evento("desconectar", "recv vazio")
                     break
                 texto = dados.decode("utf-8", errors="ignore")
                 self._prof_recv_bytes += len(dados)
+                self._recv_seq += 1
+                ts_recv = time.time()
+                stale_trace.log_recv(self._recv_seq, ts_recv, len(dados))
 
                 t0 = time.perf_counter()
                 buffer += texto
@@ -347,9 +366,15 @@ class OpenFastSocketAdapter:
                     self._prof_linhas += 1
                     if linha.startswith("SYN"):
                         self._ultimo_syn = time.time()
+                        self._last_syn_ts = self._ultimo_syn
+                        stale_trace.log_evento("syn")
                         continue
                     parsed = self._parse_linha(linha)
                     if parsed is not None:
+                        (cod_t, campo_t), valor_t = parsed
+                        if stale_trace.matches(cod_t, campo_t):
+                            stale_trace.log_t1(self._recv_seq, ts_recv, cod_t, campo_t, valor_t)
+                            stale_trace.log_t2(cod_t, campo_t, valor_t)
                         atualizacoes.append(parsed)
 
                 if atualizacoes:
@@ -362,7 +387,10 @@ class OpenFastSocketAdapter:
                         for chave, valor in atualizacoes:
                             self._cache[chave] = valor
                             self._cache_ts[chave] = agora
-                            self._cache_ver[chave] = self._cache_ver.get(chave, 0) + 1
+                            nova_ver = self._cache_ver.get(chave, 0) + 1
+                            self._cache_ver[chave] = nova_ver
+                            if stale_trace.matches(chave[0], chave[1]):
+                                stale_trace.log_t3(chave[0], chave[1], valor, nova_ver)
                             self._dirty_keys.add(chave)
                         self._update_counter += 1
                     self._prof_mutex_time += time.perf_counter() - t0
@@ -446,6 +474,7 @@ class OpenFastSocketAdapter:
                 and (thread is None or not thread.is_alive())):
             return self._feed_state
         logger.warning("OpenFast watchdog: thread leitora morta — marcando DESCONEXÃO.")
+        stale_trace.log_evento("watchdog", "thread_leitora_morta", flush=True)
         with self._mutex:
             self._conectado = False
             self._feed_state = "desconectado"
@@ -457,6 +486,7 @@ class OpenFastSocketAdapter:
 
     def desconectar(self):
         self._conectado = False
+        stale_trace.log_evento("desconectar", "chamada explicita")
         try:
             if self._socket:
                 self._socket.shutdown(socket.SHUT_RDWR)

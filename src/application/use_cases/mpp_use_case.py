@@ -9,6 +9,7 @@ from src.domain.services.calendario_b3 import dc_to_du
 from src.domain.services.market_data_source import FieldName
 from src.infrastructure.persistence.database import get_connection
 from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+from src.infrastructure.providers import stale_trace
 
 logger = logging.getLogger(__name__)
 
@@ -351,6 +352,7 @@ class MPPUseCase:
 
             c_call = rtd.ler_campos(inst["cod_call"], FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK, FieldName.STRIKE)
             c_put = rtd.ler_campos(inst["cod_put"], FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK, FieldName.STRIKE)
+            stale_trace.log_consumo("MPP", {inst["cod_put"].upper(), inst["cod_call"].upper()}, rtd)
 
             bid_call = c_call.get(FieldName.BID) or 0.0
             ask_call = c_call.get(FieldName.ASK) or 0.0
@@ -395,6 +397,7 @@ class MPPUseCase:
 
         for (ativo, vencimento), members in grupos.items():
             spot = rtd.ler_campo_cache(ativo, FieldName.ASK) or 0.0
+            stale_trace.log_consumo("MPP", {ativo.upper()}, rtd)
             if spot <= 0:
                 continue
 

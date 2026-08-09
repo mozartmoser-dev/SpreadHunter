@@ -16,6 +16,7 @@ from src.infrastructure.integrations.opcoesnet_client import OpcoesNetClient
 from src.infrastructure.persistence.repositories.repositories import (
     InstrumentoRepository, ParametroRepository,
 )
+from src.infrastructure.providers import stale_trace
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,8 @@ class MonitorPutRatioUseCase:
 
         status_put = rtd.ler_status_cache(inst.cod_put)
         status_ativo = rtd.ler_status_cache(inst.ativo)
+
+        stale_trace.log_consumo("PUT_RATIO", {inst.cod_put.upper(), inst.ativo.upper()}, rtd)
 
         # TODO IV Rank/Percentile: bootstrap com get_stock_history_formatted()
         # (opcoesnet_client) → 252d de vol_impl → rank rolante diario

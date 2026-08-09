@@ -140,3 +140,44 @@ src/
    rastrear TODO o fluxo (provider → monitor → DTO → UI) e verificar cada
    condição que pode distorcer o dado. Só expor o timestamp não basta — é
    preciso garantir que ele reflete o mesmo dado que está sendo exibido.
+
+### 09/08/2026 — Instrumentação T1→T6 (diagnóstico STALE OpenFast)
+
+**Ativação:** `SH_TRACE_CHAVE=COD|CAMPO` (ex.: `PETR44255|BID`); logs em
+`logs/stale_trace.log` (pipe-delimited, buffered, thread-safe, só grava se a env
+estiver setada). Instrumentação desligável — não altera lógica, apenas observa.
+
+**Cadeia de timestamps:**
+```
+RCV|seq|ts_recv|nbytes        recv() da thread leitora (contador de sequência)
+T1|seq|ts_recv|cod|campo|valor  linha SQT recebida (associada ao recv que a trouxe)
+T2|cod|campo|valor             parse da linha concluído
+T3|cod|campo|valor|ver         cache atualizado (_cache_ts/_cache_ver)
+T4|cod|campo|valor             refresh() entregou a chave via dirty_keys
+T5|cod|campo|valor|idade|stale  leitura: provider (montagem entrada) ou consumo
+                                direto do use case (sufixo |UC)
+T6|ctx|elapsed_s|UC            duração do estágio de cálculo (ctx = UC/varrer/total)
+EVT|tipo|detalhe               conectar/SYN/assinar/rassinar/SYN/watchdog/
+                                no_new_update/stale_skip/re_registrar...
+```
+UCs instrumentados com `log_consumo` (T5) + `log_t6` (T6): **BOX4P, PUT_RATIO,
+MPP, COLAR, COLAR_CAL** (+ monitor_geral já existente).
+
+**Mapa de interpretação — aonde o atraso NÃO aparece é onde está:**
+- **A** — OpenFast não mandou: não aparece SQT/T1 para a chave, embora outras
+  atualizações cheguem.
+- **B** — problema na entrega/processamento: RCV presente, salto abissal até T1.
+- **C** — parser/cache do adapter demorou: T1 → T2/T3 anormal.
+- **D** — provider demorou: T3 → T4/T5 anormal.
+- **E** — cálculo demorou: T5 → T6 anormal.
+- **F** — **cadeia interna rápida, mas valor aparentemente velho**: a cadeia
+  T1→T6 é curta, porém o valor recebido parece não representar o mercado atual.
+  ⚠️ Isso **ainda não prova** que o OpenFast seja a origem — só exclui as perdas
+  internas. A prova definitiva dependerá do timestamp de origem (TIME/TIMENEG),
+  **se** o protocolo fornecer isso para SQT — a verificar no manual quando
+  necessário.
+
+**Plano para a próxima sessão:** rodar o trace em mercado aberto. Se reaparecer a
+cotação com dezenas de segundos de atraso, a cadeia T1→T6 dirá exatamente onde os
+segundos foram perdidos. Não alterar lógica enquanto a instrumentação estiver ativa;
+remover `stale_trace` após o diagnóstico.

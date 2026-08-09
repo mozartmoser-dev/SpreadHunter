@@ -27,6 +27,7 @@ from src.infrastructure.persistence.repositories.repositories import (
 )
 from src.domain.services.market_data_source import FieldName, criar_data_source
 from src.infrastructure.providers.mercado_data_provider import MercadoDataProvider
+from src.infrastructure.providers import stale_trace
 
 logger = logging.getLogger(__name__)
 
@@ -428,13 +429,15 @@ class MonitorWorker(QThread):
         self._mostrar_tp_op = mostrar
 
     def _processar_monitor_geral(self, rtd):
+        t6_inicio = time.time()
         dados_mercado = self._mercado_provider.capturar_dados_mercado()
         self._ultimo_dados_mercado = dados_mercado
         if not dados_mercado:
             return
 
         resultados = self._monitor_uc.varrer(dados_mercado, pipeline_tracker=PipelineTracker())
-        
+        stale_trace.log_t6("monitor_geral_captura", time.time() - t6_inicio)
+
         if not self._mostrar_tp_op:
             resultados = [r for r in resultados
                           if not (hasattr(r, 'classificacao')
@@ -458,6 +461,7 @@ class MonitorWorker(QThread):
         self.oportunidades_coberta_atualizadas.emit(coberta)
 
         self._snapshot_pipeline()
+        stale_trace.log_t6("monitor_geral_total", time.time() - t6_inicio)
 
     def _snapshot_pipeline(self):
         self._pipeline_monitor = getattr(self._monitor_uc, '_ultimo_pipeline', None)
@@ -468,6 +472,7 @@ class MonitorWorker(QThread):
         if not self._toggle_colar.deve_escanear():
             return
 
+        t6_colar = time.time()
         dados_md = getattr(self, '_ultimo_dados_mercado', None)
         if not dados_md or len(dados_md) < 50:
             return
@@ -479,12 +484,14 @@ class MonitorWorker(QThread):
                 resultados.extend(otimizadas)
         except Exception:
             logger.exception("Erro pós-processamento otimizado colar")
+        stale_trace.log_t6("COLAR_total", time.time() - t6_colar)
         self.colares_atualizados.emit(resultados)
 
     def _processar_colar_calendario(self, rtd):
         if not self._toggle_colar_cal.deve_escanear():
             return
 
+        t6_cal = time.time()
         ativos = self._colar_cal_ativos
         params = self._colar_cal_params
 
@@ -508,6 +515,7 @@ class MonitorWorker(QThread):
             logger.exception("Erro ao processar Otimizado")
             tracker.add_stage("14. Pós-processamento (Otimizado)", 0, 0, "ERRO")
 
+        stale_trace.log_t6("COLAR_CAL_total", time.time() - t6_cal)
         self.colares_calendario_atualizados.emit(resultados)
 
     def _processar_otimizado(self, resultados: list, tipo_estrategia: str = "Calendario", pipeline_tracker: PipelineTracker | None = None) -> list:
@@ -1152,18 +1160,24 @@ class MonitorWorker(QThread):
         if not self._toggle_box.deve_escanear(db_reader=self._ler_param_int):
             return
 
+        t6_box = time.time()
         tracker = PipelineTracker()
         resultados = self._monitor_box_uc.varrer(rtd, pipeline_tracker=tracker)
+        stale_trace.log_t6("BOX4P_varrer", time.time() - t6_box)
         resultados = self._monitor_box_uc.confirmar_resultados(rtd, resultados)
+        stale_trace.log_t6("BOX4P_total", time.time() - t6_box)
         self.boxes_atualizados.emit(resultados)
 
     def _processar_put_ratio(self, rtd):
         if not self._toggle_put_ratio.deve_escanear():
             return
 
+        t6_pr = time.time()
         tracker = PipelineTracker()
         resultados = self._monitor_put_ratio_uc.varrer(rtd, pipeline_tracker=tracker)
+        stale_trace.log_t6("PUT_RATIO_varrer", time.time() - t6_pr)
         resultados = self._monitor_put_ratio_uc.confirmar_resultados(rtd, resultados)
+        stale_trace.log_t6("PUT_RATIO_total", time.time() - t6_pr)
         self.put_ratio_atualizados.emit(resultados)
 
     def _emitir_estatisticas_engine(self, t_start_cycle):
@@ -1264,7 +1278,9 @@ class MonitorWorker(QThread):
         if self._mpp_cycle % self._mpp_interval != 0:
             return
         try:
+            t6_mpp = time.time()
             resultados_box, recomendacoes = self._monitor_mpp_uc.calcular_instantaneo(rtd)
+            stale_trace.log_t6("MPP_calcular", time.time() - t6_mpp)
             self.mpp_atualizados.emit(resultados_box)
             self.mre_atualizados.emit(recomendacoes)
         except Exception as e:

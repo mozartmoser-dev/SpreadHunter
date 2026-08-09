@@ -19,6 +19,7 @@ from src.infrastructure.persistence.repositories.repositories import (
     InstrumentoRepository,
     ParametroRepository,
 )
+from src.infrastructure.providers import stale_trace
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +175,8 @@ class MonitorColaresCalendarioUseCase:
                 qul_put = dm.get("qul_put") or 0
                 qul_call = dm.get("qul_call") or 0
             else:
+                stale_trace.log_consumo("COLAR_CAL",
+                    {inst.cod_put.upper(), inst.cod_call.upper(), inst.ativo.upper()}, rtd)
                 strike = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
                 if not strike or strike <= 0:
                     strike = rtd.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
@@ -292,6 +295,7 @@ class MonitorColaresCalendarioUseCase:
                         preco_compra_ativo = dm_item.get("of_venda_ativo") or 0.0
                         break
             if preco_ativo <= 0:
+                stale_trace.log_consumo("COLAR_CAL", {ativo.upper()}, rtd)
                 preco_ativo = rtd.ler_campo_cache(ativo, FieldName.ASK) or 0.0
                 if preco_ativo <= 0:
                     continue

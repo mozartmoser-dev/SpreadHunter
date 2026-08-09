@@ -5,9 +5,10 @@ from datetime import date
 from PySide6.QtCore import QMutex
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional
-from src.domain.services.market_data_source import FieldName, MarketDataSource
+from src.domain.services.market_data_source import FieldName, MarketDataSource, OPENFAST_FIELD_STR
 from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
 from src.infrastructure.providers.rtd_config import DadosRTDInstrumento
+from src.infrastructure.providers import stale_trace
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,22 @@ class MercadoDataProvider:
         entry.setdefault("ts_ativo_bid", self._ts_fonte(inst.ativo, FieldName.BID))
         entry.setdefault("feed_state", self._feed_fonte())
         entry.setdefault("subscription_generation", self._geracao_fonte())
+        self._trace_t5(inst)
+
+    def _trace_t5(self, inst) -> None:
+        if not stale_trace.enabled() or not getattr(self.source, "suporta_push", False):
+            return
+        campo_por_nome = {nome: campo for campo, nome in OPENFAST_FIELD_STR.items()}
+        for codigo, nome in stale_trace.traced_keys():
+            campo = campo_por_nome.get(nome)
+            if campo is None:
+                continue
+            valor = self.source.ler_campo_cache(codigo, campo, allow_stale=True)
+            if valor is None:
+                continue
+            idade = self.source.get_idade_campo(codigo, campo)
+            stale = self.source.is_stale_campo(codigo, campo)
+            stale_trace.log_t5(codigo, nome, valor, idade, stale)
 
     def _ts_fonte(self, codigo: str, campo: FieldName) -> float | None:
         try:
@@ -577,6 +594,7 @@ class MercadoDataProvider:
                             (inst.cod_call, FieldName.ASK), (inst.cod_call, FieldName.BID),
                         ]
                         if any(self._campo_stale(codigo, campo) for codigo, campo in criticos):
+                            stale_trace.log_evento("stale_skip", f"{ativo}|{cod_put}")
                             self._cont_stale_skip += 1
                             self._cont_stale_skip_ciclo += 1
                             continue
@@ -809,6 +827,7 @@ class MercadoDataProvider:
                     for ativo_nome in list(self._ativos_registrados)[:max_re_reg * 2]:
                         ts = self.source.get_ts_campo(ativo_nome, FieldName.ASK)
                         if ts is not None and (agora - ts) > 5:
+                            stale_trace.log_evento("re_registrar", f"{ativo_nome.upper()}|ASK;BID")
                             self.source.registrar_topico(ativo_nome, FieldName.ASK)
                             self.source.registrar_topico(ativo_nome, FieldName.BID)
                             re_registrados += 1

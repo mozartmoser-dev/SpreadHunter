@@ -12,6 +12,7 @@ from src.domain.services.calculadora_box import CalculadoraBox, ResultadoBox
 from src.domain.services.market_data_source import FieldName
 from src.domain.services.pipeline_tracker import PipelineTracker
 from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository, ParametroRepository, TaxaAluguelRepository
+from src.infrastructure.providers import stale_trace
 
 
 class MonitorBoxUseCase:
@@ -62,6 +63,7 @@ class MonitorBoxUseCase:
     def _extrair(self, inst: InstrumentoOpcional, rtd) -> dict | None:
         c_put = rtd.ler_campos(inst.cod_put, FieldName.STRIKE, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
         c_call = rtd.ler_campos(inst.cod_call, FieldName.STRIKE, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
+        stale_trace.log_consumo("BOX4P", {inst.cod_put.upper(), inst.cod_call.upper()}, rtd)
 
         strike = c_put.get(FieldName.STRIKE)
         if not strike or strike <= 0:
@@ -177,6 +179,7 @@ class MonitorBoxUseCase:
                 continue
 
             spot = rtd.ler_campo_cache(ativo, FieldName.ASK) or 0.0
+            stale_trace.log_consumo("BOX4P", {ativo.upper()}, rtd)
             spread_limite = spot * spread_max_pct if spot > 0 and spread_max_pct > 0 else float("inf")
 
             members.sort(key=lambda m: m["strike"])
