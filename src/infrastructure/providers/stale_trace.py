@@ -4,6 +4,12 @@ Ativação: variável de ambiente SH_TRACE_CHAVE (sem espaço) com uma ou mais
 chaves no formato "COD|CAMPO" separadas por ponto-e-vírgula.
 Ex.: SH_TRACE_CHAVE=PETR4|ASK  ou  SH_TRACE_CHAVE=PETR44255|BID;PETR4|ASK
 
+Modo tudo: SH_TRACE_CHAVE=*  (ou *|*) traça todos os códigos/campos — útil
+porque filtrar uma chave pode mascarar o atraso no processamento do batch.
+
+Auto-parada: SH_TRACE_LIMIT_S=<segundos> desliga o trace sozinho ao expirar
+(para rodadas curtas tipo "5 minutos e parar" sem encher o disco).
+
 Grava em <raiz>/logs/stale_trace.log (pipe-delimited, append, thread-safe).
 NÃO altera lógica de negócio — apenas observa e registra. Remova após o
 diagnóstico.
@@ -28,6 +34,11 @@ from datetime import datetime
 _LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "logs")
 _LOG_PATH = os.path.join(_LOG_DIR, "stale_trace.log")
 
+_START = time.monotonic()
+_LIMIT_S = float(os.environ.get("SH_TRACE_LIMIT_S", "0") or 0)  # 0 = sem limite
+_WILDCARD = False
+_FIM = False
+
 _lock = threading.Lock()
 _buf: list[str] = []
 _last_flush = time.monotonic()
@@ -36,11 +47,17 @@ _FLUSH_SECS = 1.0
 
 
 def _parse_env() -> set[tuple[str, str]]:
+    global _WILDCARD
     raw = os.environ.get("SH_TRACE_CHAVE", "")
     chaves: set[tuple[str, str]] = set()
     for item in raw.split(";"):
         item = item.strip()
-        if not item or "|" not in item:
+        if not item:
+            continue
+        if item == "*" or item == "*|*":
+            _WILDCARD = True
+            continue
+        if "|" not in item:
             continue
         cod, campo = item.split("|", 1)
         chaves.add((cod.strip().upper(), campo.strip().upper()))
@@ -48,11 +65,24 @@ def _parse_env() -> set[tuple[str, str]]:
 
 
 _TRAced: set[tuple[str, str]] = _parse_env()
-_ENABLED = bool(_TRAced)
+_ENABLED = bool(_TRAced) or _WILDCARD
 
 
 def enabled() -> bool:
-    return _ENABLED
+    return _ENABLED and not _expirado()
+
+
+def _expirado() -> bool:
+    global _FIM
+    if _LIMIT_S <= 0:
+        return False
+    if _FIM:
+        return True
+    if (time.monotonic() - _START) >= _LIMIT_S:
+        _FIM = True
+        _evt("trace_fim", f"limite_{_LIMIT_S:.0f}s", flush=True)
+        return True
+    return False
 
 
 def traced_keys() -> set[tuple[str, str]]:
@@ -60,8 +90,10 @@ def traced_keys() -> set[tuple[str, str]]:
 
 
 def matches(cod: str, campo: str) -> bool:
-    if not _ENABLED:
+    if not _ENABLED or _expirado():
         return False
+    if _WILDCARD:
+        return True
     return (cod.upper(), campo.upper()) in _TRAced
 
 
@@ -139,14 +171,17 @@ def log_consumo(uc: str, codigos: set[str], source):
 
     Registra para cada chave traçada (e só para ela) o valor + idade + flag stale
     no momento em que o use case lê a cotação da fonte. Não altera comportamento.
+    Com SH_TRACE_CHAVE=* registra todos os códigos do use case, em todos os campos.
     """
-    if not _ENABLED or not codigos:
+    if not _ENABLED or not codigos or _expirado():
         return
     from src.domain.services.market_data_source import OPENFAST_FIELD_STR, FieldName
     campo_por_nome = {nome: campo for campo, nome in OPENFAST_FIELD_STR.items()}
-    for codigo, nome in _TRAced:
-        if codigo not in codigos:
-            continue
+    if _WILDCARD:
+        alvos = [(c.upper(), nome) for c in codigos for nome in campo_por_nome]
+    else:
+        alvos = [(codigo, nome) for codigo, nome in _TRAced if codigo in codigos]
+    for codigo, nome in alvos:
         campo = campo_por_nome.get(nome)
         if campo is None:
             continue
