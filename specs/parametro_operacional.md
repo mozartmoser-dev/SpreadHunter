@@ -69,8 +69,8 @@ e pelo `ParametroRepository` quando uma chave não existe no banco.
 
 - [2026-05-11 via git log] módulo criado. Última modificação: 2026-08-07 (atualização
   frequente — parâmetros adicionados conforme novas estratégias).
-- **POSSÍVEL BUG — NÃO CORRIGIDO, aguardando revisão:** o campo `valor` é anotado
-  como `float`, mas diversas chaves armazenam strings:
+- **INVESTIGADO/ARQUIVADO (2026-08-10):** o campo `valor` é anotado como `float`
+  (`parametro_operacional.py:7`), mas diversas chaves armazenam strings:
   - `"fonte_market_data"`: `"profit"` (string)
   - `"som_arquivo"`, `"som_arquivo_vendidas"`, `"som_arquivo_coberta"`: `""` (string vazia)
   - `"telegram_bot_token"`, `"telegram_chat_id"`: `"0"` (string)
@@ -79,10 +79,23 @@ e pelo `ParametroRepository` quando uma chave não existe no banco.
   - `"white_list_box4p"`, `"white_list_colar_calendario"`, `"white_list_colar"`,
     `"white_list_put_ratio"`, `"black_list_box4p"`, `"black_list_import"`: `""` (string vazia)
   
-  Isso faz com que `ParametroRepository.get_by_chave()` retorne `float` para
-  a maioria das chaves, mas `str` para estas. O código consumidor precisa
-  fazer coerção ou `isinstance` check. A anotação `valor: float` é inconsistente
-  com a realidade dos dados.
+  A anotação `valor: float` é inconsistente com a realidade dos dados, mas o
+  comportamento é CONHECIDO e intencional: `ParametroRepository.get_by_chave()`
+  retorna `float` para a maioria das chaves e `str` para estas, e o código
+  consumidor já faz coerção/`isinstance` check. **Decisão: manter como está** —
+  ampliar a anotação para `float | str` ficaria como melhoria de higiene de tipo
+  (prioridade baixa), sem mudança de comportamento.
+- **ACHADO COLABORAL — POSSÍVEL BUG, PRIORIDADE A DEFINIR (2026-08-10):** divergência
+  entre `CalculadoraColar.calcular_iv` (`calculadora_colar.py:108`) e
+  `CalculadoraColarCalendario.implied_volatility` (`calculadora_colar_calendario.py:164`)
+  para prêmios perto do valor intrínseco: a primeira tem shortcut
+  `if abs(preco - intrinsic) < 1e-10: return 0.0` e retorna IV=0 para opções
+  deep-ITM/sem valor-tempo, enquanto a segunda usa `brentq` e retorna o IV real
+  (ex.: call ITM com preço≈intrínseco → `calcular_iv`=0.0 vs `implied_volatility`=0.5).
+  Não investigado nem corrigido (fora do escopo da unificação BS de 2026-08-10);
+  documentado para não cair no esquecimento. Próximo passo sugerido: decidir se o
+  shortcut é desejado (IV=0 sinaliza "sem valor tempo") ou se deve usar brentq
+  consistente com o Calendário.
 - **POSSÍVEL BUG — NÃO CORRIGIDO, aguardando revisão:** o default hardcoded de
   `fonte_market_data` é `"profit"` no `PARAMETROS_DEFAULT`, mas `"openfast"` no
   `parametros_default.json`. Isso está documentado no AGENTS.md como "o JSON
