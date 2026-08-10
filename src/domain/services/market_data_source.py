@@ -19,6 +19,8 @@ class FieldName(Enum):
     VOLUME = auto()
     VOLUME_FIN = auto()
     VARIATION = auto()
+    TIME = auto()
+    TIMENEG = auto()
 
 
 PROFIT_FIELD_STR: dict[FieldName, str] = {
@@ -47,6 +49,8 @@ OPENFAST_FIELD_STR: dict[FieldName, str] = {
     FieldName.CLOSE:        "CLOSE",
     FieldName.OPEN:         "OPEN",
     FieldName.VARIATION:    "VAR",
+    FieldName.TIME:         "TIME",
+    FieldName.TIMENEG:      "TIMENEG",
 }
 
 FASTTRADE_FIELD_STR: dict[FieldName, str] = {

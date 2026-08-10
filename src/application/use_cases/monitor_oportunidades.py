@@ -416,4 +416,6 @@ class MonitorOportunidadesUseCase:
             taxa_aluguel=taxa_map.get(inst.ativo).taxa_atual if taxa_map and taxa_map.get(inst.ativo) else 0.0,
             ts_ativo_ask=mercado.get("ts_ativo_ask"),
             ts_ativo_bid=mercado.get("ts_ativo_bid"),
+            ts_origem_ativo=mercado.get("ts_origem_ativo"),
+            idade_origem_ativo=mercado.get("idade_origem_ativo"),
         )

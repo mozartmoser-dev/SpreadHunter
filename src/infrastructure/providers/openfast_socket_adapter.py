@@ -464,6 +464,44 @@ class OpenFastSocketAdapter:
             return False
         return (time.time() - ts) > self._stale_campo_s
 
+    def get_ts_origem(self, codigo: str) -> float | None:
+        """Timestamp de origem (TIME/TIMENEG do protocolo) quando assinado.
+
+        Diagnóstico apenas: nunca atualiza _cache_ts (frescor de entrega).
+        Prefere TIMENEG (hora do último negócio); usa TIME como fallback.
+        Retorna o valor cru em segundos, se presente.
+        """
+        for campo in (FieldName.TIMENEG, FieldName.TIME):
+            campo_str = OPENFAST_FIELD_STR.get(campo)
+            if not campo_str:
+                continue
+            with self._mutex:
+                raw = self._cache.get((codigo.upper(), campo_str))
+            if raw is None:
+                continue
+            try:
+                v = float(str(raw).replace(",", "."))
+            except (ValueError, TypeError):
+                continue
+            if v != 0:
+                return v
+        return None
+
+    def get_idade_origem(self, codigo: str) -> float | None:
+        """Idade real da cotação (agora - TIMENEG/TIME) quando o protocolo fornecer.
+
+        None se o campo de origem não foi assinado/recebido, ou se o valor
+        não for interpretável como timestamp absoluto (mesma escala de time.time()).
+        Não substitui _cache_ts/is_stale_campo — é só diagnóstico.
+        """
+        origem = self.get_ts_origem(codigo)
+        if origem is None:
+            return None
+        agora = time.time()
+        if origem < 1_000_000_000 or origem > agora + 3600:
+            return None
+        return agora - origem
+
     def verificar_conexao(self) -> str:
         """Watchdog: thread leitora morta com _conectado ainda True -> DISCONNECTED.
 

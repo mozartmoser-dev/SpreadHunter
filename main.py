@@ -11,7 +11,8 @@ from src.ui.desktop.main_window import MainWindow
 
 logging.basicConfig(
     level=logging.DEBUG,
-    format="%(name)s | %(levelname)s | %(message)s",
+    format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+    datefmt="%d/%m/%Y %H:%M:%S",
     handlers=[
         RotatingFileHandler(
             Path("logs") / "spreadhunter.log",
@@ -26,7 +27,8 @@ logging.basicConfig(
 logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
 
 # Log de profiling para gargalos (sobrescrito a cada execução)
-_prof_fmt = logging.Formatter("%(name)s | %(levelname)s | %(message)s")
+_prof_fmt = logging.Formatter("%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+                              datefmt="%d/%m/%Y %H:%M:%S")
 _h1 = logging.FileHandler(Path("logs") / "profile_mercado.log", mode="w", encoding="utf-8")
 _h1.setLevel(logging.DEBUG)
 _h1.setFormatter(_prof_fmt)

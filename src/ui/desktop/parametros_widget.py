@@ -73,6 +73,8 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("fonte_market_data", "Fonte de Market Data"),
         ("fonte_tamanho", "Tamanho da Fonte (8-16)"),
         ("openfast_send_delay_ms", "Delay SQT (ms)"),
+        ("assinar_timestamp_openfast", "Assinar Time/Timeneg OpenFast"),
+        ("stale_sinal_s", "Tolerancia Stale Entre Pernas (s)"),
         ("rtd_refresh_timeout_ms", "Timeout RTD RefreshData (ms, 0=sem timeout)"),
         ("rtd_throttle_ms", "Throttle RTD (ms) — fonte fasttrade"),
         ("taxa_aluguel_habilitado", "Habilitar Coleta Taxa Aluguel"),
@@ -305,6 +307,16 @@ PARAMETROS_INFO = {
         "descricao": "Delay em milissegundos entre comandos SQT enviados ao servidor Open Fast. 2ms evita sobrecarga no FastTrade. 0 = delay minimo (1ms, max performance).",
         "usado_em": "OpenFastSocketAdapter — controle de taxa de envio de assinaturas.",
         "precedencia": "Banco de Dados -> 2 (padrao)",
+    },
+    "assinar_timestamp_openfast": {
+        "descricao": "Quando ativo, o OpenFast assina tambem os campos TIME/TIMENEG do ativo para medir a idade REAL da cotacao (horario de origem no protocolo), separada da idade de entrega ao Python. Diagnostico: nunca altera o clock de frescor do gate STALE.",
+        "usado_em": "OpenFastSocketAdapter + MercadoDataProvider._anotar_frescor (ts_origem_ativo / idade_origem_ativo).",
+        "precedencia": "Banco de Dados -> 0 (off, padrao)",
+    },
+    "stale_sinal_s": {
+        "descricao": "Tolerancia em segundos para a idade das pernas de uma oportunidade. Uma perna com idade maior que este valor impede o calculo daquela oportunidade no ciclo (refinamento futuro; hoje o gate usa stale_campo_s).",
+        "usado_em": "MercadoDataProvider — gate de frescor entre pernas.",
+        "precedencia": "Banco de Dados -> 30 (padrao)",
     },
     "taxa_aluguel_habilitado": {
         "descricao": "Habilita a coleta diária automática/manual das taxas de aluguel (BTC) de ações diretamente do site InvestSite.",

@@ -59,6 +59,8 @@ class OportunidadeMonitor:
     detectado_em: datetime | None = None
     ts_ativo_ask: float | None = None
     ts_ativo_bid: float | None = None
+    ts_origem_ativo: float | None = None
+    idade_origem_ativo: float | None = None
 
     @property
     def idade_ativo_ask(self) -> float | None:
@@ -66,6 +68,14 @@ class OportunidadeMonitor:
         if self.ts_ativo_ask is None:
             return None
         return time.time() - self.ts_ativo_ask
+
+    @property
+    def label_origem(self) -> str:
+        if self.idade_origem_ativo is None:
+            return ""
+        if self.idade_origem_ativo > 10:
+            return f"origem {int(self.idade_origem_ativo)}s atrás"
+        return f"origem {self.idade_origem_ativo:.1f}s"
 
     @property
     def label_detectado(self) -> str:
@@ -76,9 +86,15 @@ class OportunidadeMonitor:
             from zoneinfo import ZoneInfo
             dt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Sao_Paulo"))
         base = dt.strftime("%d/%m/%Y %H:%M:%S")
+        partes: list[str] = []
         idade = self.idade_ativo_ask
         if idade is not None and idade > 10:
-            return f"{base} (preço {int(idade)}s atrás)"
+            partes.append(f"preço {int(idade)}s atrás")
+        origem = self.label_origem
+        if origem:
+            partes.append(origem)
+        if partes:
+            return f"{base} ({', '.join(partes)})"
         return base
 
     @property

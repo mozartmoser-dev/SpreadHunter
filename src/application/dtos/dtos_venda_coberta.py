@@ -34,6 +34,8 @@ class OportunidadeVendaCoberta:
     detectado_em: datetime | None = None
     ts_ativo_ask: float | None = None
     ts_ativo_bid: float | None = None
+    ts_origem_ativo: float | None = None
+    idade_origem_ativo: float | None = None
 
     @property
     def idade_ativo_ask(self) -> float | None:
@@ -43,6 +45,14 @@ class OportunidadeVendaCoberta:
         return time.time() - self.ts_ativo_ask
 
     @property
+    def label_origem(self) -> str:
+        if self.idade_origem_ativo is None:
+            return ""
+        if self.idade_origem_ativo > 10:
+            return f"origem {int(self.idade_origem_ativo)}s atrás"
+        return f"origem {self.idade_origem_ativo:.1f}s"
+
+    @property
     def label_detectado(self) -> str:
         if self.detectado_em is None:
             return ""
@@ -50,7 +60,9 @@ class OportunidadeVendaCoberta:
         if dt.tzinfo is None:
             from zoneinfo import ZoneInfo
             dt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Sao_Paulo"))
-        return dt.strftime("%d/%m/%Y %H:%M:%S")
+        base = dt.strftime("%d/%m/%Y %H:%M:%S")
+        origem = self.label_origem
+        return f"{base} ({origem})" if origem else base
 
     @property
     def label_tipo(self) -> str:

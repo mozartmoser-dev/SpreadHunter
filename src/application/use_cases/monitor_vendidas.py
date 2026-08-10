@@ -162,6 +162,8 @@ class MonitorVendidasUseCase:
                     pct_cdi_liquido=round(pct_cdi_liq, 4),
                     ts_ativo_ask=mercado.get("ts_ativo_ask"),
                     ts_ativo_bid=mercado.get("ts_ativo_bid"),
+                    ts_origem_ativo=mercado.get("ts_origem_ativo"),
+                    idade_origem_ativo=mercado.get("idade_origem_ativo"),
                 ))
 
             if cond_sbth:
@@ -215,6 +217,8 @@ class MonitorVendidasUseCase:
                     pct_cdi_liquido=round(pct_cdi_liq, 4),
                     ts_ativo_ask=mercado.get("ts_ativo_ask"),
                     ts_ativo_bid=mercado.get("ts_ativo_bid"),
+                    ts_origem_ativo=mercado.get("ts_origem_ativo"),
+                    idade_origem_ativo=mercado.get("idade_origem_ativo"),
                 ))
 
         n_box = sum(1 for r in resultados if r.classificacao == "BOX_VENDIDO")

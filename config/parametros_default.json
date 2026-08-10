@@ -752,6 +752,18 @@
       "descricao": "Delay entre comandos SQT (ms). 5 = 5ms. 0 = sem delay"
     },
     {
+      "chave": "assinar_timestamp_openfast",
+      "valor": "0.0",
+      "estrategia": "GERAL",
+      "descricao": "Assinar TIME/TIMENEG do OpenFast para medir idade real da cotacao (0=off, 1=on)"
+    },
+    {
+      "chave": "stale_sinal_s",
+      "valor": "30.0",
+      "estrategia": "GERAL",
+      "descricao": "Tolerancia entre pernas (s) - limite de idade das pernas para bloquear calculo"
+    },
+    {
       "chave": "taxa_aluguel_habilitado",
       "valor": "1.0",
       "estrategia": "GERAL",
