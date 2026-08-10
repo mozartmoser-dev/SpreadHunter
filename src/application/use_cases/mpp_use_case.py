@@ -350,8 +350,8 @@ class MPPUseCase:
             if inst["ativo"].upper() not in ativos:
                 continue
 
-            c_call = rtd.ler_campos(inst["cod_call"], FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK, FieldName.STRIKE)
-            c_put = rtd.ler_campos(inst["cod_put"], FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK, FieldName.STRIKE)
+            c_call = rtd.ler_campos(inst["cod_call"], FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
+            c_put = rtd.ler_campos(inst["cod_put"], FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
             stale_trace.log_consumo("MPP", {inst["cod_put"].upper(), inst["cod_call"].upper()}, rtd)
 
             bid_call = c_call.get(FieldName.BID) or 0.0
@@ -366,7 +366,11 @@ class MPPUseCase:
             if bid_call <= 0 or ask_call <= 0 or bid_put <= 0 or ask_put <= 0:
                 continue
 
-            strike = c_put.get(FieldName.STRIKE) or 0.0
+            # Fontes push (OpenFAST): strike canônico é do banco (opcoes.net.br).
+            # "PEX" do servidor pode não ser o strike real para opções.
+            strike = inst["strike"] if getattr(rtd, 'suporta_push', False) else None
+            if not strike or strike <= 0:
+                strike = c_put.get(FieldName.STRIKE) or 0.0
             if not strike or strike <= 0:
                 strike = c_call.get(FieldName.STRIKE) or 0.0
             if not strike or strike <= 0:
@@ -459,6 +463,7 @@ class MPPUseCase:
                     "ativo": r["ativo"],
                     "vencimento": venc,
                     "tipo_opcao": r["tipo_opcao"],
+                    "strike": r["strike"],
                 }
             return mapa
         finally:

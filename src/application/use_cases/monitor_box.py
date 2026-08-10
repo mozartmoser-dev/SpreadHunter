@@ -61,13 +61,17 @@ class MonitorBoxUseCase:
         return None
 
     def _extrair(self, inst: InstrumentoOpcional, rtd) -> dict | None:
-        c_put = rtd.ler_campos(inst.cod_put, FieldName.STRIKE, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
-        c_call = rtd.ler_campos(inst.cod_call, FieldName.STRIKE, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
+        c_put = rtd.ler_campos(inst.cod_put, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
+        c_call = rtd.ler_campos(inst.cod_call, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
         stale_trace.log_consumo("BOX4P", {inst.cod_put.upper(), inst.cod_call.upper()}, rtd)
 
-        strike = c_put.get(FieldName.STRIKE)
+        # Fontes push (OpenFAST): strike canônico é do banco (opcoes.net.br).
+        # "PEX" do servidor pode não ser o strike real para opções.
+        strike = inst.strike if getattr(rtd, 'suporta_push', False) else None
         if not strike or strike <= 0:
-            strike = c_call.get(FieldName.STRIKE)
+            strike = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
+        if not strike or strike <= 0:
+            strike = rtd.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
         if not strike or strike <= 0:
             return None
 

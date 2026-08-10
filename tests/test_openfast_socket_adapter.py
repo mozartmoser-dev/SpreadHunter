@@ -371,3 +371,67 @@ class TestOpenFastSocketAdapterReconexaoGeneracao:
         assert adapter.reconectar() is True
         assert adapter.ler_campo_cache("PETR4", FieldName.ASK, allow_stale=True) is None
         adapter.desconectar()
+
+
+class TestOpenFastSocketAdapterOrigem:
+    def test_get_ts_origem_none_sem_dado(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        assert adapter.get_ts_origem("PETR4") is None
+        assert adapter.get_idade_origem("PETR4") is None
+        adapter.desconectar()
+
+    def test_get_ts_origem_prefere_timeneg(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIME", "1700000000.000")
+        server.push("PETR4", "TIMENEG", "1700000100.500")
+        time.sleep(0.1)
+        assert adapter.get_ts_origem("PETR4") == 1700000100.5
+        adapter.desconectar()
+
+    def test_get_ts_origem_fallback_time(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIME", "1700000200.000")
+        time.sleep(0.1)
+        assert adapter.get_ts_origem("PETR4") == 1700000200.0
+        adapter.desconectar()
+
+    def test_get_ts_origem_ignora_zero(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIMENEG", "0")
+        server.push("PETR4", "TIME", "1700000300.000")
+        time.sleep(0.1)
+        assert adapter.get_ts_origem("PETR4") == 1700000300.0
+        adapter.desconectar()
+
+    def test_get_ts_origem_aceita_virgula(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIMENEG", "1700000400,500")
+        time.sleep(0.1)
+        assert adapter.get_ts_origem("PETR4") == 1700000400.5
+        adapter.desconectar()
+
+    def test_get_idade_origem_valida_escala_absoluta(self, server):
+        """Valor fora de escala de time.time() -> None (não é timestamp absoluto)."""
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIMENEG", "150")  # hora HHMMSS, não é epoch
+        time.sleep(0.1)
+        assert adapter.get_ts_origem("PETR4") == 150.0
+        assert adapter.get_idade_origem("PETR4") is None
+        adapter.desconectar()
+
+    def test_get_idade_origem_epoch_valida(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        agora = time.time()
+        server.push("PETR4", "TIMENEG", f"{agora - 3.0:.3f}")
+        time.sleep(0.1)
+        idade = adapter.get_idade_origem("PETR4")
+        assert idade is not None
+        assert 2.0 <= idade <= 5.0
+        adapter.desconectar()
+
+    def test_get_idade_origem_futuro_invalido(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIMENEG", f"{time.time() + 7200.0:.3f}")
+        time.sleep(0.1)
+        assert adapter.get_idade_origem("PETR4") is None
+        adapter.desconectar()

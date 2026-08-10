@@ -60,6 +60,8 @@ class MercadoDataProvider:
         self._INST_MAP_CACHE_TTL: float = 30.0
         self._cont_stale_skip = 0
         self._cont_stale_skip_ciclo = 0
+        self._assinar_timestamp_openfast = False
+        self._stale_sinal_s = 30.0
         self.recarregar_parametros()
 
     def _resolver_caminho_prioridade(self) -> str:
@@ -69,7 +71,16 @@ class MercadoDataProvider:
         return os.path.abspath("rtd_prioridade.json")
 
     def _campo_stale(self, codigo: str, campo: FieldName) -> bool:
-        """True se a fonte expõe frescor e o campo está fora da janela."""
+        """True se a fonte expõe frescor e o campo está fora da janela.
+
+        Para feed push change-driven (OpenFast), o valor presente no cache é a
+        cotação atual (sem push = não mudou — manual SQT §6). O gate de idade
+        é irrelevante aqui: a saúde é garantida por ``disponivel`` (SYN <= 20s)
+        e pela limpeza do cache na desconexão/reconexão/watchdog. Nunca marca
+        stale por idade; ausência é tratada como None nos fluxos downstream.
+        """
+        if getattr(self.source, 'suporta_push', False):
+            return False
         is_stale = getattr(self.source, 'is_stale_campo', None)
         if is_stale is None:
             return False
@@ -77,6 +88,28 @@ class MercadoDataProvider:
             return bool(is_stale(codigo, campo))
         except Exception:
             return False
+
+    def _ler_campo_cache(self, codigo: str, campo: FieldName) -> float | None:
+        """Leitura de campo com a semântica de frescor da fonte.
+
+        Feed push change-driven e disponível: valor presente = cotação atual
+        (sem push = não mudou), portanto ``allow_stale=True``. Polling mantém
+        o contrato original (idade vale, pois não há push).
+        """
+        try:
+            if getattr(self.source, 'suporta_push', False) and getattr(self.source, 'disponivel', True):
+                return self.source.ler_campo_cache(codigo, campo, allow_stale=True)
+        except Exception:
+            pass
+        return self.source.ler_campo_cache(codigo, campo)
+
+    def _ler_campos(self, codigo: str, *campos: FieldName) -> dict[FieldName, float | None]:
+        try:
+            if getattr(self.source, 'suporta_push', False) and getattr(self.source, 'disponivel', True):
+                return self.source.ler_campos(codigo, *campos, allow_stale=True)
+        except Exception:
+            pass
+        return self.source.ler_campos(codigo, *campos)
 
     def _preco_ativo_cache_fresco(self, ativo: str) -> float | None:
         """Fallback de preço do ativo apenas se dentro da janela de frescor.
@@ -110,7 +143,24 @@ class MercadoDataProvider:
         entry.setdefault("ts_ativo_bid", self._ts_fonte(inst.ativo, FieldName.BID))
         entry.setdefault("feed_state", self._feed_fonte())
         entry.setdefault("subscription_generation", self._geracao_fonte())
+        entry.setdefault("ts_origem_ativo", self._origem_fonte(inst.ativo))
+        if entry.get("ts_origem_ativo") is not None and "idade_origem_ativo" not in entry:
+            origem = entry["ts_origem_ativo"]
+            if origem >= 1_000_000_000 and origem <= time.time() + 3600:
+                entry["idade_origem_ativo"] = time.time() - origem
         self._trace_t5(inst)
+
+    def _origem_fonte(self, codigo: str) -> float | None:
+        try:
+            return self.source.get_ts_origem(codigo)
+        except Exception:
+            return None
+
+    def _idade_origem_fonte(self, codigo: str) -> float | None:
+        try:
+            return self.source.get_idade_origem(codigo)
+        except Exception:
+            return None
 
     def _trace_t5(self, inst) -> None:
         if not stale_trace.enabled() or not getattr(self.source, "suporta_push", False):
@@ -223,6 +273,12 @@ class MercadoDataProvider:
         p_fs = repo.get_by_chave("perf_filtro_semanal")
         self._filtro_semanal = bool(p_fs.valor) if p_fs else False
         
+        p_tso = repo.get_by_chave("assinar_timestamp_openfast")
+        self._assinar_timestamp_openfast = bool(p_tso.valor) if p_tso else False
+        
+        p_si = repo.get_by_chave("stale_sinal_s")
+        self._stale_sinal_s = float(p_si.valor) if p_si else 30.0
+        
         # Se houve mudança em parâmetros que afetam a carga, agendamos uma revisão de carga
         if self._registrado:
             # Reseta flags para re-escancar o banco, mas MANTÉM tudo o que já estava registrado
@@ -250,6 +306,19 @@ class MercadoDataProvider:
         self._inst_map_cache = None
         self._inst_map_cache_time = 0.0
 
+    def _campos_timestamp_openfast(self, codigo: str) -> list[tuple[str, FieldName]]:
+        """Campos de origem (TIME/TIMENEG) do OpenFast quando habilitado.
+
+        Diagnóstico apenas: mede a idade real da cotação no protocolo, sem
+        reescrever _cache_ts (frescor de entrega) da fonte.
+        """
+        if not self._assinar_timestamp_openfast or not self._fonte_controla_frescor():
+            return []
+        return [
+            (codigo.upper(), FieldName.TIMENEG),
+            (codigo.upper(), FieldName.TIME),
+        ]
+
     def _registrar_ativos_prioritarios(self, instrumentos: list[InstrumentoOpcional]):
         """Registra apenas os ativos (underlyings) para obter preços de referência rápido."""
         rtd = self.source
@@ -263,6 +332,7 @@ class MercadoDataProvider:
                     (inst.ativo, FieldName.BID),
                     (inst.ativo, FieldName.STATUS),
                 ]
+                registros += self._campos_timestamp_openfast(inst.ativo)
                 self._ativos_registrados.add(inst.ativo)
         if registros:
             self._flush_buffer(registros)
@@ -276,12 +346,20 @@ class MercadoDataProvider:
             return
         
         rtd = self.source
+        # Feed push (OpenFast): strike canônico vem do banco (OptionsChain via
+        # inst.strike) — assinar PEX/STRIKE é tráfego morto (~metade do socket).
+        if getattr(rtd, 'suporta_push', False):
+            campos_put = [c for c in self._CAMPOS_PUT
+                          if c != FieldName.BOOK_HEADER and c != FieldName.STRIKE]
+            campos_call = [c for c in self._CAMPOS_CALL
+                           if c != FieldName.BOOK_HEADER and c != FieldName.STRIKE]
+        else:
+            campos_put = [c for c in self._CAMPOS_PUT if c != FieldName.BOOK_HEADER]
+            campos_call = [c for c in self._CAMPOS_CALL if c != FieldName.BOOK_HEADER]
         registros = [
-            (inst.cod_put, campo) for campo in self._CAMPOS_PUT
-            if campo != FieldName.BOOK_HEADER
+            (inst.cod_put, campo) for campo in campos_put
         ] + [
-            (inst.cod_call, campo) for campo in self._CAMPOS_CALL
-            if campo != FieldName.BOOK_HEADER
+            (inst.cod_call, campo) for campo in campos_call
         ] + [
             (inst.cod_put, FieldName.STATUS),
             (inst.cod_call, FieldName.STATUS),
@@ -339,10 +417,16 @@ class MercadoDataProvider:
             self._chaves_registradas.add(key)
             return False
 
-        registros = [
-            (inst.cod_put, FieldName.STRIKE),
-            (inst.cod_call, FieldName.STRIKE),
-        ]
+        # Assinatura de STRIKE (PEX) apenas para fontes COM (RTD). Em feed
+        # push (OpenFAST) o strike canônico vem do banco (inst.strike via
+        # OptionsChain API) — assinar PEX é tráfego morto no socket.
+        if getattr(rtd, 'suporta_push', False):
+            registros: list[tuple[str, FieldName]] = []
+        else:
+            registros = [
+                (inst.cod_put, FieldName.STRIKE),
+                (inst.cod_call, FieldName.STRIKE),
+            ]
 
         # Correção de strike apenas para fontes COM (RTD), onde o dado RTD
         # pode ter ajustes pós-mercado (ex-dividendo). Para push-based
@@ -393,6 +477,7 @@ class MercadoDataProvider:
                 (inst.ativo, FieldName.BID),
                 (inst.ativo, FieldName.STATUS),
             ]
+            registros += self._campos_timestamp_openfast(inst.ativo)
             self._ativos_registrados.add(inst.ativo)
 
         if registros_acum is not None:
@@ -633,9 +718,9 @@ class MercadoDataProvider:
                                 and entry["status_ativo"].lower() == "aberto"
                             )
                             # Batch reads: 1 lock por símbolo em vez de 1 por campo
-                            c_ativo = self.source.ler_campos(inst.ativo, FieldName.ASK, FieldName.BID)
-                            c_put = self.source.ler_campos(inst.cod_put, FieldName.ASK, FieldName.BID, FieldName.VOL_ASK, FieldName.QTD_LAST)
-                            c_call = self.source.ler_campos(inst.cod_call, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.QTD_LAST)
+                            c_ativo = self._ler_campos(inst.ativo, FieldName.ASK, FieldName.BID)
+                            c_put = self._ler_campos(inst.cod_put, FieldName.ASK, FieldName.BID, FieldName.VOL_ASK, FieldName.QTD_LAST)
+                            c_call = self._ler_campos(inst.cod_call, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.QTD_LAST)
                             p_ativo = c_ativo.get(FieldName.ASK)
                             if p_ativo is not None and p_ativo > 0:
                                 entry["preco_ativo"] = p_ativo
@@ -691,7 +776,7 @@ class MercadoDataProvider:
                         if cab_skip_habilitado:
                             self._cab_anterior[key] = (cab_put, cab_call)
 
-                        preco_ativo_rtd = self.source.ler_campo_cache(inst.ativo, FieldName.ASK)
+                        preco_ativo_rtd = self._ler_campo_cache(inst.ativo, FieldName.ASK)
                         if preco_ativo_rtd is not None and preco_ativo_rtd > 0:
                             preco_ativo = preco_ativo_rtd
                             self._armazenar_preco_ativo(inst.ativo, preco_ativo)
@@ -736,9 +821,14 @@ class MercadoDataProvider:
                             strike_put = self.source.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
                     if not strike_put or strike_put <= 0:
                         continue
-                    ocp = self.source.ler_campo_cache(inst.cod_call, FieldName.BID)
-                    ovd = self.source.ler_campo_cache(inst.cod_put, FieldName.ASK)
-                    preco_ativo_rtd = self.source.ler_campo_cache(inst.ativo, FieldName.ASK)
+                    # Batch reads: 1 lock por símbolo (put, call, ativo) em vez
+                    # de 1 lock por campo — reduz contenção com a thread leitora.
+                    c_put_onda1 = self._ler_campos(inst.cod_put, FieldName.ASK, FieldName.BID)
+                    c_call_onda1 = self._ler_campos(inst.cod_call, FieldName.ASK, FieldName.BID)
+                    c_ativo_onda1 = self._ler_campos(inst.ativo, FieldName.ASK, FieldName.BID)
+                    ocp = c_call_onda1.get(FieldName.BID)
+                    ovd = c_put_onda1.get(FieldName.ASK)
+                    preco_ativo_rtd = c_ativo_onda1.get(FieldName.ASK)
                     if preco_ativo_rtd is not None and preco_ativo_rtd > 0:
                         preco_ativo = preco_ativo_rtd
                         self._armazenar_preco_ativo(inst.ativo, preco_ativo)
@@ -746,7 +836,7 @@ class MercadoDataProvider:
                         preco_ativo = self._preco_ativo_cache_fresco(inst.ativo)
                     if not preco_ativo or preco_ativo <= 0:
                         continue
-                    bid_ativo = self.source.ler_campo_cache(inst.ativo, FieldName.BID) or 0.0
+                    bid_ativo = c_ativo_onda1.get(FieldName.BID) or 0.0
                     if bid_ativo > preco_ativo or bid_ativo <= 0:
                         bid_ativo = 0.0
                     ts_ask = self.source.get_ts_campo(inst.ativo, FieldName.ASK)
@@ -760,8 +850,8 @@ class MercadoDataProvider:
                         "of_venda_put": ovd or 0.0,
                         "premio_call": ocp or 0.0,
                         "premio_put": ovd or 0.0,
-                        "of_compra_put": self.source.ler_campo_cache(inst.cod_put, FieldName.BID) or 0.0,
-                        "of_venda_call": self.source.ler_campo_cache(inst.cod_call, FieldName.ASK) or 0.0,
+                        "of_compra_put": c_put_onda1.get(FieldName.BID) or 0.0,
+                        "of_venda_call": c_call_onda1.get(FieldName.ASK) or 0.0,
                         "qul_put": 0,
                         "qul_call": 0,
                         "vov_put": 0,
@@ -819,23 +909,6 @@ class MercadoDataProvider:
                         self._scan_count,
                     )
                     self._cont_stale_skip_ciclo = 0
-
-                if suporta_push and self._ativos_registrados:
-                    agora = time.time()
-                    re_registrados = 0
-                    max_re_reg = 50
-                    for ativo_nome in list(self._ativos_registrados)[:max_re_reg * 2]:
-                        ts = self.source.get_ts_campo(ativo_nome, FieldName.ASK)
-                        if ts is not None and (agora - ts) > 5:
-                            stale_trace.log_evento("re_registrar", f"{ativo_nome.upper()}|ASK;BID")
-                            self.source.registrar_topico(ativo_nome, FieldName.ASK)
-                            self.source.registrar_topico(ativo_nome, FieldName.BID)
-                            re_registrados += 1
-                            if re_registrados >= max_re_reg:
-                                break
-                    if re_registrados > 0:
-                        logger.debug("Re-registro OpenFast: %d ativos stale (idade >5s) em %.2fs",
-                                     re_registrados, time.time() - agora)
 
                 return dados_mercado
             except Exception as e:
@@ -949,13 +1022,13 @@ class MercadoDataProvider:
         rtd = self.source
 
         # Batch reads: 1 lock por símbolo em vez de 1 por campo
-        c_put = rtd.ler_campos(inst.cod_put,
+        c_put = self._ler_campos(inst.cod_put,
             FieldName.ASK, FieldName.BID, FieldName.STRIKE,
             FieldName.BOOK_HEADER, FieldName.QTD_LAST, FieldName.VOL_ASK)
-        c_call = rtd.ler_campos(inst.cod_call,
+        c_call = self._ler_campos(inst.cod_call,
             FieldName.ASK, FieldName.BID, FieldName.STRIKE,
             FieldName.BOOK_HEADER, FieldName.QTD_LAST, FieldName.VOL_BID)
-        c_ativo = rtd.ler_campos(inst.ativo, FieldName.ASK, FieldName.BID)
+        c_ativo = self._ler_campos(inst.ativo, FieldName.ASK, FieldName.BID)
 
         of_venda_put = c_put.get(FieldName.ASK)
         of_compra_put = c_put.get(FieldName.BID)
@@ -965,7 +1038,9 @@ class MercadoDataProvider:
         if not of_venda_put and not of_compra_put and not of_venda_call and not of_compra_call:
             return None
 
-        strike_rtd = c_put.get(FieldName.STRIKE)
+        strike_rtd = inst.strike if getattr(rtd, 'suporta_push', False) else None
+        if not strike_rtd or strike_rtd <= 0:
+            strike_rtd = c_put.get(FieldName.STRIKE)
         if not strike_rtd or strike_rtd <= 0:
             strike_rtd = c_call.get(FieldName.STRIKE)
 

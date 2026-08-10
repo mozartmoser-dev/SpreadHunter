@@ -117,7 +117,11 @@ class MonitorPutRatioUseCase:
         return RATIOS_DEFAULT
 
     def _extrair(self, inst: InstrumentoOpcional, rtd, r_cont: float = 0.0) -> dict | None:
-        strike = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
+        # Fontes push (OpenFAST): strike canônico é do banco (opcoes.net.br).
+        # "PEX" do servidor pode não ser o strike real para opções.
+        strike = inst.strike if getattr(rtd, 'suporta_push', False) else None
+        if not strike or strike <= 0:
+            strike = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
         if not strike or strike <= 0:
             return None
 

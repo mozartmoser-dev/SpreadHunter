@@ -3,6 +3,7 @@ import pytest
 from datetime import date, timedelta
 
 from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOpcao
+from src.domain.entities.parametro_operacional import ParametroOperacional
 from src.domain.services.market_data_source import FieldName
 from src.infrastructure.persistence.database import init_db
 from src.infrastructure.persistence.repositories.repositories import (
@@ -148,9 +149,11 @@ class TestMercadoProviderOpenFast:
         finally:
             adapter.desconectar()
 
-    def test_perna_stale_nao_alimenta_e_retoma_com_push_novo(self, populated_db, server):
-        """E2E: book fresco gera; após a janela de frescor (sem push novo) a perna
-        fica STALE e NÃO alimenta; novo push verdadeiro retoma a geração."""
+    def test_feed_push_sem_push_continua_alimentando_e_novo_push_atualiza(self, populated_db, server):
+        """E2E: book fresco gera; para feed push change-driven, a ausência de push
+        NÃO é stale (sem push = cotação não mudou = atual). O valor presente
+        continua alimentando as calculadoras mesmo após a janela de idade; um
+        novo push verdadeiro atualiza os valores."""
         adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001,
                                         stale_campo_s=1.0)
         try:
@@ -184,19 +187,17 @@ class TestMercadoProviderOpenFast:
             assert len(fresh_keys) > 0, "book fresco deveria gerar entry"
             skip_antes = provider._cont_stale_skip
 
-            # 2) Envelhece a janela de frescor (sem push novo) -> STALE skip
+            # 2) O valor envelhece além da janela SEM push novo -> segue gerando
+            #    (não houve mudança => cotação atual; allow_stale para push)
             time.sleep(1.3)
             d2 = provider.capturar_dados_mercado()
-            stale_keys = [k for k in d2 if k.startswith("PETR4|")]
-            assert provider._cont_stale_skip > skip_antes
-            assert len(stale_keys) == 0, "perna stale não pode alimentar d2"
+            still_keys = [k for k in d2 if k.startswith("PETR4|")]
+            assert len(still_keys) > 0, "ausência de push não pode bloquear a geração"
+            assert provider._cont_stale_skip == skip_antes, "não deve haver skip por idade no feed push"
 
-            # 3) Novo push verdadeiro -> freshness volta a gerar
-            server.push("PETR4", "PEX", "28.50")
+            # 3) Novo push verdadeiro -> valores atualizados continuam a gerar
             server.push("PETR4", "BID", "28.44")
             server.push("PETR4", "ASK", "28.56")
-            server.push("PETRG180", "PEX", "18.0")
-            server.push("PETRH180", "PEX", "18.0")
             server.push("PETRG180", "ASK", "0.86")
             server.push("PETRG180", "BID", "0.81")
             server.push("PETRH180", "ASK", "0.77")
@@ -204,6 +205,74 @@ class TestMercadoProviderOpenFast:
             time.sleep(0.15)
             d3 = provider.capturar_dados_mercado()
             retomou_keys = [k for k in d3 if k.startswith("PETR4|")]
-            assert len(retomou_keys) > 0, "push novo deve retomar geração"
+            assert len(retomou_keys) > 0, "push novo deve continuar gerando"
+        finally:
+            adapter.desconectar()
+
+    def test_assinar_timestamp_openfast_desabilitado_por_default(self, populated_db, server):
+        """Parâmetro desligado (default) não assina TIME/TIMENEG do ativo."""
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        try:
+            provider = MercadoDataProvider(populated_db, adapter)
+            provider.capturar_dados_mercado()
+            subscricoes = {c for _, c in adapter._subscriptions}
+            assert "TIME" not in subscricoes
+            assert "TIMENEG" not in subscricoes
+        finally:
+            adapter.desconectar()
+
+    def test_assinar_timestamp_openfast_habilitado_assina_campos(self, populated_db, server):
+        """Com parâmetro ativo, o provider assina TIME/TIMENEG do ativo."""
+        ParametroRepository(populated_db).save(ParametroOperacional(
+            chave="assinar_timestamp_openfast", valor=1.0,
+            estrategia="GERAL", descricao="teste"))
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        try:
+            provider = MercadoDataProvider(populated_db, adapter)
+            provider.recarregar_parametros()
+            provider.capturar_dados_mercado()
+            subscricoes = {c for _, c in adapter._subscriptions}
+            assert "TIME" in subscricoes
+            assert "TIMENEG" in subscricoes
+        finally:
+            adapter.desconectar()
+
+    def test_anota_origem_no_entry(self, populated_db, server):
+        """Com timestamp assinado e push de TIME/TIMENEG, o entry carrega
+        ts_origem_ativo/idade_origem_ativo (diagnóstico, sem tocar _cache_ts)."""
+        ParametroRepository(populated_db).save(ParametroOperacional(
+            chave="assinar_timestamp_openfast", valor=1.0,
+            estrategia="GERAL", descricao="teste"))
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        try:
+            provider = MercadoDataProvider(populated_db, adapter)
+            provider.recarregar_parametros()
+
+            agora = time.time()
+            server.push("PETR4", "LAST", "28.50")
+            server.push("PETR4", "BID", "28.45")
+            server.push("PETR4", "ASK", "28.55")
+            server.push("PETR4", "ST", "A")
+            server.push("PETR4", "TIMENEG", f"{agora - 2.0:.3f}")
+            server.push("PETR4", "TIME", f"{agora - 1.0:.3f}")
+            server.push("PETRG180", "PEX", "18.0")
+            server.push("PETRH180", "PEX", "18.0")
+            server.push("PETRG180", "ASK", "0.85")
+            server.push("PETRG180", "BID", "0.80")
+            server.push("PETRG180", "ST", "A")
+            server.push("PETRH180", "ASK", "0.78")
+            server.push("PETRH180", "BID", "0.75")
+            server.push("PETRH180", "ST", "A")
+            time.sleep(0.2)
+
+            provider.capturar_dados_mercado()
+            provider.fazer_manutencao()
+            dados = provider.capturar_dados_mercado()
+            entries = [e for e in dados.values() if isinstance(e, dict) and e.get("ts_origem_ativo")]
+            assert entries, "entry deveria carregar ts_origem_ativo com timestamp assinado"
+            for e in entries:
+                assert e.get("ts_origem_ativo") is not None
+                assert e.get("idade_origem_ativo") is not None
+                assert e.get("ts_origem_ativo") > 1_000_000_000
         finally:
             adapter.desconectar()

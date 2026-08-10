@@ -177,7 +177,11 @@ class MonitorColaresCalendarioUseCase:
             else:
                 stale_trace.log_consumo("COLAR_CAL",
                     {inst.cod_put.upper(), inst.cod_call.upper(), inst.ativo.upper()}, rtd)
-                strike = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
+                # Fontes push (OpenFAST): strike canônico é do banco (opcoes.net.br).
+                # "PEX" do servidor pode não ser o strike real para opções.
+                strike = inst.strike if getattr(rtd, 'suporta_push', False) else None
+                if not strike or strike <= 0:
+                    strike = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
                 if not strike or strike <= 0:
                     strike = rtd.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
                 ocp = rtd.ler_campo_cache(inst.cod_call, FieldName.BID)
