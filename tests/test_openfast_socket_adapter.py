@@ -95,6 +95,34 @@ class TestOpenFastSocketAdapterCache:
         assert v == 0.0
         adapter.desconectar()
 
+    def test_valor_negativo_retorna_none(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "LAST", "-1.00")
+        time.sleep(0.1)
+        v = adapter.ler_campo_cache("PETR4", FieldName.LAST_PRICE)
+        assert v is None
+        adapter.desconectar()
+
+    def test_valor_negativo_nao_vira_zero(self, server):
+        """Regressão: negativo deve virar None, nunca 0.0 (0.0 sobrescreveria
+        um book válido anterior com falso zero no provider)."""
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "LAST", "-2.00")
+        time.sleep(0.1)
+        v = adapter.ler_campo_cache("PETR4", FieldName.LAST_PRICE)
+        assert v is not 0.0
+        adapter.desconectar()
+
+    def test_negativo_nao_sobrescreve_valor_anterior(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "LAST", "25.50")
+        time.sleep(0.1)
+        assert adapter.ler_campo_cache("PETR4", FieldName.LAST_PRICE) == 25.50
+        server.push("PETR4", "LAST", "-1.00")
+        time.sleep(0.1)
+        assert adapter.ler_campo_cache("PETR4", FieldName.LAST_PRICE) is None
+        adapter.desconectar()
+
     def test_ler_status_cache_aberto(self, server):
         adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
         server.push("PETR4", "ST", "A")

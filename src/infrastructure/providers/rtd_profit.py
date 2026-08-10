@@ -180,7 +180,7 @@ class RTDProfit:
             return None
         try:
             v = float(str(valor).replace(",", "."))
-            return v if v > 0 else 0.0
+            return v if v >= 0 else None
         except (ValueError, TypeError):
             return None
 
@@ -206,7 +206,7 @@ class RTDProfit:
             if valor is None:
                 return None
             v = float(str(valor).replace(",", "."))
-            return v if v > 0 else 0.0
+            return v if v >= 0 else None
         except Exception:
             return None
 
@@ -225,7 +225,7 @@ class RTDProfit:
                 v = float(str(valor).replace(",", "."))
                 with self._lock:
                     self._valores[tid] = v
-                return v if v > 0 else 0.0
+                return v if v >= 0 else None
             return None
         except Exception:
             return None

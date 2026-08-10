@@ -229,7 +229,7 @@ class OpenFastSocketAdapter:
             return None
         try:
             v = float(str(raw).replace(",", "."))
-            return 0.0 if v == 0 else v
+            return v if v > 0 else (0.0 if v == 0 else None)
         except (ValueError, TypeError):
             return None
 

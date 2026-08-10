@@ -1,8 +1,10 @@
 import pytest
 from unittest.mock import patch, MagicMock, PropertyMock
+import threading
 
 from src.domain.services.market_data_source import FieldName
 from src.infrastructure.providers.rtd_profit_adapter import RTDProfitAdapter
+from src.infrastructure.providers.rtd_profit import RTDProfit
 
 
 @pytest.fixture
@@ -97,3 +99,36 @@ class TestRTDProfitAdapter:
         """HIGH existe no enum mas nao no PROFIT_FIELD_STR (so Open Fast)."""
         result = adapter._resolver(FieldName.HIGH)
         assert result == ""
+
+
+def _rtd_sem_com():
+    """RTDProfit sem conexão COM: só os mapas internos usados por ler_campo_cache."""
+    rtd = RTDProfit.__new__(RTDProfit)
+    rtd._lock = threading.Lock()
+    rtd._topic_map = {"PETR4|ULT": 42}
+    rtd._valores = {42: "25.50"}
+    return rtd
+
+
+class TestRTDProfitNormalizacaoNegativo:
+    def test_valor_positivo_retorna_valor(self):
+        rtd = _rtd_sem_com()
+        assert rtd.ler_campo_cache("PETR4", "ULT") == 25.50
+
+    def test_valor_zero_retorna_zero(self):
+        rtd = _rtd_sem_com()
+        rtd._valores = {42: "0"}
+        assert rtd.ler_campo_cache("PETR4", "ULT") == 0.0
+
+    def test_negativo_vira_none_e_nao_zero(self):
+        """Regressão: negativo deve virar None. Antes virava 0.0 e sobrescrevia
+        um book válido anterior com falso zero no provider."""
+        rtd = _rtd_sem_com()
+        rtd._valores = {42: "-1.50"}
+        assert rtd.ler_campo_cache("PETR4", "ULT") is None
+
+    def test_negativo_nao_sobrescreve_valor_anterior(self):
+        rtd = _rtd_sem_com()
+        assert rtd.ler_campo_cache("PETR4", "ULT") == 25.50
+        rtd._valores = {42: "-1.50"}
+        assert rtd.ler_campo_cache("PETR4", "ULT") is None
