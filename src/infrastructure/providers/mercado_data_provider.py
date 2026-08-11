@@ -148,7 +148,6 @@ class MercadoDataProvider:
             origem = entry["ts_origem_ativo"]
             if origem >= 1_000_000_000 and origem <= time.time() + 3600:
                 entry["idade_origem_ativo"] = time.time() - origem
-        self._trace_t5(inst)
 
     def _origem_fonte(self, codigo: str) -> float | None:
         try:
@@ -162,7 +161,7 @@ class MercadoDataProvider:
         except Exception:
             return None
 
-    def _trace_t5(self, inst) -> None:
+    def _trace_t5_ciclo(self) -> None:
         if not stale_trace.enabled() or not getattr(self.source, "suporta_push", False):
             return
         campo_por_nome = {nome: campo for campo, nome in OPENFAST_FIELD_STR.items()}
@@ -870,6 +869,7 @@ class MercadoDataProvider:
 
                 t_varredura = time.perf_counter() - t_scan0
                 self._sem_ativo_skip = sem_ativo_atual
+                self._trace_t5_ciclo()
 
                 if dados_mercado:
                     self._ciclos_sem_dados = 0
