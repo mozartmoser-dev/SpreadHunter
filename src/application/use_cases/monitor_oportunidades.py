@@ -155,39 +155,172 @@ class MonitorOportunidadesUseCase:
         lote_put = self._lote_liquidez_put("BOX")
         lote_call = self._lote_liquidez_call("BOX")
 
-        vencimentos = np.array([inst_map[chaves_parsed[i]].vencimento for i in indices_validos], dtype="datetime64[D]")
+        lote_put_sbth = self._lote_liquidez_put("SBTH")
 
         # 2. Cálculo Vetorizado (Super Rápido)
+        # vencimentos=None preserva a regra atual do OO (dc_to_du aproximado 252/365).
+        # O calendário B3 exato fica fora deste patch (decisão de separação desta sessão).
         res_vec = calc_vec.calcular(
             p_ativo, of_v_ativo, of_v_put, of_c_call, strikes, dias,
-            vov_p, voc_c, lote_put, lote_call, em_leilao, vencimentos
+            vov_p, voc_c, lote_put, lote_call, em_leilao, None
         )
 
-        # 3. Criação de DTOs apenas para o que for minimamente interessante
-        # (Viáveis ou com prêmio razoável)
+        # 3. Derivação vetorizada dos campos do DTO a partir do ResultadoVetorizado,
+        # reproduzindo exatamente a CalculadoraBoxSbth (OO):
+        #   pct_ganho_sbth = ganho/custo   se custo_sbth > 0, senão 0
+        #   pct_ganho_box  = ganho/max(custo_box,0.01) se custo_box != 0, senão 0
+        # Classificação/operação usam valores NÃO arredondados (igual ao OO);
+        # o DTO armazena arredondados (4/6 casas).
+        custo_sbth = res_vec.custo_sbth
+        custo_box = res_vec.custo_box
+        ganho_sbth = res_vec.ganho_sbth
+        ganho_box = res_vec.ganho_box
+        pct_ganho_sbth = np.divide(ganho_sbth, custo_sbth, out=np.zeros_like(ganho_sbth), where=custo_sbth > 0)
+        pct_ganho_box = np.divide(ganho_box, np.maximum(custo_box, 0.01), out=np.zeros_like(ganho_box), where=custo_box != 0)
+
+        passa_box = res_vec.pct_cdi_box_bruto > calc_vec.premio_risco_box
+        passa_sbth = res_vec.pct_cdi_sbth_bruto > calc_vec.premio_risco_sbth
+        classificacao = np.select(
+            [passa_box & passa_sbth, passa_box, passa_sbth],
+            ["3BOXSBTH", "1BOX", "2SBTH"], default="TP.Op",
+        )
+        c1 = classificacao == "1BOX"
+        c2 = classificacao == "2SBTH"
+        c3 = classificacao == "3BOXSBTH"
+        gb = pct_ganho_box > 0
+        gs = pct_ganho_sbth > 0
+        operacao = np.select(
+            [(c1 & gb) | (c3 & gb & gs),
+             (c2 & gs) | (c3 & gs & gb),
+             c3 & gb & gs,
+             c3 & gb & ~gs,
+             c3 & gs & ~gb],
+            ["BOX", "SBTH", "BOXSBTH", "BOX", "SBTH"], default="NEUTRA",
+        )
+
+        # Lotes e viabilidade por operação (idêntico a _lote_liquidez_put/_lote_liquidez_call)
+        is_box_op = np.isin(operacao, ["BOX", "BOXSBTH"])
+        lote_p_op = np.where(is_box_op, lote_put, lote_put_sbth)
+        lote_c_op = np.where(is_box_op, lote_call, 0.0)
+        liq_put_x_lote = vov_p - lote_p_op
+        liq_call_x_lote = voc_c - lote_c_op
+        viavel = np.isin(operacao, ["BOX", "SBTH", "BOXSBTH"]) & (liq_put_x_lote >= 0) & (liq_call_x_lote >= 0)
+
+        preco_compra_ativo = np.where(of_v_ativo > 0, of_v_ativo, 0.0)
+        money_put = np.maximum(strikes - p_ativo, 0.0)
+        money_call = np.maximum(p_ativo - strikes, 0.0)
+        pca_compra = np.where(of_v_ativo > 0, of_v_ativo, p_ativo)
+
+        # Campos externos por instrumento (lidos do mercado, como no OO)
+        nk = len(keys_validas)
+        of_compra_put = np.array([dados_mercado[keys_validas[i]].get("of_compra_put", 0.0) or 0.0 for i in range(nk)], dtype=float)
+        of_venda_call = np.array([dados_mercado[keys_validas[i]].get("of_venda_call", 0.0) or 0.0 for i in range(nk)], dtype=float)
+        qul_put = np.array([dados_mercado[keys_validas[i]].get("qul_put", 0.0) or 0.0 for i in range(nk)], dtype=float)
+        qul_call = np.array([dados_mercado[keys_validas[i]].get("qul_call", 0.0) or 0.0 for i in range(nk)], dtype=float)
+        ts_ask = [dados_mercado[keys_validas[i]].get("ts_ativo_ask") for i in range(nk)]
+        ts_bid = [dados_mercado[keys_validas[i]].get("ts_ativo_bid") for i in range(nk)]
+        ts_origem = [dados_mercado[keys_validas[i]].get("ts_origem_ativo") for i in range(nk)]
+        idade_origem = [dados_mercado[keys_validas[i]].get("idade_origem_ativo") for i in range(nk)]
+
+        taxa_by_ativo = {a: t.taxa_atual for a, t in taxa_map.items()} if taxa_map else {}
+
+        # Conversão p/ listas nativas (arredondamentos iguais aos do OO)
+        def _r(a, nd):
+            return np.round(a, nd).tolist()
+
+        cdi_periodo_l = _r(res_vec.cdi_periodo, 6)
+        custo_sbth_l = _r(custo_sbth, 4)
+        pct_ganho_sbth_l = _r(pct_ganho_sbth, 6)
+        pct_cdi_sbth_l = _r(res_vec.pct_cdi_sbth, 6)
+        pct_cdi_sbth_liq_l = _r(res_vec.pct_cdi_sbth_liquido, 6)
+        custo_box_l = _r(custo_box, 4)
+        pct_ganho_box_l = _r(pct_ganho_box, 6)
+        pct_cdi_box_l = _r(res_vec.pct_cdi_box, 6)
+        pct_cdi_box_liq_l = _r(res_vec.pct_cdi_box_liquido, 6)
+        pg_sb_b = _r(res_vec.pct_ganho_sbth_bruto, 6)
+        pg_sb_l = _r(res_vec.pct_ganho_sbth_liquido, 6)
+        pcd_sb_b = _r(res_vec.pct_cdi_sbth_bruto, 6)
+        pg_bx_b = _r(res_vec.pct_ganho_box_bruto, 6)
+        pg_bx_l = _r(res_vec.pct_ganho_box_liquido, 6)
+        pcd_bx_b = _r(res_vec.pct_cdi_box_bruto, 6)
+        preco_c_l = preco_compra_ativo.tolist()
+        ofvp_l = of_v_put.tolist()
+        occ_l = of_c_call.tolist()
+        em_l = em_leilao.tolist()
+        liqpl_l = liq_put_x_lote.tolist()
+        liqcl_l = liq_call_x_lote.tolist()
+        money_p_l = money_put.tolist()
+        money_c_l = money_call.tolist()
+        strikes_l = strikes.tolist()
+        dias_l = dias.astype(int).tolist()
+        viav_l = viavel.tolist()
+        class_l = classificacao.tolist()
+        op_l = operacao.tolist()
+        ofcp_l = of_compra_put.tolist()
+        ovc_l = of_venda_call.tolist()
+        qp_l = qul_put.tolist()
+        qc_l = qul_call.tolist()
+        pca_l = pca_compra.tolist()
+
+        # 4. Montagem dos DTOs (mesmos filtros do loop OO: preço > 0, strike > 0)
         n_calc = 0
         c_pca_zero = 0
-        for i in range(len(keys_validas)):
-            # Se não for viavel e tiver prêmio baixo, ignora para economizar objetos
-            # Sempre inclui a oportunidade calculada
+        for i in range(nk):
+            if pca_l[i] <= 0:
+                c_pca_zero += 1
+                continue
+            n_calc += 1
+            if strikes_l[i] <= 0:
+                continue
             key = keys_validas[i]
             ativo_k, cod_put_k = key.split("|", 1)
             inst = inst_map[(ativo_k, cod_put_k)]
-            mercado = dados_mercado[key]
-
-            pca = mercado.get("of_venda_ativo", 0.0) or 0.0
-            if pca <= 0:
-                pca = mercado.get("preco_ativo", 0.0) or 0.0
-            if pca <= 0:
-                c_pca_zero += 1
-                continue
-
-            n_calc += 1
-            
-            opp = self._calcular_oportunidade(inst, mercado, calc_oo, taxa_map)
-            if opp:
-                opp.detectado_em = agora
-                resultados.append(opp)
+            resultados.append(OportunidadeMonitor(
+                instrumento_id=inst.id or 0,
+                ativo=inst.ativo,
+                strike=strikes_l[i],
+                vencimento=inst.vencimento,
+                dias=dias_l[i],
+                cod_put=inst.cod_put,
+                cod_call=inst.cod_call,
+                tipo_opcao=inst.tipo_opcao.value,
+                classificacao=class_l[i],
+                operacao=op_l[i],
+                custo_sbth=custo_sbth_l[i],
+                pct_ganho_sbth=pct_ganho_sbth_l[i],
+                pct_cdi_sbth=pct_cdi_sbth_l[i],
+                pct_cdi_sbth_liquido=pct_cdi_sbth_liq_l[i],
+                custo_box=custo_box_l[i],
+                pct_ganho_box=pct_ganho_box_l[i],
+                pct_cdi_box=pct_cdi_box_l[i],
+                pct_cdi_box_liquido=pct_cdi_box_liq_l[i],
+                pct_ganho_sbth_bruto=pg_sb_b[i],
+                pct_ganho_sbth_liquido=pg_sb_l[i],
+                pct_cdi_sbth_bruto=pcd_sb_b[i],
+                pct_ganho_box_bruto=pg_bx_b[i],
+                pct_ganho_box_liquido=pg_bx_l[i],
+                pct_cdi_box_bruto=pcd_bx_b[i],
+                cdi_periodo=cdi_periodo_l[i],
+                viavel=viav_l[i],
+                preco_compra_ativo=preco_c_l[i],
+                of_venda_put=ofvp_l[i],
+                of_compra_call=occ_l[i],
+                em_leilao=em_l[i],
+                liq_put_x_lote=liqpl_l[i],
+                liq_call_x_lote=liqcl_l[i],
+                of_compra_put=ofcp_l[i],
+                of_venda_call=ovc_l[i],
+                qul_put=qp_l[i],
+                qul_call=qc_l[i],
+                money_put=money_p_l[i],
+                money_call=money_c_l[i],
+                taxa_aluguel=taxa_by_ativo.get(inst.ativo, 0.0),
+                detectado_em=agora,
+                ts_ativo_ask=ts_ask[i],
+                ts_ativo_bid=ts_bid[i],
+                ts_origem_ativo=ts_origem[i],
+                idade_origem_ativo=idade_origem[i],
+            ))
 
         if pipeline_tracker is not None:
             n_opps = len(resultados)
