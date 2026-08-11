@@ -1,6 +1,6 @@
 # Spreadhunter — Regras para Agentes
 
-Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, taxa, SBTH vendida, put ratio, venda coberta). Desktop Python/PySide6, SQLite, RTD via COM do Profit, socket OpenFast, API opcoes.net.br. **Windows-only.** Sem CI; 585 testes rodam localmente.
+Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, taxa, SBTH vendida, put ratio, venda coberta). Desktop Python/PySide6, SQLite, RTD via COM do Profit, socket OpenFast, API opcoes.net.br. **Windows-only.** Sem CI; 689 testes rodam localmente (contagem muda com frequência; validar com `--collect-only`).
 
 ## Confirmação obrigatória
 
@@ -9,7 +9,7 @@ Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, 
 ## Comandos essenciais
 
 ```powershell
-python -m pytest tests/ -x -q --tb=short            # todos (585; --collect-only leva ~12s)
+python -m pytest tests/ -x -q --tb=short            # todos (~689; --collect-only leva ~5-15s)
 python -m pytest tests/domain/test_calculadora_cauda_assincrona.py -q
 python -m pytest tests/test_fase3.py::TestX::test_y -q
 python main.py                                       # dev
@@ -18,7 +18,7 @@ python -m PyInstaller --clean --distpath "$env:USERPROFILE\Desktop\dist" `
   --workpath "$env:USERPROFILE\Desktop\build_pyi" spreadhunter.spec
 ```
 
-Stack: Python ≥3.13, PySide6 6.11.1, sqlite3, scipy, numpy, matplotlib, pywin32, pillow, opencv-python, requests, python-dotenv, pyautogui, psutil, pytest, yfinance. `pyproject.toml` seta `pythonpath = ["."]` (imports from root). `requirements.txt` pinado. Regras completas em `.opencode/skills/spreadhunter/SKILL.md` (`skill spreadhunter`).
+Stack: Python 3.13 local (pyproject permite ≥3.12), PySide6 6.11.1, sqlite3, scipy, numpy, matplotlib, pywin32, pillow, opencv-python, requests, python-dotenv, pyautogui, psutil, pytest, yfinance. `pyproject.toml` seta `pythonpath = ["."]` (imports from root). `requirements.txt` pinado. Regras completas em `.opencode/skills/spreadhunter/SKILL.md` (`skill spreadhunter`).
 
 ## Arquitetura não-óbvia
 
@@ -27,7 +27,7 @@ Stack: Python ≥3.13, PySide6 6.11.1, sqlite3, scipy, numpy, matplotlib, pywin3
 - Use cases em `src/application/use_cases/`, calculadoras em `src/domain/services/`
 - Bootstrap: `src/infrastructure/persistence/bootstrap.py` → `main.py`
 - `_ImportThread` em `grade_opcoes_dialog.py` (não em `main_window.py`)
-- Duas fontes de market data: Profit RTD (COM, `rtd_profit.py`) e OpenFast (socket TCP, `openfast_socket_adapter.py`). Config `fonte_market_data` no banco. **Atenção:** `parametro_operacional.py` default hardcoded = `"profit"`, mas `parametros_default.json` seed = `"openfast"` — o JSON vence no seed. Script `scripts/set_openfast.py` alterna.
+- Duas fontes de market data: Profit RTD (COM, `rtd_profit.py`) e OpenFast (socket TCP, `openfast_socket_adapter.py`), além de `fasttrade` (RTD da Fast Trade) e `mock` (simulador p/ testes) em `criar_data_source()` (`market_data_source.py`). Config `fonte_market_data` no banco. **Atenção:** `parametro_operacional.py` default hardcoded = `"profit"`, mas `parametros_default.json` seed = `"openfast"` — o JSON vence no seed. Script `scripts/set_openfast.py` alterna.
 - `.env` contém credenciais opcoes.net.br (`OPCOESNET_CPF`, `OPCOESNET_SENHA`) — `.gitignore` exclui, nunca commitar. `load_dotenv()` é chamado em `opcoesnet_client.py` (linha ~11, no import do módulo), não globalmente.
 - DB em `%APPDATA%/Spreadhunter/spreadhunter.db` via `get_db_path()` — nunca hardcoded. Migração automática de `config/spreadhunter.db` na 1ª execução.
 - Conexão SQLite: `threading.local` pool, `journal_mode=WAL`, `cache_size=-8000`, `temp_store=MEMORY`, `synchronous=NORMAL`
@@ -76,7 +76,7 @@ Em `mercado_data_provider.py` — sempre que mexer em `_registrar_batch_intelige
 
 ## Referências
 
-- `.opencode/skills/spreadhunter/SKILL.md` — use `skill spreadhunter` para regras completas + histórico de sessões (nota: contagem de testes no SKILL.md está desatualizada; 585 é o número real)
+- `.opencode/skills/spreadhunter/SKILL.md` — use `skill spreadhunter` para regras completas + histórico de sessões (nota: contagem de testes no SKILL.md está desatualizada; validar com `--collect-only`)
 - `.claude.md` — cópia parcial/desatualizada do AGENTS.md (regra #5 duplicada com numeração quebrada); ignorar e usar AGENTS.md como fonte autoritativa
 - `docs/codigos_b3.md` — tabela completa de meses CALL/PUT + detecção de semanais (W em `cod[-2]` vs W de Nov PUT em `cod[4]`)
 - `pendenciascalendario.md` — diagnóstico BWB + simulações

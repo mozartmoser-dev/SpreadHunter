@@ -1,4 +1,3 @@
-from src.application.dtos.dtos import OportunidadeMonitor
 from src.domain.services.market_data_source import FieldName, PROFIT_FIELD_STR
 
 

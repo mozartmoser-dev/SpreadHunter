@@ -444,23 +444,31 @@ class MonitorWorker(QThread):
                                   and r.classificacao == 'TP.Op')]
 
         self.oportunidades_atualizadas.emit(resultados)
+        stale_trace.log_t6("monitor_geral_oportunidades_emit", time.time() - t6_inicio)
 
         # Box/SBTH Vendido
         vendidas = self._monitor_vendidas_uc.varrer(dados_mercado, pipeline_tracker=PipelineTracker())
+        stale_trace.log_t6("monitor_geral_vendidas_varrer", time.time() - t6_inicio)
         if not self._mostrar_tp_op:
             vendidas = [r for r in vendidas if r.viavel]
         self.oportunidades_vendidas_atualizadas.emit(vendidas)
+        stale_trace.log_t6("monitor_geral_vendidas_emit", time.time() - t6_inicio)
 
         # Venda Coberta (Vendida + Comprada)
         coberta_vendida = self._monitor_coberta_uc.varrer(dados_mercado, pipeline_tracker=PipelineTracker())
+        stale_trace.log_t6("monitor_geral_coberta_vendida", time.time() - t6_inicio)
         coberta_comprada = self._monitor_coberta_uc.varrer_comprada(dados_mercado)
+        stale_trace.log_t6("monitor_geral_comprada", time.time() - t6_inicio)
         coberta = coberta_vendida + coberta_comprada
         if not self._mostrar_tp_op:
             coberta = [r for r in coberta if r.viavel]
         coberta.sort(key=lambda o: (not o.viavel, -o.pct_cdi))
+        stale_trace.log_t6("monitor_geral_sort", time.time() - t6_inicio)
         self.oportunidades_coberta_atualizadas.emit(coberta)
+        stale_trace.log_t6("monitor_geral_coberta_emit", time.time() - t6_inicio)
 
         self._snapshot_pipeline()
+        stale_trace.log_t6("monitor_geral_snapshot", time.time() - t6_inicio)
         stale_trace.log_t6("monitor_geral_total", time.time() - t6_inicio)
 
     def _snapshot_pipeline(self):

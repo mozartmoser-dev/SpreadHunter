@@ -72,7 +72,8 @@ class CalculadoraVetorizada:
                         self.custos_b3.custos_stock_vetor(preco_compra_ativo, n_acoes=1))
         
         # SBTH
-        custo_sbth = preco_compra_ativo + of_venda_put
+        custo_sbth = np.where((of_venda_put > 0) & (preco_compra_ativo > 0),
+                              preco_compra_ativo + of_venda_put, 0.0)
         ganho_sbth_bruto = np.where((custo_sbth > 0) & (of_venda_put > 0), strike - custo_sbth, 0.0)
         ganho_sbth = ganho_sbth_bruto - custo_b3_sbth
         pct_ganho_sbth_bruto = np.divide(ganho_sbth_bruto, custo_sbth, out=np.zeros_like(ganho_sbth_bruto), where=custo_sbth > 0)
@@ -81,11 +82,12 @@ class CalculadoraVetorizada:
         pct_cdi_sbth = np.divide(pct_ganho_sbth, cdi_periodo, out=np.zeros_like(pct_ganho_sbth), where=cdi_periodo > 0)
         
         # BOX
-        custo_box = preco_compra_ativo + of_venda_put - of_compra_call
+        custo_box = np.where((of_venda_put > 0) & (of_compra_call > 0) & (preco_compra_ativo > 0),
+                             preco_compra_ativo + of_venda_put - of_compra_call, 0.0)
         ganho_box_bruto = np.where((of_venda_put > 0) & (of_compra_call > 0), strike - custo_box, 0.0)
         ganho_box = ganho_box_bruto - custo_b3_box
-        pct_ganho_box_bruto = np.divide(ganho_box_bruto, custo_box, out=np.zeros_like(ganho_box_bruto), where=custo_box > 0)
-        pct_ganho_box = np.divide(ganho_box, custo_box, out=np.zeros_like(ganho_box), where=custo_box > 0)
+        pct_ganho_box_bruto = np.divide(ganho_box_bruto, np.maximum(custo_box, 0.01), out=np.zeros_like(ganho_box_bruto), where=custo_box != 0)
+        pct_ganho_box = np.divide(ganho_box, np.maximum(custo_box, 0.01), out=np.zeros_like(ganho_box), where=custo_box != 0)
         pct_cdi_box_bruto = np.divide(pct_ganho_box_bruto, cdi_periodo, out=np.zeros_like(pct_ganho_box_bruto), where=cdi_periodo > 0)
         pct_cdi_box = np.divide(pct_ganho_box, cdi_periodo, out=np.zeros_like(pct_ganho_box), where=cdi_periodo > 0)
 
@@ -95,7 +97,7 @@ class CalculadoraVetorizada:
         ganho_sbth_liq = ganho_sbth - ir_sbth
         ganho_box_liq = ganho_box - ir_box
         pct_ganho_sbth_liq = np.divide(ganho_sbth_liq, custo_sbth, out=np.zeros_like(ganho_sbth_liq), where=custo_sbth > 0)
-        pct_ganho_box_liq = np.divide(ganho_box_liq, custo_box, out=np.zeros_like(ganho_box_liq), where=custo_box > 0)
+        pct_ganho_box_liq = np.divide(ganho_box_liq, np.maximum(custo_box, 0.01), out=np.zeros_like(ganho_box_liq), where=custo_box != 0)
         pct_cdi_sbth_liquido = np.where(cdi_periodo > 0, pct_ganho_sbth_liq / cdi_periodo, 0.0)
         pct_cdi_box_liquido = np.where(cdi_periodo > 0, pct_ganho_box_liq / cdi_periodo, 0.0)
         

@@ -1,5 +1,8 @@
+import logging
 from enum import Enum, auto
 from typing import Protocol, runtime_checkable
+
+logger = logging.getLogger(__name__)
 
 
 class FieldName(Enum):
@@ -105,5 +108,11 @@ def criar_data_source(fonte: str, **kwargs) -> MarketDataSource:
     if fonte == "fasttrade":
         from src.infrastructure.providers.fast_trade_rtd_adapter import FastTradeRTDAdapter
         return FastTradeRTDAdapter(**kwargs)
+    if fonte != "profit":
+        logger.warning(
+            "criar_data_source: fonte '%s' desconhecida — caindo para RTD Profit. "
+            "Valores válidos: profit, openfast, fasttrade, mock.",
+            fonte,
+        )
     from src.infrastructure.providers.rtd_profit_adapter import RTDProfitAdapter
     return RTDProfitAdapter()

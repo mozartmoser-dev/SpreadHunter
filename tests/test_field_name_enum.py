@@ -56,3 +56,12 @@ class TestFieldNameEnum:
         from src.infrastructure.providers.openfast_socket_adapter import OpenFastSocketAdapter
         assert isinstance(source, OpenFastSocketAdapter)
         source.desconectar()
+
+    def test_criar_data_source_fonte_desconhecida_avisa_warning(self, caplog):
+        import logging
+        with caplog.at_level(logging.WARNING, logger="src.domain.services.market_data_source"):
+            source = criar_data_source("openfsat")
+        from src.infrastructure.providers.rtd_profit_adapter import RTDProfitAdapter
+        assert isinstance(source, RTDProfitAdapter)
+        assert any("openfsat" in r.message for r in caplog.records)
+        assert any("caindo para RTD Profit" in r.message for r in caplog.records)

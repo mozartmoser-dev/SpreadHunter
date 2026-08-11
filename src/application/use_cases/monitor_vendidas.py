@@ -51,6 +51,10 @@ class MonitorVendidasUseCase:
         taxa_map = taxa_repo.get_latest_all()
         premio_risco = self._get_param("vendidas_premio_risco", 1.08)
         dias_minimos = int(self._get_param("perf_dias_minimos", 10))
+        dist_min_ativo = self._get_param("sbth_vendida_dist_ativo", 1.20)
+        taxa_cdi = self._get_taxa_cdi()
+        lote_box = self._lote_liquidez("BOX_VENDIDO")
+        lote_sbth = self._lote_liquidez("SBTH_VENDIDA")
         self._ultimo_pipeline = pipeline_tracker
 
         chaves_com_chave = 0
@@ -93,7 +97,6 @@ class MonitorVendidasUseCase:
             cond_box = recebimento_box > strike and of_compra_ativo > 0 and of_venda_call > 0 and of_compra_put > 0
 
             # SBTH Vendida: vende ativo (bid) + vende PUT (bid); filtro DIST parametrizado
-            dist_min_ativo = self._get_param("sbth_vendida_dist_ativo", 1.20)
             recebimento_sbth = of_compra_ativo + of_compra_put
             cond_sbth = (
                 strike > of_compra_ativo * dist_min_ativo  # usa BID (vende ativo → recebe BID)
@@ -102,15 +105,19 @@ class MonitorVendidasUseCase:
                 and of_compra_put > 0
             )
 
-            cdi_periodo = self._calcular_cdi_periodo(inst.dias_ate_vencimento)
+            du_vendidas = dc_to_du(None, None, inst.dias_ate_vencimento)
+            if du_vendidas <= 0:
+                cdi_periodo = 0.0
+            else:
+                cdi_periodo = (1 + taxa_cdi) ** (du_vendidas / 252) - 1
 
             money_put = max(strike - preco_ativo, 0.0)
             money_call = max(preco_ativo - strike, 0.0)
             taxa_aluguel = taxa_map.get(inst.ativo).taxa_atual if taxa_map and taxa_map.get(inst.ativo) else 0.0
 
             if cond_box:
-                lote_put = self._lote_liquidez("BOX_VENDIDO")
-                lote_call = self._lote_liquidez("BOX_VENDIDO")
+                lote_put = lote_box
+                lote_call = lote_box
                 liq_ok = vov_put >= lote_put and voc_call >= lote_call
                 capital = strike
                 pct = (recebimento_box - strike) / capital if capital > 0 else 0.0
@@ -167,8 +174,8 @@ class MonitorVendidasUseCase:
                 ))
 
             if cond_sbth:
-                lote_put = self._lote_liquidez("SBTH_VENDIDA")
-                lote_call = self._lote_liquidez("SBTH_VENDIDA")
+                lote_put = lote_sbth
+                lote_call = lote_sbth
                 liq_ok = vov_put >= lote_put  # only put needs liquidity
                 capital = strike
                 pct = (recebimento_sbth - strike) / capital if capital > 0 else 0.0
