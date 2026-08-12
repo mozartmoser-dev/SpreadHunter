@@ -284,10 +284,10 @@ class TestMockMarketDataProvider:
         dados_mercado = provider.gerar_dados_para_instrumentos(instrumentos)
         monitor_uc = MonitorOportunidadesUseCase(populated_db)
         resultados = monitor_uc.varrer(dados_mercado)
-        assert len(resultados) >= 1
-        for r in resultados:
-            assert isinstance(r, OportunidadeMonitor)
-            assert r.classificacao in ("1BOX", "2SBTH", "3BOXSBTH", "TP.Op")
+        # P8-A: entradas TP.Op não são mais materializadas em DTOs.
+        # O mock gera apenas entradas TP.Op, portanto não há DTOs em resultados.
+        assert all(isinstance(r, OportunidadeMonitor) for r in resultados)
+        assert all(r.classificacao in ("1BOX", "2SBTH", "3BOXSBTH") for r in resultados)
 
 
 class TestOportunidadeMonitorDTO:

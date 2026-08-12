@@ -71,9 +71,15 @@ class MonitorOportunidadesUseCase:
             return self._lotes_cache["lote_call_box"]
         return 0.0
 
-    def varrer(self, dados_mercado: dict[str, dict], pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeMonitor]:
+    def varrer(self, dados_mercado: dict[str, dict],
+               inst_map: dict | None = None,
+               chaves: list | None = None,
+               chaves_parsed: list | None = None,
+               pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeMonitor]:
+        _ts = time.perf_counter()
         calc_oo, calc_vec = self._get_calculadoras()
-        inst_map = self.inst_repo.get_all_mapped()
+        if inst_map is None:
+            inst_map = self.inst_repo.get_all_mapped()
         taxa_repo = TaxaAluguelRepository(self.db_path)
         taxa_map = taxa_repo.get_latest_all()
         resultados = []
@@ -89,8 +95,10 @@ class MonitorOportunidadesUseCase:
 
         # 1. Preparação dos dados para vetorização
         _t_pre = time.perf_counter()
-        chaves = list(dados_mercado.keys())
-        chaves_parsed = [tuple(k.split("|", 1)) for k in chaves]
+        if chaves is None:
+            chaves = list(dados_mercado.keys())
+        if chaves_parsed is None:
+            chaves_parsed = [tuple(k.split("|", 1)) for k in chaves]
         n = len(chaves)
         
         # Filtra instrumentos válidos, não vencidos e com dias mínimos
@@ -265,7 +273,11 @@ class MonitorOportunidadesUseCase:
         # 4. Montagem dos DTOs (mesmos filtros do loop OO: preço > 0, strike > 0)
         n_calc = 0
         c_pca_zero = 0
+        c_tp_op_skip = 0
         for i in range(nk):
+            if class_l[i] == "TP.Op":
+                c_tp_op_skip += 1
+                continue
             if pca_l[i] <= 0:
                 c_pca_zero += 1
                 continue
@@ -325,7 +337,7 @@ class MonitorOportunidadesUseCase:
         if pipeline_tracker is not None:
             n_opps = len(resultados)
             n_viaveis = sum(1 for r in resultados if r.viavel)
-            c_tp_op = sum(1 for r in resultados if r.classificacao == "TP.Op")
+            c_tp_op = c_tp_op_skip
             c_leilao = sum(1 for r in resultados if r.em_leilao and r.classificacao != "TP.Op")
             c_sem_liq = sum(1 for r in resultados if not r.viavel and not r.em_leilao and r.classificacao != "TP.Op")
             tempo_calc = time.perf_counter() - _t_calc
@@ -413,6 +425,10 @@ class MonitorOportunidadesUseCase:
                 for o in novas_ou_melhores:
                     text = self._montar_mensagem_telegram(o)
                     self.telegram_service.send(text)
+        _te = time.perf_counter()
+        logger.info("Consumers: box=%.3fs prep=%.3fs calc=%.3fs | n_in=%d n_prep=%d n_calc=%d n_opp=%d",
+                     _te - _ts, _t_calc - _t_pre, _te - _t_calc,
+                     n, len(indices_validos), n_calc, len(resultados))
         return resultados
 
     def _montar_mensagem_telegram(self, o) -> str:

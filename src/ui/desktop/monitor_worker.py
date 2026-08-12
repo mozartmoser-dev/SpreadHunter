@@ -435,7 +435,15 @@ class MonitorWorker(QThread):
         if not dados_mercado:
             return
 
-        resultados = self._monitor_uc.varrer(dados_mercado, pipeline_tracker=PipelineTracker())
+        # Pré-processamento compartilhado: estruturas comuns a todos os consumers
+        chaves = list(dados_mercado.keys())
+        chaves_parsed = [tuple(k.split("|", 1)) for k in chaves]
+        inst_repo = InstrumentoRepository(self.db_path)
+        inst_map = inst_repo.get_all_mapped()
+
+        resultados = self._monitor_uc.varrer(dados_mercado,
+            inst_map=inst_map, chaves=chaves, chaves_parsed=chaves_parsed,
+            pipeline_tracker=PipelineTracker())
         stale_trace.log_t6("monitor_geral_captura", time.time() - t6_inicio)
 
         if not self._mostrar_tp_op:
@@ -447,7 +455,9 @@ class MonitorWorker(QThread):
         stale_trace.log_t6("monitor_geral_oportunidades_emit", time.time() - t6_inicio)
 
         # Box/SBTH Vendido
-        vendidas = self._monitor_vendidas_uc.varrer(dados_mercado, pipeline_tracker=PipelineTracker())
+        vendidas = self._monitor_vendidas_uc.varrer(dados_mercado,
+            inst_map=inst_map, chaves=chaves, chaves_parsed=chaves_parsed,
+            pipeline_tracker=PipelineTracker())
         stale_trace.log_t6("monitor_geral_vendidas_varrer", time.time() - t6_inicio)
         if not self._mostrar_tp_op:
             vendidas = [r for r in vendidas if r.viavel]
@@ -455,9 +465,12 @@ class MonitorWorker(QThread):
         stale_trace.log_t6("monitor_geral_vendidas_emit", time.time() - t6_inicio)
 
         # Venda Coberta (Vendida + Comprada)
-        coberta_vendida = self._monitor_coberta_uc.varrer(dados_mercado, pipeline_tracker=PipelineTracker())
+        coberta_vendida = self._monitor_coberta_uc.varrer(dados_mercado,
+            inst_map=inst_map, chaves=chaves, chaves_parsed=chaves_parsed,
+            pipeline_tracker=PipelineTracker())
         stale_trace.log_t6("monitor_geral_coberta_vendida", time.time() - t6_inicio)
-        coberta_comprada = self._monitor_coberta_uc.varrer_comprada(dados_mercado)
+        coberta_comprada = self._monitor_coberta_uc.varrer_comprada(dados_mercado,
+            inst_map=inst_map, chaves=chaves, chaves_parsed=chaves_parsed)
         stale_trace.log_t6("monitor_geral_comprada", time.time() - t6_inicio)
         coberta = coberta_vendida + coberta_comprada
         if not self._mostrar_tp_op:

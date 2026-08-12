@@ -1,4 +1,5 @@
 import logging
+import time
 
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
@@ -43,10 +44,16 @@ class MonitorVendidasUseCase:
         chave = f"vendidas_lote_liquidez_{operacao.lower()}"
         return int(self._get_param(chave, 100))
 
-    def varrer(self, dados_mercado: dict[str, dict], pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeVendida]:
+    def varrer(self, dados_mercado: dict[str, dict],
+               inst_map: dict | None = None,
+               chaves: list | None = None,
+               chaves_parsed: list | None = None,
+               pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeVendida]:
+        _ts = time.perf_counter()
         agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
         hoje = date.today()
-        inst_map = self.inst_repo.get_all_mapped()
+        if inst_map is None:
+            inst_map = self.inst_repo.get_all_mapped()
         taxa_repo = TaxaAluguelRepository(self.db_path)
         taxa_map = taxa_repo.get_latest_all()
         premio_risco = self._get_param("vendidas_premio_risco", 1.08)
@@ -242,4 +249,7 @@ class MonitorVendidasUseCase:
             self._ultimo_pipeline.add_stage("5. Resultados", chaves_com_strike, len(resultados), f"BOX={n_box}, SBTH={n_sbth}")
             self._ultimo_pipeline.add_stage("6. Viáveis", len(resultados), n_viaveis, f"Prêmio-risco {premio_risco}xCDI")
 
+        logger.info("Consumers: vendidas=%.3fs | n_in=%d n_inst=%d n_dte=%d n_strike=%d n_opp=%d",
+                     time.perf_counter() - _ts,
+                     chaves_com_chave, chaves_com_inst, chaves_dentro_dias, chaves_com_strike, len(resultados))
         return resultados

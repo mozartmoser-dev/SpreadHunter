@@ -820,6 +820,15 @@ class MercadoDataProvider:
                             strike_put = self.source.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
                     if not strike_put or strike_put <= 0:
                         continue
+                    # Skip da Onda 1 (push-based): se PUT e CALL não mudaram,
+                    # a entry pode ser reutilizada do _dados_cache no pós-loop.
+                    if suporta_push and codigos_mudados is not None:
+                        perna_mudou = (
+                            (inst.cod_put in codigos_mudados)
+                            or (inst.cod_call in codigos_mudados)
+                        )
+                        if not perna_mudou and key in self._dados_cache:
+                            continue
                     # Batch reads: 1 lock por símbolo (put, call, ativo) em vez
                     # de 1 lock por campo — reduz contenção com a thread leitora.
                     c_put_onda1 = self._ler_campos(inst.cod_put, FieldName.ASK, FieldName.BID)
@@ -864,8 +873,17 @@ class MercadoDataProvider:
                     }
                     self._anotar_frescor(entry, inst)
                     dados_mercado[key] = entry
+                    self._dados_cache[key] = entry
                     t_onda1_basico += time.perf_counter() - t0_onda1
                     count_onda1 += 1
+
+                # Pós-processamento: preenche entries que não mudaram com
+                # shallow copy do _dados_cache (em_leilao=False = Onda 1 normal).
+                for key, cached in self._dados_cache.items():
+                    if key not in dados_mercado and key in self._chaves_com_book:
+                        entry = dict(cached)
+                        entry["em_leilao"] = False
+                        dados_mercado[key] = entry
 
                 t_varredura = time.perf_counter() - t_scan0
                 self._sem_ativo_skip = sem_ativo_atual

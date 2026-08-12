@@ -1,4 +1,5 @@
 import logging
+import time
 
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
@@ -42,10 +43,16 @@ class MonitorVendaCobertaUseCase:
     def _lote_liquidez_call(self) -> int:
         return int(self._get_param("venda_coberta_lote_liquidez", 100))
 
-    def varrer(self, dados_mercado: dict[str, dict], pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeVendaCoberta]:
+    def varrer(self, dados_mercado: dict[str, dict],
+               inst_map: dict | None = None,
+               chaves: list | None = None,
+               chaves_parsed: list | None = None,
+               pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeVendaCoberta]:
+        _ts = time.perf_counter()
         agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
         hoje = date.today()
-        inst_map = self.inst_repo.get_all_mapped()
+        if inst_map is None:
+            inst_map = self.inst_repo.get_all_mapped()
         taxa_repo = TaxaAluguelRepository(self.db_path)
         taxa_map = taxa_repo.get_latest_all()
         premio_risco = self._get_param("venda_coberta_premio_risco", 1.08)
@@ -171,12 +178,21 @@ class MonitorVendaCobertaUseCase:
             self._ultimo_pipeline.add_stage("6. Resultados", n_cond, len(resultados))
             self._ultimo_pipeline.add_stage("7. Viáveis", len(resultados), n_viaveis, f"Prêmio-risco {premio_risco}xCDI")
 
+        logger.info("Consumers: coberta_v=%.3fs | n_in=%d n_inst=%d n_dte=%d n_strike=%d n_opp=%d",
+                     time.perf_counter() - _ts,
+                     chaves_com_chave, chaves_com_inst, chaves_dentro_dias, chaves_com_strike, len(resultados))
         return resultados
 
-    def varrer_comprada(self, dados_mercado: dict[str, dict], pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeVendaCoberta]:
+    def varrer_comprada(self, dados_mercado: dict[str, dict],
+                         inst_map: dict | None = None,
+                         chaves: list | None = None,
+                         chaves_parsed: list | None = None,
+               pipeline_tracker: PipelineTracker | None = None) -> list[OportunidadeVendaCoberta]:
+        _ts = time.perf_counter()
         agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
         hoje = date.today()
-        inst_map = self.inst_repo.get_all_mapped()
+        if inst_map is None:
+            inst_map = self.inst_repo.get_all_mapped()
         taxa_repo = TaxaAluguelRepository(self.db_path)
         taxa_map = taxa_repo.get_latest_all()
         premio_risco = self._get_param("taxa_comprada_premio_risco", 1.05)
@@ -281,4 +297,6 @@ class MonitorVendaCobertaUseCase:
             ))
 
         resultados.sort(key=lambda o: (not o.viavel, -o.pct_cdi))
+        logger.info("Consumers: coberta_c=%.3fs | n_opp=%d",
+                     time.perf_counter() - _ts, len(resultados))
         return resultados
