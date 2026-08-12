@@ -804,6 +804,33 @@ class FeriadoB3Repository:
         finally:
             conn.close()
 
+    def replace_feriados_ano(self, ano: int, feriados: list[dict]) -> int:
+        conn = get_connection(self.db_path)
+        try:
+            conn.execute(
+                "DELETE FROM feriados_b3 WHERE data >= ? AND data <= ?",
+                (f"{ano}-01-01", f"{ano}-12-31")
+            )
+            if feriados:
+                conn.executemany(
+                    """INSERT INTO feriados_b3 (data, nome, tipo, fonte)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(data) DO UPDATE SET
+                           nome=excluded.nome,
+                           tipo=excluded.tipo,
+                           fonte=excluded.fonte,
+                           atualizado_em=CURRENT_TIMESTAMP""",
+                    [(f["data"], f["nome"], f.get("tipo", "nacional"), f.get("fonte", "brasilapi"))
+                     for f in feriados]
+                )
+            conn.commit()
+            return len(feriados)
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
 
 class TaxaAluguelRepository:
     def __init__(self, db_path=None):
@@ -980,6 +1007,36 @@ class CalendarioResultadosRepository:
             )
             conn.commit()
             return cursor.rowcount
+        finally:
+            conn.close()
+
+    def replace_by_fonte(self, fonte: str, items: list[dict]) -> int:
+        conn = get_connection(self.db_path)
+        try:
+            conn.execute(
+                "DELETE FROM calendario_resultados WHERE fonte = ?", (fonte,)
+            )
+            if items:
+                conn.executemany(
+                    f"""INSERT INTO calendario_resultados ({COLUNAS_CALENDARIO_RESULTADOS})
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(ativo, data_publicacao, trimestre_referencia, tipo_evento) DO UPDATE SET
+                           cnpj=excluded.cnpj,
+                           nome_empresa=excluded.nome_empresa,
+                           tipo_documento=excluded.tipo_documento,
+                           fonte=excluded.fonte,
+                           atualizado_em=CURRENT_TIMESTAMP""",
+                    [(d["ativo"], d.get("cnpj"), d.get("nome_empresa"),
+                      d["data_publicacao"], d.get("trimestre_referencia"),
+                      d.get("tipo_documento", "ITR"), d.get("tipo_evento", "previsto"),
+                      d.get("fonte", "webwallet"))
+                     for d in items]
+                )
+            conn.commit()
+            return len(items)
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             conn.close()
 

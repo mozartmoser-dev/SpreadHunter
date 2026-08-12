@@ -2797,8 +2797,7 @@ class MainWindow(QMainWindow):
                     self.progress_item.emit(1, 4, "Webwallet (previstos)...")
                     previstos = web.buscar_todos()
                     if previstos:
-                        crepo.delete_by_fonte("webwallet")
-                        crepo.save_batch(previstos)
+                        crepo.replace_by_fonte("webwallet", previstos)
 
                     resultado["etapas"]["resultados"] = {
                         "ok": True,

@@ -127,8 +127,7 @@ class FeriadosFetchWorker(QThread):
                 self.progresso.emit(i + 1, total_anos, str(ano))
                 feriados = provider.buscar_feriados(ano)
                 if feriados:
-                    repo.delete_by_ano(ano)
-                    repo.save_batch(feriados)
+                    repo.replace_feriados_ano(ano, feriados)
                     total += len(feriados)
 
             msg = f"Atualizados {total} feriados para {total_anos} ano(s)."
