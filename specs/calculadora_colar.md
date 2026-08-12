@@ -126,12 +126,13 @@ razões históricas — foram desenvolvidas independentemente e nunca unificadas
 [motivo não documentado no código, confirmar com o autor] para não haver uma única
 implementação canônica de IV no sistema.
 
-### 4. `black_scholes_call`/`black_scholes_put` separados da `CalculadoraColarCalendario`
+### 4. `black_scholes_call`/`black_scholes_put` delegam para `CalculadoraColarCalendario`
 
 **Porquê:** A `CalculadoraColarCalendario` tem um único `black_scholes(S, K, T, r, sigma, option_type)`
-com parâmetro `option_type`. A `CalculadoraColar` tem dois métodos separados
-(`black_scholes_call`, `black_scholes_put`). Não há reuso de código entre elas —
-[motivo não documentado no código, confirmar com o autor].
+canônico com parâmetro `option_type`. A `CalculadoraColar` mantém dois métodos separados
+(`black_scholes_call`, `black_scholes_put`) como conveniência de API, mas internamente
+**delegam** para `CalculadoraColarCalendario.black_scholes()`, eliminando duplicação de fórmula.
+A unificação foi implementada (commit `3eefe1b`).
 
 ### 5. Risco de leilão classificado mas não bloqueia viabilidade
 
@@ -144,10 +145,9 @@ de `pct_cdi_bruto ≥ premio_risco_colar`.
 
 ### 1. Unificar B&S com `CalculadoraColarCalendario`
 
-Rejeitado na prática (nunca implementado). As duas implementações coexistem com
-assinaturas diferentes (`option_type: str` vs métodos separados). O custo de unificar
-seria baixo (a fórmula é a mesma), mas nenhum commit registra essa tentativa.
-[motivo não documentado no código, confirmar com o autor].
+**Implementado** (commit `3eefe1b`). `black_scholes_call` e `black_scholes_put` agora
+delegam para `CalculadoraColarCalendario.black_scholes()`. O `calcular_iv` permanece
+independente (usa seu próprio bracket adaptativo com `brentq`).
 
 ### 2. Usar `preco_ativo` como fallback para `preco_compra_ativo`
 
@@ -163,7 +163,6 @@ Tradicional a ação é comprada no momento — o ask do book é a única fonte 
 - `src.domain.services.calculadora_custos_b3` → `CalculadoraCustosB3`
 
 **Não depende de:**
-- `calculadora_colar_calendario` (implementações B&S independentes)
 - Banco de dados (recebe tudo por parâmetro)
 - RTD/OpenFAST
 

@@ -116,6 +116,7 @@ Cliente COM (Component Object Model) para o servidor RTD (Real-Time Data) do Pro
 
 - 2026-07-09 — última modificação registrada no git.
 - O `timeout_ms` no `refresh()` não é um timeout real — é um debounce interval. O valor `0` passado para `RefreshData` faz o COM retornar imediatamente sem esperar dados novos. O mecanismo real de throttle é o debounce baseado em `_ultimo_refresh_timestamp`.
-- `ler_campo_cache` retorna `0.0` para valores `<= 0`, o que pode mascarar valores zero legítimos (ex: book vazio). Os chamadores tratam `0.0` como ausência de dado, então na prática não causa problemas.
+- `ler_campo_cache` e `ler_campos` normalizam valores negativos para `None` (commit `e89242c`). Valor `0.0` é retornado como `0.0` (distinguível de ausência). Antes retornava `0.0` para `<= 0`, mascarando zeros legítimos.
+- `__init__` aceita `progid` opcional para alternar ProgID COM (ex: Fast Trade).
 - `_topic_counter` é inicializado com `random.randint(100000, 20000000)` para evitar colisão com execuções anteriores. Isso é necessário porque o servidor RTD do Profit pode manter tópicos de uma execução anterior ativos, e reutilizar os mesmos IDs causaria conflito.
 - Importações condicionais (`win32com`, `random`) são feitas dentro dos métodos, não no topo do arquivo, para permitir que o módulo seja importado mesmo sem pywin32.

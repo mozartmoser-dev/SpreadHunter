@@ -42,7 +42,7 @@ Diálogo de visualização e atualização da agenda de resultados (balanços) d
 ### `CalendarioFetchWorker(QThread)`
 **Garante:**
 1. Chama `CalendarioResultadosWebwalletProvider.buscar_todos()`.
-2. `delete_by_fonte("webwallet")` + `save_batch(previstos)`.
+2. `replace_by_fonte("webwallet", previstos)` — DELETE + UPSERT na mesma transação.
 3. Emite `progresso`, `concluido`, `erro`.
 
 ## Dependências Diretas (por import)
@@ -67,5 +67,5 @@ Diálogo de visualização e atualização da agenda de resultados (balanços) d
 - **Data da última modificação:** 2026-07-29
 - `CalendarioFetchWorker` deleta por fonte "webwallet" antes de inserir — mesmos dados de outras fontes (ex: CVM) não são afetados.
 - A barra de progresso tem máximo fixo 2 (passo 1: "Webwallet (previstos)...", passo 2: "Finalizando..."). Não reflete o progresso real da operação.
-- `delete_by_fonte` + `save_batch` não são atômicos — se o save falhar, os dados anteriores são perdidos. **POSSÍVEL BUG — NÃO CORRIGIDO, aguardando revisão.**
+- `replace_by_fonte("webwallet", previstos)` executa DELETE + UPSERT na mesma transação com rollback — a janela não-atômica foi fechada (commit `b679a6b`).
 - O diálogo não tem tratamento para quando o provider retorna lista vazia (`previstos = []`) — simplesmente deleta tudo da fonte e insere nada, efetivamente limpando os dados.

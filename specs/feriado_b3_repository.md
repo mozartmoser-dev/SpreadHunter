@@ -34,6 +34,13 @@ Repositório para feriados da B3 (tabela `feriados_b3`). Persiste feriados obtid
 **Garante:**
 1. `DELETE FROM feriados_b3`.
 
+### `replace_feriados_ano(ano: int, feriados: list[dict]) -> int`
+**Garante:**
+1. DELETE + INSERT na **mesma transação** com rollback em caso de falha.
+2. DELETE `WHERE data >= 'YYYY-01-01' AND data <= 'YYYY-12-31'`.
+3. Se `feriados` não vazio, `executemany` com `ON CONFLICT(data) DO UPDATE`.
+4. Substitui atomicamente o par `delete_by_ano` + `save_batch`.
+
 ## Dependências Diretas (por import)
 
 | Módulo | Símbolo | Uso |

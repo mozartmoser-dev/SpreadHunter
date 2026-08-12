@@ -102,4 +102,5 @@ QThread central que coordena o pipeline completo de varredura de oportunidades e
 - **_flush_buffer crítico:** O `MercadoDataProvider` é responsável por assinar opções. Se `_flush_buffer()` não for chamado em algum branch, opções nunca são assinadas → book=0. Este worker não chama `_flush_buffer` diretamente — delega ao provider.
 - **`psutil` importado mas não usado:** O import `import psutil` no topo do arquivo não tem uso visível no código atual. [motivo não documentado, confirmar com o autor].
 - **Conexão do `MonitorBoxUseCase` com MPP:** O `_monitor_box_uc` recebe `_monitor_mpp_uc` no construtor — box e MPP compartilham infraestrutura.
-- **Profile TSV:** Escrito em `%TEMP%/spreadhunter_profile.tsv` a cada ciclo. Colunas: ciclo, dt_total, dt_monitor, dt_colar, dt_cal, dt_box, dt_put_ratio, dt_manut, dt_mpp, n_inst_book, n_onda2. Útil para diagnóstico de gargalos.
+- **Profile TSV:** Escrito em `%TEMP%/spreadhunter_profile.tsv` a cada ciclo. Colunas: ciclo, dt_total, dt_monitor, dt_colar, dt_cal, dt_box, dt_put_ratio, dt_manut, dt_mpp, n_inst_book, n_onda2.
+- **`psutil`:** Usado em `_emitir_estatisticas_engine` para CPU% e memória RSS (linhas 1194-1195).

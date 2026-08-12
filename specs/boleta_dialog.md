@@ -65,5 +65,6 @@ Diálogo de basket PNT MultiLeg — gera a boleta de montagem para envio ao Prof
 
 - **`_ACCUMULATOR` global:** Lista no nível do módulo — sobrevive ao fechamento do diálogo. Acumula baskets entre múltiplas aberturas do `BoletaDialog`. Isso permite montar múltiplos baskets e enviá-los juntos ao PNT.
 - **`QTD_APREGoada`** (com "G" maiúsculo): Constante 100 — typo no nome da variável, mas consistente com o uso na interface.
-- **Automação PNT via pyautogui:** `executar_automacao_pnt` envia keystrokes para o Profit Pro. É frágil — depende de o Profit estar aberto e na janela correta.
+- **Automação PNT via pyautogui:** `executar_automacao_pnt` envia keystrokes para o Profit Pro. Frágil — depende de o Profit estar aberto e na janela correta.
 - **Detecção de timezone:** Usa `zoneinfo.ZoneInfo("America/Sao_Paulo")` — requer Python 3.9+.
+- **Copiar Debug:** Botão que copia timestamps, preço ativo, recebimento, ganho, CDI, PUT/CALL book e `label_detectado` para clipboard. Diagnóstico de cotação.

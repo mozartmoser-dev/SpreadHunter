@@ -3,8 +3,10 @@
 ## Propósito
 
 Primeiro estágio do pipeline do worker ("Geral"). Carrega TODOS os instrumentos do banco,
-usa `CalculadoraVetorizada` para filtrar pares viáveis em O(1) com numpy, depois processa
-cada par viável individualmente com `CalculadoraBoxSbth._calcular_oportunidade()`.
+usa `CalculadoraVetorizada` para filtrar pares viáveis e **montar diretamente os DTOs**
+de forma 100% vetorizada com numpy — classificação, operação e todos os 38 campos do
+`OportunidadeMonitor` são derivados dos arrays vetorizados, sem processamento individual.
+O método `_calcular_oportunidade` (OO) não é mais chamado no fluxo principal.
 
 Gera `OportunidadeMonitor` (DTO da tabela principal) e, se Telegram habilitado, monta e
 envia notificações.

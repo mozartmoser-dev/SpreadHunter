@@ -34,7 +34,7 @@ A atualização busca feriados via `FeriadosB3Provider` para anos alvo (ano ante
 ### `FeriadosFetchWorker(QThread)`
 **Garante:**
 1. Para cada ano, chama `FeriadosB3Provider.buscar_feriados(ano)`.
-2. `delete_by_ano` + `save_batch` no repositório.
+2. `replace_feriados_ano(ano, feriados)` no repositório — DELETE + UPSERT na mesma transação.
 3. Emite `progresso(atual, total, ano)`, `concluido(total, msg)`, `erro(msg)`.
 
 ## Dependências Diretas (por import)
@@ -58,7 +58,7 @@ A atualização busca feriados via `FeriadosB3Provider` para anos alvo (ano ante
 ## Notas
 
 - **Data da última modificação:** 2026-08-03
-- `delete_by_ano` é chamado antes de `save_batch` — se o provider falhar após o delete, os dados daquele ano são perdidos até a próxima atualização bem-sucedida. **POSSÍVEL BUG — NÃO CORRIGIDO, aguardando revisão**: sem transação, o delete e o re-insert não são atômicos.
+- `replace_feriados_ano(ano, feriados)` executa DELETE + UPSERT na mesma transação com rollback em caso de falha — a janela não-atômica foi fechada (commit `b679a6b`).
 - O tipo "estadual_sp" é o único tipo regional documentado. Feriados municipais (ex: aniversário de São Paulo) não são cobertos.
 - A calculadora CDI usa `dc_to_du_aproximado` do `calendario_b3` para conversão de dias corridos em dias úteis.
 - `FeriadoB3Repository` e `FeriadosB3Provider` são importados lazy dentro de `FeriadosFetchWorker.run()` — isso evita dependências circulares e acelera o import inicial do módulo.

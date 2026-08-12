@@ -18,16 +18,21 @@ e devolve `ResultadoVetorizado` com índices dos pares viáveis + arrays de %CDI
 1. Recebe `preco_ativo`, `of_venda_ativo`, `of_venda_put`, `of_compra_call`, `strike`,
    `dias`, `vov_put_boca`, `voc_call_boca`, `em_leilao` como `np.ndarray`.
 2. **Fórmula vetorizada (element-wise):**
-   ```
-   cdix = (1 + taxa_cdi)^(du/252) - 1
-   receb_box = of_compra_ativo + of_compra_call - of_venda_put
-   receb_sbth = of_compra_ativo + of_compra_put - of_venda_call   [se existir]
-   pct_cdi_box = (receb_box / of_venda_ativo) / cdix
-   ```
-3. Filtro de viabilidade: `vov_put_boca ≥ lote_put` E `voc_call_boca ≥ lote_call`
-   E `em_leilao = False`.
-4. `dc_to_du_vetorizado` é chamado se `vencimentos` fornecido; caso contrário,
-   aproximação: `DU ≈ DC * 5/7`.
+    ```
+    cdix = (1 + taxa_cdi)^(du/252) - 1
+    custo_box = preco_compra_ativo + of_venda_put - of_compra_call
+    custo_sbth = preco_compra_ativo + of_venda_put
+    pct_cdi_box = (receb_box / custo_box) / cdix
+    pct_cdi_sbth = (receb_sbth / custo_sbth) / cdix
+    ```
+    Onde `preco_compra_ativo = of_venda_ativo` (ask do ativo), `receb_box = of_compra_ativo + of_compra_call`,
+    `receb_sbth = of_compra_ativo + of_compra_put`.
+3. Filtro de viabilidade: `vov_put_boca ≥ lote_put` E `voc_call_boca ≥ lote_call`.
+    `em_leilao` é **identificado visualmente, não descarta** — o filtro de viabilidade não
+    usa `em_leilao` como critério de rejeição.
+4. `dc_to_du_vetorizado` com `vencimentos=None` — preserva aproximação `DU ≈ DC * 252/365`,
+    mesma convenção do cálculo OO anterior. Calendário B3 exato **não** é usado (testes mostraram
+    diferenças de classificação na fronteira).
 5. Retorna índices viáveis (máscara booleana convertida para índices) e arrays
    de %CDI bruto, líquido (pós-B3), e pós-IR para BOX e SBTH.
 6. O cálculo de custos B3 é vetorizado usando a mesma fórmula de

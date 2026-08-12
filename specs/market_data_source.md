@@ -1,8 +1,9 @@
 # MarketDataSource
 
 Protocolo (`typing.Protocol`, `@runtime_checkable`) que define a interface de qualquer
-fonte de market data no sistema. Três implementações concretas: `RTDProfitAdapter` (COM),
-`OpenFastSocketAdapter` (socket TCP) e `MockDataSource` (testes).
+fonte de market data no sistema. Quatro implementações concretas: `RTDProfitAdapter` (COM),
+`OpenFastSocketAdapter` (socket TCP), `FastTradeRTDAdapter` (COM Excel, esqueleto) e
+`MockDataSource` (testes).
 
 ## Contrato (Requisitos)
 
@@ -45,5 +46,8 @@ fonte de market data no sistema. Três implementações concretas: `RTDProfitAda
 | Última modificação | 2026-07-28 |
 
 ## Notas
-- Protocolo com `@runtime_checkable` — permite `isinstance()` mas não verifica assinaturas de métodos em runtime (só atributos). Isso significa que `isinstance(obj, MarketDataSource)` pode retornar `True` para um objeto que tem os atributos mas métodos com assinaturas erradas — POSSÍVEL FALSA VERIFICAÇÃO.
+- Protocolo com `@runtime_checkable` — permite `isinstance()` mas não verifica assinaturas de métodos em runtime.
 - `MarketDataSource`, `FieldName`, `criar_data_source` e dicionários de mapeamento coexistem no mesmo arquivo `market_data_source.py`.
+- `criar_data_source` aceita fontes `profit`, `openfast`, `fasttrade`, `mock`. Fontes desconhecidas logam warning e caem para RTD Profit.
+- `FieldName` inclui `TIME` (timestamp de cotação) e `TIMENEG` (timestamp do último negócio) para diagnóstico de idade do dado.
+- `FASTTRADE_FIELD_STR` mapeia campos específicos do protocolo Fast Trade (HIGH, LOW, OPEN, VOLUME, VOLUME_FIN, BOOK_HEADER).

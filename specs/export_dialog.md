@@ -69,4 +69,6 @@ Diálogo de exportação de operação — visualiza e confirma os dados de uma 
 - **Tachado condicional:** Labels de custo/ganho do tipo não aplicável (ex: custo Box em operação SBTH) recebem fonte com `setStrikeOut(True)` e cor `STRIKEOUT_COLOR`.
 - **Formatação de data com fallback:** Tenta `strftime`, depois parsing de DD/MM/YYYY, depois ISO 8601, depois `str()` puro.
 - **`_source` passado mas uso não visível:** O parâmetro `source` (fonte de market data) é armazenado em `self._source` mas seu uso não está visível no trecho lido. Provavelmente usado para queries adicionais de book na aba de mercado.
-- **Verificação ex-dividendo:** Funcionalidade crítica — se uma operação de box/sbth cruzar uma data ex-dividendo, o valor do provento afeta o preço da ação e pode invalidar a arbitragem.
+- **Verificação ex-dividendo:** Funcionalidade crítica — se uma operação cruzar uma data ex-dividendo, o valor do provento afeta o preço da ação e pode invalidar a arbitragem.
+- **Copiar Debug:** Botão que copia timestamps, preço ativo, PUT/CALL book, classificação, custos e `label_detectado` para clipboard. Útil para diagnóstico de STALE e validação de cotação.
+- **Timestamp no label:** O preço do ativo exibe sufixo com idade (`(preço Xs atrás)`) quando stale > 10s, com destaque amarelo.

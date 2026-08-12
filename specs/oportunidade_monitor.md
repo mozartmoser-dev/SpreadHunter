@@ -34,6 +34,8 @@ Inclui properties de formatação para exibição na UI (`label_rentabilidade`,
 8. Outros: `cdi_periodo`, `viavel`, `em_leilao`, `taxa_aluguel` — defaults
    apropriados.
 9. `detectado_em: datetime | None` — timestamp de detecção (UTC).
+10. Campos de timestamp (diagnóstico STALE): `ts_ativo_ask` (float|None), `ts_ativo_bid` (float|None),
+    `ts_origem_ativo` (float|None), `idade_origem_ativo` (float|None) — todos default `None`.
 
 ### `label_detectado` (property)
 
@@ -41,6 +43,14 @@ Inclui properties de formatação para exibição na UI (`label_rentabilidade`,
 1. Se `detectado_em is None`, retorna `""`.
 2. Converte UTC → America/Sao_Paulo via `zoneinfo.ZoneInfo`.
 3. Formata como `"%d/%m/%Y %H:%M:%S"` (horário de Brasília).
+4. Inclui sufixo `(preço Xs atrás)` quando `idade_ativo_ask > 10s`.
+5. Inclui sufixo `(origem Ys atrás)` quando `label_origem` disponível.
+
+### `idade_ativo_ask` (property)
+1. `time.time() - self.ts_ativo_ask` se `ts_ativo_ask` definido, senão `None`.
+
+### `label_origem` (property)
+1. Formata `idade_origem_ativo` como string de diagnóstico de idade da cotação (TIME/TIMENEG).
 
 ### `custo_sbth_display` (property)
 

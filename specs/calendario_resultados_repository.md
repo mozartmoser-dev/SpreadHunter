@@ -43,6 +43,13 @@ Repositório para calendário de resultados (tabela `calendario_resultados`). Pe
 **Garante:**
 1. `DELETE WHERE fonte = ?`. Permite limpar só CVM ou só webwallet.
 
+### `replace_by_fonte(fonte: str, items: list[dict]) -> int`
+**Garante:**
+1. DELETE + INSERT na **mesma transação** com rollback em caso de falha.
+2. DELETE `WHERE fonte = ?`.
+3. Se `items` não vazio, `executemany` com `ON CONFLICT(ativo, data_publicacao, trimestre_referencia, tipo_evento) DO UPDATE`.
+4. Substitui atomicamente o par `delete_by_fonte` + `save_batch`.
+
 ### `get_cnpj_ticker_map() -> dict[str, str]`
 **Garante:**
 1. `SELECT DISTINCT cnpj, ativo WHERE cnpj IS NOT NULL AND cnpj != ''`.

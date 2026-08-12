@@ -138,9 +138,14 @@ Adapter de socket TCP para o protocolo OpenFast (servidor local na porta 557). P
 
 ## Notas
 
-- 2026-08-06 — últimas modificações (profiling, estabilidade da reconexão).
-- `ler_campo_cache` retorna `None` para valor `0`, enquanto `RTDProfitAdapter` retorna `0.0`. Isso é inconsistente, mas os chamadores em `MercadoDataProvider` tratam ambos como "sem dado".
-- O campo de status no OpenFast é `"ST"` (não `"EST"` como no Profit). A normalização converte para os mesmos valores ("Aberto", "Leilão", "Fechado").
-- O separador `\x01` (SOH, Start of Header) é o delimitador padrão do protocolo OpenFast. O fallback `#` existe para compatibilidade com versões anteriores.
-- `forcar_leitura` faz polling ativo por até 500ms (50 × 10ms), o que é um comportamento bloqueante diferente do adapter RTD.
-- O handshake espera uma linha `version` — se não receber em 5s, loga o buffer e fecha. Se o servidor responder com "mais de uma conex", significa que outro cliente já está conectado (single-client por design do OpenFast local).
+- 2026-08-10 — STALE Fase 1: `allow_stale`, `stale_campo_s`, `is_stale_campo`, watchdog.
+- **`allow_stale`:** `ler_campo_cache(codigo, campo, allow_stale=False)` — se `True`, ignora janela de idade e retorna valor cacheado mesmo se velho. `ler_campos` e `forcar_leitura` também aceitam o parâmetro.
+- **`stale_campo_s`:** Parâmetro no `__init__` (default 15.0). Property exposta. Usado por `ler_campo_cache`, `ler_campos` e `is_stale_campo` para determinar se um campo excedeu a idade máxima.
+- **`is_stale_campo(codigo, campo) -> bool`:** Retorna `True` se o campo existe no cache mas sua idade excede `stale_campo_s`.
+- **Normalização negativa:** `ler_campo_cache` mapeia `v < 0 → None` (alinhado com `rtd_profit`). Zero retorna `0.0`.
+- **Watchdog:** `verificar_conexao` detecta thread leitora morta com `_conectado` ainda `True` e invalida o cache inteiro ao detectar desconexão.
+- **Origem timestamps:** `get_ts_origem(codigo)` retorna timestamp de origem (TIME/TIMENEG do protocolo OpenFast). `get_idade_origem(codigo)` retorna idade real da cotação.
+- `ler_campo_cache` retorna `None` para valor `0`, enquanto `RTDProfitAdapter` retorna `0.0`. Inconsistência conhecida — chamadores tratam ambos como "sem dado".
+- O campo de status é `"ST"` (não `"EST"` como no Profit). A normalização converte para "Aberto", "Leilão", "Fechado".
+- O separador `\x01` (SOH) é o delimitador padrão do protocolo. Fallback `#` para compatibilidade.
+- `forcar_leitura` faz polling ativo por até 500ms (50 × 10ms), bloqueante diferente do adapter RTD.

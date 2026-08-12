@@ -15,7 +15,10 @@ Representa a venda de ação + opções, com métricas de rentabilidade e CDI.
 6. `leilao_display` retorna `"⚠ LEILAO"` se `em_leilao`, senão `""`.
 7. Campos de liquidez e custo: `of_compra_put`, `of_venda_call`, `qul_put`, `qul_call`, `custo`, `taxa_aluguel`.
 8. Campos de rentabilidade: `pct_ganho`, `pct_cdi`, `pct_ganho_bruto`, `pct_ganho_liquido`, `pct_cdi_bruto`, `pct_cdi_liquido`.
-9. `label_detectado` — mesmo padrão `ZoneInfo("America/Sao_Paulo")` dos outros DTOs.
+9. `label_detectado` — mesmo padrão `ZoneInfo("America/Sao_Paulo")` dos outros DTOs. Inclui sufixo `label_origem` quando disponível.
+10. Campos de timestamp: `ts_ativo_ask`, `ts_ativo_bid`, `ts_origem_ativo`, `idade_origem_ativo` (float|None, default None).
+11. `idade_ativo_ask` (property): `time.time() - ts_ativo_ask` se definido.
+12. `label_origem` (property): formata `idade_origem_ativo` para diagnóstico.
 
 ## Dependências Diretas (por import)
 | Módulo | Arquivo/Símbolo | Uso |

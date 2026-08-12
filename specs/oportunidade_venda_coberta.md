@@ -17,6 +17,10 @@ contra posição no ativo, com métricas de rentabilidade bruta, líquida e comp
 6. `ganho_display`, `ganho_bruto_display`, `ganho_liq_display` formatam `pct_ganho * 100` como percentual.
 7. Campos de liquidez: `of_compra_put`, `of_venda_call`, `qul_put`, `qul_call`, `money_put`, `money_call`.
 8. Campos de custo e IR: `custo`, `taxa_aluguel`, `pct_ganho_bruto`, `pct_ganho_liquido`, `pct_cdi_bruto`, `pct_cdi_liquido`.
+9. Campos de timestamp: `ts_ativo_ask`, `ts_ativo_bid`, `ts_origem_ativo`, `idade_origem_ativo` (float|None, default None).
+10. `idade_ativo_ask` (property): `time.time() - ts_ativo_ask` se definido.
+11. `label_origem` (property): formata `idade_origem_ativo` para diagnóstico.
+12. `label_detectado` — mesmo padrão dos outros DTOs, com sufixos de origem e idade do ativo.
 
 ## Dependências Diretas (por import)
 | Módulo | Arquivo/Símbolo | Uso |

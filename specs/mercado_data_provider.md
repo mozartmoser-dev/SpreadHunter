@@ -131,10 +131,13 @@ Orquestrador central do pipeline de market data. Coordena o registro progressivo
 
 ## Notas
 
-- 2026-08-07 — última modificação (ajustes na varredura e correção de strike).
+- 2026-08-07 — última modificação.
 - O módulo é o coração do pipeline de dados — coordena 3 ondas de registro, cache de preços, mock source, manutenção de books e background scan.
-- A thread-safety usa `QMutex` em vez de `threading.Lock` porque este provider é usado dentro de `MonitorWorker` (QThread). O `QMutex` é necessário para integração correta com o Qt event loop.
-- A correção de strike (usar `min(strike_db, strike_rtd)`) só se aplica a fontes COM (RTD Profit). Para OpenFast (push-based), o strike do banco (OptionsChain API) é a fonte canônica.
-- `_flush_buffer` é chamado em múltiplos pontos. A regra do AGENTS.md ("TODOS os branches devem chamar `self._flush_buffer()`") é observada em todos os caminhos de código visíveis.
-- O mock source (`source.is_mock`) é um atalho que pula todo o pipeline de registro e gera dados sintéticos diretamente.
-- Prioridades são persistidas em JSON ao lado do banco (`spreadhunter_prioridade.json`) e carregadas no startup. O formato é uma lista de chaves `"ativo|cod_put"`.
+- **STALE Gate (Fase 1):** `capturar_dados_mercado` verifica frescor de pernas críticas (ativo.ASK/BID, cod_put.ASK/BID, cod_call.ASK/BID) via `_campo_stale`. Instrumentos com pernas stale são pulados no ciclo. Para fontes push-based (OpenFast), leituras usam `allow_stale=True`; polling-based mantêm leitura fresca.
+- **`allow_stale`:** `_ler_campo_cache` e `_ler_campos` aceitam `allow_stale=True` para fontes push-based, retornando valor cacheado mesmo se velho — necessário porque push só notifica mudanças.
+- **Parâmetros STALE:** `assinar_timestamp_openfast` e `stale_sinal_s` lidos do banco via `ParametroRepository` em `recarregar_parametros`. Controlam assinatura de TIME/TIMENEG e tolerância de idade entre pernas.
+- A thread-safety usa `QMutex` em vez de `threading.Lock` porque este provider é usado dentro de `MonitorWorker` (QThread).
+- A correção de strike (usar `min(strike_db, strike_rtd)`) só se aplica a fontes COM (RTD Profit). Para OpenFast, o strike do banco (OptionsChain API) é a fonte canônica.
+- `_flush_buffer` é chamado em múltiplos pontos. A regra do AGENTS.md é observada em todos os caminhos.
+- O mock source (`source.is_mock`) é um atalho que pula todo o pipeline de registro.
+- Prioridades são persistidas em JSON (`spreadhunter_prioridade.json`).
