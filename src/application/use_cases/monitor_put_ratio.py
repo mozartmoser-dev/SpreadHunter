@@ -43,7 +43,11 @@ class MonitorPutRatioUseCase:
 
     def _carregar_iv_historico(self, ativo: str) -> tuple[float, float, float, list[float]] | None:
         if ativo in self._cache_iv_historico:
+            self._t_stats["n_hit"] += 1
             return self._cache_iv_historico[ativo]
+        t0 = time.perf_counter()
+        self._t_stats["n_miss"] += 1
+        self._t_stats["n_http"] += 1
         try:
             client = OpcoesNetClient()
             hist = client.get_stock_history_formatted(ativo, 252)
@@ -57,6 +61,8 @@ class MonitorPutRatioUseCase:
             return stats
         except Exception:
             return None
+        finally:
+            self._t_stats["http"] += time.perf_counter() - t0
 
     def _get_calculadora(self) -> CalculadoraPutRatio:
         if self._calculadora is None:
@@ -145,7 +151,10 @@ class MonitorPutRatioUseCase:
             mid = ask_put if ask_put > 0 else bid_put
             if mid > 0 and r_cont > 0:
                 T = inst.dias_ate_vencimento / 365.0
+                _t_iv = time.perf_counter()
                 iv_put = CalculadoraPutRatio.estimar_iv(mid, preco_ativo, strike, T, r_cont) * 100.0
+                self._t_stats["iv"] += time.perf_counter() - _t_iv
+                self._t_stats["n_iv"] += 1
 
         return {
             "strike": strike,
@@ -190,6 +199,9 @@ class MonitorPutRatioUseCase:
         return True
 
     def varrer(self, rtd, pipeline_tracker: PipelineTracker | None = None) -> list[ResultadoPutRatio]:
+        self._t_stats = {"extrair": 0.0, "iv": 0.0, "http": 0.0,
+                         "n_extrair": 0, "n_iv": 0, "n_http": 0, "n_hit": 0, "n_miss": 0}
+        _t_varrer = time.perf_counter()
         calc = self._get_calculadora()
         r_cont = math.log(1 + calc.taxa_cdi)
         inst_map = self.inst_repo.get_all_mapped()
@@ -217,7 +229,10 @@ class MonitorPutRatioUseCase:
                 filtro["white"] += 1
                 continue
 
+            _t_ex = time.perf_counter()
             dados = self._extrair(inst, rtd, r_cont)
+            self._t_stats["extrair"] += time.perf_counter() - _t_ex
+            self._t_stats["n_extrair"] += 1
             if not dados:
                 filtro["rtd"] += 1
                 continue
@@ -324,6 +339,11 @@ class MonitorPutRatioUseCase:
                                        f"Spread >= {spread_min_pct*100:.0f}% | Cred >= R$ {min_credit:.2f} | Ratios: {','.join(f'{a}x{b}' for a,b in ratios)}")
 
         resultados.sort(key=lambda r: -r.score)
+        ts = self._t_stats
+        logger.info("PUT_RATIO_TIMING: total=%.3fs extrair=%.3fs iv=%.3fs http=%.3fs | n_extrair=%d n_iv=%d n_http=%d n_hit=%d n_miss=%d | n_passou=%d n_resultados=%d",
+                     time.perf_counter() - _t_varrer, ts["extrair"], ts["iv"], ts["http"],
+                     ts["n_extrair"], ts["n_iv"], ts["n_http"], ts["n_hit"], ts["n_miss"],
+                     n_passou, len(resultados))
         return resultados
 
     def confirmar_resultados(self, rtd, resultados):

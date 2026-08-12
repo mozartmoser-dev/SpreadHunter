@@ -820,11 +820,12 @@ class MercadoDataProvider:
                             strike_put = self.source.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
                     if not strike_put or strike_put <= 0:
                         continue
-                    # Skip da Onda 1 (push-based): se PUT e CALL não mudaram,
+                    # Skip da Onda 1 (push-based): se ativo, PUT e CALL não mudaram,
                     # a entry pode ser reutilizada do _dados_cache no pós-loop.
                     if suporta_push and codigos_mudados is not None:
                         perna_mudou = (
-                            (inst.cod_put in codigos_mudados)
+                            (inst.ativo in codigos_mudados)
+                            or (inst.cod_put in codigos_mudados)
                             or (inst.cod_call in codigos_mudados)
                         )
                         if not perna_mudou and key in self._dados_cache:
