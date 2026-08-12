@@ -350,13 +350,13 @@ class MonitorOportunidadesUseCase:
             pipeline_tracker.add_stage("6. Oportunidades calculadas", n_calc, n_opps,
                 "_calcular_oportunidade retornou None (dados incompletos)",
                 tempo_s=0.0)
-            pipeline_tracker.add_stage("7. Classificação (prêmio-risco)", n_opps, n_opps - c_tp_op,
-                f"{c_tp_op} não atingem prêmio-risco BOX nem SBTH (Parâmetros > BOX)",
+            pipeline_tracker.add_stage("7. TP.Op pulados", n_opps, n_opps,
+                f"{c_tp_op} TP.Op não atingem prêmio-risco (não materializados pelo P8-A)",
                 tempo_s=0.0)
-            pipeline_tracker.add_stage("8. Em leilão", n_opps - c_tp_op, n_opps - c_tp_op - c_leilao,
+            pipeline_tracker.add_stage("8. Em leilão", n_opps, n_opps - c_leilao,
                 f"{c_leilao} em leilão (Parâmetros > BOX > lote_liquidez_box)",
                 tempo_s=0.0)
-            pipeline_tracker.add_stage("9. Liquidez (lote)", n_opps - c_tp_op - c_leilao, n_viaveis,
+            pipeline_tracker.add_stage("9. Liquidez (lote)", n_opps - c_leilao, n_viaveis,
                 f"{c_sem_liq} com volume abaixo do lote mínimo",
                 tempo_s=0.0)
             pipeline_tracker.add_stage("10. Resultados", n_viaveis, n_viaveis,
