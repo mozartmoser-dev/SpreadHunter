@@ -1,6 +1,6 @@
 # Spreadhunter — Regras para Agentes
 
-Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, taxa, SBTH vendida, put ratio, venda coberta). Desktop Python/PySide6, SQLite, RTD via COM do Profit, socket OpenFast, API opcoes.net.br. **Windows-only.** Sem CI; 689 testes rodam localmente (contagem muda com frequência; validar com `--collect-only`).
+Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, taxa, SBTH vendida, put ratio, venda coberta). Desktop Python/PySide6, SQLite, RTD via COM do Profit, socket OpenFast, API opcoes.net.br. **Windows-only.** Sem CI (sem `.github/`); 689 testes coletados localmente (contagem muda com frequência; validar com `--collect-only`).
 
 ## Confirmação obrigatória
 
@@ -28,11 +28,14 @@ Stack: Python 3.13 local (pyproject permite ≥3.12), PySide6 6.11.1, sqlite3, s
 - Bootstrap: `src/infrastructure/persistence/bootstrap.py` → `main.py`
 - `_ImportThread` em `grade_opcoes_dialog.py` (não em `main_window.py`)
 - Duas fontes de market data: Profit RTD (COM, `rtd_profit.py`) e OpenFast (socket TCP, `openfast_socket_adapter.py`), além de `fasttrade` (RTD da Fast Trade) e `mock` (simulador p/ testes) em `criar_data_source()` (`market_data_source.py`). Config `fonte_market_data` no banco. **Atenção:** `parametro_operacional.py` default hardcoded = `"profit"`, mas `parametros_default.json` seed = `"openfast"` — o JSON vence no seed. Script `scripts/set_openfast.py` alterna.
-- `.env` contém credenciais opcoes.net.br (`OPCOESNET_CPF`, `OPCOESNET_SENHA`) — `.gitignore` exclui, nunca commitar. `load_dotenv()` é chamado em `opcoesnet_client.py` (linha ~11, no import do módulo), não globalmente.
+- `.env` contém credenciais opcoes.net.br (`OPCOESNET_CPF`, `OPCOESNET_SENHA`) — `.gitignore` exclui, nunca commitar. `load_dotenv()` é chamado em `opcoesnet_client.py` (linha 19, no topo do módulo), não globalmente.
 - DB em `%APPDATA%/Spreadhunter/spreadhunter.db` via `get_db_path()` — nunca hardcoded. Migração automática de `config/spreadhunter.db` na 1ª execução.
 - Conexão SQLite: `threading.local` pool, `journal_mode=WAL`, `cache_size=-8000`, `temp_store=MEMORY`, `synchronous=NORMAL`
 - `config/spreadhunter_prioridade.json` — prioridades de ativos
-- Graphify: `graphify-out/` — use `skill graphify` para consultas de arquitetura. Para perguntas focadas, prefira graphify query (subgrafo escopado) ao invés de grep nos arquivos fonte. Leia `graphify-out/GRAPH_REPORT.md` apenas para contexto arquitetural amplo.
+- Graphify: `graphify-out/` — índice estrutural/semântico auxiliar para reduzir exploração desnecessária do código e economizar contexto/tokens. Use `skill graphify` para consultas. Para perguntas focadas, prefira graphify query (subgrafo escopado) ao invés de grep nos arquivos fonte. Leia `graphify-out/GRAPH_REPORT.md` apenas para contexto arquitetural amplo.
+  - **Atualização:** executar `graphify update .` ao final de uma sessão/etapa que produziu alterações relevantes em `src/**/*.py` ou `specs/**/*.md`. Usa cache incremental (sem custo de API). NÃO executar a cada comando ou em sessões sem mudanças estruturais.
+  - **NÃO disparam atualização:** logs/, arquivos temporários, caches de runtime, traces, alterações triviais sem impacto estrutural.
+  - **O plugin `graphify.js` apenas lê o grafo, não gera/atualiza.**
 
 ## Regras de negócio (resumo; detalhes em SKILL.md)
 
@@ -63,6 +66,10 @@ Mercado: seg-sex **10:00–17:00** (Brasília). Fora disso RTD/OpenFast não ret
 - Em `atualizar_resultados()`: `sectionsMovable(False)` + `blockSignals(True)` durante `beginResetModel()`/`endResetModel()`.
 - **Persistência de colunas** via QSettings em `column_utils.py`.
 - **Filtros auto-documentados** nos use cases (`FILTROS_COLAR`, `FILTROS_COLLAR_CALENDARIO`). `regras_dialog.py` importa dinamicamente via `_FILTROS_POR_ESTRATEGIA`.
+
+## Testes: gotchas
+
+- **Crash nativo Qt conhecido:** `tests/test_fase4.py::TestMonitorTableModel::test_tipo_opcao_display` derruba o processo pytest (exit `0xC0000409`, heap corruption) de forma intermitente — pré-existente, não é regressão do seu patch. Se a suíte completa abortar com crash nativo, é este teste. Documentado também em `SKILL.md` (historico de sessoes).
 
 ## `_flush_buffer` (crítico)
 

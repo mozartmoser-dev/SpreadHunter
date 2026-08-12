@@ -11,3 +11,5 @@ build/
 *.egg-info/
 .idea/
 .vscode/
+graphify-out/cache/
+graphify-out/20*/

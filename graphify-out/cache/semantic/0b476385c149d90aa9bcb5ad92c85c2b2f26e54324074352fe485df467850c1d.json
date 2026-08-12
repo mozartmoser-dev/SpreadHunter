@@ -1,1 +1,0 @@
-{"nodes": [{"id": "temas_shtemaabertura", "label": "Spreadhunter Opening Theme", "file_type": "image", "source_file": "temas/shtemaabertura.jpeg"}], "edges": [{"source": "temas_shtemaabertura", "target": "temas_disclaimer", "relation": "conceptually_related_to", "confidence": "INFERRED", "confidence_score": 0.8, "source_file": "temas/shtemaabertura.jpeg"}], "hyperedges": []}
