@@ -100,7 +100,37 @@ class MonitorBoxUseCase:
             "vencimento": inst.vencimento,
             "dias": inst.dias_ate_vencimento,
             "tipo_opcao": inst.tipo_opcao,
+            "ts_ativo_ask": self._ts_campo(rtd, inst.ativo),
+            "ts_ativo_bid": self._ts_campo_bid(rtd, inst.ativo),
+            "ts_origem_ativo": self._ts_origem(rtd, inst.ativo),
         }
+
+    def _ts_campo(self, rtd, codigo):
+        getter = getattr(rtd, "get_ts_campo", None)
+        if not getter:
+            return None
+        try:
+            return getter(codigo, FieldName.ASK)
+        except Exception:
+            return None
+
+    def _ts_campo_bid(self, rtd, codigo):
+        getter = getattr(rtd, "get_ts_campo", None)
+        if not getter:
+            return None
+        try:
+            return getter(codigo, FieldName.BID)
+        except Exception:
+            return None
+
+    def _ts_origem(self, rtd, codigo):
+        getter = getattr(rtd, "get_ts_origem", None)
+        if not getter:
+            return None
+        try:
+            return getter(codigo)
+        except Exception:
+            return None
 
     def _passa_filtros(self, dados: dict) -> bool:
         if dados["dias"] <= 0:
@@ -229,6 +259,9 @@ class MonitorBoxUseCase:
                         taxa_ent = taxa_map.get(ativo)
                         resultado.taxa_aluguel = taxa_ent.taxa_atual if taxa_ent else 0.0
                         resultado.detectado_em = agora
+                        resultado.ts_ativo_ask = k1_data.get("ts_ativo_ask")
+                        resultado.ts_ativo_bid = k1_data.get("ts_ativo_bid")
+                        resultado.ts_origem_ativo = k1_data.get("ts_origem_ativo")
                         resultados.append(resultado)
                         if resultado.viavel and self._mpp_use_case:
                             self._mpp_use_case.registrar_box_encontrado(
@@ -263,6 +296,9 @@ class MonitorBoxUseCase:
                         taxa_ent = taxa_map.get(ativo)
                         resultado_long.taxa_aluguel = taxa_ent.taxa_atual if taxa_ent else 0.0
                         resultado_long.detectado_em = agora
+                        resultado_long.ts_ativo_ask = k1_data.get("ts_ativo_ask")
+                        resultado_long.ts_ativo_bid = k1_data.get("ts_ativo_bid")
+                        resultado_long.ts_origem_ativo = k1_data.get("ts_origem_ativo")
                         resultados.append(resultado_long)
                         if resultado_long.viavel and self._mpp_use_case:
                             self._mpp_use_case.registrar_box_encontrado(

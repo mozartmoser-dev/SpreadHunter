@@ -75,6 +75,12 @@ class ResultadoColarCalendario:
     estagio_otimizado: str | None = None
     id_chassi: str | None = None
     detectado_em: datetime | None = None
+    ts_ativo_ask: float | None = None
+    ts_ativo_bid: float | None = None
+    ts_origem_ativo: float | None = None
+    ts_entrega_ativo: float | None = None
+    ts_scan: float | None = None
+    onda: int | None = None
     qtd_acao: int = 100
     qtd_call: int = 100
     qtd_put: int = 100

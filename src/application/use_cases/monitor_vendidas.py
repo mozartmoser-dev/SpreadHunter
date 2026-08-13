@@ -178,6 +178,8 @@ class MonitorVendidasUseCase:
                     ts_ativo_bid=mercado.get("ts_ativo_bid"),
                     ts_origem_ativo=mercado.get("ts_origem_ativo"),
                     idade_origem_ativo=mercado.get("idade_origem_ativo"),
+                    ts_scan=mercado.get("ts_scan"),
+                    onda=mercado.get("onda"),
                 ))
 
             if cond_sbth:
@@ -233,6 +235,8 @@ class MonitorVendidasUseCase:
                     ts_ativo_bid=mercado.get("ts_ativo_bid"),
                     ts_origem_ativo=mercado.get("ts_origem_ativo"),
                     idade_origem_ativo=mercado.get("idade_origem_ativo"),
+                    ts_scan=mercado.get("ts_scan"),
+                    onda=mercado.get("onda"),
                 ))
 
         n_box = sum(1 for r in resultados if r.classificacao == "BOX_VENDIDO")

@@ -145,6 +145,12 @@ class MonitorColaresUseCase:
                 "dias": dte,
                 "ativo": inst.ativo,
                 "vencimento": inst.vencimento,
+                "ts_ativo_ask": dm.get("ts_ativo_ask"),
+                "ts_ativo_bid": dm.get("ts_ativo_bid"),
+                "ts_origem_ativo": dm.get("ts_origem_ativo"),
+                "ts_entrega_ativo": dm.get("ts_entrega_ativo"),
+                "ts_scan": dm.get("ts_scan"),
+                "onda": dm.get("onda"),
             }
 
             qul_min_put = params.get("qul_min_put", 100)
@@ -381,6 +387,12 @@ class MonitorColaresUseCase:
                     )
                     if resultado:
                         resultado.detectado_em = agora
+                        resultado.ts_ativo_ask = put_data.get("ts_ativo_ask")
+                        resultado.ts_ativo_bid = put_data.get("ts_ativo_bid")
+                        resultado.ts_origem_ativo = put_data.get("ts_origem_ativo")
+                        resultado.ts_entrega_ativo = put_data.get("ts_entrega_ativo")
+                        resultado.ts_scan = put_data.get("ts_scan")
+                        resultado.onda = put_data.get("onda")
                         resultados.append(resultado)
                         c_calc_ok += 1
                     else:

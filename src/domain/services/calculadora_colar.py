@@ -68,6 +68,12 @@ class ResultadoColar:
     ratio_call: float = 1.0
     ratio_put: float = 1.0
     id_chassi: str | None = None
+    ts_ativo_ask: float | None = None
+    ts_ativo_bid: float | None = None
+    ts_origem_ativo: float | None = None
+    ts_entrega_ativo: float | None = None
+    ts_scan: float | None = None
+    onda: int | None = None
 
 
 @dataclass(slots=True)

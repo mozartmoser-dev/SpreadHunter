@@ -169,7 +169,37 @@ class MonitorPutRatioUseCase:
             "dias": inst.dias_ate_vencimento,
             "preco_ativo": preco_ativo,
             "iv_put": iv_put,
+            "ts_ativo_ask": self._ts_campo(rtd, inst.ativo),
+            "ts_ativo_bid": self._ts_campo_bid(rtd, inst.ativo),
+            "ts_origem_ativo": self._ts_origem(rtd, inst.ativo),
         }
+
+    def _ts_campo(self, rtd, codigo):
+        getter = getattr(rtd, "get_ts_campo", None)
+        if not getter:
+            return None
+        try:
+            return getter(codigo, FieldName.ASK)
+        except Exception:
+            return None
+
+    def _ts_campo_bid(self, rtd, codigo):
+        getter = getattr(rtd, "get_ts_campo", None)
+        if not getter:
+            return None
+        try:
+            return getter(codigo, FieldName.BID)
+        except Exception:
+            return None
+
+    def _ts_origem(self, rtd, codigo):
+        getter = getattr(rtd, "get_ts_origem", None)
+        if not getter:
+            return None
+        try:
+            return getter(codigo)
+        except Exception:
+            return None
 
     def _passa_filtros(self, dados: dict) -> bool:
         if dados["dias"] <= 0:
@@ -329,6 +359,9 @@ class MonitorPutRatioUseCase:
                             resultado.iv_rank = k1_data.get("iv_rank", 0.0)
                             resultado.iv_percentile = k1_data.get("iv_percentile", 0.0)
                             resultado.detectado_em = agora
+                            resultado.ts_ativo_ask = k1_data.get("ts_ativo_ask")
+                            resultado.ts_ativo_bid = k1_data.get("ts_ativo_bid")
+                            resultado.ts_origem_ativo = k1_data.get("ts_origem_ativo")
                             ativo_results.append(resultado)
 
             ativo_results.sort(key=lambda r: -r.score)

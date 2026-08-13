@@ -233,6 +233,8 @@ class MonitorOportunidadesUseCase:
         ts_bid = [dados_mercado[keys_validas[i]].get("ts_ativo_bid") for i in range(nk)]
         ts_origem = [dados_mercado[keys_validas[i]].get("ts_origem_ativo") for i in range(nk)]
         idade_origem = [dados_mercado[keys_validas[i]].get("idade_origem_ativo") for i in range(nk)]
+        ts_scan = [dados_mercado[keys_validas[i]].get("ts_scan") for i in range(nk)]
+        ondas = [dados_mercado[keys_validas[i]].get("onda") for i in range(nk)]
 
         taxa_by_ativo = {a: t.taxa_atual for a, t in taxa_map.items()} if taxa_map else {}
 
@@ -336,6 +338,8 @@ class MonitorOportunidadesUseCase:
                 ts_ativo_bid=ts_bid[i],
                 ts_origem_ativo=ts_origem[i],
                 idade_origem_ativo=idade_origem[i],
+                ts_scan=ts_scan[i],
+                onda=ondas[i],
             ))
 
         if pipeline_tracker is not None:
@@ -571,4 +575,6 @@ class MonitorOportunidadesUseCase:
             ts_ativo_bid=mercado.get("ts_ativo_bid"),
             ts_origem_ativo=mercado.get("ts_origem_ativo"),
             idade_origem_ativo=mercado.get("idade_origem_ativo"),
+            ts_scan=mercado.get("ts_scan"),
+            onda=mercado.get("onda"),
         )

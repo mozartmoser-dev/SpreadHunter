@@ -36,6 +36,8 @@ class OportunidadeVendaCoberta:
     ts_ativo_bid: float | None = None
     ts_origem_ativo: float | None = None
     idade_origem_ativo: float | None = None
+    ts_scan: float | None = None
+    onda: int | None = None
 
     @property
     def idade_ativo_ask(self) -> float | None:

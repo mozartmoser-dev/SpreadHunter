@@ -796,6 +796,8 @@ class MercadoDataProvider:
                             entry["ts_ativo_ask"] = self.source.get_ts_campo(inst.ativo, FieldName.ASK)
                             entry["ts_ativo_bid"] = self.source.get_ts_campo(inst.ativo, FieldName.BID)
                             self._anotar_frescor(entry, inst)
+                            entry["ts_scan"] = time.time()
+                            entry["onda"] = 2
                             dados_mercado[key] = entry
                             self._dados_cache[key] = entry
                         else:
@@ -873,6 +875,8 @@ class MercadoDataProvider:
                         "ts_ativo_bid": ts_bid,
                     }
                     self._anotar_frescor(entry, inst)
+                    entry["ts_scan"] = time.time()
+                    entry["onda"] = 1
                     dados_mercado[key] = entry
                     self._dados_cache[key] = entry
                     t_onda1_basico += time.perf_counter() - t0_onda1

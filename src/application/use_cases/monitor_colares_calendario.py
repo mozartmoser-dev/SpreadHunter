@@ -220,6 +220,12 @@ class MonitorColaresCalendarioUseCase:
                 "dte": dte,
                 "preco_call": preco_call,
                 "preco_put": preco_put,
+                "ts_ativo_ask": dm.get("ts_ativo_ask") if dm else None,
+                "ts_ativo_bid": dm.get("ts_ativo_bid") if dm else None,
+                "ts_origem_ativo": dm.get("ts_origem_ativo") if dm else None,
+                "ts_entrega_ativo": dm.get("ts_entrega_ativo") if dm else None,
+                "ts_scan": dm.get("ts_scan") if dm else None,
+                "onda": dm.get("onda") if dm else None,
             }
 
             if dte <= params["dte_call_max"]:
@@ -389,6 +395,12 @@ class MonitorColaresCalendarioUseCase:
 
                     if resultado:
                         resultado.detectado_em = agora
+                        resultado.ts_ativo_ask = call.get("ts_ativo_ask")
+                        resultado.ts_ativo_bid = call.get("ts_ativo_bid")
+                        resultado.ts_origem_ativo = call.get("ts_origem_ativo")
+                        resultado.ts_entrega_ativo = call.get("ts_entrega_ativo")
+                        resultado.ts_scan = call.get("ts_scan")
+                        resultado.onda = call.get("onda")
                         resultados.append(resultado)
                         c_calc_ok += 1
                         if resultado.viavel:

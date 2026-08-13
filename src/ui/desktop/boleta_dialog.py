@@ -168,6 +168,27 @@ class BoletaDialog(QDialog):
         btn_debug.clicked.connect(self._copiar_debug)
         btn_row.addWidget(btn_debug)
 
+        from src.ui.desktop.times_dialog import TimesDialog
+
+        btn_times = QPushButton("Times")
+        btn_times.setAutoDefault(False)
+        btn_times.setToolTip("Diagnóstico: timestamps do fluxo para esta cotação (T0/T1/T2/T3/T4/Tn)")
+        btn_times.setStyleSheet("""
+            QPushButton {
+                background-color: #2d2d44; color: #d0d0e0;
+                border: 1px solid #2a2a3e; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }
+            QPushButton:hover { background-color: #3d3d55; }
+        """)
+        p_tso = self.repo.get_by_chave("assinar_timestamp_openfast")
+        assinar_ts_o = bool(p_tso.valor) if p_tso else False
+        btn_times.clicked.connect(
+            lambda: TimesDialog(self.r, self.strategy, self,
+                                assinar_timestamp_openfast=assinar_ts_o).exec()
+        )
+        btn_row.addWidget(btn_times)
+
         btn_montar = QPushButton("Monta no PNT")
         btn_montar.setAutoDefault(False)
         btn_montar.setStyleSheet(f"""
