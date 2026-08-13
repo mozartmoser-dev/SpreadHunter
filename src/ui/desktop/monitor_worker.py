@@ -8,12 +8,12 @@ from PySide6.QtCore import QThread, Signal, QMutex, QWaitCondition
 
 from src.application.dtos.dtos import EngineStatsDTO
 from src.application.use_cases.monitor_oportunidades import MonitorOportunidadesUseCase
-from src.application.use_cases.monitor_vendidas import MonitorVendidasUseCase
+from src.application.use_cases.experimental.vetor_monitor_vendidas import VetorMonitorVendidasUseCase
 from src.application.use_cases.monitor_colares import MonitorColaresUseCase
 from src.application.use_cases.monitor_colares_calendario import MonitorColaresCalendarioUseCase
 from src.application.use_cases.monitor_box import MonitorBoxUseCase
 from src.application.use_cases.monitor_put_ratio import MonitorPutRatioUseCase
-from src.application.use_cases.monitor_venda_coberta import MonitorVendaCobertaUseCase
+from src.application.use_cases.experimental.vetor_monitor_venda_coberta import VetorMonitorVendaCobertaUseCase
 from src.application.use_cases.mpp_use_case import MPPUseCase
 from src.domain.services.pipeline_tracker import PipelineTracker
 from src.domain.services.calculadora_cauda_assincrona import CalculadoraCaudaAssincrona, ResultadoCaudaAssincrona
@@ -104,8 +104,8 @@ class MonitorWorker(QThread):
         self._rtd_main = rtd
         self._mercado_provider = None
         self._monitor_uc = MonitorOportunidadesUseCase(db_path)
-        self._monitor_vendidas_uc = MonitorVendidasUseCase(db_path)
-        self._monitor_coberta_uc = MonitorVendaCobertaUseCase(db_path)
+        self._monitor_vendidas_uc = VetorMonitorVendidasUseCase(db_path)
+        self._monitor_coberta_uc = VetorMonitorVendaCobertaUseCase(db_path)
         self._monitor_colares_uc = MonitorColaresUseCase(db_path)
         self._monitor_colares_cal_uc = MonitorColaresCalendarioUseCase(db_path)
         self._monitor_mpp_uc = MPPUseCase(db_path)
