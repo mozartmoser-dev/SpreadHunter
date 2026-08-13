@@ -2335,6 +2335,26 @@ class MainWindow(QMainWindow):
         btn_pnt.clicked.connect(lambda: self._abrir_boleta_vendida(r))
         btn_row.addWidget(btn_pnt)
 
+        from src.ui.desktop.times_dialog import TimesDialog
+        p_tso = ParametroRepository(self.db_path).get_by_chave("assinar_timestamp_openfast")
+        assinar_ts_o = bool(p_tso.valor) if p_tso else False
+        btn_times = QPushButton("Times")
+        btn_times.setAutoDefault(False)
+        btn_times.setToolTip("Diagnóstico: timestamps do fluxo para esta cotação (T0/T1/T2/T3/T4/Tn)")
+        btn_times.setStyleSheet("""
+            QPushButton {
+                background-color: #2d2d44; color: #d0d0e0;
+                border: 1px solid #2a2a3e; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }
+            QPushButton:hover { background-color: #3d3d55; }
+        """)
+        btn_times.clicked.connect(
+            lambda: TimesDialog(r, strategy, dialog,
+                                assinar_timestamp_openfast=assinar_ts_o).exec()
+        )
+        btn_row.addWidget(btn_times)
+
         btn_row.addStretch()
         btn_fechar = QPushButton("Fechar")
         btn_fechar.clicked.connect(dialog.reject)
@@ -2468,6 +2488,28 @@ class MainWindow(QMainWindow):
         btn_pnt.setProperty("class", "primary")
         btn_pnt.clicked.connect(lambda: self._abrir_boleta_coberta(r))
         btn_row.addWidget(btn_pnt)
+
+        from src.ui.desktop.times_dialog import TimesDialog
+        p_tso = ParametroRepository(self.db_path).get_by_chave("assinar_timestamp_openfast")
+        assinar_ts_o = bool(p_tso.valor) if p_tso else False
+        btn_times = QPushButton("Times")
+        btn_times.setAutoDefault(False)
+        btn_times.setToolTip("Diagnóstico: timestamps do fluxo para esta cotação (T0/T1/T2/T3/T4/Tn)")
+        btn_times.setStyleSheet("""
+            QPushButton {
+                background-color: #2d2d44; color: #d0d0e0;
+                border: 1px solid #2a2a3e; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }
+            QPushButton:hover { background-color: #3d3d55; }
+        """)
+        strategy_times = "TAXA COMPRADA" if getattr(r, "classificacao", "") == "TAXA_COMPRADA" else "TAXA"
+        btn_times.clicked.connect(
+            lambda: TimesDialog(r, strategy_times, dialog,
+                                assinar_timestamp_openfast=assinar_ts_o).exec()
+        )
+        btn_row.addWidget(btn_times)
+
         btn_row.addStretch()
         btn_fechar = QPushButton("Fechar")
         btn_fechar.clicked.connect(dialog.reject)
