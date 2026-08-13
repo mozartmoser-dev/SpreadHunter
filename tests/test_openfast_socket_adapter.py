@@ -439,11 +439,15 @@ class TestOpenFastSocketAdapterOrigem:
         adapter.desconectar()
 
     def test_get_idade_origem_valida_escala_absoluta(self, server):
-        """Valor fora de escala de time.time() -> None (não é timestamp absoluto)."""
+        """Valor não interpretável (não é hh:mm:ss, fração de dia nem epoch) -> None.
+
+        Com a normalização, "150" não casa com nenhum formato aceito e
+        get_ts_origem devolve None (gerando Tn "-" na ponta).
+        """
         adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
-        server.push("PETR4", "TIMENEG", "150")  # hora HHMMSS, não é epoch
+        server.push("PETR4", "TIMENEG", "150")  # não é hh:mm:ss, não é fração, não é epoch
         time.sleep(0.1)
-        assert adapter.get_ts_origem("PETR4") == 150.0
+        assert adapter.get_ts_origem("PETR4") is None
         assert adapter.get_idade_origem("PETR4") is None
         adapter.desconectar()
 
@@ -462,4 +466,142 @@ class TestOpenFastSocketAdapterOrigem:
         server.push("PETR4", "TIMENEG", f"{time.time() + 7200.0:.3f}")
         time.sleep(0.1)
         assert adapter.get_idade_origem("PETR4") is None
+        adapter.desconectar()
+
+
+class TestNormalizarTsOrigem:
+    """Testa o normalizador de TIME/TIMENEG do OpenFast para epoch Unix.
+
+    Cobre fração de dia, "hh:mm:ss", "hh:mm:ss.ffffff", zero, epoch absoluto
+    e valores inválidos.
+    """
+
+    def test_fracao_de_dia_decimal(self):
+        from src.infrastructure.providers.openfast_socket_adapter import (
+            _normalizar_ts_origem, _midnight_brt_epoch,
+        )
+        midnight = _midnight_brt_epoch()
+        frac = 0.712719907407407
+        v = _normalizar_ts_origem(f"0,{str(frac)[2:]}")  # vírgula decimal
+        assert v is not None
+        assert abs(v - (midnight + frac * 86400.0)) < 1.0
+
+    def test_fracao_de_dia_zero_meia_noite(self):
+        from src.infrastructure.providers.openfast_socket_adapter import (
+            _normalizar_ts_origem, _midnight_brt_epoch,
+        )
+        # Fração 0 representa meia-noite — não confundir com "0" (sem timestamp).
+        v = _normalizar_ts_origem("0.000000001")
+        assert v is not None
+        assert abs(v - _midnight_brt_epoch()) < 1.0
+
+    def test_hh_mm_ss(self):
+        from src.infrastructure.providers.openfast_socket_adapter import (
+            _normalizar_ts_origem, _midnight_brt_epoch,
+        )
+        v = _normalizar_ts_origem("17:06:19")
+        assert v is not None
+        assert abs(v - (_midnight_brt_epoch() + 17 * 3600 + 6 * 60 + 19)) < 1.0
+
+    def test_hh_mm_ss_com_fracoes_de_segundo(self):
+        from src.infrastructure.providers.openfast_socket_adapter import (
+            _normalizar_ts_origem, _midnight_brt_epoch,
+        )
+        v = _normalizar_ts_origem("17:06:19.123")
+        assert v is not None
+        assert abs(v - (_midnight_brt_epoch() + 17 * 3600 + 6 * 60 + 19.123)) < 1.0
+
+    def test_zero_retorna_none(self):
+        from src.infrastructure.providers.openfast_socket_adapter import _normalizar_ts_origem
+        assert _normalizar_ts_origem("0") is None
+        assert _normalizar_ts_origem("0.0") is None
+        assert _normalizar_ts_origem("0,0") is None
+        assert _normalizar_ts_origem(0) is None
+
+    def test_vazio_retorna_none(self):
+        from src.infrastructure.providers.openfast_socket_adapter import _normalizar_ts_origem
+        assert _normalizar_ts_origem("") is None
+        assert _normalizar_ts_origem("   ") is None
+        assert _normalizar_ts_origem(None) is None
+
+    def test_epoch_unix_valido_preservado(self):
+        from src.infrastructure.providers.openfast_socket_adapter import _normalizar_ts_origem
+        assert _normalizar_ts_origem("1700000100.500") == 1700000100.5
+        assert _normalizar_ts_origem("1700000400,500") == 1700000400.5
+
+    def test_valor_invalido_retorna_none(self):
+        from src.infrastructure.providers.openfast_socket_adapter import _normalizar_ts_origem
+        assert _normalizar_ts_origem("abc") is None
+        assert _normalizar_ts_origem("150") is None  # nem hh:mm:ss, nem fração, nem epoch
+        assert _normalizar_ts_origem("25:00:00") is None  # hora fora do range
+        assert _normalizar_ts_origem("10:99:00") is None  # minuto fora do range
+        assert _normalizar_ts_origem("10:00:61") is None  # segundo fora do range
+        assert _normalizar_ts_origem("") is None
+
+
+class TestGetTsOrigemNormalizado:
+    """get_ts_origem() aplica a normalização para TIME/TIMENEG vindos do SQT."""
+
+    def test_get_ts_origem_fracao_de_dia(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIMENEG", "0,712719907407407")
+        time.sleep(0.1)
+        v = adapter.get_ts_origem("PETR4")
+        assert v is not None
+        assert v >= 1_000_000_000
+        adapter.desconectar()
+
+    def test_get_ts_origem_hh_mm_ss(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIMENEG", "17:06:19")
+        time.sleep(0.1)
+        v = adapter.get_ts_origem("PETR4")
+        assert v is not None
+        assert v >= 1_000_000_000
+        adapter.desconectar()
+
+    def test_get_ts_origem_hh_mm_ss_fracoes(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIMENEG", "17:06:19.123")
+        time.sleep(0.1)
+        v = adapter.get_ts_origem("PETR4")
+        assert v is not None
+        assert v >= 1_000_000_000
+        adapter.desconectar()
+
+    def test_get_ts_origem_preserva_preferencia_timeneg(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIME", "16:00:00")
+        server.push("PETR4", "TIMENEG", "17:06:19")
+        time.sleep(0.1)
+        v = adapter.get_ts_origem("PETR4")
+        # TIMENEG deve vencer: 17:06:19 > 16:00:00
+        assert v is not None
+        from src.infrastructure.providers.openfast_socket_adapter import _midnight_brt_epoch
+        assert abs(v - (_midnight_brt_epoch() + 17 * 3600 + 6 * 60 + 19)) < 1.0
+        adapter.desconectar()
+
+    def test_get_idade_origem_fracao_de_dia_recente(self, server):
+        """Idade real calculada a partir de TIME/TIMENEG normalizado.
+
+        Push de um horário (fração de dia) dentro do pregão de hoje resulta em
+        idade positiva e finita — antes o guard < 1e9 rejeitava tudo.
+        """
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        # Horário atual menos ~30s (garante janela plausível)
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo("America/Sao_Paulo")
+        agora_brt = datetime.now(tz)
+        # 30 segundos atrás, ainda dentro de hoje
+        segundos_totais = agora_brt.hour * 3600 + agora_brt.minute * 60 + agora_brt.second - 30
+        if segundos_totais < 0:
+            segundos_totais = 30  # evita borde de meia-noite
+        frac = segundos_totais / 86400.0
+        server.push("PETR4", "TIMENEG", f"{frac:.9f}".replace(".", ","))
+        time.sleep(0.1)
+        idade = adapter.get_idade_origem("PETR4")
+        assert idade is not None
+        # Idade deve estar na ordem de dezenas de segundos (tolerância larga)
+        assert 0.0 <= idade < 600.0
         adapter.desconectar()

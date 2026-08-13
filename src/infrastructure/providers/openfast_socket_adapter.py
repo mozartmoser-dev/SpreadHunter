@@ -2,17 +2,77 @@ import socket
 import threading
 import time
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from src.domain.services.market_data_source import FieldName, OPENFAST_FIELD_STR
 from src.infrastructure.providers import stale_trace
 
 logger = logging.getLogger(__name__)
 
 _SEP = "\001"
+_TZ_BR = ZoneInfo("America/Sao_Paulo")
+_EPOCH_MIN = 1_000_000_000
+_SECS_PER_DAY = 86400.0
 _STATUS_NORMALIZE = {
     "A": "Aberto", "ABERTO": "Aberto",
     "L": "Leilão", "LEILAO": "Leilão",
     "F": "Fechado", "FECHADO": "Fechado",
 }
+
+
+def _midnight_brt_epoch() -> float:
+    """Meia-noite do dia corrente em America/Sao_Paulo como epoch Unix."""
+    agora_brt = datetime.now(_TZ_BR)
+    midnight = agora_brt.replace(hour=0, minute=0, second=0, microsecond=0)
+    return midnight.timestamp()
+
+
+def _normalizar_ts_origem(raw) -> float | None:
+    """Normaliza TIME/TIMENEG do OpenFast para epoch Unix absoluto.
+
+    O protocolo OpenFast pode entregar o horário como:
+    - fração de dia decimal (ex.: "0,712719907407407"), estilo Excel/FAST;
+    - texto "hh:mm:ss" ou "hh:mm:ss.ffffff";
+    - epoch Unix já absoluto (>= 1_000_000_000);
+    - "0" ou vazio quando não há timestamp disponível.
+
+    A data de referência para fração/hora é o dia corrente em America/Sao_Paulo
+    (timezone de mercado já usada em todo o restante do sistema).
+
+    Retorna epoch Unix (float, segundos) ou None quando o valor é ausente,
+    zero, ou não interpretável.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    if ":" in s:
+        s_norm = s.replace(",", ".")
+        parts = s_norm.split(":")
+        if len(parts) != 3:
+            return None
+        try:
+            h = int(parts[0])
+            m = int(parts[1])
+            segundos = float(parts[2])
+        except (ValueError, TypeError):
+            return None
+        if not (0 <= h <= 23 and 0 <= m <= 59 and 0.0 <= segundos < 60.0):
+            return None
+        return _midnight_brt_epoch() + (h * 3600 + m * 60 + segundos)
+    try:
+        v = float(s.replace(",", "."))
+    except (ValueError, TypeError):
+        return None
+    if v == 0:
+        return None
+    if v >= _EPOCH_MIN:
+        return v
+    if 0.0 < v < 1.0:
+        return _midnight_brt_epoch() + v * _SECS_PER_DAY
+    return None
 
 
 class OpenFastSocketAdapter:
@@ -469,7 +529,11 @@ class OpenFastSocketAdapter:
 
         Diagnóstico apenas: nunca atualiza _cache_ts (frescor de entrega).
         Prefere TIMENEG (hora do último negócio); usa TIME como fallback.
-        Retorna o valor cru em segundos, se presente.
+
+        Normaliza o valor cru do OpenFast (fração de dia, "hh:mm:ss" ou epoch
+        absoluto) para epoch Unix absoluto (mesma escala de time.time()).
+        Retorna None quando o campo não foi assinado/recebido ou quando o
+        valor é zero/vazio/inválido.
         """
         for campo in (FieldName.TIMENEG, FieldName.TIME):
             campo_str = OPENFAST_FIELD_STR.get(campo)
@@ -479,11 +543,8 @@ class OpenFastSocketAdapter:
                 raw = self._cache.get((codigo.upper(), campo_str))
             if raw is None:
                 continue
-            try:
-                v = float(str(raw).replace(",", "."))
-            except (ValueError, TypeError):
-                continue
-            if v != 0:
+            v = _normalizar_ts_origem(raw)
+            if v is not None:
                 return v
         return None
 
