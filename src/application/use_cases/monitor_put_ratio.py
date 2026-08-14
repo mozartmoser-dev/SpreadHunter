@@ -423,8 +423,15 @@ class MonitorPutRatioUseCase:
             if not r.viavel:
                 confirmados.append(r)
                 continue
-            ask_p1 = rtd.forcar_leitura(r.cod_put_k1, FieldName.ASK)
-            bid_p2 = rtd.forcar_leitura(r.cod_put_k2, FieldName.BID)
+            try:
+                ask_p1 = rtd.forcar_leitura(r.cod_put_k1, FieldName.ASK, timeout_ms=200)
+            except TypeError:
+                ask_p1 = rtd.forcar_leitura(r.cod_put_k1, FieldName.ASK)
+
+            try:
+                bid_p2 = rtd.forcar_leitura(r.cod_put_k2, FieldName.BID, timeout_ms=200)
+            except TypeError:
+                bid_p2 = rtd.forcar_leitura(r.cod_put_k2, FieldName.BID)
             if any(v is None or v <= 0 for v in (ask_p1, bid_p2)):
                 continue
             du = dc_to_du(hoje, r.vencimento) if r.vencimento else None

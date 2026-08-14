@@ -103,6 +103,8 @@ class MonitorBoxUseCase:
             "ts_ativo_ask": self._ts_campo(rtd, inst.ativo),
             "ts_ativo_bid": self._ts_campo_bid(rtd, inst.ativo),
             "ts_origem_ativo": self._ts_origem(rtd, inst.ativo),
+            "ts_time_ativo": self._ts_time(rtd, inst.ativo),
+            "ts_timeng_ativo": self._ts_timeng(rtd, inst.ativo),
         }
 
     def _ts_campo(self, rtd, codigo):
@@ -125,6 +127,24 @@ class MonitorBoxUseCase:
 
     def _ts_origem(self, rtd, codigo):
         getter = getattr(rtd, "get_ts_origem", None)
+        if not getter:
+            return None
+        try:
+            return getter(codigo)
+        except Exception:
+            return None
+
+    def _ts_time(self, rtd, codigo):
+        getter = getattr(rtd, "get_ts_time", None)
+        if not getter:
+            return None
+        try:
+            return getter(codigo)
+        except Exception:
+            return None
+
+    def _ts_timeng(self, rtd, codigo):
+        getter = getattr(rtd, "get_ts_timeng", None)
         if not getter:
             return None
         try:
@@ -262,6 +282,8 @@ class MonitorBoxUseCase:
                         resultado.ts_ativo_ask = k1_data.get("ts_ativo_ask")
                         resultado.ts_ativo_bid = k1_data.get("ts_ativo_bid")
                         resultado.ts_origem_ativo = k1_data.get("ts_origem_ativo")
+                        resultado.ts_time_ativo = k1_data.get("ts_time_ativo")
+                        resultado.ts_timeng_ativo = k1_data.get("ts_timeng_ativo")
                         resultados.append(resultado)
                         if resultado.viavel and self._mpp_use_case:
                             self._mpp_use_case.registrar_box_encontrado(
@@ -299,6 +321,8 @@ class MonitorBoxUseCase:
                         resultado_long.ts_ativo_ask = k1_data.get("ts_ativo_ask")
                         resultado_long.ts_ativo_bid = k1_data.get("ts_ativo_bid")
                         resultado_long.ts_origem_ativo = k1_data.get("ts_origem_ativo")
+                        resultado_long.ts_time_ativo = k1_data.get("ts_time_ativo")
+                        resultado_long.ts_timeng_ativo = k1_data.get("ts_timeng_ativo")
                         resultados.append(resultado_long)
                         if resultado_long.viavel and self._mpp_use_case:
                             self._mpp_use_case.registrar_box_encontrado(
@@ -320,10 +344,25 @@ class MonitorBoxUseCase:
             if not r.viavel:
                 confirmados.append(r)
                 continue
-            bid_c1 = rtd.forcar_leitura(r.cod_call_k1, FieldName.BID)
-            ask_p1 = rtd.forcar_leitura(r.cod_put_k1, FieldName.ASK)
-            ask_c2 = rtd.forcar_leitura(r.cod_call_k2, FieldName.ASK)
-            bid_p2 = rtd.forcar_leitura(r.cod_put_k2, FieldName.BID)
+            try:
+                bid_c1 = rtd.forcar_leitura(r.cod_call_k1, FieldName.BID, timeout_ms=200)
+            except TypeError:
+                bid_c1 = rtd.forcar_leitura(r.cod_call_k1, FieldName.BID)
+
+            try:
+                ask_p1 = rtd.forcar_leitura(r.cod_put_k1, FieldName.ASK, timeout_ms=200)
+            except TypeError:
+                ask_p1 = rtd.forcar_leitura(r.cod_put_k1, FieldName.ASK)
+
+            try:
+                ask_c2 = rtd.forcar_leitura(r.cod_call_k2, FieldName.ASK, timeout_ms=200)
+            except TypeError:
+                ask_c2 = rtd.forcar_leitura(r.cod_call_k2, FieldName.ASK)
+
+            try:
+                bid_p2 = rtd.forcar_leitura(r.cod_put_k2, FieldName.BID, timeout_ms=200)
+            except TypeError:
+                bid_p2 = rtd.forcar_leitura(r.cod_put_k2, FieldName.BID)
             if any(v is None or v <= 0 for v in (bid_c1, ask_p1, ask_c2, bid_p2)):
                 continue
             du = dc_to_du(hoje, r.vencimento) if r.vencimento else None
