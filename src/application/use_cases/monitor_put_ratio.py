@@ -32,6 +32,10 @@ FILTROS_PUT_RATIO = [
     "9. Pareamento (K1>K2, credit>0)",
 ]
 
+
+def _is_weekly(cod: str | None) -> bool:
+    return bool(cod) and len(cod) >= 2 and cod[-2].upper() == "W"
+
 class MonitorPutRatioUseCase:
     _cache_iv_historico: dict[str, tuple[float, float, float, list[float]]] = {}
 
@@ -172,6 +176,8 @@ class MonitorPutRatioUseCase:
             "ts_ativo_ask": self._ts_campo(rtd, inst.ativo),
             "ts_ativo_bid": self._ts_campo_bid(rtd, inst.ativo),
             "ts_origem_ativo": self._ts_origem(rtd, inst.ativo),
+            "ts_time_ativo": self._ts_time(rtd, inst.ativo),
+            "ts_timeng_ativo": self._ts_timeng(rtd, inst.ativo),
         }
 
     def _ts_campo(self, rtd, codigo):
@@ -194,6 +200,24 @@ class MonitorPutRatioUseCase:
 
     def _ts_origem(self, rtd, codigo):
         getter = getattr(rtd, "get_ts_origem", None)
+        if not getter:
+            return None
+        try:
+            return getter(codigo)
+        except Exception:
+            return None
+
+    def _ts_time(self, rtd, codigo):
+        getter = getattr(rtd, "get_ts_time", None)
+        if not getter:
+            return None
+        try:
+            return getter(codigo)
+        except Exception:
+            return None
+
+    def _ts_timeng(self, rtd, codigo):
+        getter = getattr(rtd, "get_ts_timeng", None)
         if not getter:
             return None
         try:
@@ -246,7 +270,9 @@ class MonitorPutRatioUseCase:
         agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
         grupos: dict[tuple[str, date], list[dict]] = defaultdict(list)
 
-        filtro = {"total": 0, "venc": 0, "white": 0, "rtd": 0, "filtros": 0}
+        filtro_semanal = bool(self._get_param("perf_filtro_semanal", 0))
+
+        filtro = {"total": 0, "venc": 0, "white": 0, "semanal": 0, "rtd": 0, "filtros": 0}
         n_passou = 0
         _t0 = time.perf_counter()
 
@@ -257,6 +283,10 @@ class MonitorPutRatioUseCase:
                 continue
             if whitelist is not None and inst.ativo.upper() not in whitelist:
                 filtro["white"] += 1
+                continue
+
+            if filtro_semanal and _is_weekly(inst.cod_put):
+                filtro["semanal"] += 1
                 continue
 
             _t_ex = time.perf_counter()
@@ -292,11 +322,11 @@ class MonitorPutRatioUseCase:
             n0 = filtro["total"]
             n1 = n0 - filtro["venc"]
             n2 = n1 - filtro["white"]
-            n3 = n2 - filtro["rtd"]
+            n3 = n2 - filtro["rtd"] - filtro["semanal"]
             n4 = n3 - filtro["filtros"]
             pipeline_tracker.add_stage("1. Vencimento", n0, n1, "Fora do prazo")
             pipeline_tracker.add_stage("2. Ativo (whitelist)", n1, n2, "Fora da whitelist")
-            pipeline_tracker.add_stage("3. Dados RTD", n2, n3, "Sem strike")
+            pipeline_tracker.add_stage("3. Dados RTD", n2, n3, "Sem strike/book" + (" | exclui semanais (W em cod[-2])" if filtro_semanal else ""))
             dte_min_v = self._get_param('put_ratio_dte_min', 20)
             dte_max_v = self._get_param('put_ratio_dte_max', 60)
             iv_rank_v = self._get_iv_rank_min()
@@ -362,6 +392,8 @@ class MonitorPutRatioUseCase:
                             resultado.ts_ativo_ask = k1_data.get("ts_ativo_ask")
                             resultado.ts_ativo_bid = k1_data.get("ts_ativo_bid")
                             resultado.ts_origem_ativo = k1_data.get("ts_origem_ativo")
+                            resultado.ts_time_ativo = k1_data.get("ts_time_ativo")
+                            resultado.ts_timeng_ativo = k1_data.get("ts_timeng_ativo")
                             ativo_results.append(resultado)
 
             ativo_results.sort(key=lambda r: -r.score)
