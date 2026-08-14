@@ -154,3 +154,84 @@ Executar: `python -m pytest tests/ -x -q --tb=short` (585 testes atuais) e os te
 - Não usar o `SYN` como prova de atualização do ASK/BID — apenas da saúde da conexão.
 - Tempo/TIMENEG entram só como diagnóstico, nunca para "fabricar" frescor de ASK/BID.
 - Fase 1 não altera os demais adaptadores; testes de OpenFast/provider rodam antes de generalizar.
+
+---
+
+## 10. CORREÇÃO/ATUALIZAÇÃO (14/08/2026) — Semântica de TIME/TIMENEG e a fonte do Tn
+
+> **Natureza desta seção:** CORREÇÃO de diagnóstico anterior. O histórico das seções
+> 1–9 é preservado; o que se segue registra o que foi **hipótese inicial**, o que foi
+> **comprovado**, o que foi **refutado**, a **correção implementada** e a **semântica
+> agora considerada válida**. Base: leitura integral do manual oficial `OpenFastV2.pdf`
+> (fonte primária) + reprodução ao vivo no socket 557 (pregão aberto, 14/08/2026) +
+> commits `2a9d570` / `3e9df11`.
+
+### 10.1 Hipóteses iniciais (agora refutadas)
+
+- `get_ts_origem` preferia **`TIMENEG`** (hora do último negócio) como fonte do Tn,
+  usando `TIME` apenas como fallback — assumindo que "último negócio" ≈ "idade da cotação".
+- `_normalizar_ts_timeneg` assumia que `TIMENEG > TIME + 5s` implicava negócio do
+  **dia útil anterior** e retrocedia o timestamp em ~24h.
+
+### 10.2 Semântica confirmada (manual + reprodução ao vivo)
+
+1. **`TIME`** = horário da **mensagem de cotação** (SQT). **Pode congelar** quando o
+   símbolo para de receber atualização de cotação (opções quietas ficaram em
+   `10:00:00.000`, i.e. abertura do pregão). É a **fonte correta para medir
+   idade/frescor da cotação**.
+2. **`TIMENEG`** = horário do **último negócio**. É **independente de `TIME`** e pode
+   legitimamente ser **mais recente que `TIME`** no mesmo pregão.
+3. **SQT** = campos assinados **separadamente** (um campo por comando; manual pág. 3),
+   streaming de **mudanças** (só envia quando o campo muda), **sem garantia de
+   snapshot atômico** entre campos. Logo `TIME < TIMENEG` **não é, por si só, um erro**.
+4. **Caso real reproduzido ao vivo:** `TIME = 10:57:22`, `TIMENEG = 10:57:56` — cenário
+   **válido no mesmo pregão**; não significa que TIMENEG seja do dia anterior.
+   (Em PETR4, gaps de 1–4 s entre TIME e TIMENEG foram observados em atividade normal.)
+
+### 10.3 Diagnóstico corrigido (heurística removida)
+
+- A heurística `TIMENEG > TIME + 5s → dia útil anterior` estava **incorreta** e foi
+  **removida**.
+- Ela podia transformar um caso legítimo do mesmo pregão em um timestamp
+  **~24 h no passado**.
+- Mantido o tratamento confirmado: `TIMENEG = 00:00:00` → `None` (sentinela "sem negócio").
+
+### 10.4 Implementação (commits `2a9d570` / `3e9df11`)
+
+- `src/infrastructure/providers/openfast_socket_adapter.py`:
+  - `get_ts_origem` agora prefere **`TIME`** (fonte do Tn/frescor); `TIMENEG` como fallback.
+  - `_normalizar_ts_timeneg` **não retrocede mais** para dia útil anterior; âncora é o
+    dia corrente em `America/Sao_Paulo`; sentinela `00:00:00 → None` preservada.
+  - Removidos helpers mortos (`_dia_util_anterior_brt`, `_meia_noite_dia_util_anterior_brt`,
+    `_TIMENEG_FUTURO_TOL_S`).
+- `src/ui/desktop/times_dialog.py`: rótulo do Tn → "Horário da cotação (TIME → TIMENEG)".
+- `src/application/dtos/dtos.py`: campos `ts_time_ativo` / `ts_timeng_ativo`.
+- Testes: `tests/test_openfast_socket_adapter.py` (caso real 10:57:22/10:57:56 adicionado;
+  teste da heurística do dia anterior removido; preferência atualizada para TIME) e
+  `tests/test_times_dialog.py`.
+
+### 10.5 Validação
+
+- Suíte completa: **786 passed**.
+- Testes específicos verdes (adapter/provider/times_dialog).
+- **Nenhum impacto no gate STALE** baseado em `_cache_ts` — `get_ts_origem`/
+  `get_idade_origem` continuam diagnóstico apenas (nunca reescrevem `_cache_ts`).
+- **`DATE` não participa deste fluxo** (não é assinado/consumido no código) e
+  **não foi alterado**.
+
+### 10.6 Regra para investigações futuras
+
+> **Não interpretar `TIMENEG > TIME` como evidência de timestamp do pregão anterior.
+> Os dois campos representam eventos independentes.**
+
+### 10.7 Distinção para leitores futuros
+
+| O que | Status |
+|---|---|
+| Tn = último negócio (TIMENEG preferido) | hipótese inicial — **refutada** |
+| `TIMENEG > TIME + 5s` ⇒ dia útil anterior | hipótese inicial — **refutada** |
+| `TIME` congela sem atualização de cotação | **comprovado** (manual + ao vivo) |
+| `TIMENEG` independente e pode superar `TIME` | **comprovado** (manual + ao vivo) |
+| SQT sem snapshot atômico entre campos | **comprovado** (manual + ao vivo) |
+| `TIMENEG = 00:00:00` ⇒ sem negócio | **comprovado** (ao vivo) — mantido |
+| Semântica válida | Tn/frescor = `TIME` (mensagem de cotação); `TIMENEG` = último negócio (informativo) |
