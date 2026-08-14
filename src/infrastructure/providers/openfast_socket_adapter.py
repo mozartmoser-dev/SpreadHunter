@@ -75,6 +75,45 @@ def _normalizar_ts_origem(raw) -> float | None:
     return None
 
 
+def _normalizar_ts_timeneg(raw) -> float | None:
+    """Normaliza TIMENEG (hora do último negócio) para epoch Unix absoluto.
+
+    O protocolo não envia a data do último negócio, apenas a hora do dia, e
+    não garante relação temporal com TIME: cada campo é uma mensagem SQT
+    independente, então TIMENEG pode legitimamente ser maior que TIME dentro do
+    mesmo pregão. O horário é sempre ancorado no dia corrente em
+    America/Sao_Paulo, sem retroceder para um pregão anterior:
+
+    - "00:00:00"/"00:00"/zero/vazio        -> None (sentinela "sem negócio");
+    - "hh:mm:ss[.ffffff]" ou fração de dia -> dia corrente (BRT);
+    - epoch Unix absoluto (>= 1e9)         -> preservado, data intacta.
+
+    TIME, T0 e os tempos de entrega (T1..T4) não passam por esta função.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s or s == "0":
+        return None
+    if ":" in s:
+        partes = s.replace(",", ".").split(":")
+        if len(partes) == 3:
+            try:
+                h, m, seg = int(partes[0]), int(partes[1]), float(partes[2])
+                if h == 0 and m == 0 and seg == 0:
+                    return None  # sentinela "sem negócio" (00:00:00)
+            except (ValueError, TypeError):
+                pass
+    else:
+        try:
+            v = float(s.replace(",", "."))
+        except (ValueError, TypeError):
+            v = None
+        if v is not None and v >= _EPOCH_MIN:
+            return v  # epoch Unix absoluto: preservado, data intacta
+    return _normalizar_ts_origem(s)
+
+
 class OpenFastSocketAdapter:
     suporta_push: bool = True
     suporta_cab_skip: bool = False
@@ -528,28 +567,59 @@ class OpenFastSocketAdapter:
         """Timestamp de origem (TIME/TIMENEG do protocolo) quando assinado.
 
         Diagnóstico apenas: nunca atualiza _cache_ts (frescor de entrega).
-        Prefere TIMENEG (hora do último negócio); usa TIME como fallback.
+        Prefere TIME (horário da mensagem de cotação); usa TIMENEG (horário do
+        último negócio) como fallback.
 
         Normaliza o valor cru do OpenFast (fração de dia, "hh:mm:ss" ou epoch
         absoluto) para epoch Unix absoluto (mesma escala de time.time()).
         Retorna None quando o campo não foi assinado/recebido ou quando o
         valor é zero/vazio/inválido.
         """
-        for campo in (FieldName.TIMENEG, FieldName.TIME):
-            campo_str = OPENFAST_FIELD_STR.get(campo)
-            if not campo_str:
-                continue
-            with self._mutex:
-                raw = self._cache.get((codigo.upper(), campo_str))
-            if raw is None:
-                continue
-            v = _normalizar_ts_origem(raw)
+        for campo in (FieldName.TIME, FieldName.TIMENEG):
+            v = self._ts_normalizado(codigo, campo)
             if v is not None:
                 return v
         return None
 
+    def _ts_normalizado(self, codigo: str, campo: FieldName) -> float | None:
+        """Normaliza um campo de horário cru do protocolo para epoch Unix.
+
+        TIME e TIMENEG são ancorados no dia corrente em America/Sao_Paulo.
+        TIMENEG passa por _normalizar_ts_timeneg apenas para tratar a sentinela
+        "00:00:00" (sem negócio) — sem retroceder para um pregão anterior.
+
+        Retorna None quando o campo não foi assinado/recebido ou quando o
+        valor é zero/vazio/inválido.
+        """
+        campo_str = OPENFAST_FIELD_STR.get(campo)
+        if not campo_str:
+            return None
+        with self._mutex:
+            raw = self._cache.get((codigo.upper(), campo_str))
+        if raw is None:
+            return None
+        if campo == FieldName.TIMENEG:
+            return _normalizar_ts_timeneg(raw)
+        return _normalizar_ts_origem(raw)
+
+    def get_ts_time(self, codigo: str) -> float | None:
+        """Horário da mensagem de cotação (TIME) normalizado para epoch Unix.
+
+        Diagnóstico apenas: nunca atualiza _cache_ts (frescor de entrega).
+        None se o campo TIME não foi assinado/recebido ou é inválido.
+        """
+        return self._ts_normalizado(codigo, FieldName.TIME)
+
+    def get_ts_timeng(self, codigo: str) -> float | None:
+        """Horário do último negócio (TIMENEG) normalizado para epoch Unix.
+
+        Diagnóstico apenas: nunca atualiza _cache_ts (frescor de entrega).
+        None se o campo TIMENEG não foi assinado/recebido ou é inválido.
+        """
+        return self._ts_normalizado(codigo, FieldName.TIMENEG)
+
     def get_idade_origem(self, codigo: str) -> float | None:
-        """Idade real da cotação (agora - TIMENEG/TIME) quando o protocolo fornecer.
+        """Idade real da cotação (agora - TIME/TIMENEG) quando o protocolo fornecer.
 
         None se o campo de origem não foi assinado/recebido, ou se o valor
         não for interpretável como timestamp absoluto (mesma escala de time.time()).

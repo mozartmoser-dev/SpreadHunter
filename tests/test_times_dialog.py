@@ -4,7 +4,7 @@ from datetime import date, datetime, timezone
 from src.application.dtos.dtos import OportunidadeMonitor
 from src.domain.services.calculadora_box import ResultadoBox
 from src.domain.services.calculadora_colar import ResultadoColar
-from src.ui.desktop.times_dialog import _linhas_times, _fmt_ts, _idade
+from src.ui.desktop.times_dialog import _linhas_times, _fmt_ts, _idade, _fmt_dur, _diff
 
 
 def _linha(linhas, marcador):
@@ -27,12 +27,13 @@ class TestLinhasTimesSemTimestamps:
     def test_todos_marcadores_presentes(self):
         linhas = _linhas_times(_r_box())
         marcadores = [l["marcador"] for l in linhas]
-        for m in ["Tn", "T0", "T0b", "T1", "T2", "T3", "T4"]:
+        for m in ["Tn", "T0", "T0b", "TIME", "TIME → T0", "TIME → TIMENEG",
+                  "T1", "T2", "T3", "T4"]:
             assert m in marcadores, m
 
     def test_sem_timestamps_hora_fica_dash(self):
         for linha in _linhas_times(_r_box()):
-            if linha["marcador"] in ("Tn", "T0", "T0b", "T1", "T2", "T3", "T4"):
+            if linha["marcador"] in ("Tn", "T0", "T0b", "TIME", "T1", "T2", "T3", "T4"):
                 assert linha["hora"] == "-", linha["marcador"]
 
     def test_onda_default_dash(self):
@@ -85,6 +86,47 @@ class TestLinhasTimesComTimestamps:
         assert _linha(linhas, "T1")["hora"].startswith("21:16:37")
 
 
+class TestLinhasTimesTime:
+    def _monitor(self):
+        return OportunidadeMonitor(
+            instrumento_id=1, ativo="PETR4", strike=18.0,
+            vencimento=date(2026, 9, 10), dias=30, cod_put="PETRG180",
+            cod_call="PETRH180", tipo_opcao="A",
+            ts_ativo_ask=1000.0, ts_origem_ativo=990.0,
+            ts_time_ativo=999.0, ts_timeng_ativo=990.0,
+            ts_scan=997.0, onda=2,
+            detectado_em=datetime(2026, 8, 10, 13, 0, 0, tzinfo=timezone.utc),
+        )
+
+    def test_time_usa_ts_time_ativo(self):
+        linhas = _linhas_times(self._monitor())
+        assert _linha(linhas, "TIME")["hora"].startswith("21:16:39")
+        assert _linha(linhas, "TIME")["idade"] != "-"
+
+    def test_time_para_t0_diferenca(self):
+        linha = _linha(_linhas_times(self._monitor()), "TIME → T0")
+        assert linha["hora"] == "-"
+        assert linha["idade"] == "1.0 s"
+
+    def test_time_para_timeng_diferenca(self):
+        linha = _linha(_linhas_times(self._monitor()), "TIME → TIMENEG")
+        assert linha["idade"] == "9.0 s"
+
+    def test_sem_time_diferencas_dash(self):
+        r = self._monitor()
+        r.ts_time_ativo = None
+        linhas = _linhas_times(r)
+        assert _linha(linhas, "TIME")["hora"] == "-"
+        assert _linha(linhas, "TIME → T0")["idade"] == "-"
+        assert _linha(linhas, "TIME → TIMENEG")["idade"] == "-"
+
+    def test_time_param_off_mostra_nd_param_off(self):
+        r = self._monitor()
+        r.ts_time_ativo = None
+        linha = _linha(_linhas_times(r, assinar_timestamp_openfast=False), "TIME")
+        assert linha["hora"] == "N/D (param off)"
+
+
 class TestFormatadores:
     def test_fmt_ts_none(self):
         assert _fmt_ts(None) == "-"
@@ -103,3 +145,25 @@ class TestFormatadores:
 
     def test_idade_none(self):
         assert _idade(None, 1000.0) == "-"
+
+    def test_fmt_dur_none(self):
+        assert _fmt_dur(None) == "-"
+
+    def test_fmt_dur_ms(self):
+        assert _fmt_dur(0.5) == "500 ms"
+
+    def test_fmt_dur_segundos(self):
+        assert _fmt_dur(9.0) == "9.0 s"
+
+    def test_fmt_dur_negativo(self):
+        assert _fmt_dur(-2.5) == "-2.5 s"
+
+    def test_fmt_dur_minutos(self):
+        assert _fmt_dur(400.5) == "6 min 40 s"
+
+    def test_diff_sem_um_dos_lados(self):
+        assert _diff(10.0, None) is None
+        assert _diff(None, 10.0) is None
+
+    def test_diff_valor(self):
+        assert _diff(1000.0, 999.0) == 1.0

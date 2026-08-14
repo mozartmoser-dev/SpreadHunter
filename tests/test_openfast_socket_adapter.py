@@ -408,15 +408,16 @@ class TestOpenFastSocketAdapterOrigem:
         assert adapter.get_idade_origem("PETR4") is None
         adapter.desconectar()
 
-    def test_get_ts_origem_prefere_timeneg(self, server):
+    def test_get_ts_origem_prefere_time(self, server):
+        """TIME é a fonte principal do Tn/frescor; TIMENEG é fallback."""
         adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
         server.push("PETR4", "TIME", "1700000000.000")
         server.push("PETR4", "TIMENEG", "1700000100.500")
         time.sleep(0.1)
-        assert adapter.get_ts_origem("PETR4") == 1700000100.5
+        assert adapter.get_ts_origem("PETR4") == 1700000000.0
         adapter.desconectar()
 
-    def test_get_ts_origem_fallback_time(self, server):
+    def test_get_ts_origem_time_sozinho(self, server):
         adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
         server.push("PETR4", "TIME", "1700000200.000")
         time.sleep(0.1)
@@ -436,6 +437,30 @@ class TestOpenFastSocketAdapterOrigem:
         server.push("PETR4", "TIMENEG", "1700000400,500")
         time.sleep(0.1)
         assert adapter.get_ts_origem("PETR4") == 1700000400.5
+        adapter.desconectar()
+
+    def test_get_ts_time_usa_campo_time(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIME", "1700000500.000")
+        time.sleep(0.1)
+        assert adapter.get_ts_time("PETR4") == 1700000500.0
+        adapter.desconectar()
+
+    def test_get_ts_time_none_sem_dado(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        assert adapter.get_ts_time("PETR4") is None
+        adapter.desconectar()
+
+    def test_get_ts_timeng_usa_campo_timeneg(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIMENEG", "1700000600.500")
+        time.sleep(0.1)
+        assert adapter.get_ts_timeng("PETR4") == 1700000600.5
+        adapter.desconectar()
+
+    def test_get_ts_timeng_none_sem_dado(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        assert adapter.get_ts_timeng("PETR4") is None
         adapter.desconectar()
 
     def test_get_idade_origem_valida_escala_absoluta(self, server):
@@ -539,6 +564,58 @@ class TestNormalizarTsOrigem:
         assert _normalizar_ts_origem("") is None
 
 
+class TestNormalizarTsTimeneg:
+    """Normalizador de TIMENEG: sentinela "sem negócio" e data-base por pregão."""
+
+    def test_zero_vazio_retorna_none(self):
+        from src.infrastructure.providers.openfast_socket_adapter import _normalizar_ts_timeneg
+        assert _normalizar_ts_timeneg(None) is None
+        assert _normalizar_ts_timeneg("") is None
+        assert _normalizar_ts_timeneg("0") is None
+        assert _normalizar_ts_timeneg(0) is None
+
+    def test_meia_noite_e_sentinela_sem_negocio(self):
+        from src.infrastructure.providers.openfast_socket_adapter import _normalizar_ts_timeneg
+        assert _normalizar_ts_timeneg("00:00:00") is None
+        assert _normalizar_ts_timeneg("00:00:00.000") is None
+        assert _normalizar_ts_timeneg("00:00") is None
+
+    def test_negocio_do_pregao_atual_ancora_hoje(self):
+        from src.infrastructure.providers.openfast_socket_adapter import (
+            _midnight_brt_epoch, _normalizar_ts_timeneg,
+        )
+        v = _normalizar_ts_timeneg("10:25:00")
+        assert v is not None
+        assert abs(v - (_midnight_brt_epoch() + 10 * 3600 + 25 * 60)) < 1.0
+
+    def test_negocio_mais_recente_que_time_nao_vira_dia_anterior(self):
+        """Caso real (TIME=10:57:22, TIMENEG=10:57:56): TIMENEG permanece no mesmo dia.
+
+        A heurística antiga retrocedia TIMENEG > TIME + 5s para o dia útil
+        anterior; reproduzido ao vivo que TIME<TIMENEG é legítimo no mesmo pregão.
+        """
+        from src.infrastructure.providers.openfast_socket_adapter import (
+            _midnight_brt_epoch, _normalizar_ts_timeneg,
+        )
+        v = _normalizar_ts_timeneg("10:57:56")
+        assert v is not None
+        assert abs(v - (_midnight_brt_epoch() + 10 * 3600 + 57 * 60 + 56)) < 1.0
+
+    def test_negocio_logo_apos_referencia_ancora_hoje(self):
+        """TIMENEG 1s após a referência (TIME 10:26:44) permanece em hoje."""
+        from src.infrastructure.providers.openfast_socket_adapter import (
+            _midnight_brt_epoch, _normalizar_ts_timeneg,
+        )
+        v = _normalizar_ts_timeneg("10:26:45")
+        assert v is not None
+        assert abs(v - (_midnight_brt_epoch() + 10 * 3600 + 26 * 60 + 45)) < 1.0
+
+    def test_epoch_absoluto_preservado_sem_mudar_data(self):
+        from src.infrastructure.providers.openfast_socket_adapter import _normalizar_ts_timeneg
+        assert _normalizar_ts_timeneg("1700000100.500") == 1700000100.5
+        assert _normalizar_ts_timeneg("1700000400,500") == 1700000400.5
+
+
 class TestGetTsOrigemNormalizado:
     """get_ts_origem() aplica a normalização para TIME/TIMENEG vindos do SQT."""
 
@@ -569,16 +646,67 @@ class TestGetTsOrigemNormalizado:
         assert v >= 1_000_000_000
         adapter.desconectar()
 
-    def test_get_ts_origem_preserva_preferencia_timeneg(self, server):
+    def test_get_ts_origem_prefere_time_mesmo_pregao(self, server):
+        """TIME vence mesmo quando TIMENEG (<= TIME) está presente no mesmo pregão."""
         adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
-        server.push("PETR4", "TIME", "16:00:00")
+        server.push("PETR4", "TIME", "17:06:30")
         server.push("PETR4", "TIMENEG", "17:06:19")
         time.sleep(0.1)
         v = adapter.get_ts_origem("PETR4")
-        # TIMENEG deve vencer: 17:06:19 > 16:00:00
         assert v is not None
         from src.infrastructure.providers.openfast_socket_adapter import _midnight_brt_epoch
-        assert abs(v - (_midnight_brt_epoch() + 17 * 3600 + 6 * 60 + 19)) < 1.0
+        assert abs(v - (_midnight_brt_epoch() + 17 * 3600 + 6 * 60 + 30)) < 1.0
+        adapter.desconectar()
+
+    def test_get_ts_origem_timeneg_mais_recente_que_time_fica_hoje(self, server):
+        """Caso real reproduzido ao vivo: TIME=10:57:22, TIMENEG=10:57:56.
+
+        TIME<TIMENEG ocorre legitimamente no mesmo pregão (mensagens SQT
+        independentes). TIMENEG não deve ser retrocedido para o dia anterior, e
+        TIME é a fonte do Tn/frescor.
+        """
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIME", "10:57:22")
+        server.push("PETR4", "TIMENEG", "10:57:56")
+        time.sleep(0.1)
+        from src.infrastructure.providers.openfast_socket_adapter import _midnight_brt_epoch
+        # TIMENEG permanece no mesmo dia (hoje 10:57:56)
+        assert adapter.get_ts_timeng("PETR4") == pytest.approx(
+            _midnight_brt_epoch() + 10 * 3600 + 57 * 60 + 56, abs=1.0)
+        # Tn/frescor usa TIME como fonte (hoje 10:57:22)
+        assert adapter.get_ts_origem("PETR4") == pytest.approx(
+            _midnight_brt_epoch() + 10 * 3600 + 57 * 60 + 22, abs=1.0)
+        adapter.desconectar()
+
+    def test_get_ts_origem_timeneg_zero_vira_fallback_time(self, server):
+        """TIMENEG=00:00:00 é sentinela 'sem negócio' -> Tn usa TIME (não meia-noite)."""
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIME", "10:30:00")
+        server.push("PETR4", "TIMENEG", "00:00:00")
+        time.sleep(0.1)
+        v = adapter.get_ts_origem("PETR4")
+        assert v is not None
+        from src.infrastructure.providers.openfast_socket_adapter import _midnight_brt_epoch
+        assert abs(v - (_midnight_brt_epoch() + 10 * 3600 + 30 * 60)) < 1.0
+        assert adapter.get_ts_timeng("PETR4") is None
+        adapter.desconectar()
+
+    def test_get_ts_origem_timeneg_zero_sem_time(self, server):
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIMENEG", "00:00:00")
+        time.sleep(0.1)
+        assert adapter.get_ts_timeng("PETR4") is None
+        assert adapter.get_ts_origem("PETR4") is None
+        adapter.desconectar()
+
+    def test_get_ts_origem_timeneg_epoch_absoluto_preservado(self, server):
+        """Timestamp absoluto/epoch não muda de data: preservado como está."""
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "TIME", "1700000200.000")
+        server.push("PETR4", "TIMENEG", "1700000100.500")
+        time.sleep(0.1)
+        assert adapter.get_ts_origem("PETR4") == 1700000200.0
+        assert adapter.get_ts_timeng("PETR4") == 1700000100.5
         adapter.desconectar()
 
     def test_get_idade_origem_fracao_de_dia_recente(self, server):
