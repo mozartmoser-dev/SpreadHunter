@@ -100,6 +100,21 @@ class InstrumentoRepository:
         finally:
             conn.close()
 
+    @staticmethod
+    def _excluir_semanais(conn) -> bool:
+        """True quando perf_filtro_semanal estiver ativo (vale para qualquer estrategia)."""
+        try:
+            row = conn.execute(
+                "SELECT valor FROM parametros_operacionais WHERE chave = ?",
+                ("perf_filtro_semanal",),
+            ).fetchone()
+        except sqlite3.Error:
+            return False
+        try:
+            return bool(row and float(row["valor"]) > 0)
+        except (TypeError, ValueError):
+            return False
+
     def get_all(self) -> list[InstrumentoOpcional]:
         with self.__class__._lock:
             if self.__class__._cache_all is not None:
@@ -107,7 +122,14 @@ class InstrumentoRepository:
         
         conn = get_connection(self.db_path)
         try:
-            rows = conn.execute("SELECT * FROM instrumentos_base").fetchall()
+            if self._excluir_semanais(conn):
+                rows = conn.execute(
+                    "SELECT * FROM instrumentos_base "
+                    "WHERE (substr(COALESCE(cod_put, ''), -2, 1) <> 'W' "
+                    "AND substr(COALESCE(cod_call, ''), -2, 1) <> 'W')"
+                ).fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM instrumentos_base").fetchall()
             inst_list = [
                 InstrumentoOpcional(
                     id=row["id"],

@@ -140,6 +140,32 @@ class TestInstrumentoRepository:
         assert len(result) == 1
         assert result[0].ativo == "PETR4"
 
+    def test_get_all_exclui_semanais_quando_param_ativo(self, db_path, instrumento_repo):
+        instrumento_repo.save(InstrumentoOpcional(
+            ativo="PETR4", cod_put="PETRX80", cod_call="PETRZ80",
+            vencimento=date(2026, 6, 20), tipo_opcao=TipoOpcao.AMERICANA
+        ))
+        instrumento_repo.save(InstrumentoOpcional(
+            ativo="PETR4", cod_put="PETRT908W2", cod_call="PETRH908W2",
+            vencimento=date(2026, 6, 20), tipo_opcao=TipoOpcao.AMERICANA
+        ))
+
+        InstrumentoRepository.invalidate_cache()
+        all_inst = instrumento_repo.get_all()
+        assert len(all_inst) == 1
+        assert all_inst[0].cod_put == "PETRX80"
+
+        mapped = instrumento_repo.get_all_mapped()
+        assert len(mapped) == 1
+        assert ("PETR4", "PETRX80") in mapped
+
+        parametro_repo = ParametroRepository(db_path)
+        p = parametro_repo.get_by_chave("perf_filtro_semanal")
+        p.valor = 0.0
+        parametro_repo.save(p)
+        InstrumentoRepository.invalidate_cache()
+        assert len(instrumento_repo.get_all()) == 2
+
 
 class TestParametroRepository:
     def test_seed_defaults(self, parametro_repo):

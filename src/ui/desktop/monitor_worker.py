@@ -363,6 +363,8 @@ class MonitorWorker(QThread):
             logger.exception("MonitorWorker: erro ao verificar integridade dos parâmetros")
 
     def recarregar_parametros(self):
+        from src.infrastructure.persistence.repositories.repositories import InstrumentoRepository
+        InstrumentoRepository.invalidate_cache()
         self._monitor_uc.recarregar_parametros()
         self._monitor_vendidas_uc.recarregar_parametros()
         self._monitor_coberta_uc.recarregar_parametros()
