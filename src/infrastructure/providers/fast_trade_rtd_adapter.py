@@ -40,7 +40,7 @@ class FastTradeRTDAdapter:
     def ler_campo_cache(self, codigo: str, campo: FieldName) -> float | None:
         return self._rtd.ler_campo_cache(codigo, self._resolver(campo))
 
-    def ler_campos(self, codigo: str, *campos: FieldName) -> dict[FieldName, float | None]:
+    def ler_campos(self, codigo: str, *campos: FieldName, allow_stale: bool = False) -> dict[FieldName, float | None]:
         return {c: self.ler_campo_cache(codigo, c) for c in campos}
 
     def ler_status_cache(self, codigo: str) -> str:

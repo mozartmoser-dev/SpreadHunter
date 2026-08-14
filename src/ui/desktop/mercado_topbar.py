@@ -1,3 +1,4 @@
+import calendar
 from datetime import date, timedelta
 from PySide6.QtCore import Qt, QTimer, QRectF
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
@@ -17,9 +18,21 @@ def _cod_fut(prefixo: str, ano: int, mes: int) -> str:
 
 def _contrato_bimestral_ativo(hoje: date) -> tuple[int, int]:
     for bm in _MESES_BIMESTRAIS:
-        if hoje.month < bm or (hoje.month == bm and hoje.day <= 14):
+        venc = _segunda_quarta(hoje.year, bm)
+        if hoje <= venc:
             return (hoje.year, bm)
     return (hoje.year + 1, _MESES_BIMESTRAIS[0])
+
+
+def _segunda_quarta(year: int, month: int) -> date:
+    quartas = []
+    for d in range(1, 32):
+        try:
+            if calendar.weekday(year, month, d) == calendar.WEDNESDAY:
+                quartas.append(d)
+        except ValueError:
+            break
+    return date(year, month, quartas[1])
 
 
 def _formatar_data_completa(data_iso: str) -> str:
@@ -134,6 +147,7 @@ class MercadoTopBarWidget(QFrame):
         self.db_path = db_path
         self._source = None
         self._precos_anteriores: dict[str, float] = {}
+        self._registrados: set[str] = set()
         self._ref_prices: dict[str, float] = {}
         self._ref_date: date | None = None
         self.setObjectName("MercadoTopBar")
@@ -282,6 +296,7 @@ class MercadoTopBarWidget(QFrame):
                     source.registrar_topico(cod, FieldName.CLOSE)
                     source.registrar_topico(cod, FieldName.VARIATION)
                     source.registrar_topico(cod, FieldName.OPEN)
+                    self._registrados.add(cod)
                 except Exception:
                     pass
 
@@ -368,11 +383,21 @@ class MercadoTopBarWidget(QFrame):
 
         defaults = self._gerar_defaults()
         if self._source and self._source.disponivel:
+            for cod in defaults:
+                if cod not in self._registrados:
+                    try:
+                        for f in (FieldName.BID, FieldName.ASK, FieldName.LAST_PRICE,
+                                  FieldName.CLOSE, FieldName.VARIATION, FieldName.OPEN):
+                            self._source.registrar_topico(cod, f)
+                        self._registrados.add(cod)
+                    except Exception:
+                        pass
             try:
                 for cod, (nome, _fallback) in defaults.items():
                     dados = self._source.ler_campos(
                         cod, FieldName.BID, FieldName.ASK, FieldName.LAST_PRICE,
-                        FieldName.CLOSE, FieldName.VARIATION, FieldName.OPEN
+                        FieldName.CLOSE, FieldName.VARIATION, FieldName.OPEN,
+                        allow_stale=True
                     ) or {}
                     preco = dados.get(FieldName.LAST_PRICE) or dados.get(FieldName.ASK) or dados.get(FieldName.BID) or 0
                     if preco and preco > 0:

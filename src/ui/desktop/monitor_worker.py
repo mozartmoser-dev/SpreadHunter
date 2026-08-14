@@ -1258,16 +1258,35 @@ class MonitorWorker(QThread):
     def _subscrever_futuros(self, rtd):
         from datetime import date
         from src.domain.services.market_data_source import FieldName
+        from src.ui.desktop.mercado_topbar import _contrato_bimestral_ativo
         if not hasattr(rtd, 'registrar_topico'):
             return
         hoje = date.today()
-        a, m = hoje.year, hoje.month
         _mc = {1:"F",2:"G",3:"H",4:"J",5:"K",6:"M",7:"N",8:"Q",9:"U",10:"V",11:"X",12:"Z"}
+        _bim = [2,4,6,8,10,12]
+        a, m = _contrato_bimestral_ativo(hoje)
+        idx = _bim.index(m)
+        am_win = [(a, m)]
+        if idx + 1 < len(_bim):
+            am_win.append((a, _bim[idx+1]))
+        else:
+            am_win.append((a + 1, _bim[0]))
+        am_orig = [(hoje.year, hoje.month)]
+        nm = hoje.month + 1
+        ny = hoje.year
+        if nm > 12:
+            nm = 1
+            ny += 1
+        am_orig.append((ny, nm))
         extras = ["IBOV", "PETR4"]
-        for pref in ("WIN","WDO","BCT","IOF"):
+        for pref in ("WIN", "WDO"):
             extras.append(pref.lower())
-            for am in ((a,m),(a+1 if m==12 else a,1 if m==12 else m+1)):
-                extras.append(f"{pref.lower()}{_mc[am[1]].lower()}{str(am[0])[-2:]}")
+            for ay, mm in am_win:
+                extras.append(f"{pref.lower()}{_mc[mm].lower()}{str(ay)[-2:]}")
+        for pref in ("BCT", "IOF"):
+            extras.append(pref.lower())
+            for ay, mm in am_orig:
+                extras.append(f"{pref.lower()}{_mc[mm].lower()}{str(ay)[-2:]}")
         for cod in extras:
             for f in (FieldName.LAST_PRICE, FieldName.BID, FieldName.ASK):
                 rtd.registrar_topico(cod, f)
