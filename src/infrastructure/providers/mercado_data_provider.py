@@ -851,6 +851,9 @@ class MercadoDataProvider:
                     else:
                         preco_ativo = self._preco_ativo_cache_fresco(inst.ativo)
                     if not preco_ativo or preco_ativo <= 0:
+                        if key in self._dados_cache:
+                            self._dados_cache[key]["stale"] = True
+                            self._dados_cache.pop(key, None)
                         continue
                     bid_ativo = c_ativo_onda1.get(FieldName.BID) or 0.0
                     if bid_ativo > preco_ativo or bid_ativo <= 0:
