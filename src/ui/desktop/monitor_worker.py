@@ -120,7 +120,6 @@ class MonitorWorker(QThread):
         self._running = False
         self._paused = False
         self._interval_ms = 3000
-        self._mostrar_tp_op = False
         self._mutex = QMutex()
         self._wait_condition = QWaitCondition()
         self._toggle_colar = StrategyToggle(interval=10)
@@ -427,9 +426,6 @@ class MonitorWorker(QThread):
     def parar_auto_put_ratio(self):
         self._toggle_put_ratio.parar_auto()
 
-    def set_mostrar_tp_op(self, mostrar: bool):
-        self._mostrar_tp_op = mostrar
-
     def _processar_monitor_geral(self, rtd):
         t6_inicio = time.time()
         dados_mercado = self._mercado_provider.capturar_dados_mercado()
@@ -448,11 +444,6 @@ class MonitorWorker(QThread):
             pipeline_tracker=PipelineTracker())
         stale_trace.log_t6("monitor_geral_captura", time.time() - t6_inicio)
 
-        if not self._mostrar_tp_op:
-            resultados = [r for r in resultados
-                          if not (hasattr(r, 'classificacao')
-                                  and r.classificacao == 'TP.Op')]
-
         self.oportunidades_atualizadas.emit(resultados)
         stale_trace.log_t6("monitor_geral_oportunidades_emit", time.time() - t6_inicio)
 
@@ -461,8 +452,6 @@ class MonitorWorker(QThread):
             inst_map=inst_map, chaves=chaves, chaves_parsed=chaves_parsed,
             pipeline_tracker=PipelineTracker())
         stale_trace.log_t6("monitor_geral_vendidas_varrer", time.time() - t6_inicio)
-        if not self._mostrar_tp_op:
-            vendidas = [r for r in vendidas if r.viavel]
         self.oportunidades_vendidas_atualizadas.emit(vendidas)
         stale_trace.log_t6("monitor_geral_vendidas_emit", time.time() - t6_inicio)
 
@@ -475,8 +464,6 @@ class MonitorWorker(QThread):
             inst_map=inst_map, chaves=chaves, chaves_parsed=chaves_parsed)
         stale_trace.log_t6("monitor_geral_comprada", time.time() - t6_inicio)
         coberta = coberta_vendida + coberta_comprada
-        if not self._mostrar_tp_op:
-            coberta = [r for r in coberta if r.viavel]
         coberta.sort(key=lambda o: (not o.viavel, -o.pct_cdi))
         stale_trace.log_t6("monitor_geral_sort", time.time() - t6_inicio)
         self.oportunidades_coberta_atualizadas.emit(coberta)

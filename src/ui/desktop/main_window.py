@@ -39,6 +39,7 @@ from src.ui.desktop.column_utils import (
     limpar_e_restaurar_colunas,
 )
 from src.ui.desktop.mercado_topbar import MercadoTopBarWidget
+from src.ui.desktop.filtros_exibicao import _filtra_exibir_todas_viavel
 
 
 def _make_led_icon(color_hex: str, size: int = 12) -> QIcon:
@@ -128,6 +129,10 @@ class MainWindow(QMainWindow):
         self._resultados_brutos = []
         self._resultados_vendidas = []
         self._resultados_coberta = []
+        self._filtrados_brutos = []
+        self._filtrados_vendidas = []
+        self._filtrados_coberta = []
+        self._mostrar_tp_op = False
         self._filtro_vencimento: str | None = None
         self._filtro_vencimento_vendidas: str | None = None
         self._filtro_vencimento_coberta: str | None = None
@@ -1627,7 +1632,10 @@ class MainWindow(QMainWindow):
             self._status_left.setStyleSheet("color: {}; font-weight: bold;".format(Palette.ORANGE))
 
     def _on_tp_op_toggled(self, checked):
-        self._worker.set_mostrar_tp_op(checked)
+        self._mostrar_tp_op = checked
+        self._filtrar_e_atualizar_vendidas()
+        self._filtrar_e_atualizar_coberta()
+        self._atualizar_dashboard()
 
     def _set_topn_box(self, n: int):
         self._spin_topn_n = max(0, min(9, n))
@@ -1683,6 +1691,8 @@ class MainWindow(QMainWindow):
             filtrados = [r for r in self._resultados_vendidas if self._key_vencimento_vendida(r) == self._filtro_vencimento_vendidas]
         else:
             filtrados = self._resultados_vendidas
+        filtrados = _filtra_exibir_todas_viavel(filtrados, self._mostrar_tp_op)
+        self._filtrados_vendidas = filtrados
         self.vendidas_model.atualizar(filtrados)
         self._vend_proxy.invalidate_top_n()
         n = len(filtrados)
@@ -1703,6 +1713,8 @@ class MainWindow(QMainWindow):
             filtrados = [r for r in self._resultados_coberta if self._key_vencimento_coberta(r) == self._filtro_vencimento_coberta]
         else:
             filtrados = self._resultados_coberta
+        filtrados = _filtra_exibir_todas_viavel(filtrados, self._mostrar_tp_op)
+        self._filtrados_coberta = filtrados
         self.coberta_model.atualizar(filtrados)
         self._taxa_proxy.invalidate_top_n()
         n = len(filtrados)
@@ -1723,6 +1735,7 @@ class MainWindow(QMainWindow):
             filtrados = [r for r in self._resultados_brutos if self._key_vencimento(r) == self._filtro_vencimento]
         else:
             filtrados = self._resultados_brutos
+        self._filtrados_brutos = filtrados
         self.table_model.atualizar(filtrados)
         self._main_proxy.invalidate_top_n()
         self._total_opps = len(filtrados)
@@ -1775,13 +1788,13 @@ class MainWindow(QMainWindow):
 
     def _atualizar_dashboard(self):
         count_c: Counter = Counter()
-        for r in self._resultados_brutos:
+        for r in self._filtrados_brutos:
             count_c[self._key_vencimento(r)] += 1
         count_v: Counter = Counter()
-        for r in self._resultados_vendidas:
+        for r in self._filtrados_vendidas:
             count_v[self._key_vencimento_vendida(r)] += 1
         count_co: Counter = Counter()
-        for r in self._resultados_coberta:
+        for r in self._filtrados_coberta:
             count_co[self._key_vencimento_coberta(r)] += 1
 
         todas = set(count_c) | set(count_v) | set(count_co)
