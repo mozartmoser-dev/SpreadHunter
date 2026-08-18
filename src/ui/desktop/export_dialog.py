@@ -99,6 +99,32 @@ class ExportDialog(QDialog):
         self.btn_debug.clicked.connect(self._copiar_debug)
         btn_layout.addWidget(self.btn_debug)
 
+        from src.ui.desktop.times_dialog import TimesDialog
+        from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+        _cls = self.oportunidade.classificacao
+        _strat = {
+            "1BOX": "BOX VENDIDO",
+            "2SBTH": "SBTH VENDIDA",
+            "3BOXSBTH": "BOX+SBTH VENDIDO",
+        }.get(_cls, self.oportunidade.label_tipo or "Cotação")
+        _p_tso = ParametroRepository(self.db_path).get_by_chave("assinar_timestamp_openfast") if self.db_path else None
+        _assinar_ts_o = bool(_p_tso.valor) if _p_tso else False
+        self.btn_times = QPushButton("Times")
+        self.btn_times.setToolTip("Diagnóstico: timestamps do fluxo para esta cotação (T0/T1/T2/T3/T4/Tn)")
+        self.btn_times.setStyleSheet("""
+            QPushButton {
+                background-color: #2d2d44; color: #d0d0e0;
+                border: 1px solid #2a2a3e; border-radius: 4px;
+                padding: 6px 14px; font-size: 9pt;
+            }
+            QPushButton:hover { background-color: #3d3d55; }
+        """)
+        self.btn_times.clicked.connect(
+            lambda: TimesDialog(self.oportunidade, _strat, self,
+                                assinar_timestamp_openfast=_assinar_ts_o).exec()
+        )
+        btn_layout.addWidget(self.btn_times)
+
         btn_layout.addStretch()
 
         self.btn_fechar = QPushButton("Cancelar")

@@ -128,6 +128,8 @@ class VetorMonitorVendaCobertaUseCase:
             ts_ask = extrair_passthrough(chaves_validas, dados_mercado, "ts_ativo_ask")
             ts_bid = extrair_passthrough(chaves_validas, dados_mercado, "ts_ativo_bid")
             ts_origem = extrair_passthrough(chaves_validas, dados_mercado, "ts_origem_ativo")
+            ts_time = extrair_passthrough(chaves_validas, dados_mercado, "ts_time_ativo")
+            ts_timeng = extrair_passthrough(chaves_validas, dados_mercado, "ts_timeng_ativo")
             idade_origem = extrair_passthrough(chaves_validas, dados_mercado, "idade_origem_ativo")
             ts_scan = extrair_passthrough(chaves_validas, dados_mercado, "ts_scan")
             ondas = extrair_passthrough(chaves_validas, dados_mercado, "onda")
@@ -171,6 +173,8 @@ class VetorMonitorVendaCobertaUseCase:
                     ts_ativo_ask=ts_ask[i],
                     ts_ativo_bid=ts_bid[i],
                     ts_origem_ativo=ts_origem[i],
+                    ts_time_ativo=ts_time[i],
+                    ts_timeng_ativo=ts_timeng[i],
                     idade_origem_ativo=idade_origem[i],
                     ts_scan=ts_scan[i],
                     onda=ondas[i],
@@ -224,6 +228,8 @@ class VetorMonitorVendaCobertaUseCase:
         _ts_ask: list = []
         _ts_bid: list = []
         _ts_origem: list = []
+        _ts_time: list = []
+        _ts_timeng: list = []
         _idade_origem: list = []
         _ts_scan: list = []
         _ondas: list = []
@@ -253,6 +259,8 @@ class VetorMonitorVendaCobertaUseCase:
             _ts_ask.append(mercado.get("ts_ativo_ask"))
             _ts_bid.append(mercado.get("ts_ativo_bid"))
             _ts_origem.append(mercado.get("ts_origem_ativo"))
+            _ts_time.append(mercado.get("ts_time_ativo"))
+            _ts_timeng.append(mercado.get("ts_timeng_ativo"))
             _idade_origem.append(mercado.get("idade_origem_ativo"))
             _ts_scan.append(mercado.get("ts_scan"))
             _ondas.append(mercado.get("onda"))
@@ -322,6 +330,8 @@ class VetorMonitorVendaCobertaUseCase:
                     ts_ativo_ask=_ts_ask[i],
                     ts_ativo_bid=_ts_bid[i],
                     ts_origem_ativo=_ts_origem[i],
+                    ts_time_ativo=_ts_time[i],
+                    ts_timeng_ativo=_ts_timeng[i],
                     idade_origem_ativo=_idade_origem[i],
                     ts_scan=_ts_scan[i],
                     onda=_ondas[i],

@@ -148,6 +148,8 @@ class MonitorColaresUseCase:
                 "ts_ativo_ask": dm.get("ts_ativo_ask"),
                 "ts_ativo_bid": dm.get("ts_ativo_bid"),
                 "ts_origem_ativo": dm.get("ts_origem_ativo"),
+                "ts_time_ativo": dm.get("ts_time_ativo"),
+                "ts_timeng_ativo": dm.get("ts_timeng_ativo"),
                 "ts_entrega_ativo": dm.get("ts_entrega_ativo"),
                 "ts_scan": dm.get("ts_scan"),
                 "onda": dm.get("onda"),
@@ -390,6 +392,8 @@ class MonitorColaresUseCase:
                         resultado.ts_ativo_ask = put_data.get("ts_ativo_ask")
                         resultado.ts_ativo_bid = put_data.get("ts_ativo_bid")
                         resultado.ts_origem_ativo = put_data.get("ts_origem_ativo")
+                        resultado.ts_time_ativo = put_data.get("ts_time_ativo")
+                        resultado.ts_timeng_ativo = put_data.get("ts_timeng_ativo")
                         resultado.ts_entrega_ativo = put_data.get("ts_entrega_ativo")
                         resultado.ts_scan = put_data.get("ts_scan")
                         resultado.onda = put_data.get("onda")

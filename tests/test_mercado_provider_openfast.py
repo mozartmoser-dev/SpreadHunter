@@ -276,3 +276,44 @@ class TestMercadoProviderOpenFast:
                 assert e.get("ts_origem_ativo") > 1_000_000_000
         finally:
             adapter.desconectar()
+
+    def test_anota_time_timeng_no_entry(self, populated_db, server):
+        """TIME/TIMENEG do OpenFast viram ts_time_ativo/ts_timeng_ativo no entry."""
+        ParametroRepository(populated_db).save(ParametroOperacional(
+            chave="assinar_timestamp_openfast", valor=1.0,
+            estrategia="GERAL", descricao="teste"))
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        try:
+            provider = MercadoDataProvider(populated_db, adapter)
+            provider.recarregar_parametros()
+
+            agora = time.time()
+            server.push("PETR4", "LAST", "28.50")
+            server.push("PETR4", "BID", "28.45")
+            server.push("PETR4", "ASK", "28.55")
+            server.push("PETR4", "ST", "A")
+            server.push("PETR4", "TIMENEG", f"{agora - 2.0:.3f}")
+            server.push("PETR4", "TIME", f"{agora - 1.0:.3f}")
+            server.push("PETRG180", "PEX", "18.0")
+            server.push("PETRH180", "PEX", "18.0")
+            server.push("PETRG180", "ASK", "0.85")
+            server.push("PETRG180", "BID", "0.80")
+            server.push("PETRG180", "ST", "A")
+            server.push("PETRH180", "ASK", "0.78")
+            server.push("PETRH180", "BID", "0.75")
+            server.push("PETRH180", "ST", "A")
+            time.sleep(0.2)
+
+            provider.capturar_dados_mercado()
+            provider.fazer_manutencao()
+            dados = provider.capturar_dados_mercado()
+            entries = [e for e in dados.values() if isinstance(e, dict) and e.get("ts_time_ativo")]
+            assert entries, "entry deveria carregar ts_time_ativo com timestamp assinado"
+            for e in entries:
+                assert e.get("ts_time_ativo") is not None
+                assert e.get("ts_timeng_ativo") is not None
+                assert e.get("ts_time_ativo") > 1_000_000_000
+                # TIME vem ~1s depois de TIMENEG na simulação
+                assert e.get("ts_time_ativo") > e.get("ts_timeng_ativo")
+        finally:
+            adapter.desconectar()

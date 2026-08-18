@@ -144,6 +144,8 @@ class MercadoDataProvider:
         entry.setdefault("feed_state", self._feed_fonte())
         entry.setdefault("subscription_generation", self._geracao_fonte())
         entry.setdefault("ts_origem_ativo", self._origem_fonte(inst.ativo))
+        entry.setdefault("ts_time_ativo", self._time_fonte(inst.ativo))
+        entry.setdefault("ts_timeng_ativo", self._timeng_fonte(inst.ativo))
         if entry.get("ts_origem_ativo") is not None and "idade_origem_ativo" not in entry:
             origem = entry["ts_origem_ativo"]
             if origem >= 1_000_000_000 and origem <= time.time() + 3600:
@@ -152,6 +154,18 @@ class MercadoDataProvider:
     def _origem_fonte(self, codigo: str) -> float | None:
         try:
             return self.source.get_ts_origem(codigo)
+        except Exception:
+            return None
+
+    def _time_fonte(self, codigo: str) -> float | None:
+        try:
+            return self.source.get_ts_time(codigo)
+        except Exception:
+            return None
+
+    def _timeng_fonte(self, codigo: str) -> float | None:
+        try:
+            return self.source.get_ts_timeng(codigo)
         except Exception:
             return None
 

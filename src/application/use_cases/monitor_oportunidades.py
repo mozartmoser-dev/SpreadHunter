@@ -232,6 +232,8 @@ class MonitorOportunidadesUseCase:
         ts_ask = [dados_mercado[keys_validas[i]].get("ts_ativo_ask") for i in range(nk)]
         ts_bid = [dados_mercado[keys_validas[i]].get("ts_ativo_bid") for i in range(nk)]
         ts_origem = [dados_mercado[keys_validas[i]].get("ts_origem_ativo") for i in range(nk)]
+        ts_time = [dados_mercado[keys_validas[i]].get("ts_time_ativo") for i in range(nk)]
+        ts_timeng = [dados_mercado[keys_validas[i]].get("ts_timeng_ativo") for i in range(nk)]
         idade_origem = [dados_mercado[keys_validas[i]].get("idade_origem_ativo") for i in range(nk)]
         ts_scan = [dados_mercado[keys_validas[i]].get("ts_scan") for i in range(nk)]
         ondas = [dados_mercado[keys_validas[i]].get("onda") for i in range(nk)]
@@ -337,6 +339,8 @@ class MonitorOportunidadesUseCase:
                 ts_ativo_ask=ts_ask[i],
                 ts_ativo_bid=ts_bid[i],
                 ts_origem_ativo=ts_origem[i],
+                ts_time_ativo=ts_time[i],
+                ts_timeng_ativo=ts_timeng[i],
                 idade_origem_ativo=idade_origem[i],
                 ts_scan=ts_scan[i],
                 onda=ondas[i],
@@ -574,6 +578,8 @@ class MonitorOportunidadesUseCase:
             ts_ativo_ask=mercado.get("ts_ativo_ask"),
             ts_ativo_bid=mercado.get("ts_ativo_bid"),
             ts_origem_ativo=mercado.get("ts_origem_ativo"),
+            ts_time_ativo=mercado.get("ts_time_ativo"),
+            ts_timeng_ativo=mercado.get("ts_timeng_ativo"),
             idade_origem_ativo=mercado.get("idade_origem_ativo"),
             ts_scan=mercado.get("ts_scan"),
             onda=mercado.get("onda"),

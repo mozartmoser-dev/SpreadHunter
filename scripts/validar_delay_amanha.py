@@ -85,6 +85,18 @@ def main() -> None:
     time.sleep(5.0)
     rtd.refresh(0)
 
+    # Offset do trace ANTES da medição: o relatório lê só o que for escrito
+    # a partir daqui, sem misturar as execuções anteriores do stale_trace.log.
+    log = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "logs", "stale_trace.log")
+    offset_inicio = 0
+    try:
+        with open(log, "r", encoding="utf-8", errors="replace") as f:
+            f.seek(0, 2)
+            offset_inicio = f.tell()
+    except OSError:
+        pass
+
     tempos_captura: list[float] = []
     tempos_total: list[float] = []
     n_ciclos = 0
@@ -120,13 +132,7 @@ def main() -> None:
     except Exception:
         pass
 
-    log = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                       "logs", "stale_trace.log")
-    with open(log, "r", encoding="utf-8", errors="replace") as f:
-        f.seek(0, 2)
-        offset_inicio = f.tell()
-    if os.path.exists(log):
-        _relatorio_t1_t4(log, offset_inicio)
+    _relatorio_t1_t4(log, offset_inicio)
 
     rtd.desconectar()
     print("Desconectado. Fim da validação.")

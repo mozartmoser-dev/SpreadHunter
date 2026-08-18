@@ -223,6 +223,8 @@ class MonitorColaresCalendarioUseCase:
                 "ts_ativo_ask": dm.get("ts_ativo_ask") if dm else None,
                 "ts_ativo_bid": dm.get("ts_ativo_bid") if dm else None,
                 "ts_origem_ativo": dm.get("ts_origem_ativo") if dm else None,
+                "ts_time_ativo": dm.get("ts_time_ativo") if dm else None,
+                "ts_timeng_ativo": dm.get("ts_timeng_ativo") if dm else None,
                 "ts_entrega_ativo": dm.get("ts_entrega_ativo") if dm else None,
                 "ts_scan": dm.get("ts_scan") if dm else None,
                 "onda": dm.get("onda") if dm else None,
@@ -398,6 +400,8 @@ class MonitorColaresCalendarioUseCase:
                         resultado.ts_ativo_ask = call.get("ts_ativo_ask")
                         resultado.ts_ativo_bid = call.get("ts_ativo_bid")
                         resultado.ts_origem_ativo = call.get("ts_origem_ativo")
+                        resultado.ts_time_ativo = call.get("ts_time_ativo")
+                        resultado.ts_timeng_ativo = call.get("ts_timeng_ativo")
                         resultado.ts_entrega_ativo = call.get("ts_entrega_ativo")
                         resultado.ts_scan = call.get("ts_scan")
                         resultado.onda = call.get("onda")

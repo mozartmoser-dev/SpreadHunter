@@ -71,6 +71,8 @@ class ResultadoColar:
     ts_ativo_ask: float | None = None
     ts_ativo_bid: float | None = None
     ts_origem_ativo: float | None = None
+    ts_time_ativo: float | None = None
+    ts_timeng_ativo: float | None = None
     ts_entrega_ativo: float | None = None
     ts_scan: float | None = None
     onda: int | None = None
