@@ -1,6 +1,6 @@
 # Spreadhunter — Regras para Agentes
 
-Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, taxa, SBTH vendida, put ratio, venda coberta). Desktop Python/PySide6, SQLite, RTD via COM do Profit, socket OpenFast, API opcoes.net.br. **Windows-only.** Sem CI (sem `.github/`); 689 testes coletados localmente (contagem muda com frequência; validar com `--collect-only`).
+Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, taxa, SBTH vendida, put ratio, venda coberta). Desktop Python/PySide6, SQLite, RTD via COM do Profit, socket OpenFast, API opcoes.net.br. **Windows-only.** Sem CI (sem `.github/`); ~797 testes coletados localmente (contagem muda com frequência; validar com `--collect-only`).
 
 ## Confirmação obrigatória
 
@@ -9,7 +9,7 @@ Varredura de oportunidades em opções B3 (colar, collar calendário, box, MPP, 
 ## Comandos essenciais
 
 ```powershell
-python -m pytest tests/ -x -q --tb=short            # todos (~689; --collect-only leva ~5-15s)
+python -m pytest tests/ -x -q --tb=short            # todos (797 coletados; --collect-only ~15-25s)
 python -m pytest tests/domain/test_calculadora_cauda_assincrona.py -q
 python -m pytest tests/test_fase3.py::TestX::test_y -q
 python main.py                                       # dev
@@ -18,7 +18,7 @@ python -m PyInstaller --clean --distpath "$env:USERPROFILE\Desktop\dist" `
   --workpath "$env:USERPROFILE\Desktop\build_pyi" spreadhunter.spec
 ```
 
-Stack: Python 3.13 local (pyproject permite ≥3.12), PySide6 6.11.1, sqlite3, scipy, numpy, matplotlib, pywin32, pillow, opencv-python, requests, python-dotenv, pyautogui, psutil, pytest, yfinance. `pyproject.toml` seta `pythonpath = ["."]` (imports from root). `requirements.txt` pinado. Regras completas em `.opencode/skills/spreadhunter/SKILL.md` (`skill spreadhunter`).
+Stack: Python 3.13 local (pyproject permite ≥3.12), PySide6 6.11.1, sqlite3, scipy, numpy, matplotlib, pywin32, requests, yfinance. `pyproject.toml` seta `pythonpath = ["."]` (imports from root). `requirements.txt` pinado. **Sem lint/typecheck/formatter configurado — validação é via pytest.**
 
 ## Arquitetura não-óbvia
 
@@ -27,8 +27,8 @@ Stack: Python 3.13 local (pyproject permite ≥3.12), PySide6 6.11.1, sqlite3, s
 - Use cases em `src/application/use_cases/`, calculadoras em `src/domain/services/`
 - Bootstrap: `src/infrastructure/persistence/bootstrap.py` → `main.py`
 - `_ImportThread` em `grade_opcoes_dialog.py` (não em `main_window.py`)
-- Duas fontes de market data: Profit RTD (COM, `rtd_profit.py`) e OpenFast (socket TCP, `openfast_socket_adapter.py`), além de `fasttrade` (RTD da Fast Trade) e `mock` (simulador p/ testes) em `criar_data_source()` (`market_data_source.py`). Config `fonte_market_data` no banco. **Atenção:** `parametro_operacional.py` default hardcoded = `"profit"`, mas `parametros_default.json` seed = `"openfast"` — o JSON vence no seed. Script `scripts/set_openfast.py` alterna.
-- `.env` contém credenciais opcoes.net.br (`OPCOESNET_CPF`, `OPCOESNET_SENHA`) — `.gitignore` exclui, nunca commitar. `load_dotenv()` é chamado em `opcoesnet_client.py` (linha 19, no topo do módulo), não globalmente.
+- Duas fontes de market data: Profit RTD (COM, `rtd_profit.py`) e OpenFast (socket TCP, `openfast_socket_adapter.py`), além de `fasttrade` (RTD da Fast Trade) e `mock` (simulador p/ testes) em `criar_data_source()` (`src/domain/services/market_data_source.py`). Config `fonte_market_data` no banco. **Atenção:** `src/domain/entities/parametro_operacional.py` default hardcoded = `"profit"`, mas `parametros_default.json` seed = `"openfast"` — o JSON vence no seed. Script `scripts/set_openfast.py` alterna.
+- `.env` contém credenciais opcoes.net.br (`OPCOESNET_CPF`, `OPCOESNET_SENHA`) — `.gitignore` exclui, nunca commitar. `load_dotenv()` é chamado em `src/infrastructure/integrations/opcoesnet_client.py` (linha 19, no topo do módulo), não globalmente.
 - DB em `%APPDATA%/Spreadhunter/spreadhunter.db` via `get_db_path()` — nunca hardcoded. Migração automática de `config/spreadhunter.db` na 1ª execução.
 - Conexão SQLite: `threading.local` pool, `journal_mode=WAL`, `cache_size=-8000`, `temp_store=MEMORY`, `synchronous=NORMAL`
 - `config/spreadhunter_prioridade.json` — prioridades de ativos
@@ -40,7 +40,7 @@ Stack: Python 3.13 local (pyproject permite ≥3.12), PySide6 6.11.1, sqlite3, s
 ## Regras de negócio (resumo; detalhes em SKILL.md)
 
 1. **Strike NUNCA persistido.** Vem do RTD em tempo real. Se RTD não fornecer, falhar. NUNCA extrair do sufixo B3 (`G445` ≠ 44.50).
-2. **MOD (`tipo_opcao`) só da CALL.** PUTs B3 são Europeias (`E`). Ler `r["mod"]` apenas quando `r["tipo"] == "CALL"`. O scanner Box 4P rejeita pares onde a CALL K1 não é Europeia se `box_soh_europeia=1` (default, `monitor_box.py:51`). `box_soh_europeia=0` aceita CALL Americanas (PUT sempre E).
+2. **MOD (`tipo_opcao`) só da CALL.** PUTs B3 são Europeias (`E`). Ler `r["mod"]` apenas quando `r["tipo"] == "CALL"`. O scanner Box 4P rejeita pares onde a CALL K1 não é Europeia se `box_soh_europeia=1` (default, `src/application/use_cases/monitor_box.py:52`; default 1.0 em `parametro_operacional.py`). `box_soh_europeia=0` aceita CALL Americanas (PUT sempre E).
 3. **Parametrização obrigatória do banco.** TODO valor de negócio via `repo.get_by_chave()`. Nunca hardcoded. Ao adicionar parâmetro, tocar: `config/parametros_default.json` (seed) + `parametro_operacional.py` (fallback) + `parametros_widget.py` + `regras_dialog.py`.
 4. **Custos B3** usam prêmio/preço (NUNCA strike). Ida-e-volta (×2).
 5. **Chave composta `(ativo, cod_opcao)`.** Toda cache/mapa usa `f"{ativo}|{cod}"`.
@@ -48,6 +48,7 @@ Stack: Python 3.13 local (pyproject permite ≥3.12), PySide6 6.11.1, sqlite3, s
 7. **Box 4P** (`calculadora_box.py`): `lucro = clr - distancia` — short box, não inverter.
 8. **Blacklist** (`black_list_import`): ativos removidos na importação, sem preservação.
 9. **Importador único:** `scripts/validar_opcoes/importflash.py`. API `OptionsChain` para todas as séries (mensais + W1-W4).
+10. **Semanais fora da Onda 1 por default:** `perf_filtro_semanal=1` (seed) exclui opções semanais (W em `cod[-2]`) do registro/varredura da Onda 1 em `mercado_data_provider.py` e `monitor_put_ratio.py`. Não é bug: instrumento semanal simplesmente não é assinado.
 
 ## Investigação de dados: protocolo obrigatório dos 7 elos
 
@@ -68,6 +69,8 @@ Criar evidência/teste para cada elo relevante antes de propor uma correção.
 ## Operação B3
 
 Mercado: seg-sex **10:00–17:00** (Brasília). Fora disso RTD/OpenFast não retornam dados. Testar com cotação dummy ou `src/infrastructure/providers/mock_market_data.py`.
+
+**Logging:** nível por parâmetro `diagnostico_logging` (0=off, default). Overrides env em `main.py`: `SH_LOG_LEVEL=DEBUG|INFO|...` e `SH_PROFILE_MERCADO=1` (gera `logs/profile_mercado.log` sobrescrito a cada execução, filtrado p/ Manutenção/Onda 1/_flush_buffer). Sem o override/param, market data não loga debug.
 
 ## Windows / PyInstaller gotchas
 
@@ -97,11 +100,43 @@ Em `mercado_data_provider.py` — sempre que mexer em `_registrar_batch_intelige
 
 **Rotineiro** (UI/tooltips/parâmetros): tests, dialogs, models de tabela, `column_utils.py`, `regras_dialog.py`, filtros, cores, labels.
 
+## Protocolo de alterações e validação
+
+Fluxo para mudanças relevantes (cálculos, market data, timing, classificação, persistência, concorrência, fontes, pipelines):
+
+1. **Proposta:** identificar problema/objetivo, arquivos afetados, regras que não devem mudar. Apresentar antes de implementar (regra de confirmação obrigatória).
+2. **Implementação mínima:** só o necessário. Sem refatorações oportunistas, sem misturar melhorias independentes.
+3. **Testes:** executar os relevantes (suíte completa quando apropriado). Resultados reais, não "parece correto".
+4. **Evidência,** quando o risco justificar:
+   - Performance → baseline antes/depois, escala representativa.
+   - Cálculo → comparação/equivalência com implementação anterior confiável, harness ou dados frozen.
+   - Nunca assumir que vetorização/refatoração é otimização sem medir.
+5. **Revisão:** separar bug real, falso positivo, mudança deliberada e melhoria futura. Não tratar divergência como bug sem evidência.
+6. **Commit:** só após validação. Apenas alterações intencionais, sem logs/traces/temporários.
+7. **Push:** após commit validado, manter `main` sincronizada com `origin/main`.
+
+**Validação proporcional ao risco:**
+- Cosmético/documental → revisão simples.
+- Lógica isolada → testes relevantes.
+- Cálculo/regra de negócio → testes + comparação.
+- Performance → baseline + benchmark.
+- Market data/timing/stale → testes + harness/traces.
+- Persistência → cenários de falha/transação.
+- Pipeline crítico → evidência ponta a ponta.
+
+**Segurança:** se houver divergência inesperada, não mascarar, não alterar o teste para fazê-lo passar, não assumir a implementação nova como correta. Investigar, classificar (bug/deliberada/convenção/falso positivo), documentar.
+
+**Ferramentas e seus papéis:**
+- **Graphify** → contexto estrutural; não valida comportamento.
+- **OpenSpec** → registra intenção e mudança; não prova implementação.
+- **Specs** → descrevem contrato/comportamento esperado; não substituem testes.
+- **Git** → histórico e recuperação; não substitui validação.
+- **Testes + harness** → evidência de execução; autoridade final sobre comportamento/performance.
+
+**Integração com OpenSpec:** proposta → consultar specs existentes → implementar → validar por execução → atualizar specs se necessário → fechar mudança → commit/push.
+
 ## Referências
 
 - `.opencode/skills/spreadhunter/SKILL.md` — use `skill spreadhunter` para regras completas + histórico de sessões (nota: contagem de testes no SKILL.md está desatualizada; validar com `--collect-only`)
 - `.claude.md` — cópia parcial/desatualizada do AGENTS.md (regra #5 duplicada com numeração quebrada); ignorar e usar AGENTS.md como fonte autoritativa
 - `docs/codigos_b3.md` — tabela completa de meses CALL/PUT + detecção de semanais (W em `cod[-2]` vs W de Nov PUT em `cod[4]`)
-- `pendenciascalendario.md` — diagnóstico BWB + simulações
-- `planoprotecaocauda.md` — planejamento de proteção de cauda
-- `INSTRUCOES_AMIGO.txt` — diagnóstico .exe

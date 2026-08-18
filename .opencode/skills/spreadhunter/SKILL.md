@@ -17,7 +17,8 @@ aprovação/rejeição. O fluxo deve ser: proposta → confirmação → execuç
 
 ## Protocolo dos 7 Elos (investigação de dados)
 
-Antes de concluir que um campo está **ausente, atrasado, zerado ou divergente**, obrigatoriamente verificar a cadeia completa:
+Antes de concluir que um campo está ausente, atrasado, zerado ou divergente,
+obrigatoriamente verificar a cadeia completa:
 
 1. onde o campo é consumido;
 2. onde deveria ser assinado no OpenFast;
@@ -29,7 +30,8 @@ Antes de concluir que um campo está **ausente, atrasado, zerado ou divergente**
 
 Criar evidência/teste para cada elo relevante antes de propor uma correção.
 
-**Não assumir que ausência de dado significa delay, divergência do feed ou erro de cálculo sem antes verificar a assinatura e a entrega real do campo.**
+**Não assumir que ausência de dado significa delay, divergência do feed ou
+erro de cálculo sem antes verificar a assinatura e a entrega real do campo.**
 
 ## Stack
 
@@ -197,3 +199,46 @@ MPP, COLAR, COLAR_CAL** (+ monitor_geral já existente).
 cotação com dezenas de segundos de atraso, a cadeia T1→T6 dirá exatamente onde os
 segundos foram perdidos. Não alterar lógica enquanto a instrumentação estiver ativa;
 remover `stale_trace` após o diagnóstico.
+
+### 11/08/2026 — Patch OO → VEC no `varrer()` (BOX/SBTH) — CONCLUÍDO
+
+- **Patch** `src/application/use_cases/monitor_oportunidades.py`: loop OO
+  per-instrumento (`_calcular_oportunidade`) substituído por `CalculadoraVetorizada`
+  + derivação vetorizada de todos os campos do DTO, preservando exatamente as regras
+  da `CalculadoraBoxSbth` (classificação/operação por valores não-arredondados;
+  custos arredondados 4/6 casas no DTO).
+- **Equivalência OO × VEC comprovada campo-a-campo** — 38 campos do DTO idênticos
+  (harness sintético + varredura de fronteira: 0 divergências no caminho escolhido).
+- **689 testes passando**.
+- **Benchmark real validado** (carga congelada de 51.060 chaves): ~1,402 s → ~1,007 s,
+  ≈1,4× de speedup / ~28% de redução.
+- **`vencimentos=None` mantido deliberadamente** para preservar a regra atual do OO
+  (`dc_to_du` aproximado 252/365). VEC com vencimentos reais/calendário B3 **NÃO foi
+  introduzido** (varredura de fronteira mostrou que mudaria classificação na fronteira).
+- Commit `725dcd10305a938c009e9764b9a168035df3dc8b` — `perf: vetoriza montagem de
+  DTOs do varrer() (BOX/SBTH) preservando regras do OO` — push concluído, `main`
+  sincronizada com `origin/main`.
+
+**Próximo passo (amanhã):**
+1. Validar no mercado aberto com o protocolo T1–T6/Onda 1 existente. Comparar com o
+   baseline histórico de 07/08 usando as mesmas métricas. Medir impacto no pipeline
+   completo (retomada, varredura, tempo até disponibilidade da oportunidade, nº de
+   instrumentos, stale data, comportamento do worker, CPU/memória). Verificar se a
+   redução do benchmark aparece no comportamento real.
+2. **Aplicar o skip da Onda 1 via `codigos_mudados` (§6 de `retomada_delay_openfast.md`)**
+   — reclassificado pelo usuário para amanhã, logo após a validação. É o ganho certo
+   grande: `onda1=1,002s` de `var=1,408s` (71% do ciclo é reconstrução redundante);
+   `ref=0,023s` prova que o feed é rápido. Transforma o ciclo de `O(38k)` → `O(#mudanças)`
+   (captura ~1,0–2,5s → ~0,1–0,2s) e reduz o `T3→T4`. Preservar: gate de frescor antes
+   do skip, leitura sempre fresca de status/ativo/preço, e gravação de `_dados_cache`
+   no ramo Onda 1 (ver `docs/verificacao_codigos_mudados.md`).
+
+> ⚠️ **LEMBRETE PARA AMANHÃ (usuário pediu):** após concluir os testes/validação no
+> mercado aberto, **lembrar o usuário** de que o skip da Onda 1 (§6) está agendado para
+> ser aplicado em seguida — só implementar depois da confirmação explícita.
+
+**Pendências separadas (NÃO fazer agora):**
+- Investigação do crash Qt `tests/test_fase4.py::TestMonitorTableModel::test_tipo_opcao_display`
+  (pré-existente, `0xC0000409`, não relacionado ao patch — confirmado em worktree limpo do HEAD).
+- Estudo futuro da convenção CDI/B3 exata vs aproximação atual.
+- Otimizações residuais, somente após a validação e o skip da Onda 1 no mercado aberto.
