@@ -21,7 +21,7 @@ class MercadoDataProvider:
     _CAMPOS_PUT = [FieldName.STRIKE, FieldName.ASK, FieldName.BID,
                    FieldName.BOOK_HEADER, FieldName.QTD_LAST, FieldName.VOL_ASK, FieldName.VOL_BID]
     _CAMPOS_CALL = [FieldName.STRIKE, FieldName.ASK, FieldName.BID,
-                    FieldName.BOOK_HEADER, FieldName.QTD_LAST, FieldName.VOL_BID]
+                    FieldName.BOOK_HEADER, FieldName.QTD_LAST, FieldName.VOL_BID, FieldName.VOL_ASK]
 
     def __init__(self, db_path=None, source: MarketDataSource | None = None):
         self.db_path = db_path
@@ -466,7 +466,17 @@ class MercadoDataProvider:
                 (inst.cod_put, FieldName.BOOK_HEADER),
                 (inst.cod_call, FieldName.BOOK_HEADER),
                 (inst.cod_put, FieldName.ASK),
+                (inst.cod_put, FieldName.BID),
+                (inst.cod_put, FieldName.VOL_ASK),
+                (inst.cod_put, FieldName.VOL_BID),
+                (inst.cod_put, FieldName.QTD_LAST),
+                (inst.cod_put, FieldName.STATUS),
+                (inst.cod_call, FieldName.ASK),
                 (inst.cod_call, FieldName.BID),
+                (inst.cod_call, FieldName.VOL_ASK),
+                (inst.cod_call, FieldName.VOL_BID),
+                (inst.cod_call, FieldName.QTD_LAST),
+                (inst.cod_call, FieldName.STATUS),
             ]
 
         if inst.ativo not in self._ativos_registrados:
@@ -839,8 +849,10 @@ class MercadoDataProvider:
                             continue
                     # Batch reads: 1 lock por símbolo (put, call, ativo) em vez
                     # de 1 lock por campo — reduz contenção com a thread leitora.
-                    c_put_onda1 = self._ler_campos(inst.cod_put, FieldName.ASK, FieldName.BID)
-                    c_call_onda1 = self._ler_campos(inst.cod_call, FieldName.ASK, FieldName.BID)
+                    c_put_onda1 = self._ler_campos(inst.cod_put, FieldName.ASK, FieldName.BID,
+                                                   FieldName.VOL_ASK, FieldName.QTD_LAST)
+                    c_call_onda1 = self._ler_campos(inst.cod_call, FieldName.ASK, FieldName.BID,
+                                                    FieldName.VOL_BID, FieldName.QTD_LAST)
                     c_ativo_onda1 = self._ler_campos(inst.ativo, FieldName.ASK, FieldName.BID)
                     ocp = c_call_onda1.get(FieldName.BID)
                     ovd = c_put_onda1.get(FieldName.ASK)
@@ -871,10 +883,10 @@ class MercadoDataProvider:
                         "premio_put": ovd or 0.0,
                         "of_compra_put": c_put_onda1.get(FieldName.BID) or 0.0,
                         "of_venda_call": c_call_onda1.get(FieldName.ASK) or 0.0,
-                        "qul_put": 0,
-                        "qul_call": 0,
-                        "vov_put": 0,
-                        "voc_call": 0,
+                        "qul_put": c_put_onda1.get(FieldName.QTD_LAST) or 0.0,
+                        "qul_call": c_call_onda1.get(FieldName.QTD_LAST) or 0.0,
+                        "vov_put": c_put_onda1.get(FieldName.VOL_ASK) or 0.0,
+                        "voc_call": c_call_onda1.get(FieldName.VOL_BID) or 0.0,
                         "em_leilao": False,
                         "status_put": self.source.ler_status_cache(inst.cod_put) or "aberto",
                         "status_call": self.source.ler_status_cache(inst.cod_call) or "aberto",
