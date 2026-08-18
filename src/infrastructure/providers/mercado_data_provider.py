@@ -734,10 +734,12 @@ class MercadoDataProvider:
                                     entry["stale"] = True
                                     self._cont_stale_skip += 1
                                     self._cont_stale_skip_ciclo += 1
+                                    self._dados_cache.pop(key, None)
                                     continue
-                            of_compra = c_ativo.get(FieldName.BID)
-                            if of_compra is not None:
-                                entry["of_compra_ativo"] = of_compra
+                            of_compra = c_ativo.get(FieldName.BID) or 0.0
+                            if of_compra > p_ativo or of_compra <= 0:
+                                of_compra = 0.0
+                            entry["of_compra_ativo"] = of_compra
                             of_v_put = c_put.get(FieldName.ASK)
                             if of_v_put is not None:
                                 entry["of_venda_put"] = of_v_put
@@ -885,6 +887,8 @@ class MercadoDataProvider:
                 # Pós-processamento: preenche entries que não mudaram com
                 # shallow copy do _dados_cache (em_leilao=False = Onda 1 normal).
                 for key, cached in self._dados_cache.items():
+                    if cached.get("stale") is True:
+                        continue
                     if key not in dados_mercado and key in self._chaves_com_book:
                         entry = dict(cached)
                         entry["em_leilao"] = False
