@@ -74,6 +74,7 @@ PARAMETROS_POR_ESTRATEGIA = {
         ("fonte_tamanho", "Tamanho da Fonte (8-16)"),
         ("openfast_send_delay_ms", "Delay SQT (ms)"),
         ("assinar_timestamp_openfast", "Assinar Time/Timeneg OpenFast"),
+        ("diagnostico_logging", "Modo Diagnostico Logging"),
         ("stale_sinal_s", "Tolerancia Stale Entre Pernas (s)"),
         ("rtd_refresh_timeout_ms", "Timeout RTD RefreshData (ms, 0=sem timeout)"),
         ("rtd_throttle_ms", "Throttle RTD (ms) — fonte fasttrade"),
@@ -312,6 +313,11 @@ PARAMETROS_INFO = {
         "descricao": "Quando ativo, o OpenFast assina tambem os campos TIME/TIMENEG do ativo para medir a idade REAL da cotacao (horario de origem no protocolo), separada da idade de entrega ao Python. Diagnostico: nunca altera o clock de frescor do gate STALE.",
         "usado_em": "OpenFastSocketAdapter + MercadoDataProvider._anotar_frescor (ts_origem_ativo / idade_origem_ativo).",
         "precedencia": "Banco de Dados -> 0 (off, padrao)",
+    },
+    "diagnostico_logging": {
+        "descricao": "Modo diagnostico de logging. 0 (off, padrao)= producao: nivel INFO, sem profile_mercado.log, DEBUG do hot-path descartado. 1 (on)= diagnostico: nivel DEBUG + profile_mercado.log ativo. Override explicito por env: SH_LOG_LEVEL (nivel) e SH_PROFILE_MERCADO (0/1) — quando presentes, reportados no stderr.",
+        "usado_em": "main.py (_configure_logging) — nivel global de logging e criacao de profile_mercado.log. Nao afeta stale_trace.log (controlado por SH_TRACE_CHAVE).",
+        "precedencia": "Banco de Dados -> 0 (off, padrao). Env SH_LOG_LEVEL/SH_PROFILE_MERCADO como override explicito e ruidoso.",
     },
     "stale_sinal_s": {
         "descricao": "Tolerancia em segundos para a idade das pernas de uma oportunidade. Uma perna com idade maior que este valor impede o calculo daquela oportunidade no ciclo (refinamento futuro; hoje o gate usa stale_campo_s).",

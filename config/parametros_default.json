@@ -758,6 +758,12 @@
       "descricao": "Assinar TIME/TIMENEG do OpenFast para medir idade real da cotacao (0=off, 1=on)"
     },
     {
+      "chave": "diagnostico_logging",
+      "valor": "0.0",
+      "estrategia": "GERAL",
+      "descricao": "Modo diagnostico de logging (0=INFO sem profile_mercado.log, 1=DEBUG com profile_mercado.log)"
+    },
+    {
       "chave": "stale_sinal_s",
       "valor": "30.0",
       "estrategia": "GERAL",
