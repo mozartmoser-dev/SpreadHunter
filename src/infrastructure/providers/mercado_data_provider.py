@@ -785,6 +785,9 @@ class MercadoDataProvider:
                             preco_ativo = self._preco_ativo_cache_fresco(inst.ativo)
 
                         if not preco_ativo or preco_ativo <= 0:
+                            if key in self._dados_cache:
+                                self._dados_cache[key]["stale"] = True
+                                self._dados_cache.pop(key, None)
                             if inst.ativo in self._sem_ativo_skip:
                                 count_sem_preco += 1
                                 continue
