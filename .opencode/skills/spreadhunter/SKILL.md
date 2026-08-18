@@ -15,6 +15,22 @@ compatibility: opencode
 confirmação explícita.** Use `question` tool com opções claras de
 aprovação/rejeição. O fluxo deve ser: proposta → confirmação → execução.
 
+## Protocolo dos 7 Elos (investigação de dados)
+
+Antes de concluir que um campo está **ausente, atrasado, zerado ou divergente**, obrigatoriamente verificar a cadeia completa:
+
+1. onde o campo é consumido;
+2. onde deveria ser assinado no OpenFast;
+3. se o tópico `(instrumento, campo)` está efetivamente registrado;
+4. se o servidor entrega o campo quando assinado;
+5. se o adapter recebe e armazena;
+6. se o provider repassa o valor correto;
+7. se o consumidor recebe e utiliza o mesmo valor.
+
+Criar evidência/teste para cada elo relevante antes de propor uma correção.
+
+**Não assumir que ausência de dado significa delay, divergência do feed ou erro de cálculo sem antes verificar a assinatura e a entrega real do campo.**
+
 ## Stack
 
 - **Linguagem**: Python 3.13.14 (`C:\Program Files\Python313\python.exe`)

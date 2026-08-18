@@ -49,6 +49,22 @@ Stack: Python 3.13 local (pyproject permite ≥3.12), PySide6 6.11.1, sqlite3, s
 8. **Blacklist** (`black_list_import`): ativos removidos na importação, sem preservação.
 9. **Importador único:** `scripts/validar_opcoes/importflash.py`. API `OptionsChain` para todas as séries (mensais + W1-W4).
 
+## Investigação de dados: protocolo obrigatório dos 7 elos
+
+Antes de concluir que um campo está **ausente, atrasado, zerado ou divergente**, obrigatoriamente verificar a cadeia completa:
+
+1. onde o campo é consumido;
+2. onde deveria ser assinado no OpenFast;
+3. se o tópico `(instrumento, campo)` está efetivamente registrado;
+4. se o servidor entrega o campo quando assinado;
+5. se o adapter recebe e armazena;
+6. se o provider repassa o valor correto;
+7. se o consumidor recebe e utiliza o mesmo valor.
+
+Criar evidência/teste para cada elo relevante antes de propor uma correção.
+
+**Não assumir que ausência de dado significa delay, divergência do feed ou erro de cálculo sem antes verificar a assinatura e a entrega real do campo.**
+
 ## Operação B3
 
 Mercado: seg-sex **10:00–17:00** (Brasília). Fora disso RTD/OpenFast não retornam dados. Testar com cotação dummy ou `src/infrastructure/providers/mock_market_data.py`.
