@@ -15,14 +15,14 @@
     "semantic_hash": "b33d000860642c6f4907a877e0387a21"
   },
   "backconfsh/configsh.json": {
-    "mtime": 1787078270.0372555,
-    "ast_hash": "86ce68df75b6cc146b37b71d7ffa8309",
-    "semantic_hash": "86ce68df75b6cc146b37b71d7ffa8309"
+    "mtime": 1787162256.8407364,
+    "ast_hash": "c100220b16b442d46b92a646f92074ef",
+    "semantic_hash": ""
   },
   "config/parametros_default.json": {
-    "mtime": 1787078301.8146482,
-    "ast_hash": "2b373bf2e45806c7288f3f4650846170",
-    "semantic_hash": "2b373bf2e45806c7288f3f4650846170"
+    "mtime": 1787162256.838737,
+    "ast_hash": "c100220b16b442d46b92a646f92074ef",
+    "semantic_hash": ""
   },
   "config/spreadhunter_prioridade.json": {
     "mtime": 1782239860.813095,
@@ -170,9 +170,9 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "src/application/dtos/dtos.py": {
-    "mtime": 1787080928.6305263,
-    "ast_hash": "71b942a279e04eea879eb10094926904",
-    "semantic_hash": "71b942a279e04eea879eb10094926904"
+    "mtime": 1787173643.1223464,
+    "ast_hash": "6ec9d647277bcf3d849d1181b08905c8",
+    "semantic_hash": ""
   },
   "src/application/dtos/dtos_venda_coberta.py": {
     "mtime": 1786708524.058915,
@@ -215,9 +215,9 @@
     "semantic_hash": "9bba3193ca9cfc9a4a3f0511f419e97e"
   },
   "src/application/use_cases/monitor_oportunidades.py": {
-    "mtime": 1787081060.1953845,
-    "ast_hash": "0159dbe3982ebf59da4a36d0d239e52e",
-    "semantic_hash": "0159dbe3982ebf59da4a36d0d239e52e"
+    "mtime": 1787173590.0028672,
+    "ast_hash": "88d171ba0838ae2240286f24e5852a65",
+    "semantic_hash": ""
   },
   "src/application/use_cases/monitor_venda_coberta.py": {
     "mtime": 1786620042.2619522,
@@ -260,9 +260,9 @@
     "semantic_hash": "2c2320409e82d9339e0bce19492fb011"
   },
   "src/domain/entities/parametro_operacional.py": {
-    "mtime": 1786643800.6654062,
-    "ast_hash": "2cab87a21b9d88e5ad1e2143065735ee",
-    "semantic_hash": "2cab87a21b9d88e5ad1e2143065735ee"
+    "mtime": 1787174507.2411907,
+    "ast_hash": "fd4943e080b41884ccd68bdf8af50431",
+    "semantic_hash": ""
   },
   "src/domain/entities/perna_operacao.py": {
     "mtime": 1781626969.507655,
@@ -420,9 +420,9 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "src/infrastructure/persistence/repositories/repositories.py": {
-    "mtime": 1786720849.0378995,
-    "ast_hash": "3731991700f2ba669c44324a82dabc21",
-    "semantic_hash": "3731991700f2ba669c44324a82dabc21"
+    "mtime": 1787175477.8791344,
+    "ast_hash": "5440178ee0f1cb592f840307291fef11",
+    "semantic_hash": ""
   },
   "src/infrastructure/providers/__init__.py": {
     "mtime": 1778512781.0845902,
@@ -450,9 +450,9 @@
     "semantic_hash": "3f9623fb84e3db399eec03acb6bf8875"
   },
   "src/infrastructure/providers/mercado_data_provider.py": {
-    "mtime": 1787080941.5658505,
-    "ast_hash": "a65b254d55afef14f01d3433365fad52",
-    "semantic_hash": "a65b254d55afef14f01d3433365fad52"
+    "mtime": 1787173497.9737153,
+    "ast_hash": "85cb07f8b47515e1a7cd6e0fe0dcc257",
+    "semantic_hash": ""
   },
   "src/infrastructure/providers/mercado_estrutural_provider.py": {
     "mtime": 1781182044.5386145,
@@ -555,9 +555,9 @@
     "semantic_hash": "660f8680f0068f7ac9104160b9967a3f"
   },
   "src/ui/desktop/export_dialog.py": {
-    "mtime": 1787081269.7948716,
-    "ast_hash": "204473a5d66568a58648f072b5b0e868",
-    "semantic_hash": "204473a5d66568a58648f072b5b0e868"
+    "mtime": 1787173935.9086652,
+    "ast_hash": "395078165b7d41261c201ded9b4adb85",
+    "semantic_hash": ""
   },
   "src/ui/desktop/feriados_dialog.py": {
     "mtime": 1786531308.2024927,
@@ -575,9 +575,9 @@
     "semantic_hash": "13b7296a864d3f95ff68d031f673a9a2"
   },
   "src/ui/desktop/monitor_table_model.py": {
-    "mtime": 1785765104.3586082,
-    "ast_hash": "836e60da4906165b17e0217b161566b1",
-    "semantic_hash": "836e60da4906165b17e0217b161566b1"
+    "mtime": 1787173929.8080435,
+    "ast_hash": "c52d44442f1614e4487b456685ec3ea8",
+    "semantic_hash": ""
   },
   "src/ui/desktop/monitor_worker.py": {
     "mtime": 1787072693.8983955,
@@ -700,9 +700,9 @@
     "semantic_hash": "5c3f3c5bfcc2905108b239cd7245e75e"
   },
   "tests/test_display_mismatch.py": {
-    "mtime": 1785266351.3102486,
-    "ast_hash": "4451066ad03da3621b8e0c8ee4f05068",
-    "semantic_hash": "4451066ad03da3621b8e0c8ee4f05068"
+    "mtime": 1787173957.0233226,
+    "ast_hash": "276f0f7f2e2fa8b28f6bc306be79b8af",
+    "semantic_hash": ""
   },
   "tests/test_fase1.py": {
     "mtime": 1786721345.8559196,
@@ -735,9 +735,9 @@
     "semantic_hash": "a282e7135e7fd98f6641c354aae5686f"
   },
   "tests/test_mercado_provider_openfast.py": {
-    "mtime": 1786709238.0534244,
-    "ast_hash": "0543907fc70cf4c639cc44a5f651c9b0",
-    "semantic_hash": "0543907fc70cf4c639cc44a5f651c9b0"
+    "mtime": 1787174515.450065,
+    "ast_hash": "ac3df3515bb020bd99cf3dc7716cd3e1",
+    "semantic_hash": ""
   },
   "tests/test_openfast_socket_adapter.py": {
     "mtime": 1786717625.7609072,
@@ -2158,5 +2158,10 @@
     "mtime": 1787150064.0160778,
     "ast_hash": "32771aa2b25c1657993b82e3b7f71358",
     "semantic_hash": "32771aa2b25c1657993b82e3b7f71358"
+  },
+  "tests/test_leilao_onda1.py": {
+    "mtime": 1787175485.9374163,
+    "ast_hash": "59ad47b05c1b785cfaa09fad14b22afb",
+    "semantic_hash": ""
   }
 }
