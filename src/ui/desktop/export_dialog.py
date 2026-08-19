@@ -149,7 +149,7 @@ class ExportDialog(QDialog):
         # Compra Put com Strike à direita
         put_layout = QHBoxLayout()
         put_layout.setContentsMargins(0, 0, 0, 0)
-        lbl_put_val = QLabel("{:.2f} (of. venda)".format(opp.of_venda_put))
+        lbl_put_val = self._criar_label_preco_perna(opp.of_venda_put, opp.ts_put_ask, opp.idade_put_ask, "of. venda")
         lbl_put_strike = QLabel("Strike: {:.2f}".format(opp.strike))
         lbl_put_strike.setStyleSheet("color: {}; font-weight: bold;".format(Palette.TEXT_SECONDARY))
         put_layout.addWidget(lbl_put_val)
@@ -160,7 +160,7 @@ class ExportDialog(QDialog):
         # Venda Call com Strike à direita
         call_layout = QHBoxLayout()
         call_layout.setContentsMargins(0, 0, 0, 0)
-        lbl_call_val = QLabel("{:.2f} (of. compra)".format(opp.of_compra_call))
+        lbl_call_val = self._criar_label_preco_perna(opp.of_compra_call, opp.ts_call_bid, opp.idade_call_bid, "of. compra")
         lbl_call_strike = QLabel("Strike: {:.2f}".format(opp.strike))
         lbl_call_strike.setStyleSheet("color: {}; font-weight: bold;".format(Palette.TEXT_SECONDARY))
         call_layout.addWidget(lbl_call_val)
@@ -394,6 +394,22 @@ class ExportDialog(QDialog):
         return label
 
 
+    def _criar_label_preco_perna(self, valor, ts, idade, rotulo):
+        """Label de preço de uma perna (put/call) com idade — aviso amarelo se velho."""
+        idade_str = ""
+        ts_str = ""
+        if idade is not None and ts is not None:
+            from datetime import datetime, timezone, timedelta
+            tz = timezone(timedelta(hours=-3))
+            ts_str = datetime.fromtimestamp(ts, tz=tz).strftime("%H:%M:%S")
+            idade_str = "  {} há {}s".format(ts_str, int(idade))
+        label = QLabel("{:.2f} ({}){}".format(valor, rotulo, idade_str))
+        if idade is not None and idade > 10:
+            label.setStyleSheet("color: {}; font-weight: bold; background-color: {}; padding: 2px 4px; border-radius: 2px;".format(Palette.YELLOW, Palette.BG_SURFACE))
+            label.setToolTip("ATENÇÃO: preço de {:.0f}s atrás — último push {}".format(idade, ts_str))
+        return label
+
+
     @staticmethod
     def _label_muted(text: str) -> QLabel:
         lbl = QLabel(text)
@@ -481,6 +497,10 @@ class ExportDialog(QDialog):
             "ts_ativo_ask": self.oportunidade.ts_ativo_ask,
             "ts_ativo_bid": self.oportunidade.ts_ativo_bid,
             "idade_ativo_ask_s": self.oportunidade.idade_ativo_ask,
+            "ts_put_ask": self.oportunidade.ts_put_ask,
+            "ts_call_bid": self.oportunidade.ts_call_bid,
+            "idade_put_ask_s": self.oportunidade.idade_put_ask,
+            "idade_call_bid_s": self.oportunidade.idade_call_bid,
         }
 
     def _copiar_debug(self):
@@ -501,8 +521,8 @@ class ExportDialog(QDialog):
             f"  Timestamp ask: {ts_ask_str} (idade: {idade}s)",
             f"  Timestamp bid: {ts_bid_str}",
             f"",
-            f"PUT ({opp.cod_put}): ask={opp.of_venda_put} bid={opp.of_compra_put} QUL={opp.qul_put}",
-            f"CALL ({opp.cod_call}): ask={opp.of_venda_call} bid={opp.of_compra_call} QUL={opp.qul_call}",
+            f"PUT ({opp.cod_put}): ask={opp.of_venda_put} bid={opp.of_compra_put} QUL={opp.qul_put} idade_ask={int(opp.idade_put_ask) if opp.idade_put_ask is not None else 'N/A'}s",
+            f"CALL ({opp.cod_call}): ask={opp.of_venda_call} bid={opp.of_compra_call} QUL={opp.qul_call} idade_bid={int(opp.idade_call_bid) if opp.idade_call_bid is not None else 'N/A'}s",
             f"",
             f"Classificação: {opp.classificacao} | Operação: {opp.operacao}",
             f"Viavel: {opp.viavel} | Em leilão: {opp.em_leilao}",
