@@ -141,6 +141,8 @@ class MercadoDataProvider:
         entry.setdefault("stale", False)
         entry.setdefault("ts_ativo_ask", self._ts_fonte(inst.ativo, FieldName.ASK))
         entry.setdefault("ts_ativo_bid", self._ts_fonte(inst.ativo, FieldName.BID))
+        entry.setdefault("ts_put_ask", self._ts_fonte(inst.cod_put, FieldName.ASK))
+        entry.setdefault("ts_call_bid", self._ts_fonte(inst.cod_call, FieldName.BID))
         entry.setdefault("feed_state", self._feed_fonte())
         entry.setdefault("subscription_generation", self._geracao_fonte())
         entry.setdefault("ts_origem_ativo", self._origem_fonte(inst.ativo))
