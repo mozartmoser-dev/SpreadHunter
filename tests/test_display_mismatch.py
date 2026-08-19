@@ -452,6 +452,14 @@ def test_monitor_leilao_display(qapp):
     assert model.data(idx, Qt.ItemDataRole.DisplayRole) == "\u26a0 LEILAO"
 
 
+def test_monitor_leilao_display_por_perna(qapp):
+    """leilao_display mostra a perna em leilao quando o status vem informado."""
+    model = MonitorTableModel()
+    model.atualizar([_monitor_opp(em_leilao=True, status_put="leilão")])
+    idx = model.index(0, _monitor_col_key("leilao_display"))
+    assert model.data(idx, Qt.ItemDataRole.DisplayRole) == "Leilão PUT"
+
+
 def test_monitor_money_display(qapp):
     """money_display must format put/call money values."""
     model = MonitorTableModel()

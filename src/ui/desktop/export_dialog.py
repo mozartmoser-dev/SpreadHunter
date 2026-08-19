@@ -525,7 +525,7 @@ class ExportDialog(QDialog):
             f"CALL ({opp.cod_call}): ask={opp.of_venda_call} bid={opp.of_compra_call} QUL={opp.qul_call} idade_bid={int(opp.idade_call_bid) if opp.idade_call_bid is not None else 'N/A'}s",
             f"",
             f"Classificação: {opp.classificacao} | Operação: {opp.operacao}",
-            f"Viavel: {opp.viavel} | Em leilão: {opp.em_leilao}",
+            f"Viavel: {opp.viavel} | Leilão: {opp.leilao_label or ('sim' if opp.em_leilao else 'não')}",
             f"Money: put={opp.money_put:.2f} call={opp.money_call:.2f} | Taxa aluguel: {opp.taxa_aluguel:.4f}",
             f"",
             f"Custo SBTH: {opp.custo_sbth} | Ganho bruto: {opp.pct_ganho_sbth_bruto:.6f} | Ganho: {opp.pct_ganho_sbth:.6f} | CDI bruto: {opp.pct_cdi_sbth_bruto:.2f}x | CDI: {opp.pct_cdi_sbth:.2f}x",

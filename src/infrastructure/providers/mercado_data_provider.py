@@ -888,6 +888,14 @@ class MercadoDataProvider:
                         bid_ativo = 0.0
                     ts_ask = self.source.get_ts_campo(inst.ativo, FieldName.ASK)
                     ts_bid = self.source.get_ts_campo(inst.ativo, FieldName.BID)
+                    status_put = self.source.ler_status_cache(inst.cod_put) or "aberto"
+                    status_call = self.source.ler_status_cache(inst.cod_call) or "aberto"
+                    status_ativo = self.source.ler_status_cache(inst.ativo) or "aberto"
+                    em_leilao_onda1 = not (
+                        str(status_put).lower() == "aberto"
+                        and str(status_call).lower() == "aberto"
+                        and str(status_ativo).lower() == "aberto"
+                    )
                     entry = {
                         "preco_ativo": preco_ativo,
                         "strike_rtd": strike_put,
@@ -903,10 +911,10 @@ class MercadoDataProvider:
                         "qul_call": c_call_onda1.get(FieldName.QTD_LAST) or 0.0,
                         "vov_put": c_put_onda1.get(FieldName.VOL_ASK) or 0.0,
                         "voc_call": c_call_onda1.get(FieldName.VOL_BID) or 0.0,
-                        "em_leilao": False,
-                        "status_put": self.source.ler_status_cache(inst.cod_put) or "aberto",
-                        "status_call": self.source.ler_status_cache(inst.cod_call) or "aberto",
-                        "status_ativo": self.source.ler_status_cache(inst.ativo) or "aberto",
+                        "em_leilao": em_leilao_onda1,
+                        "status_put": status_put,
+                        "status_call": status_call,
+                        "status_ativo": status_ativo,
                         "ts_ativo_ask": ts_ask,
                         "ts_ativo_bid": ts_bid,
                     }
@@ -925,7 +933,11 @@ class MercadoDataProvider:
                         continue
                     if key not in dados_mercado and key in self._chaves_com_book:
                         entry = dict(cached)
-                        entry["em_leilao"] = False
+                        entry["em_leilao"] = not (
+                            str(cached.get("status_put", "aberto")).lower() == "aberto"
+                            and str(cached.get("status_call", "aberto")).lower() == "aberto"
+                            and str(cached.get("status_ativo", "aberto")).lower() == "aberto"
+                        )
                         dados_mercado[key] = entry
 
                 t_varredura = time.perf_counter() - t_scan0

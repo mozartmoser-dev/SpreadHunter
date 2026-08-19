@@ -162,6 +162,9 @@ class MonitorOportunidadesUseCase:
         vov_p = np.where(vov_put_boca > 0, vov_put_boca, vov_put)
         voc_c = np.where(voc_call_boca > 0, voc_call_boca, voc_call)
         em_leilao = np.array([dados_mercado[chaves[i]].get("em_leilao", False) for i in indices_validos])
+        status_put_l = [str(dados_mercado[chaves[i]].get("status_put", "")) for i in indices_validos]
+        status_call_l = [str(dados_mercado[chaves[i]].get("status_call", "")) for i in indices_validos]
+        status_ativo_l = [str(dados_mercado[chaves[i]].get("status_ativo", "")) for i in indices_validos]
 
         # Lotes de liquidez (usamos o padrão do BOX para o filtro grosso da vetorização)
         lote_put = self._lote_liquidez_put("BOX")
@@ -328,6 +331,9 @@ class MonitorOportunidadesUseCase:
                 of_venda_put=ofvp_l[i],
                 of_compra_call=occ_l[i],
                 em_leilao=em_l[i],
+                status_put=status_put_l[i],
+                status_call=status_call_l[i],
+                status_ativo=status_ativo_l[i],
                 liq_put_x_lote=liqpl_l[i],
                 liq_call_x_lote=liqcl_l[i],
                 of_compra_put=ofcp_l[i],
@@ -570,6 +576,9 @@ class MonitorOportunidadesUseCase:
             of_venda_put=dados.of_venda_put,
             of_compra_call=dados.of_compra_call,
             em_leilao=dados.em_leilao,
+            status_put=dados.status_put,
+            status_call=dados.status_call,
+            status_ativo=dados.status_ativo,
             liq_put_x_lote=liq_put_x_lote,
             liq_call_x_lote=liq_call_x_lote,
             of_compra_put=dados.of_compra_put,

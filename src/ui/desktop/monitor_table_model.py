@@ -179,7 +179,7 @@ class MonitorTableModel(QAbstractTableModel):
         if col_key == "custo_box_display":
             return opp.custo_box_display
         if col_key == "leilao_display":
-            return "\u26a0 LEILAO" if opp.em_leilao else ""
+            return opp.leilao_label or ("\u26a0 LEILAO" if opp.em_leilao else "")
         if col_key == "liq_indicator":
             put_ok = opp.liq_put_x_lote >= 0
             call_ok = opp.liq_call_x_lote >= 0

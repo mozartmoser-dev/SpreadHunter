@@ -209,15 +209,15 @@ class TestMercadoProviderOpenFast:
         finally:
             adapter.desconectar()
 
-    def test_assinar_timestamp_openfast_desabilitado_por_default(self, populated_db, server):
-        """Parâmetro desligado (default) não assina TIME/TIMENEG do ativo."""
+    def test_assinar_timestamp_openfast_habilitado_por_default(self, populated_db, server):
+        """Parâmetro ligado por default assina TIME/TIMENEG do ativo."""
         adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
         try:
             provider = MercadoDataProvider(populated_db, adapter)
             provider.capturar_dados_mercado()
             subscricoes = {c for _, c in adapter._subscriptions}
-            assert "TIME" not in subscricoes
-            assert "TIMENEG" not in subscricoes
+            assert "TIME" in subscricoes
+            assert "TIMENEG" in subscricoes
         finally:
             adapter.desconectar()
 

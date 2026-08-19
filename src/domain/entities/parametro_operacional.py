@@ -50,7 +50,7 @@ class ParametroOperacional:
         "rtd_throttle_ms": {"valor": 200.0, "estrategia": "GERAL", "descricao": "Throttle RTD (ms) para fonte fasttrade (Excel headless). Menor = atualizacao mais rapida; maior = menos CPU"},
         "fonte_market_data": {"valor": "profit", "estrategia": "GERAL", "descricao": "Fonte de market data (profit=Profit RTD via COM, openfast=Open Fast Socket TCP, fasttrade=Fast Trade RTD, mock=Dados simulados p/ teste)"},
         "openfast_send_delay_ms": {"valor": 2.0, "estrategia": "GERAL", "descricao": "Delay entre comandos SQT (ms). 0 = delay minimo (1ms)"},
-        "assinar_timestamp_openfast": {"valor": 0.0, "estrategia": "GERAL", "descricao": "Assinar TIME/TIMENEG do OpenFast para medir idade real da cotacao (0=off, 1=on)"},
+        "assinar_timestamp_openfast": {"valor": 1.0, "estrategia": "GERAL", "descricao": "Assinar TIME/TIMENEG do OpenFast para medir idade real da cotacao (0=off, 1=on)"},
         "diagnostico_logging": {"valor": 0.0, "estrategia": "GERAL", "descricao": "Modo diagnostico de logging (0=INFO sem profile_mercado.log, 1=DEBUG com profile_mercado.log)"},
         "stale_sinal_s": {"valor": 30.0, "estrategia": "GERAL", "descricao": "Tolerancia entre pernas (s) - limite de idade das pernas para bloquear calculo"},
         "taxa_aluguel_habilitado": {"valor": 1.0, "estrategia": "GERAL", "descricao": "Habilitar coleta de taxas de aluguel (InvestSite)"},

@@ -65,11 +65,12 @@ class InstrumentoRepository:
         conn = get_connection(self.db_path)
         try:
             cursor = conn.execute(
-                """INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao)
-                VALUES (?, ?, ?, ?, ?)""",
+                """INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao, strike)
+                VALUES (?, ?, ?, ?, ?, ?)""",
                 (instrumento.ativo, instrumento.cod_put, instrumento.cod_call,
                 instrumento.vencimento.isoformat(),
-                instrumento.tipo_opcao.value)
+                instrumento.tipo_opcao.value,
+                float(instrumento.strike) if instrumento.strike else None)
             )
             conn.commit()
             instrumento.id = cursor.lastrowid
@@ -88,11 +89,12 @@ class InstrumentoRepository:
         conn = get_connection(self.db_path)
         try:
             rows = [
-                (i.ativo, i.cod_put, i.cod_call, i.vencimento.isoformat(), i.tipo_opcao.value)
+                (i.ativo, i.cod_put, i.cod_call, i.vencimento.isoformat(), i.tipo_opcao.value,
+                 float(i.strike) if i.strike else None)
                 for i in instrumentos
             ]
             conn.executemany(
-                "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO instrumentos_base (ativo, cod_put, cod_call, vencimento, tipo_opcao, strike) VALUES (?, ?, ?, ?, ?, ?)",
                 rows,
             )
             conn.commit()

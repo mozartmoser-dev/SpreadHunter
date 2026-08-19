@@ -47,6 +47,9 @@ class OportunidadeMonitor:
     of_venda_put: float = 0.0
     of_compra_call: float = 0.0
     em_leilao: bool = False
+    status_put: str = ""
+    status_call: str = ""
+    status_ativo: str = ""
     liq_put_x_lote: float = 0.0
     liq_call_x_lote: float = 0.0
     of_compra_put: float = 0.0
@@ -67,6 +70,36 @@ class OportunidadeMonitor:
     idade_origem_ativo: float | None = None
     ts_scan: float | None = None
     onda: int | None = None
+
+    @property
+    def leilao_label(self) -> str:
+        """Pernas fora de 'aberto' (leilão/fechado), per-perna.
+
+        Formato: 'Leilão ' + pernas em leilão unidas por ' + '
+        ('Leilão Ativo', 'Leilão PUT', 'Leilão Ativo + PUT + CALL').
+        Status diferente de leilão (ex. 'Fechado') -> 'PUT: Fechado'.
+        """
+        leilao_pernas: list[str] = []
+        outros: list[str] = []
+        for nome, status in (
+            ("Ativo", self.status_ativo),
+            ("PUT", self.status_put),
+            ("CALL", self.status_call),
+        ):
+            s = str(status).strip().lower()
+            if not s or s == "aberto":
+                continue
+            if s in ("leilão", "leilao"):
+                leilao_pernas.append(nome)
+            else:
+                outros.append(f"{nome}: {status}")
+        partes: list[str] = []
+        if leilao_pernas and not outros:
+            partes.append("Leilão " + " + ".join(leilao_pernas))
+        else:
+            partes.extend(f"Leilão {n}" for n in leilao_pernas)
+        partes.extend(outros)
+        return " + ".join(partes)
 
     @property
     def idade_ativo_ask(self) -> float | None:
