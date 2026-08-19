@@ -231,6 +231,8 @@ class MonitorOportunidadesUseCase:
         qul_call = np.array([dados_mercado[keys_validas[i]].get("qul_call", 0.0) or 0.0 for i in range(nk)], dtype=float)
         ts_ask = [dados_mercado[keys_validas[i]].get("ts_ativo_ask") for i in range(nk)]
         ts_bid = [dados_mercado[keys_validas[i]].get("ts_ativo_bid") for i in range(nk)]
+        ts_put_ask = [dados_mercado[keys_validas[i]].get("ts_put_ask") for i in range(nk)]
+        ts_call_bid = [dados_mercado[keys_validas[i]].get("ts_call_bid") for i in range(nk)]
         ts_origem = [dados_mercado[keys_validas[i]].get("ts_origem_ativo") for i in range(nk)]
         ts_time = [dados_mercado[keys_validas[i]].get("ts_time_ativo") for i in range(nk)]
         ts_timeng = [dados_mercado[keys_validas[i]].get("ts_timeng_ativo") for i in range(nk)]
@@ -338,6 +340,8 @@ class MonitorOportunidadesUseCase:
                 detectado_em=agora,
                 ts_ativo_ask=ts_ask[i],
                 ts_ativo_bid=ts_bid[i],
+                ts_put_ask=ts_put_ask[i],
+                ts_call_bid=ts_call_bid[i],
                 ts_origem_ativo=ts_origem[i],
                 ts_time_ativo=ts_time[i],
                 ts_timeng_ativo=ts_timeng[i],

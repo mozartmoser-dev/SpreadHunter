@@ -59,6 +59,8 @@ class OportunidadeMonitor:
     detectado_em: datetime | None = None
     ts_ativo_ask: float | None = None
     ts_ativo_bid: float | None = None
+    ts_put_ask: float | None = None
+    ts_call_bid: float | None = None
     ts_origem_ativo: float | None = None
     ts_time_ativo: float | None = None
     ts_timeng_ativo: float | None = None
@@ -72,6 +74,20 @@ class OportunidadeMonitor:
         if self.ts_ativo_ask is None:
             return None
         return time.time() - self.ts_ativo_ask
+
+    @property
+    def idade_put_ask(self) -> float | None:
+        import time
+        if self.ts_put_ask is None:
+            return None
+        return time.time() - self.ts_put_ask
+
+    @property
+    def idade_call_bid(self) -> float | None:
+        import time
+        if self.ts_call_bid is None:
+            return None
+        return time.time() - self.ts_call_bid
 
     @property
     def label_origem(self) -> str:
