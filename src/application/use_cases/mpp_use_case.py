@@ -104,6 +104,16 @@ class MPPUseCase:
             return [a.strip().upper() for a in raw.split(",") if a.strip()]
         return []
 
+    def _ler_campo_cache(self, rtd, codigo: str, campo: FieldName):
+        if getattr(rtd, 'suporta_push', False) and getattr(rtd, 'disponivel', True):
+            return rtd.ler_campo_cache(codigo, campo, allow_stale=True)
+        return rtd.ler_campo_cache(codigo, campo)
+
+    def _ler_campos(self, rtd, codigo: str, *campos: FieldName):
+        if getattr(rtd, 'suporta_push', False) and getattr(rtd, 'disponivel', True):
+            return rtd.ler_campos(codigo, *campos, allow_stale=True)
+        return rtd.ler_campos(codigo, *campos)
+
     def obter_taxa_cdi(self) -> float:
         return float(self._param_repo.get_by_chave("taxa_cdi").valor)
 
@@ -350,8 +360,8 @@ class MPPUseCase:
             if inst["ativo"].upper() not in ativos:
                 continue
 
-            c_call = rtd.ler_campos(inst["cod_call"], FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
-            c_put = rtd.ler_campos(inst["cod_put"], FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
+            c_call = self._ler_campos(rtd, inst["cod_call"], FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
+            c_put = self._ler_campos(rtd, inst["cod_put"], FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
             stale_trace.log_consumo("MPP", {inst["cod_put"].upper(), inst["cod_call"].upper()}, rtd)
 
             bid_call = c_call.get(FieldName.BID) or 0.0
@@ -400,7 +410,7 @@ class MPPUseCase:
         resultados_mre: list[MreResultado] = []
 
         for (ativo, vencimento), members in grupos.items():
-            spot = rtd.ler_campo_cache(ativo, FieldName.ASK) or 0.0
+            spot = self._ler_campo_cache(rtd, ativo, FieldName.ASK) or 0.0
             stale_trace.log_consumo("MPP", {ativo.upper()}, rtd)
             if spot <= 0:
                 continue

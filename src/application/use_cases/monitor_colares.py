@@ -35,6 +35,11 @@ class MonitorColaresUseCase:
         self.param_repo = ParametroRepository(db_path)
         self._calculadora = None
 
+    def _ler_campo_cache(self, rtd, codigo: str, campo: FieldName):
+        if getattr(rtd, 'suporta_push', False) and getattr(rtd, 'disponivel', True):
+            return rtd.ler_campo_cache(codigo, campo, allow_stale=True)
+        return rtd.ler_campo_cache(codigo, campo)
+
     def _get_calculadora(self) -> CalculadoraColar:
         if self._calculadora is None:
             param = self.param_repo.get_by_chave("taxa_cdi")
@@ -292,29 +297,29 @@ class MonitorColaresUseCase:
         return grupos
 
     def _ler_dados_rtd(self, inst: InstrumentoOpcional, rtd) -> dict | None:
-        preco_ativo = rtd.ler_campo_cache(inst.ativo, FieldName.ASK)
+        preco_ativo = self._ler_campo_cache(rtd, inst.ativo, FieldName.ASK)
         if not preco_ativo or preco_ativo <= 0:
             return None
 
-        of_venda_ativo = rtd.ler_campo_cache(inst.ativo, FieldName.ASK)
+        of_venda_ativo = self._ler_campo_cache(rtd, inst.ativo, FieldName.ASK)
 
         # Fontes push (OpenFAST): strike canônico é do banco (opcoes.net.br).
         # "PEX" do servidor pode não ser o strike real para opções.
         if getattr(rtd, 'suporta_push', False):
             strike_rtd = inst.strike
         else:
-            strike_rtd = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
+            strike_rtd = self._ler_campo_cache(rtd, inst.cod_put, FieldName.STRIKE)
             if not strike_rtd or strike_rtd <= 0:
-                strike_rtd = rtd.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
+                strike_rtd = self._ler_campo_cache(rtd, inst.cod_call, FieldName.STRIKE)
         if not strike_rtd or strike_rtd <= 0:
             return None
 
-        of_v_put = rtd.ler_campo_cache(inst.cod_put, FieldName.ASK) or 0.0
-        of_c_call = rtd.ler_campo_cache(inst.cod_call, FieldName.BID) or 0.0
-        vov_put = rtd.ler_campo_cache(inst.cod_put, FieldName.VOL_ASK) or 0.0
-        voc_call = rtd.ler_campo_cache(inst.cod_call, FieldName.VOL_BID) or 0.0
-        qul_put = rtd.ler_campo_cache(inst.cod_put, FieldName.QTD_LAST) or 0.0
-        qul_call = rtd.ler_campo_cache(inst.cod_call, FieldName.QTD_LAST) or 0.0
+        of_v_put = self._ler_campo_cache(rtd, inst.cod_put, FieldName.ASK) or 0.0
+        of_c_call = self._ler_campo_cache(rtd, inst.cod_call, FieldName.BID) or 0.0
+        vov_put = self._ler_campo_cache(rtd, inst.cod_put, FieldName.VOL_ASK) or 0.0
+        voc_call = self._ler_campo_cache(rtd, inst.cod_call, FieldName.VOL_BID) or 0.0
+        qul_put = self._ler_campo_cache(rtd, inst.cod_put, FieldName.QTD_LAST) or 0.0
+        qul_call = self._ler_campo_cache(rtd, inst.cod_call, FieldName.QTD_LAST) or 0.0
         status_put = rtd.ler_status_cache(inst.cod_put)
         status_call = rtd.ler_status_cache(inst.cod_call)
 

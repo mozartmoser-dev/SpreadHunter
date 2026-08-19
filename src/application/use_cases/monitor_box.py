@@ -60,18 +60,28 @@ class MonitorBoxUseCase:
             return set(ativos) if ativos else None
         return None
 
+    def _ler_campo_cache(self, rtd, codigo: str, campo: FieldName):
+        if getattr(rtd, 'suporta_push', False) and getattr(rtd, 'disponivel', True):
+            return rtd.ler_campo_cache(codigo, campo, allow_stale=True)
+        return rtd.ler_campo_cache(codigo, campo)
+
+    def _ler_campos(self, rtd, codigo: str, *campos: FieldName):
+        if getattr(rtd, 'suporta_push', False) and getattr(rtd, 'disponivel', True):
+            return rtd.ler_campos(codigo, *campos, allow_stale=True)
+        return rtd.ler_campos(codigo, *campos)
+
     def _extrair(self, inst: InstrumentoOpcional, rtd) -> dict | None:
-        c_put = rtd.ler_campos(inst.cod_put, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
-        c_call = rtd.ler_campos(inst.cod_call, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
+        c_put = self._ler_campos(rtd, inst.cod_put, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
+        c_call = self._ler_campos(rtd, inst.cod_call, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
         stale_trace.log_consumo("BOX4P", {inst.cod_put.upper(), inst.cod_call.upper()}, rtd)
 
         # Fontes push (OpenFAST): strike canônico é do banco (opcoes.net.br).
         # "PEX" do servidor pode não ser o strike real para opções.
         strike = inst.strike if getattr(rtd, 'suporta_push', False) else None
         if not strike or strike <= 0:
-            strike = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
+            strike = self._ler_campo_cache(rtd, inst.cod_put, FieldName.STRIKE)
         if not strike or strike <= 0:
-            strike = rtd.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
+            strike = self._ler_campo_cache(rtd, inst.cod_call, FieldName.STRIKE)
         if not strike or strike <= 0:
             return None
 
@@ -232,7 +242,7 @@ class MonitorBoxUseCase:
             if len(members) < 2:
                 continue
 
-            spot = rtd.ler_campo_cache(ativo, FieldName.ASK) or 0.0
+            spot = self._ler_campo_cache(rtd, ativo, FieldName.ASK) or 0.0
             stale_trace.log_consumo("BOX4P", {ativo.upper()}, rtd)
             spread_limite = spot * spread_max_pct if spot > 0 and spread_max_pct > 0 else float("inf")
 

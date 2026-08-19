@@ -88,6 +88,11 @@ class MonitorColaresCalendarioUseCase:
         param = self.param_repo.get_by_chave(chave)
         return param.valor if param else default
 
+    def _ler_campo_cache(self, rtd, codigo: str, campo: FieldName):
+        if getattr(rtd, 'suporta_push', False) and getattr(rtd, 'disponivel', True):
+            return rtd.ler_campo_cache(codigo, campo, allow_stale=True)
+        return rtd.ler_campo_cache(codigo, campo)
+
     def varrer(self, rtd, dados_mercado: dict | None = None, params: dict | None = None, ativos: list[str] | None = None, pipeline_tracker: PipelineTracker | None = None) -> list[ResultadoColarCalendario]:
         calc = self._get_calculadora()
         inst_map = self.inst_repo.get_all_mapped()
@@ -181,15 +186,15 @@ class MonitorColaresCalendarioUseCase:
                 # "PEX" do servidor pode não ser o strike real para opções.
                 strike = inst.strike if getattr(rtd, 'suporta_push', False) else None
                 if not strike or strike <= 0:
-                    strike = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
+                    strike = self._ler_campo_cache(rtd, inst.cod_put, FieldName.STRIKE)
                 if not strike or strike <= 0:
-                    strike = rtd.ler_campo_cache(inst.cod_call, FieldName.STRIKE)
-                ocp = rtd.ler_campo_cache(inst.cod_call, FieldName.BID)
-                ovd = rtd.ler_campo_cache(inst.cod_put, FieldName.ASK)
+                    strike = self._ler_campo_cache(rtd, inst.cod_call, FieldName.STRIKE)
+                ocp = self._ler_campo_cache(rtd, inst.cod_call, FieldName.BID)
+                ovd = self._ler_campo_cache(rtd, inst.cod_put, FieldName.ASK)
                 preco_call = ocp or 0.0
                 preco_put = ovd or 0.0
-                qul_put = rtd.ler_campo_cache(inst.cod_put, FieldName.QTD_LAST) or 0
-                qul_call = rtd.ler_campo_cache(inst.cod_call, FieldName.QTD_LAST) or 0
+                qul_put = self._ler_campo_cache(rtd, inst.cod_put, FieldName.QTD_LAST) or 0
+                qul_call = self._ler_campo_cache(rtd, inst.cod_call, FieldName.QTD_LAST) or 0
 
             if not strike or strike <= 0:
                 stats["sem_strike"] += 1
@@ -308,10 +313,10 @@ class MonitorColaresCalendarioUseCase:
                         break
             if preco_ativo <= 0:
                 stale_trace.log_consumo("COLAR_CAL", {ativo.upper()}, rtd)
-                preco_ativo = rtd.ler_campo_cache(ativo, FieldName.ASK) or 0.0
+                preco_ativo = self._ler_campo_cache(rtd, ativo, FieldName.ASK) or 0.0
                 if preco_ativo <= 0:
                     continue
-                of_venda_ativo = rtd.ler_campo_cache(ativo, FieldName.ASK)
+                of_venda_ativo = self._ler_campo_cache(rtd, ativo, FieldName.ASK)
                 preco_compra_ativo = of_venda_ativo if (of_venda_ativo and of_venda_ativo > 0) else 0.0
 
             c_ativos_com_dados += 1

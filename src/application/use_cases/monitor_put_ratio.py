@@ -39,6 +39,11 @@ def _is_weekly(cod: str | None) -> bool:
 class MonitorPutRatioUseCase:
     _cache_iv_historico: dict[str, tuple[float, float, float, list[float]]] = {}
 
+    def _ler_campo_cache(self, rtd, codigo: str, campo: FieldName):
+        if getattr(rtd, 'suporta_push', False) and getattr(rtd, 'disponivel', True):
+            return rtd.ler_campo_cache(codigo, campo, allow_stale=True)
+        return rtd.ler_campo_cache(codigo, campo)
+
     def __init__(self, db_path=None):
         self.db_path = db_path
         self.inst_repo = InstrumentoRepository(db_path)
@@ -131,17 +136,17 @@ class MonitorPutRatioUseCase:
         # "PEX" do servidor pode não ser o strike real para opções.
         strike = inst.strike if getattr(rtd, 'suporta_push', False) else None
         if not strike or strike <= 0:
-            strike = rtd.ler_campo_cache(inst.cod_put, FieldName.STRIKE)
+            strike = self._ler_campo_cache(rtd, inst.cod_put, FieldName.STRIKE)
         if not strike or strike <= 0:
             return None
 
-        bid_put = rtd.ler_campo_cache(inst.cod_put, FieldName.BID) or 0.0
-        ask_put = rtd.ler_campo_cache(inst.cod_put, FieldName.ASK) or 0.0
+        bid_put = self._ler_campo_cache(rtd, inst.cod_put, FieldName.BID) or 0.0
+        ask_put = self._ler_campo_cache(rtd, inst.cod_put, FieldName.ASK) or 0.0
 
         if bid_put <= 0 and ask_put <= 0:
             return None
 
-        preco_ativo = rtd.ler_campo_cache(inst.ativo, FieldName.ASK) or 0.0
+        preco_ativo = self._ler_campo_cache(rtd, inst.ativo, FieldName.ASK) or 0.0
 
         status_put = rtd.ler_status_cache(inst.cod_put)
         status_ativo = rtd.ler_status_cache(inst.ativo)
@@ -165,8 +170,8 @@ class MonitorPutRatioUseCase:
             "cod_put": inst.cod_put,
             "bid_put": bid_put,
             "ask_put": ask_put,
-            "qtd_bid_put": int(rtd.ler_campo_cache(inst.cod_put, FieldName.VOL_BID) or 0),
-            "qtd_ask_put": int(rtd.ler_campo_cache(inst.cod_put, FieldName.VOL_ASK) or 0),
+            "qtd_bid_put": int(self._ler_campo_cache(rtd, inst.cod_put, FieldName.VOL_BID) or 0),
+            "qtd_ask_put": int(self._ler_campo_cache(rtd, inst.cod_put, FieldName.VOL_ASK) or 0),
             "em_leilao": not (status_put.lower() == "aberto" and status_ativo.lower() == "aberto"),
             "ativo": inst.ativo,
             "vencimento": inst.vencimento,
