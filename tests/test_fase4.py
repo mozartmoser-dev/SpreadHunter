@@ -502,3 +502,205 @@ class TestMonitorWorker:
         worker = MonitorWorker(str(populated_db), None)
         worker.recarregar_parametros()
         assert worker._monitor_uc._calculadora is None
+
+    def test_detectar_divergencia_strike(self, populated_db, monkeypatch):
+        """Strike do banco divergente do PEX em ativo com data_ex hoje -> emite sinal."""
+        import time as _time
+        from datetime import date
+        from src.ui.desktop.monitor_worker import MonitorWorker
+        from src.infrastructure.providers.mock_market_data import MockDataSource
+        from src.domain.services.market_data_source import FieldName
+        from src.infrastructure.persistence.database import get_connection
+        from src.infrastructure.persistence.repositories.repositories import (
+            ParametroRepository,
+            InstrumentoRepository,
+        )
+        from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOpcao
+        from PySide6.QtWidgets import QApplication
+        import sys
+
+        app = QApplication.instance() or QApplication(sys.argv)
+        monkeypatch.setattr(_time, "sleep", lambda *a, **k: None)
+
+        ParametroRepository(str(populated_db)).save(
+            __import__("src.domain.entities.parametro_operacional", fromlist=["ParametroOperacional"]).ParametroOperacional(
+                chave="fonte_market_data", valor="openfast", estrategia="GERAL", descricao="teste"
+            )
+        )
+
+        hoje = date.today().isoformat()
+        conn = get_connection(str(populated_db))
+        conn.execute(
+            "INSERT INTO dividendos (ativo, tipo, data_com, data_ex, data_pagamento, valor, fonte) "
+            "VALUES ('GGBR4', 'DIVIDENDO', ?, ?, ?, 0.23, 'teste')",
+            (hoje, hoje, hoje),
+        )
+        conn.commit()
+
+        repo = InstrumentoRepository(str(populated_db))
+        venc = date.today()
+        repo.save(InstrumentoOpcional(
+            ativo="GGBR4", cod_put="GGBRT151", cod_call="GGBRH151",
+            vencimento=venc, tipo_opcao=TipoOpcao.EUROPEIA, strike=15.10,
+        ))
+
+        mock = MockDataSource()
+        mock._cache["GGBRT151|PEX"] = 14.87
+        mock._cache["GGBRH151|PEX"] = 14.87
+
+        class FakeProvider:
+            source = mock
+
+        worker = MonitorWorker(str(populated_db), None)
+        worker._mercado_provider = FakeProvider()
+        received = []
+        worker.strike_divergencia.connect(received.append)
+
+        worker._verificar_divergencias_strike()
+
+        assert received, "sinal strike_divergencia deveria ter sido emitido"
+        assert received[0][0]["ativo"] == "GGBR4"
+        assert received[0][0]["exemplo"]["strike_banco"] == 15.10
+        assert received[0][0]["exemplo"]["strike_openfast"] == 14.87
+
+    def test_detectar_divergencia_sem_candidatos(self, populated_db, monkeypatch):
+        """Sem provento com data_ex hoje, nao emite sinal."""
+        import time as _time
+        from src.ui.desktop.monitor_worker import MonitorWorker
+        from src.infrastructure.providers.mock_market_data import MockDataSource
+        from PySide6.QtWidgets import QApplication
+        import sys
+
+        app = QApplication.instance() or QApplication(sys.argv)
+        monkeypatch.setattr(_time, "sleep", lambda *a, **k: None)
+
+        mock = MockDataSource()
+
+        class FakeProvider:
+            source = mock
+
+        worker = MonitorWorker(str(populated_db), None)
+        worker._mercado_provider = FakeProvider()
+        received = []
+        worker.strike_divergencia.connect(received.append)
+
+        worker._verificar_divergencias_strike()
+
+        assert received == []
+
+    def test_detectar_divergencia_respeita_gate_estado(self, populated_db, monkeypatch):
+        """Com estado registrado para o dia e mesmos strikes, nao re-consulta nem re-emite."""
+        import time as _time
+        from datetime import date
+        from src.ui.desktop.monitor_worker import MonitorWorker
+        from src.infrastructure.providers.mock_market_data import MockDataSource
+        from src.infrastructure.persistence.database import get_connection
+        from src.infrastructure.persistence.repositories.repositories import (
+            ParametroRepository,
+            InstrumentoRepository,
+        )
+        from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOpcao
+        from PySide6.QtWidgets import QApplication
+        import sys
+
+        app = QApplication.instance() or QApplication(sys.argv)
+        monkeypatch.setattr(_time, "sleep", lambda *a, **k: None)
+
+        ParametroRepository(str(populated_db)).save(
+            __import__("src.domain.entities.parametro_operacional", fromlist=["ParametroOperacional"]).ParametroOperacional(
+                chave="fonte_market_data", valor="openfast", estrategia="GERAL", descricao="teste"
+            )
+        )
+
+        hoje = date.today().isoformat()
+        conn = get_connection(str(populated_db))
+        conn.execute(
+            "INSERT INTO dividendos (ativo, tipo, data_com, data_ex, data_pagamento, valor, fonte) "
+            "VALUES ('GGBR4', 'DIVIDENDO', ?, ?, ?, 0.23, 'teste')",
+            (hoje, hoje, hoje),
+        )
+        conn.commit()
+
+        repo = InstrumentoRepository(str(populated_db))
+        repo.save(InstrumentoOpcional(
+            ativo="GGBR4", cod_put="GGBRT151", cod_call="GGBRH151",
+            vencimento=date.today(), tipo_opcao=TipoOpcao.EUROPEIA, strike=15.10,
+        ))
+
+        mock = MockDataSource()
+        mock._cache["GGBRT151|PEX"] = 14.87
+        mock._cache["GGBRH151|PEX"] = 14.87
+
+        class FakeProvider:
+            source = mock
+
+        worker = MonitorWorker(str(populated_db), None)
+        worker._mercado_provider = FakeProvider()
+        received = []
+        worker.strike_divergencia.connect(received.append)
+
+        worker._verificar_divergencias_strike()
+        n1 = len(received)
+        worker._verificar_divergencias_strike()
+
+        assert len(received) == n1
+
+    def test_detectar_divergencia_retenta_ate_pex_chegar(self, populated_db, monkeypatch):
+        """Se o PEX ainda não chegou, NÃO grava o estado do dia -> próxima checagem tenta de novo."""
+        import time as _time
+        from datetime import date
+        from src.ui.desktop.monitor_worker import MonitorWorker
+        from src.infrastructure.providers.mock_market_data import MockDataSource
+        from src.infrastructure.persistence.database import get_connection
+        from src.infrastructure.persistence.repositories.repositories import (
+            ParametroRepository,
+            InstrumentoRepository,
+        )
+        from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOpcao
+        from PySide6.QtWidgets import QApplication
+        import sys
+
+        app = QApplication.instance() or QApplication(sys.argv)
+        monkeypatch.setattr(_time, "sleep", lambda *a, **k: None)
+
+        ParametroRepository(str(populated_db)).save(
+            __import__("src.domain.entities.parametro_operacional", fromlist=["ParametroOperacional"]).ParametroOperacional(
+                chave="fonte_market_data", valor="openfast", estrategia="GERAL", descricao="teste"
+            )
+        )
+
+        hoje = date.today().isoformat()
+        conn = get_connection(str(populated_db))
+        conn.execute(
+            "INSERT INTO dividendos (ativo, tipo, data_com, data_ex, data_pagamento, valor, fonte) "
+            "VALUES ('GGBR4', 'DIVIDENDO', ?, ?, ?, 0.23, 'teste')",
+            (hoje, hoje, hoje),
+        )
+        conn.commit()
+
+        repo = InstrumentoRepository(str(populated_db))
+        repo.save(InstrumentoOpcional(
+            ativo="GGBR4", cod_put="GGBRT151", cod_call="GGBRH151",
+            vencimento=date.today(), tipo_opcao=TipoOpcao.EUROPEIA, strike=15.10,
+        ))
+
+        mock = MockDataSource()  # cache vazio = PEX ainda não chegou
+
+        class FakeProvider:
+            source = mock
+
+        worker = MonitorWorker(str(populated_db), None)
+        worker._mercado_provider = FakeProvider()
+        received = []
+        worker.strike_divergencia.connect(received.append)
+
+        worker._verificar_divergencias_strike()
+        assert received == []
+        assert worker._strike_divergencia_estado.get("dia") is None, (
+            "sem PEX, o estado do dia não pode ser gravado (deve retentar)"
+        )
+
+        mock._cache["GGBRT151|PEX"] = 14.87
+        mock._cache["GGBRH151|PEX"] = 14.87
+        worker._verificar_divergencias_strike()
+        assert received, "após o PEX chegar, deve detectar e emitir"

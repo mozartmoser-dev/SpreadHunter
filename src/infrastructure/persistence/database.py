@@ -334,6 +334,10 @@ def _migrar_strike_column(conn):
         conn.execute("ALTER TABLE instrumentos_base ADD COLUMN strike REAL")
     except sqlite3.OperationalError:
         pass
+    try:
+        conn.execute("ALTER TABLE instrumentos_base ADD COLUMN strike_ajustado_em TEXT")
+    except sqlite3.OperationalError:
+        pass
 
 
 def _migrar_fonte_market_data(conn):

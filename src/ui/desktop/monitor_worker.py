@@ -97,6 +97,7 @@ class MonitorWorker(QThread):
     mre_atualizados = Signal(list)
     mpp_status_changed = Signal(bool)
     integridade_params_verificada = Signal(list)
+    strike_divergencia = Signal(list)
 
     def __init__(self, db_path: str, rtd: object = None, parent=None):
         super().__init__(parent)
@@ -133,6 +134,28 @@ class MonitorWorker(QThread):
         self._manutencao_cycle = 0
         self._rtd_reconnect_cycle = 0
         self._verificacao_integridade_feita = False
+        self._strike_divergencia_estado: dict[str, str] = {}
+        self._strike_divergencia_avisado: set[str] = set()
+        self._forcar_divergencia = False
+
+    def solicitar_rechecagem_strikes(self):
+        """Força a detecção a reavaliar todos os candidatos no próximo ciclo.
+
+        Mantém o gate do dia, mas limpa o estado por ativo para que até os
+        ativos já verificados voltem a ser comparados (ex.: após aplicar um
+        ajuste, os ativos não corrigidos voltam a emitir o badge).
+        """
+        self._forcar_divergencia = True
+        self._strike_divergencia_estado = {
+            k: v for k, v in self._strike_divergencia_estado.items() if k == "dia"
+        }
+
+    def limpar_aviso_divergencia(self, ativo: str | None = None):
+        """Remove o aviso emitido para um ativo (após aplicar ajuste)."""
+        if ativo:
+            self._strike_divergencia_avisado.discard(ativo)
+        else:
+            self._strike_divergencia_avisado.clear()
 
     def run(self):
         com_initialized = False
@@ -1301,6 +1324,165 @@ class MonitorWorker(QThread):
             t1 = time.perf_counter()
             self._monitor_mpp_uc.limpar_snapshots_antigos()
             logger.debug("Limpeza de tabelas temporais em %.2fs", time.perf_counter() - t1)
+
+        self._verificar_divergencias_strike()
+
+    def _verificar_divergencias_strike(self):
+        """Detecta strikes divergentes (banco vs OpenFast PEX) em ativos ex-div de hoje.
+
+        Gate por estado: so re-checa quando o hash dos strikes do banco muda,
+        quando um novo provento entra, ou quando o dia muda. Assina PEX apenas
+        para os candidatos (trafico pontual e minimo).
+        """
+        if not self._mercado_provider:
+            return
+        from datetime import date
+        hoje = date.today().isoformat()
+        chave_dia = f"dia:{hoje}"
+        if self._strike_divergencia_estado.get("dia") == chave_dia and not self._forcar_divergencia:
+            return
+
+        fonte = self._ler_param_str("fonte_market_data", "profit")
+        if fonte != "openfast":
+            logger.debug("Divergencia strike: fonte=%s, ignorando (só OpenFast).", fonte)
+            return
+
+        try:
+            from src.infrastructure.persistence.database import get_connection
+            conn = get_connection(self.db_path)
+            proventos = conn.execute(
+                "SELECT ativo, valor FROM dividendos WHERE data_ex = ? AND valor > 0",
+                (hoje,),
+            ).fetchall()
+            ativos = sorted(set(a for a, _ in proventos))
+        except Exception as e:
+            logger.warning("Divergencia strike: erro ao ler dividendos: %s", e)
+            return
+
+        source = self._mercado_provider.source
+        if not source or not getattr(source, "disponivel", False):
+            # Não grava o estado do dia: se a fonte ainda não está pronta,
+            # a próxima manutenção tenta de novo (auto-recuperação).
+            logger.debug("Divergencia strike: fonte indisponível, aguardando próxima manutenção.")
+            return
+
+        # Reúne os candidatos e os códigos PEX de uma vez (assinatura única).
+        # NOTA: o estado por ativo só é gravado DEPOIS de ler o PEX (ver abaixo),
+        # para que uma tentativa sem PEX não marque o ativo como já verificado.
+        candidatos: list[tuple[str, list, float]] = []
+        codigos: list[tuple[str, FieldName]] = []
+        conn = get_connection(self.db_path)
+        for ativo in ativos:
+            try:
+                insts = conn.execute(
+                    "SELECT cod_put, cod_call, strike FROM instrumentos_base WHERE ativo = ? AND strike IS NOT NULL",
+                    (ativo,),
+                ).fetchall()
+            except Exception as e:
+                logger.warning("Divergencia strike: erro ao ler instrumentos %s: %s", ativo, e)
+                continue
+            if not insts:
+                continue
+
+            hash_banco = str(sorted((cp, s) for cp, cc, s in insts))
+            chave_ativo = f"{ativo}:{hoje}:{hash_banco}"
+            if self._strike_divergencia_estado.get(ativo) == chave_ativo:
+                continue
+
+            provento_total = round(float(sum(v for _, v in proventos if _ == ativo)), 4)
+            insts_cod = []
+            for cp, cc, _ in insts:
+                if cp:
+                    codigos.append((cp, FieldName.STRIKE))
+                    insts_cod.append(cp)
+                if cc:
+                    codigos.append((cc, FieldName.STRIKE))
+                    insts_cod.append(cc)
+            if not insts_cod:
+                continue
+            candidatos.append((ativo, insts, provento_total, chave_ativo))
+
+        if not candidatos:
+            self._strike_divergencia_estado["dia"] = chave_dia
+            self._forcar_divergencia = False
+            return
+
+        try:
+            source.registrar_lista(codigos)
+        except Exception as e:
+            logger.warning("Divergencia strike: erro ao assinar PEX: %s", e)
+            return
+
+        # Aguarda até o PEX chegar (primeira assinatura do dia pode demorar >1s,
+        # e durante a carga inicial de instrumentos o servidor fica ocupado).
+        # Se não chegar, NÃO grava o estado do dia -> a próxima manutenção tenta de novo.
+        deadline = time.time() + 4.0
+        leu_pex = False
+        while time.time() < deadline:
+            for cod, _ in codigos:
+                if source.ler_campos(cod, FieldName.STRIKE, allow_stale=True).get(FieldName.STRIKE) is not None:
+                    leu_pex = True
+                    break
+            if leu_pex:
+                break
+            time.sleep(0.25)
+
+        if not leu_pex:
+            logger.debug("Divergencia strike: PEX ainda não chegou (%d códigos), tentando na próxima manutenção.", len(codigos))
+            return
+
+        divergencias: list[dict] = []
+        for ativo, insts, provento_total, chave_ativo in candidatos:
+            tot_diverge = 0
+            tot_pares = 0
+            exemplo: dict | None = None
+            leu_este_ativo = False
+            for (cp, cc, strike_banco) in insts:
+                tot_pares += 1
+                pex_put = source.ler_campos(cp, FieldName.STRIKE, allow_stale=True).get(FieldName.STRIKE) if cp else None
+                pex_call = source.ler_campos(cc, FieldName.STRIKE, allow_stale=True).get(FieldName.STRIKE) if cc else None
+                pex = pex_put if pex_put else pex_call
+                if pex is None or not strike_banco:
+                    continue
+                leu_este_ativo = True
+                if abs(float(pex) - float(strike_banco)) > 0.005:
+                    tot_diverge += 1
+                    if exemplo is None:
+                        exemplo = {
+                            "ativo": ativo,
+                            "cod": cp or cc,
+                            "strike_banco": float(strike_banco),
+                            "strike_openfast": float(pex),
+                            "provento": provento_total,
+                            "data_ex": hoje,
+                        }
+            if leu_este_ativo:
+                self._strike_divergencia_estado[ativo] = chave_ativo
+            if tot_diverge > 0:
+                divergencias.append({
+                    "ativo": ativo,
+                    "tot_diverge": tot_diverge,
+                    "tot_pares": tot_pares,
+                    "exemplo": exemplo,
+                    "provento": provento_total,
+                    "data_ex": hoje,
+                })
+
+        if divergencias:
+            logger.info("Divergencia strike: %d ativo(s) com strike divergente (banco vs PEX).", len(divergencias))
+
+        if divergencias and not self._strike_divergencia_avisado:
+            self._strike_divergencia_avisado = set()
+            self.strike_divergencia.emit(divergencias)
+        elif divergencias:
+            novos = [d for d in divergencias if d["ativo"] not in self._strike_divergencia_avisado]
+            if novos:
+                self.strike_divergencia.emit(novos)
+        for d in divergencias:
+            self._strike_divergencia_avisado.add(d["ativo"])
+
+        self._strike_divergencia_estado["dia"] = chave_dia
+        self._forcar_divergencia = False
 
     def _processar_mpp(self, rtd):
         self._mpp_cycle += 1

@@ -164,6 +164,7 @@ class MainWindow(QMainWindow):
         self._worker.mpp_status_changed.connect(self._on_mpp_status_changed)
         self._worker.mre_atualizados.connect(self._on_mre_atualizados)
         self._worker.integridade_params_verificada.connect(self._on_integridade_verificada)
+        self._worker.strike_divergencia.connect(self._on_strike_divergencia)
 
         self._engine_dialog = EngineDashboard(self)
         self._colar_dialog = None
@@ -407,6 +408,13 @@ class MainWindow(QMainWindow):
         action_integridade = QAction("\u2699\ufe0f  Verificar Integridade dos Parâmetros", menu)
         action_integridade.triggered.connect(self._verificar_integridade_sob_demanda)
         menu.addAction(action_integridade)
+
+        menu.addSeparator()
+
+        # ── 🔌 Ajuste de Strikes (divergência banco vs OpenFast) ──
+        action_ajuste_strikes = QAction("\U0001f50c  Ajustar Strikes (divergência por provento)", menu)
+        action_ajuste_strikes.triggered.connect(self._abrir_ajuste_strikes)
+        menu.addAction(action_ajuste_strikes)
 
         btn = QToolButton(self)
         btn.setText("\U0001f6e0  Ferramentas")
@@ -1289,21 +1297,49 @@ class MainWindow(QMainWindow):
         self._status_integridade.setStyleSheet("color: #f1c40f; font-size: 8pt; padding: 0 6px;")
         self._status_integridade.setVisible(False)
         self.statusBar().addPermanentWidget(self._status_integridade)
+
+        self._status_strike_div = QPushButton("")
+        self._status_strike_div.setFlat(True)
+        self._status_strike_div.setCursor(Qt.PointingHandCursor)
+        self._status_strike_div.setStyleSheet(
+            "QPushButton { color: #e74c3c; font-size: 8pt; font-weight: bold; padding: 0 8px; border: 1px solid #e74c3c; border-radius: 4px; background-color: #2d1a1a; }"
+            "QPushButton:hover { background-color: #4a1a1a; }"
+        )
+        self._status_strike_div.setVisible(False)
+        self._status_strike_div.clicked.connect(self._abrir_ajuste_strikes)
+        self.statusBar().addPermanentWidget(self._status_strike_div)
         self._update_cdi_display()
 
     def _update_rtd_indicator(self, connected: bool):
+        fonte_nome = self._fonte_nome_atual()
         if connected:
             self.lbl_rtd_indicator.setStyleSheet(
                 "background-color: {}; color: #ffffff; border-radius: 4px; "
                 "padding: 2px 12px; font-weight: bold; font-size: 9pt;".format(Palette.GREEN_DIM)
             )
-            self.lbl_rtd_indicator.setText(" RTD: ON ")
+            self.lbl_rtd_indicator.setText(f"🔌 {fonte_nome}")
+            self.lbl_rtd_indicator.setToolTip(f"Conexão ativa com a fonte: {fonte_nome}")
         else:
             self.lbl_rtd_indicator.setStyleSheet(
                 "background-color: {}; color: {}; border-radius: 4px; "
                 "padding: 2px 12px; font-weight: bold; font-size: 9pt;".format(Palette.RED_DIM, Palette.RED)
             )
-            self.lbl_rtd_indicator.setText(" RTD: OFF ")
+            self.lbl_rtd_indicator.setText(f"🔌 {fonte_nome}: OFFLINE")
+            self.lbl_rtd_indicator.setToolTip(
+                f"Sem conexão com a fonte ({fonte_nome}). Verifique se o OpenFast/Profit está aberto."
+            )
+
+    def _fonte_nome_atual(self) -> str:
+        fonte = "profit"
+        try:
+            from src.infrastructure.persistence.repositories.repositories import ParametroRepository
+            p = ParametroRepository(self.db_path).get_by_chave("fonte_market_data")
+            if p and p.valor:
+                fonte = str(p.valor)
+        except Exception:
+            pass
+        return {"openfast": "OpenFast", "profit": "Profit RTD",
+                "fasttrade": "Fast Trade", "mock": "Mock"}.get(fonte, fonte)
 
     def _update_cdi_display(self):
         param_repo = ParametroRepository(self.db_path)
@@ -1986,6 +2022,34 @@ class MainWindow(QMainWindow):
         from src.ui.desktop.dividendos_dialog import DividendosDialog
         dialog = DividendosDialog(self.db_path, self)
         dialog.exec_()
+
+    def _on_strike_divergencia(self, divergencias: list):
+        """Badge global de strikes divergentes (banco vs OpenFast) em ativos ex-div."""
+        if not divergencias:
+            self._status_strike_div.setVisible(False)
+            return
+        self._ultimas_divergencias_strike = divergencias
+        resumo = " | ".join(
+            f"{d['ativo']}: {d['tot_diverge']}/{d['tot_pares']}" for d in divergencias
+        )
+        self._status_strike_div.setText(f"⚠  Strikes divergentes: {resumo}")
+        self._status_strike_div.setToolTip(
+            "Strikes divergem entre banco e OpenFast (provento com data_ex hoje).\n"
+            "Clique para abrir o ajuste de strikes."
+        )
+        self._status_strike_div.setVisible(True)
+
+    def _abrir_ajuste_strikes(self):
+        from src.ui.desktop.ajuste_strikes_dialog import AjusteStrikesDialog
+        divergencias = getattr(self, "_ultimas_divergencias_strike", None) or []
+        dialog = AjusteStrikesDialog(self.db_path, self, divergencias)
+        if dialog.exec_() and dialog.aplicou:
+            if self._worker:
+                self._worker.limpar_aviso_divergencia()
+                self._worker.solicitar_rechecagem_strikes()
+            self._status_strike_div.setVisible(False)
+        elif self._worker:
+            self._worker.solicitar_rechecagem_strikes()
 
     def _abrir_resultados(self):
         from src.ui.desktop.calendario_resultados_dialog import CalendarioResultadosDialog

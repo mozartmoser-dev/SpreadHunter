@@ -30,6 +30,7 @@ class DividendosTableModel(QAbstractTableModel):
         ("Ativo", "ativo"),
         ("Tipo", "tipo"),
         ("Data COM", "data_com"),
+        ("Data EX", "data_ex"),
         ("Pagamento", "data_pagamento"),
         ("Valor", "valor"),
         ("Atualizado", "atualizado_em"),
@@ -72,7 +73,7 @@ class DividendosTableModel(QAbstractTableModel):
         col_key = self.COLUMNS[index.column()][1]
 
         if role == Qt.ItemDataRole.DisplayRole:
-            if col_key in ("data_com", "data_pagamento", "atualizado_em"):
+            if col_key in ("data_com", "data_ex", "data_pagamento", "atualizado_em"):
                 return self._fmt_data(item.get(col_key))
             if col_key == "valor":
                 val = item.get("valor")
@@ -92,10 +93,10 @@ class DividendosTableModel(QAbstractTableModel):
             return QBrush(QColor(Palette.TEXT_PRIMARY))
 
         if role == Qt.ItemDataRole.BackgroundRole:
-            data_com = item.get("data_com")
-            if data_com:
+            data_ex = item.get("data_ex")
+            if data_ex:
                 try:
-                    dt = datetime.fromisoformat(str(data_com)).date()
+                    dt = datetime.fromisoformat(str(data_ex)).date()
                     hoje = datetime.now().date()
                     if dt == hoje:
                         return QBrush(QColor("#2d4a1e"))
@@ -185,6 +186,7 @@ class DividendosDialog(QDialog):
         self.cmb_filtro.addItem("Amanhã")
         self.cmb_filtro.addItem("Próx. 7 dias")
         self.cmb_filtro.addItem("Próx. 30 dias")
+        self.cmb_filtro.addItem("Ex-div recente")
         self.cmb_filtro.setStyleSheet("""
             QComboBox {
                 background-color: #1e1e2f;
@@ -214,6 +216,8 @@ class DividendosDialog(QDialog):
         self.cmb_ordem = QComboBox()
         self.cmb_ordem.addItem("Data COM ↓", ("data_com", True))
         self.cmb_ordem.addItem("Data COM ↑", ("data_com", False))
+        self.cmb_ordem.addItem("Data EX ↓", ("data_ex", True))
+        self.cmb_ordem.addItem("Data EX ↑", ("data_ex", False))
         self.cmb_ordem.addItem("Ativo A-Z", ("ativo", False))
         self.cmb_ordem.addItem("Valor ↓", ("valor", True))
         self.cmb_ordem.setStyleSheet("""
@@ -289,8 +293,9 @@ class DividendosDialog(QDialog):
         header.resizeSection(0, 90)   # Ativo
         header.resizeSection(1, 120)  # Tipo
         header.resizeSection(2, 110)  # Data COM
-        header.resizeSection(3, 110)  # Pagamento
-        header.resizeSection(4, 100)  # Valor
+        header.resizeSection(3, 110)  # Data EX
+        header.resizeSection(4, 110)  # Pagamento
+        header.resizeSection(5, 100)  # Valor
         # Atualizado fica elastico (StretchLastSection)
         layout.addWidget(self.table_view, stretch=1)
 
@@ -322,16 +327,19 @@ class DividendosDialog(QDialog):
         hoje = date.today()
 
         if filtro == "Hoje":
-            filtrados = [d for d in self._all_items if d.get("data_com") == hoje.isoformat()]
+            filtrados = [d for d in self._all_items if d.get("data_ex") == hoje.isoformat()]
         elif filtro == "Amanhã":
             amanha = (hoje + timedelta(days=1)).isoformat()
-            filtrados = [d for d in self._all_items if d.get("data_com") == amanha]
+            filtrados = [d for d in self._all_items if d.get("data_ex") == amanha]
         elif filtro == "Próx. 7 dias":
             fim = (hoje + timedelta(days=7)).isoformat()
-            filtrados = [d for d in self._all_items if d.get("data_com") and hoje.isoformat() <= d["data_com"] <= fim]
+            filtrados = [d for d in self._all_items if d.get("data_ex") and hoje.isoformat() <= d["data_ex"] <= fim]
         elif filtro == "Próx. 30 dias":
             fim = (hoje + timedelta(days=30)).isoformat()
-            filtrados = [d for d in self._all_items if d.get("data_com") and hoje.isoformat() <= d["data_com"] <= fim]
+            filtrados = [d for d in self._all_items if d.get("data_ex") and hoje.isoformat() <= d["data_ex"] <= fim]
+        elif filtro == "Ex-div recente":
+            inicio = self._recente_ex_div()
+            filtrados = [d for d in self._all_items if d.get("data_ex") and inicio <= d["data_ex"] <= hoje.isoformat()]
         else:
             filtrados = self._all_items
 
@@ -347,6 +355,20 @@ class DividendosDialog(QDialog):
 
         self.model.atualizar(filtrados)
         self.lbl_status.setText(f"{len(filtrados)} registros")
+
+    @staticmethod
+    def _recente_ex_div() -> str:
+        """Início da janela de ex-div recente (últimos 5 dias úteis)."""
+        from datetime import date
+        from src.domain.services.calendario_b3 import eh_feriado
+        dt = date.today()
+        contados = 0
+        while contados < 5:
+            dt = dt - timedelta(days=1)
+            if dt.weekday() >= 5 or eh_feriado(dt):
+                continue
+            contados += 1
+        return dt.isoformat()
 
     def _atualizar_proventos(self):
         from src.infrastructure.persistence.repositories.repositories import (
