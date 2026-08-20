@@ -306,3 +306,8 @@ class TestLeilaoLabel:
 
     def test_label_fechado(self):
         assert _opp(status_put="Fechado").leilao_label == "PUT: Fechado"
+
+    def test_label_artefato_encoding(self):
+        """Tolera 'Leil?o' (ã virou ? no servidor OpenFast)."""
+        assert _opp(status_ativo="Leil?o").leilao_label == "Leilão Ativo"
+        assert _opp(status_put="Leil?o", status_call="Leil?o").leilao_label == "Leilão PUT + CALL"

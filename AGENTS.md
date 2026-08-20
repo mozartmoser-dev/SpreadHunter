@@ -107,33 +107,12 @@ Fluxo para mudanças relevantes (cálculos, market data, timing, classificação
 1. **Proposta:** identificar problema/objetivo, arquivos afetados, regras que não devem mudar. Apresentar antes de implementar (regra de confirmação obrigatória).
 2. **Implementação mínima:** só o necessário. Sem refatorações oportunistas, sem misturar melhorias independentes.
 3. **Testes:** executar os relevantes (suíte completa quando apropriado). Resultados reais, não "parece correto".
-4. **Evidência,** quando o risco justificar:
-   - Performance → baseline antes/depois, escala representativa.
-   - Cálculo → comparação/equivalência com implementação anterior confiável, harness ou dados frozen.
-   - Nunca assumir que vetorização/refatoração é otimização sem medir.
+4. **Evidência,** quando o risco justificar: performance → baseline; cálculo → comparação com implementação confiável; nunca assumir vetorização = otimização sem medir.
 5. **Revisão:** separar bug real, falso positivo, mudança deliberada e melhoria futura. Não tratar divergência como bug sem evidência.
 6. **Commit:** só após validação. Apenas alterações intencionais, sem logs/traces/temporários.
 7. **Push:** após commit validado, manter `main` sincronizada com `origin/main`.
 
-**Validação proporcional ao risco:**
-- Cosmético/documental → revisão simples.
-- Lógica isolada → testes relevantes.
-- Cálculo/regra de negócio → testes + comparação.
-- Performance → baseline + benchmark.
-- Market data/timing/stale → testes + harness/traces.
-- Persistência → cenários de falha/transação.
-- Pipeline crítico → evidência ponta a ponta.
-
-**Segurança:** se houver divergência inesperada, não mascarar, não alterar o teste para fazê-lo passar, não assumir a implementação nova como correta. Investigar, classificar (bug/deliberada/convenção/falso positivo), documentar.
-
-**Ferramentas e seus papéis:**
-- **Graphify** → contexto estrutural; não valida comportamento.
-- **OpenSpec** → registra intenção e mudança; não prova implementação.
-- **Specs** → descrevem contrato/comportamento esperado; não substituem testes.
-- **Git** → histórico e recuperação; não substitui validação.
-- **Testes + harness** → evidência de execução; autoridade final sobre comportamento/performance.
-
-**Integração com OpenSpec:** proposta → consultar specs existentes → implementar → validar por execução → atualizar specs se necessário → fechar mudança → commit/push.
+**Riscos:** sem evidência não trata divergência como bug. Investigar, classificar (bug/deliberada/convenção), documentar.
 
 ## Referências
 

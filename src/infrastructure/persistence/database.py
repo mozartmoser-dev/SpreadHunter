@@ -416,12 +416,15 @@ def _migrar_dividendos(conn):
             conn.execute(f"ALTER TABLE dividendos ADD COLUMN {col} DATE")
         except sqlite3.OperationalError:
             pass
-    # Remove UNIQUE antigo e recria tabela com UNIQUE melhor
+    # Remove UNIQUE antigo e recria tabela com UNIQUE por (ativo, data_com, tipo).
+    # data_pagamento fica fora da chave: quando ainda nao divulgado, e NULL no SQLite,
+    # e UNIQUE nao colide com NULL -> cada importacao criava um duplicado novo.
     try:
         cursor = conn.execute("SELECT sql FROM sqlite_master WHERE name='dividendos' AND sql LIKE '%UNIQUE%'")
         row = cursor.fetchone()
-        if row and "UNIQUE(ativo, data_ex, tipo)" in row[0]:
-            conn.execute("BEGIN TRANSACTION")
+        if row and ("UNIQUE(ativo, data_com, tipo, data_pagamento)" in row[0]
+                    or "UNIQUE(ativo, data_ex, tipo)" in row[0]):
+            # executescript faz COMMIT implicito por bloco; nao usar BEGIN/COMMIT manual.
             conn.executescript("""
                 CREATE TABLE dividendos_nova (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -436,18 +439,27 @@ def _migrar_dividendos(conn):
                     preco_fechamento REAL,
                     fonte TEXT DEFAULT 'b3',
                     atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(ativo, data_com, tipo, data_pagamento)
+                    UNIQUE(ativo, data_com, tipo)
                 );
-                INSERT INTO dividendos_nova (id, ativo, tipo, data_ex, data_aprovacao, valor, tipo_acao, preco_fechamento, atualizado_em)
-                    SELECT id, ativo, tipo, data_ex, data_aprovacao, valor, tipo_acao, preco_fechamento, atualizado_em FROM dividendos;
+                INSERT INTO dividendos_nova (id, ativo, tipo, data_com, data_ex, data_pagamento, data_aprovacao, valor, tipo_acao, preco_fechamento, fonte, atualizado_em)
+                    SELECT id, ativo, tipo, data_com, data_ex, data_pagamento, data_aprovacao, valor, tipo_acao, preco_fechamento, fonte, atualizado_em
+                    FROM (
+                        SELECT d.*, ROW_NUMBER() OVER (
+                            PARTITION BY ativo, COALESCE(data_com, ''), tipo
+                            ORDER BY atualizado_em DESC, id DESC
+                        ) AS rn
+                        FROM dividendos d
+                    ) WHERE rn = 1;
                 DROP TABLE dividendos;
                 ALTER TABLE dividendos_nova RENAME TO dividendos;
                 CREATE INDEX IF NOT EXISTS idx_dividendos_ativo ON dividendos(ativo);
                 CREATE INDEX IF NOT EXISTS idx_dividendos_data_com ON dividendos(data_com);
             """)
-            conn.execute("COMMIT")
     except sqlite3.OperationalError:
-        conn.execute("ROLLBACK")
+        try:
+            conn.execute("DROP TABLE IF EXISTS dividendos_nova")
+        except sqlite3.OperationalError:
+            pass
 
 
 def _migrar_calendario_resultados(conn):
@@ -545,7 +557,7 @@ CREATE TABLE IF NOT EXISTS dividendos (
     preco_fechamento REAL,
     fonte TEXT DEFAULT 'b3',
     atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(ativo, data_com, tipo, data_pagamento)
+    UNIQUE(ativo, data_com, tipo)
 );
 
 CREATE TABLE IF NOT EXISTS feriados_b3 (

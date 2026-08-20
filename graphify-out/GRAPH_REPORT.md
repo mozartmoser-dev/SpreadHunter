@@ -1,16 +1,16 @@
-# Graph Report - Spreadhunter  (2026-08-19)
+# Graph Report - Spreadhunter  (2026-08-20)
 
 ## Corpus Check
-- 388 files · ~1,142,003 words
+- 392 files · ~1,145,019 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 5764 nodes · 10932 edges · 644 communities (308 shown, 336 thin omitted)
-- Extraction: 85% EXTRACTED · 15% INFERRED · 0% AMBIGUOUS · INFERRED: 1596 edges (avg confidence: 0.54)
+- 5838 nodes · 11073 edges · 634 communities (298 shown, 336 thin omitted)
+- Extraction: 86% EXTRACTED · 14% INFERRED · 0% AMBIGUOUS · INFERRED: 1603 edges (avg confidence: 0.54)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f270feb4`
+- Built from commit: `9bf785ce`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -74,7 +74,6 @@
 - [[_COMMUNITY_Sim Frescor Openfast|Sim Frescor Openfast]]
 - [[_COMMUNITY_Opcoesnet Client|Opcoesnet Client]]
 - [[_COMMUNITY_Dividendos Dialog|Dividendos Dialog]]
-- [[_COMMUNITY_Fast Trade Rtd Adapter|Fast Trade Rtd Adapter]]
 - [[_COMMUNITY_Exportar Csv Dtos|Exportar Csv Dtos]]
 - [[_COMMUNITY_Monitor Put Ratio|Monitor Put Ratio]]
 - [[_COMMUNITY_Estudos Calendario Dialog|Estudos Calendario Dialog]]
@@ -116,7 +115,6 @@
 - [[_COMMUNITY_Openfast Socket Adapter|Openfast Socket Adapter]]
 - [[_COMMUNITY_Monitor Colares|Monitor Colares]]
 - [[_COMMUNITY_Calculadora Colar Calendario|Calculadora Colar Calendario]]
-- [[_COMMUNITY_Monitor Put Ratio|Monitor Put Ratio]]
 - [[_COMMUNITY_Rtd Fast Trade|Rtd Fast Trade]]
 - [[_COMMUNITY_Pnt Importacao|Pnt Importacao]]
 - [[_COMMUNITY_Pnt|Pnt]]
@@ -128,7 +126,6 @@
 - [[_COMMUNITY_Distribuicao|Distribuicao]]
 - [[_COMMUNITY_Main Window|Main Window]]
 - [[_COMMUNITY_Pnt|Pnt]]
-- [[_COMMUNITY_Oportunidade|Oportunidade]]
 - [[_COMMUNITY_Pnt|Pnt]]
 - [[_COMMUNITY_Collar Calendario Estrutural Calda Assincrona|Collar Calendario Estrutural Calda Assincrona]]
 - [[_COMMUNITY_Correcao Pnt|Correcao Pnt]]
@@ -150,7 +147,6 @@
 - [[_COMMUNITY_Corrigir Pnt Automacao|Corrigir Pnt Automacao]]
 - [[_COMMUNITY_Calculadora Cauda Assincrona|Calculadora Cauda Assincrona]]
 - [[_COMMUNITY_Som Service|Som Service]]
-- [[_COMMUNITY_Blacklist Import Dialog|Blacklist Import Dialog]]
 - [[_COMMUNITY_Bootstrap|Bootstrap]]
 - [[_COMMUNITY_CalendarioResultadosRepository (spec)|CalendarioResultadosRepository (spec)]]
 - [[_COMMUNITY_Classificacao Op|Classificacao Op]]
@@ -164,12 +160,10 @@
 - [[_COMMUNITY_Instrucoes|Instrucoes]]
 - [[_COMMUNITY_Calendario Resultados Cvm|Calendario Resultados Cvm]]
 - [[_COMMUNITY_Mercado Estrutural Provider|Mercado Estrutural Provider]]
-- [[_COMMUNITY_Rtd Profit Adapter|Rtd Profit Adapter]]
 - [[_COMMUNITY_Codigos B3|Codigos B3]]
 - [[_COMMUNITY_.Claude|.Claude]]
 - [[_COMMUNITY_Excel Importer|Excel Importer]]
 - [[_COMMUNITY_Market Data Source|Market Data Source]]
-- [[_COMMUNITY_Calculadora Colar Calendario|Calculadora Colar Calendario]]
 - [[_COMMUNITY_Calculadora Put Ratio|Calculadora Put Ratio]]
 - [[_COMMUNITY_Prompt Gemini|Prompt Gemini]]
 - [[_COMMUNITY_Calendario Resultados Webwallet|Calendario Resultados Webwallet]]
@@ -177,7 +171,6 @@
 - [[_COMMUNITY_Calendario Resultados Dialog|Calendario Resultados Dialog]]
 - [[_COMMUNITY_Engine Dashboard|Engine Dashboard]]
 - [[_COMMUNITY_Som Service|Som Service]]
-- [[_COMMUNITY_Monitor Put Ratio|Monitor Put Ratio]]
 - [[_COMMUNITY_Calculadora Colar Calendario|Calculadora Colar Calendario]]
 - [[_COMMUNITY_Repositories|Repositories]]
 - [[_COMMUNITY_Feriados B3 Provider|Feriados B3 Provider]]
@@ -186,7 +179,6 @@
 - [[_COMMUNITY_Tipo Opcao|Tipo Opcao]]
 - [[_COMMUNITY_Openfast Socket Adapter|Openfast Socket Adapter]]
 - [[_COMMUNITY_Excel Importer|Excel Importer]]
-- [[_COMMUNITY_Calculadora Put Ratio|Calculadora Put Ratio]]
 - [[_COMMUNITY_Debug Rtd Cenarios|Debug Rtd Cenarios]]
 - [[_COMMUNITY_Diagnostic Scan|Diagnostic Scan]]
 - [[_COMMUNITY_Monitorar Divergencia|Monitorar Divergencia]]
@@ -204,7 +196,6 @@
 - [[_COMMUNITY_Theme|Theme]]
 - [[_COMMUNITY_Main Window|Main Window]]
 - [[_COMMUNITY_Disclaimer.Png|Disclaimer.Png]]
-- [[_COMMUNITY_Pnt|Pnt]]
 - [[_COMMUNITY_Skill|Skill]]
 - [[_COMMUNITY_Skill|Skill]]
 - [[_COMMUNITY_Analisar Be|Analisar Be]]
@@ -291,7 +282,6 @@
 - [[_COMMUNITY_TelegramNotifier|TelegramNotifier]]
 - [[_COMMUNITY_theme|theme]]
 - [[_COMMUNITY_TipoOpcao (enum)|TipoOpcao (enum)]]
-- [[_COMMUNITY_TestOpenFastSocketAdapterRegistrar|TestOpenFastSocketAdapterRegistrar]]
 - [[_COMMUNITY_Plano de Integração — Proteção de Cauda (BWB)|Plano de Integração — Proteção de Cauda (BWB)]]
 - [[_COMMUNITY_Fase 6 — `historico_rejeicoes` (Log de Rejeições Qualificado)|Fase 6 — `historico_rejeicoes` (Log de Rejeições Qualificado)]]
 - [[_COMMUNITY_BasketGerada (DTO)|BasketGerada (DTO)]]
@@ -310,7 +300,6 @@
 - [[_COMMUNITY_ImportarResultado|ImportarResultado]]
 - [[_COMMUNITY_MarketDataSource|MarketDataSource]]
 - [[_COMMUNITY_OportunidadeVendida|OportunidadeVendida]]
-- [[_COMMUNITY_strike_limpo|strike_limpo]]
 - [[_COMMUNITY_Sessão 07082026|Sessão 07/08/2026]]
 - [[_COMMUNITY_or_default|or_default]]
 - [[_COMMUNITY_planoprotecaocauda|planoprotecaocauda.md]]
@@ -326,8 +315,6 @@
 - [[_COMMUNITY_MonitorVendaCobertaUseCase|MonitorVendaCobertaUseCase]]
 - [[_COMMUNITY_MonitorVendidasUseCase|MonitorVendidasUseCase]]
 - [[_COMMUNITY_MPPUseCase|MPPUseCase]]
-- [[_COMMUNITY_TestOpenFastSocketAdapterSeparador|TestOpenFastSocketAdapterSeparador]]
-- [[_COMMUNITY_TestOpenFastSocketAdapterConecta|TestOpenFastSocketAdapterConecta]]
 - [[_COMMUNITY_2. Captura RTD expandida para strikes OTM|2. Captura RTD expandida para strikes OTM]]
 - [[_COMMUNITY_3. Integrar chamada no pipeline|3. Integrar chamada no pipeline]]
 - [[_COMMUNITY_Probe SQT topics PETR4VALE3 (ASK,BID,TIME,TIMENEG,PEX…)|Probe SQT topics PETR4/VALE3 (ASK,BID,TIME,TIMENEG,PEX…)]]
@@ -609,13 +596,15 @@
 - [[_COMMUNITY_SYSTEM_DEFAULT_NAME|SYSTEM_DEFAULT_NAME]]
 - [[_COMMUNITY_WorkspaceSnapshot.to_json|WorkspaceSnapshot.to_json]]
 - [[_COMMUNITY_SensibilidadeMercadoWidget|SensibilidadeMercadoWidget]]
+- [[_COMMUNITY_TestVendaCobertaLeilaoDisplay|TestVendaCobertaLeilaoDisplay]]
+- [[_COMMUNITY_TestVendidaLeilaoDisplay|TestVendidaLeilaoDisplay]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `ParametroRepository` - 249 edges
 2. `InstrumentoRepository` - 180 edges
-3. `FieldName` - 159 edges
+3. `FieldName` - 161 edges
 4. `MainWindow` - 154 edges
-5. `OpenFastSocketAdapter` - 148 edges
+5. `OpenFastSocketAdapter` - 149 edges
 6. `InstrumentoOpcional` - 127 edges
 7. `MercadoDataProvider` - 100 edges
 8. `TipoOpcao` - 93 edges
@@ -642,14 +631,14 @@
 - **Tomahawk Theme Visual Identity** — temas_disclaimer_tomahawk_theme_banner, temas_disclaimer_spreadhunter_branding, temas_disclaimer_tomahawk_theme [INFERRED 0.85]
 - **Toolbar UI Design Proposals** — temas_preview_toolbar, temas_preview_toolbar_vazado [EXTRACTED 1.00]
 
-## Communities (644 total, 336 thin omitted)
+## Communities (634 total, 336 thin omitted)
 
 ### Community 0 - "Openfast Socket Adapter"
-Cohesion: 0.05
-Nodes (8): OpenFastSocketAdapter, Watchdog: thread leitora morta com _conectado ainda True -> DISCONNECTED., Regressão: negativo deve virar None, nunca 0.0 (0.0 sobrescreveria         um b, TIME é a fonte principal do Tn/frescor; TIMENEG é fallback., Valor não interpretável (não é hh:mm:ss, fração de dia nem epoch) -> None., TestOpenFastSocketAdapterCache, TestOpenFastSocketAdapterOrigem, TestOpenFastSocketAdapterStale
+Cohesion: 0.04
+Nodes (20): OpenFastSocketAdapter, Watchdog: thread leitora morta com _conectado ainda True -> DISCONNECTED., Open Fast nao usa CAB skip — suporta_cab_skip=False., E2E: book fresco gera; para feed push change-driven, a ausência de push, Parâmetro ligado por default assina TIME/TIMENEG do ativo., TestMercadoProviderOpenFast, Regressão: negativo deve virar None, nunca 0.0 (0.0 sobrescreveria         um b, Servidor manda 'Leil?o' (ã virou ?); adapter normaliza para 'Leilão'. (+12 more)
 
 ### Community 1 - "Colar Dialog"
-Cohesion: 0.06
+Cohesion: 0.07
 Nodes (9): ColarDialog, ColarSortProxy, ColarTableModel, _formatar_detectado(), ler_whitelist_colar(), atualizar_resultados must restore header movable/blocked state after update., atualizar must wrap item replacement in beginResetModel/endResetModel., test_atualizar_resultados_header_freeze_restore() (+1 more)
 
 ### Community 2 - "Sensibilidade Mercado Widget"
@@ -657,68 +646,68 @@ Cohesion: 0.06
 Nodes (21): AnaliseMercadoResult, MarketAnalyzer, IbovCompositionClient, _pesos_acumulados(), _AdrFetcher, _cod(), _cor_direcao(), _fmt_preco() (+13 more)
 
 ### Community 3 - "Mercado Data Provider"
-Cohesion: 0.08
-Nodes (10): MercadoDataProvider, Retorna contagens internas para o Dashboard de Performance., Fallback de preço do ativo apenas se dentro da janela de frescor.          Val, Limpa as flags de cache e força o re-registro dos instrumentos no RTD., Campos de origem (TIME/TIMENEG) do OpenFast quando habilitado.          Diagnó, Registra apenas os ativos (underlyings) para obter preços de referência rápido., Registra todos os campos de um instrumento quando detectamos liquidez., True se a fonte expõe frescor e o campo está fora da janela.          Para fee (+2 more)
+Cohesion: 0.09
+Nodes (9): MercadoDataProvider, Retorna contagens internas para o Dashboard de Performance., Fallback de preço do ativo apenas se dentro da janela de frescor.          Val, Limpa as flags de cache e força o re-registro dos instrumentos no RTD., Campos de origem (TIME/TIMENEG) do OpenFast quando habilitado.          Diagnó, Registra apenas os ativos (underlyings) para obter preços de referência rápido., Registra todos os campos de um instrumento quando detectamos liquidez., Leitura de campo com a semântica de frescor da fonte.          Feed push chang (+1 more)
 
 ### Community 4 - "Workspace Service & Snapshot"
 Cohesion: 0.06
-Nodes (24): _now(), Any, Path, _qsettings(), WorkspaceService, Any, datetime, WorkspaceSnapshot (+16 more)
+Nodes (29): _clear_pycache(), _configure_logging(), Configura logging conforme o parametro do sistema `diagnostico_logging`., run_app(), _now(), Any, Path, _qsettings() (+21 more)
 
 ### Community 5 - "Vectorized Column Extraction"
-Cohesion: 0.14
-Nodes (14): extrair(), extrair_encadeado(), extrair_passthrough(), Any, ndarray, Helpers puros de extração de colunas a partir do dict de mercado.  Reproduzem ex, Extrai array com fallback truthiness por chave (``get(...) or default``)., Extrai array com encadeamento truthiness (boca -> normal -> default). (+6 more)
+Cohesion: 0.08
+Nodes (21): extrair(), extrair_encadeado(), extrair_passthrough(), or_chain(), or_default(), Any, ndarray, Helpers puros de extração de colunas a partir do dict de mercado.  Reproduzem ex (+13 more)
 
 ### Community 6 - "Fase2"
-Cohesion: 0.15
-Nodes (4): CalculadoraBoxSbth, DadosMercado, Regressão: quando ambos passam CDI bruto mas só BOX sobrevive após B3,, TestCalculadoraBoxSbth
+Cohesion: 0.07
+Nodes (34): Simulacao: calda_ratio_max=40 (+40%), passo 1%., Sim: desvios=1, ratio_max=300., Mostra trade-off: n x CDI x sigmas ate breakeven., Simulação com debug: mostra gap e razão de falha., count_viaveis(), Simulação: para cada alvo (2.5/3.0/3.5/4.0), quantos pct_cdi_base gerariam varia, CalculadoraCaudaAssincrona, Pós-processa um ResultadoColarCalendario viável e encontra o par     (ratio_cal (+26 more)
 
 ### Community 7 - "Harness Stale Of Compra"
-Cohesion: 0.10
-Nodes (6): Protocol, FieldName, MarketDataSource, MockDataSource, Implementa MarketDataSource para testes sem RTD/OpenFAST., Preenche o cache com dados no formato dados_mercado.
+Cohesion: 0.04
+Nodes (14): Protocol, FakeSource, Fonte fake que emula Profit RTD (polling + CAB skip)., FieldName, MarketDataSource, FastTradeRTDAdapter, Traduz FieldName → str Fast Trade RTD. Ponte RTDFastTrade (Excel headless)., True se a fonte expõe frescor e o campo está fora da janela.          Para fee (+6 more)
 
 ### Community 8 - "Calculadora Custos B3"
-Cohesion: 0.07
-Nodes (24): Trace runtime: Varredura(Onda1/Onda2) e Manutenção, MonitorColaresCalendarioUseCase, CalculadoraCustosB3, Taxa total para opções (emol + liq + reg + iss)., Taxa total para ações (emol + liq + iss — sem registro)., Custo B3 para opções: taxa_total × prêmio médio × pernas × (2 se ida_e_volta)., Custo B3 para ações: taxa_total_stock × preço × ações × (2 se ida_e_volta)., Custo B3 de uma estrutura vendida.          Cobrado ida-e-volta: assume que a po (+16 more)
+Cohesion: 0.05
+Nodes (36): np_dias(), np_strikes(), calcular_coberta(), calcular_comprada(), _cdi_periodo(), _custos_vendida(), ndarray, Cálculo vetorizado (numpy) da Venda Coberta e Taxa Comprada.  Reproduz exatament (+28 more)
 
 ### Community 9 - "Equivalencia Vendidas Coberta"
 Cohesion: 0.05
-Nodes (29): ColetarTaxasAluguelUseCase, Versão vetorizada (experimental) de ``MonitorVendaCobertaUseCase``.      Impleme, VetorMonitorVendaCobertaUseCase, Versão vetorizada (experimental) de ``MonitorVendidasUseCase.varrer``.      Deve, VetorMonitorVendidasUseCase, MonitorVendaCobertaUseCase, MonitorVendidasUseCase, TaxaAluguel (+21 more)
+Nodes (32): ColetarTaxasAluguelUseCase, Versão vetorizada (experimental) de ``MonitorVendaCobertaUseCase``.      Impleme, VetorMonitorVendaCobertaUseCase, Versão vetorizada (experimental) de ``MonitorVendidasUseCase.varrer``.      Deve, VetorMonitorVendidasUseCase, MonitorVendaCobertaUseCase, MonitorVendidasUseCase, TaxaAluguel (+24 more)
 
 ### Community 10 - "Flag Icons"
 Cohesion: 0.05
-Nodes (31): QSortFilterProxyModel, tocar(), BoxSortProxy, CalendarioSortProxy, DividendosSortProxy, Proxy que ordena datas ISO e numeros corretamente., EngineDashboard, FeriadosSortProxy (+23 more)
+Nodes (36): QFrame, QThread, main(), BasketGerada, EngineStatsDTO, ImportarResultado, DividendosDialog, DividendosFetchWorker (+28 more)
 
 ### Community 12 - "Test Fix Onda1 Sem Preco"
-Cohesion: 0.04
-Nodes (71): Probe colunas opcoes.net.br (OptionsChain schema), Underlying PETR4 (IV, Greeks, exp0), _clear_pycache(), _configure_logging(), Configura logging conforme o parametro do sistema `diagnostico_logging`., run_app(), Row, Testa migração de fonte_market_data 0/1 → profit/openfast. (+63 more)
+Cohesion: 0.07
+Nodes (48): Benchmark simples do impacto da correcao de stale of_compra_ativo.  Mede o custo, Harness de regressao: Onda 2 antiga NAO pode sobreviver via post-loop sem revali, MreResultado, PernaImediata, InstrumentoOpcional, TipoOpcao, InstrumentoRepository, ParametroRepository (+40 more)
 
 ### Community 13 - "Planoprotecaocauda"
 Cohesion: 0.18
 Nodes (11): Arquivos a tocar, As 4 zonas de payoff no vencimento da call, Decisões de design (confirmadas com o usuário em 23/07/2026), Dependências, Fase 4 — Score de Valor Esperado Ponderado (E[PnL]), Métrica final, Nota operacional: `n_sigma_protecao` × `spread_maximo_pct`, O que o trader vê (+3 more)
 
 ### Community 14 - "Openfast Socket Adapter"
-Cohesion: 0.11
-Nodes (13): Comparacao BWB vs Protecao Simples com dados REAIS do OpenFast. Usa precos atuai, _midnight_brt_epoch(), _normalizar_ts_origem(), _normalizar_ts_timeneg(), Meia-noite do dia corrente em America/Sao_Paulo como epoch Unix., Normaliza TIME/TIMENEG do OpenFast para epoch Unix absoluto.      O protocolo, Normaliza TIMENEG (hora do último negócio) para epoch Unix absoluto.      O pr, Testa o normalizador de TIME/TIMENEG do OpenFast para epoch Unix.      Cobre f (+5 more)
+Cohesion: 0.10
+Nodes (15): Comparacao BWB vs Protecao Simples com dados REAIS do OpenFast. Usa precos atuai, _midnight_brt_epoch(), _normalizar_status(), _normalizar_ts_origem(), _normalizar_ts_timeneg(), Meia-noite do dia corrente em America/Sao_Paulo como epoch Unix., Remove acento combinante para comparacao robusta (ex.: 'Leil?o' do servidor)., Normaliza TIME/TIMENEG do OpenFast para epoch Unix absoluto.      O protocolo (+7 more)
 
 ### Community 15 - "Harness Stale Of Compra"
-Cohesion: 0.08
-Nodes (27): cenario10_tabela(), cenario1_bid_ausente(), cenario2_3_impacto(), cenario4_preco_ativo_ask(), cenario5_opcoes_stale(), cenario6_reconexao(), cenario7_post_loop(), cenario8_flag_stale() (+19 more)
+Cohesion: 0.15
+Nodes (24): cenario10_tabela(), cenario1_bid_ausente(), cenario2_3_impacto(), cenario4_preco_ativo_ask(), cenario5_opcoes_stale(), cenario6_reconexao(), cenario7_post_loop(), cenario8_flag_stale() (+16 more)
 
 ### Community 16 - "Rtd Profit Adapter"
-Cohesion: 0.12
-Nodes (6): main(), Validação do delay OpenFast (T1-T6) fora da interface.  Uso: python scripts/va, _relatorio_t1_t4(), criar_data_source(), TestDataSourceFactory, TestFieldNameEnum
+Cohesion: 0.08
+Nodes (8): main(), Validação do delay OpenFast (T1-T6) fora da interface.  Uso: python scripts/va, _relatorio_t1_t4(), criar_data_source(), Traduz FieldName → str Profit. RTDProfit permanece intacto., RTDProfitAdapter, TestDataSourceFactory, TestFieldNameEnum
 
 ### Community 17 - "Calculadora Protecao Cauda"
 Cohesion: 0.04
 Nodes (45): ResultadoCaudaAssincrona, CalculadoraProtecaoCauda, _phi(), Monta Broken Wing Butterfly com 3 strikes reais do RTD.          Estrutura: COMP, Camada de proteção via asa quebrada (BWB) sobre Collar Calendário otimizado por, ResultadoProtecaoCauda, _chassi(), Tests for CalculadoraProtecaoCauda — BWB protection layer over ratio-optimized c (+37 more)
 
 ### Community 18 - "Fix Sem Ativo Skip"
-Cohesion: 0.07
-Nodes (21): env(), env_push(), _expira_preco_ativo(), FakePush, Regressao do `_sem_ativo_skip` + post-loop (entrada antiga da Onda 2).  Cobria o, Emula OpenFast: push change-driven; refresh() devolve {cod|campo: valor}., Profit RTD: polling + CAB skip (sem strike no banco, usa campo STRIKE)., OpenFast: push change-driven; strike vem do banco. (+13 more)
+Cohesion: 0.08
+Nodes (11): _expira_preco_ativo(), FakePush, Emula OpenFast: push change-driven; refresh() devolve {cod|campo: valor}., (A) preco ausente + CAB mudou -> FRESH skip -> entry invalidada., (B) quando o preco volta, o FRESH recria a entry (auto-recuperacao)., (C) varios ciclos sem preco -> a entry nunca ressuscita., (D) preco presente em cada ciclo -> FRESH continua escrevendo (sem regressao)., (E) OpenFast FRESH (perna suja): entry correta, sem afetar o skip. (+3 more)
 
 ### Community 19 - "Colar Calendario Dialog"
-Cohesion: 0.07
-Nodes (17): env_onda1(), env_onda2(), FakePush, _make_db(), _opp(), Leilao por perna na Onda 1 + label per-perna no DTO.  A Onda 1 de ``MercadoDataP, Onda 1 fresh: PUT em leilao -> em_leilao True (hoje hardcoded False)., Onda 1 fresh: ATIVO em leilao -> em_leilao True. (+9 more)
+Cohesion: 0.10
+Nodes (9): FakePush, Onda 1 fresh: PUT em leilao -> em_leilao True (hoje hardcoded False)., Onda 1 fresh: ATIVO em leilao -> em_leilao True., Post-loop: entry cacheada com PUT em leilao continua em_leilao True., Guard: tudo 'aberto' -> em_leilao False (sem falso positivo)., Guard: Onda 2 ja deriva em_leilao dos status (regressao)., Emula OpenFast: push change-driven; refresh() devolve {cod|campo: valor}., _set_book_completo() (+1 more)
 
 ### Community 20 - "Test Investsite Coleta"
 Cohesion: 0.25
@@ -726,19 +715,19 @@ Nodes (7): Contrato (Requisitos), Dependências Diretas (por import), Métricas,
 
 ### Community 21 - "Display Mismatch"
 Cohesion: 0.09
-Nodes (15): MppTableModel, _col_key(), Each ColarTableModel column must format its value correctly., Each ColarCalTableModel column must format its value correctly., Return column index for a given key in a model's COLUMNS., Each MppTableModel column must display correctly., MPP display must handle missing MreResultado gracefully., persistencia must be empty string when cycles is 0. (+7 more)
+Nodes (16): BoxScore, MppTableModel, _col_key(), Each ColarTableModel column must format its value correctly., Each ColarCalTableModel column must format its value correctly., Return column index for a given key in a model's COLUMNS., Each MppTableModel column must display correctly., MPP display must handle missing MreResultado gracefully. (+8 more)
 
 ### Community 22 - "Monitor Worker"
 Cohesion: 0.06
-Nodes (6): EngineStatsDTO, MonitorWorker, _profile_log_path(), Controle genérico de scan cíclico com mutex., StrategyToggle, TestMonitorWorker
+Nodes (7): MonitorColaresCalendarioUseCase, PipelineStage, PipelineTracker, Coleta dados do pipeline de filtros sem afetar a execução.      Uso:         tra, MonitorWorker, Controle genérico de scan cíclico com mutex., StrategyToggle
 
 ### Community 23 - "Calculadora Colar Calendario"
-Cohesion: 0.05
-Nodes (21): Quick test: load EstudosCalendarioDialog and print row count., bs_gregas(), CalculadoraColarCalendario, date, ResultadoColarCalendario, TipoColarCalendario, Estudos Calendário — comparação Base vs Platô vs Proteção vs Rendimento., Quantities must be multiples of 100 (B3 lot size). (+13 more)
+Cohesion: 0.04
+Nodes (25): Quick test: load EstudosCalendarioDialog and print row count., bs_gregas(), CalculadoraColarCalendario, date, ResultadoColarCalendario, TipoColarCalendario, Estudos Calendário — comparação Base vs Platô vs Proteção vs Rendimento., Quantities must be multiples of 100 (B3 lot size). (+17 more)
 
 ### Community 24 - "Column Crash"
-Cohesion: 0.08
-Nodes (49): QDoubleSpinBox, QListWidget, QSettings, QTableView, _checksum_colunas(), contar_colunas_snapshot(), detectar_incompatibilidade(), limpar_colunas_incompativeis() (+41 more)
+Cohesion: 0.06
+Nodes (49): QSettings, QTableView, _checksum_colunas(), contar_colunas_snapshot(), detectar_incompatibilidade(), limpar_colunas_incompativeis(), limpar_e_restaurar_colunas(), _ordem_invalida() (+41 more)
 
 ### Community 25 - "Mercado Topbar"
 Cohesion: 0.09
@@ -749,16 +738,16 @@ Cohesion: 0.07
 Nodes (26): 1. Cache no nível de classe, não de instância, 1. Cache por `db_path` (chave de instância), 2. `get_all_mapped()` com chave `(ativo, cod_call)` também, 2. `_row_strike()` — safe extraction com fallback, 3. `delete_all()` desliga foreign keys, 3. `strike` como coluna NOT NULL, 4. `get_all()` com filtro de data (só vencimentos futuros), 4. `save_batch` não popula `instrumento.id` (+18 more)
 
 ### Community 27 - "Fase1"
-Cohesion: 0.09
-Nodes (27): Enum, BasketGerada, ExportarResultado, ImportarResultado, TipoExportacao, ExportarOperacaoUseCase, EstruturaOperacional, TipoEstrutura (+19 more)
+Cohesion: 0.10
+Nodes (28): Enum, ExportarResultado, TipoExportacao, ExportarOperacaoUseCase, EstruturaOperacional, TipoEstrutura, ClassificacaoOp, Oportunidade (+20 more)
 
 ### Community 28 - "Simulacao: calda_ratio_max=40 (+40%), passo 1%."
 Cohesion: 0.08
 Nodes (25): Contrato (Requisitos), Dependências Diretas (por import), `desconectar()`, `disponivel` (property) -> bool, `_enviar_raw(comando: str)`, `forcar_leitura(codigo: str, campo: FieldName) -> float | None`, `get_idade_campo(codigo: str, campo: FieldName) -> float | None`, `get_ts_campo(codigo: str, campo: FieldName) -> float | None` (+17 more)
 
 ### Community 29 - "Calculadoras Dialog"
-Cohesion: 0.09
-Nodes (12): QRect, BlackScholesWidget, _brl(), CalculadorasDialog, _CaptureOverlay, CdiWidget, Busca strike e vencimento em instrumentos_base pelo código da opção., Diálogo com abas B&S e CDI. Substitui btn_calc + btn_cdi. (+4 more)
+Cohesion: 0.08
+Nodes (14): QRect, QStyleOptionViewItem, BlackScholesWidget, _brl(), CalculadorasDialog, _CaptureOverlay, CdiWidget, Busca strike e vencimento em instrumentos_base pelo código da opção. (+6 more)
 
 ### Community 30 - "Verificar Integridade Params"
 Cohesion: 0.12
@@ -769,76 +758,72 @@ Cohesion: 0.07
 Nodes (27): 1. Snapshot atômico de duas fontes de dados heterogêneas (SQLite + QSettings), 1. Snapshot incremental (só diferenças), 2. `_QSETTINGS_KEYS_CONHECIDAS` como whitelist explícita, 2. Versionamento de schema do snapshot, 3. Compressão do `.shwsp`, 3. Lazy import de `ParametroOperacional` dentro de `_aplicar_parametros()`, 4. Criptografia do `.shwsp`, 4. Dedup de nomes na importação com sufixo numérico `(n)` (+19 more)
 
 ### Community 32 - "Mpp Use Case"
-Cohesion: 0.08
-Nodes (7): MPPUseCase, date, Persiste spread history em batch — chamado no final do ciclo MPP., MercadoEstruturalProvider, date, test_obter_instrumentos_mapa_filtra_por_whitelist(), test_obter_instrumentos_mapa_retorna_todos()
+Cohesion: 0.14
+Nodes (4): MPPUseCase, Persiste spread history em batch — chamado no final do ciclo MPP., test_obter_instrumentos_mapa_filtra_por_whitelist(), test_obter_instrumentos_mapa_retorna_todos()
 
 ### Community 33 - "Put Ratio Dialog"
-Cohesion: 0.05
-Nodes (8): exportar_monitor_csv(), Exporta a grade do monitor para CSV via clipboard.      - ``resultados``: list, _formatar_detectado(), ler_whitelist_put_ratio(), _perfil_payoff(), PutRatioDialog, PutRatioSortProxy, PutRatioTableModel
+Cohesion: 0.07
+Nodes (6): _formatar_detectado(), ler_whitelist_put_ratio(), _perfil_payoff(), PutRatioDialog, PutRatioSortProxy, PutRatioTableModel
 
 ### Community 34 - "Calculadora Cauda Assincrona"
-Cohesion: 0.05
-Nodes (30): Simulacao: calda_ratio_max=40 (+40%), passo 1%., Sim: desvios=1, ratio_max=300., Mostra trade-off: n x CDI x sigmas ate breakeven., Simulação com debug: mostra gap e razão de falha., count_viaveis(), Simulação: para cada alvo (2.5/3.0/3.5/4.0), quantos pct_cdi_base gerariam varia, CalculadoraCaudaAssincrona, Pós-processa um ResultadoColarCalendario viável e encontra o par     (ratio_cal (+22 more)
+Cohesion: 0.08
+Nodes (11): Preço do ativo onde PnL = 0 no lado esquerdo (S < Kp)., Preço do ativo onde PnL = 0 no lado direito (S > Kc)., Cenario tipico com parametros que passam na validacao 2-nivel., ratio_call * qtd_acao / 100 must be integer (valid B3 contracts)., ratio_put * qtd_acao / 100 must be integer (valid B3 contracts)., ratio_call with qtd_acao=100 should produce integer contract count., With qtd_acao=200, snapped ratios produce integer contract counts., If snapping ratios makes PnL <= 0, calcular returns None. (+3 more)
 
 ### Community 35 - "Box Dialog"
-Cohesion: 0.07
-Nodes (4): BoxDialog, BoxTableModel, _formatar_detectado(), Alerta se algum ativo nos resultados está em dia ex de dividendo.
+Cohesion: 0.05
+Nodes (9): QSortFilterProxyModel, BoxDialog, BoxSortProxy, BoxTableModel, _formatar_detectado(), Alerta se algum ativo nos resultados está em dia ex de dividendo., CalendarioSortProxy, exportar_monitor_csv() (+1 more)
 
 ### Community 36 - "Fix Stale Of Compra"
 Cohesion: 0.07
-Nodes (13): FakeRTD, (A/C) BID ausente no reuso -> of_compra_ativo zerado, nao congela 13.95., (D) BID acima do preco (defasado) e zerado, espelhando a Onda 1., (B) stale=True invalida a entry do cache; post-loop nao a devolve., (E/F) entry pos-fix (of_compra_ativo=0.0) nao surfaca BOX/SBTH no use case., (G) ASK/preco_ativo segue atualizando no reuso com dados validos., (G) ASK ausente: preco_ativo cai no cache de frescor; BID valido aceito., (H) 4 pernas de opcoes ausentes congelam (sem regressao). (+5 more)
+Nodes (14): FakeRTD, (A/C) BID ausente no reuso -> of_compra_ativo zerado, nao congela 13.95., (D) BID acima do preco (defasado) e zerado, espelhando a Onda 1., (B) stale=True invalida a entry do cache; post-loop nao a devolve., (E/F) entry pos-fix (of_compra_ativo=0.0) nao surfaca BOX/SBTH no use case., (G) ASK/preco_ativo segue atualizando no reuso com dados validos., (G) ASK ausente: preco_ativo cai no cache de frescor; BID valido aceito., (H) 4 pernas de opcoes ausentes congelam (sem regressao). (+6 more)
 
 ### Community 37 - "Monitor Oportunidades"
 Cohesion: 0.17
-Nodes (5): MonitorOportunidadesUseCase, monitor_uc(), TestMonitorOportunidadesUseCase, Elo 7: o varrer repassa status per-perna da entry ao DTO., TestUsecaseForwarding
+Nodes (5): MonitorOportunidadesUseCase, CalculadoraVetorizada, monitor_uc(), TestMonitorOportunidadesUseCase, Elo 7: o varrer repassa status per-perna da entry ao DTO.
 
 ### Community 38 - "Colar Calendario Dialog"
-Cohesion: 0.05
-Nodes (26): QDialog, QListWidgetItem, QTextEdit, exportar_para_simulador(), _calcular_qualidade(), ColarCalendarioDialog, ColarCalSortProxy, ColarCalTableModel (+18 more)
+Cohesion: 0.08
+Nodes (17): QListWidgetItem, tocar(), _calcular_qualidade(), ColarCalSortProxy, ColarCalTableModel, _estrelas_str(), _extrair_zona_c_prob(), _formatar_detectado() (+9 more)
 
 ### Community 39 - "Repositories"
-Cohesion: 0.07
-Nodes (6): Connection, get_connection(), CalendarioResultadosRepository, DividendoRepository, FeriadoB3Repository, HistoricoSimulacoesRepository
+Cohesion: 0.06
+Nodes (14): Connection, get_connection(), CalendarioResultadosRepository, DividendoRepository, HistoricoSimulacoesRepository, Retorna dicionário {(ativo, cod_put): InstrumentoOpcional}.         Chave compo, Insere instrumentos em lote via executemany.          Atencao: diferente de sa, Proventos: chave de negocio (ativo, data_com, tipo) deduplica no SQLite.  data_p (+6 more)
 
 ### Community 40 - "Rtd Fast Trade"
-Cohesion: 0.10
-Nodes (4): _formula_rtd(), Ponte Fast Trade -> Excel headless -> =RTD("srv.rtd").      Abre o Excel sob dem, RTDFastTrade, TestRTDFastTradeThrottle
+Cohesion: 0.06
+Nodes (8): _formula_rtd(), Ponte Fast Trade -> Excel headless -> =RTD("srv.rtd").      Abre o Excel sob dem, RTDFastTrade, _ponte(), TestRTDFastTradeCache, TestRTDFastTradeMatriz, TestRTDFastTradeRegistro, TestRTDFastTradeThrottle
 
 ### Community 41 - "Calculadora Cauda Assincrona"
-Cohesion: 0.08
-Nodes (12): Tests for processar_otimizado — 4 variantes, veto 3sigmas, id_chassi., Escudo de 3 sigmas: nenhum candidato com PnL<0 em ±3σ., processar_otimizado should return only variants with valid lot sizes., Sigma period must use dc_to_du/252 convention (not dte/252).      All sigma calc, dc_to_du/252 ≈ dte/365 within 1% (DTE>=20 to avoid rounding noise in dc_to_du)., calcular() and processar_otimizado() produce same sigma for same dte/iv., Vencimentos diferentes entre call e put devem aparecer corretos em cada variante, Sem vencimentos (default None), o comportamento antigo deve ser preservado. (+4 more)
+Cohesion: 0.10
+Nodes (9): Variação do PnL ao mover o spot de S_ref para S.         Usa B&S para a PUT (te, Tests for processar_otimizado — 4 variantes, veto 3sigmas, id_chassi., Escudo de 3 sigmas: nenhum candidato com PnL<0 em ±3σ., processar_otimizado should return only variants with valid lot sizes., Vencimentos diferentes entre call e put devem aparecer corretos em cada variante, Sem vencimentos (default None), o comportamento antigo deve ser preservado., TestProcessarOtimizado, Verifica que o processar_otimizado gera variantes com campos completos. (+1 more)
 
 ### Community 42 - "Feriados Dialog"
-Cohesion: 0.11
-Nodes (5): FeriadosB3Provider, B3 fecha em 9 de Julho (Revolução Constitucionalista - feriado SP)., FeriadosDialog, FeriadosFetchWorker, FeriadosTableModel
+Cohesion: 0.08
+Nodes (8): carregar_do_banco(), FeriadoB3Repository, FeriadosB3Provider, B3 fecha em 9 de Julho (Revolução Constitucionalista - feriado SP)., FeriadosDialog, FeriadosFetchWorker, FeriadosSortProxy, FeriadosTableModel
 
 ### Community 43 - "Calculadora Put Ratio"
-Cohesion: 0.10
-Nodes (5): _calcular(), TestHappyPath, TestProfundidade, TestRejeicoes, TestValoresDerivados
+Cohesion: 0.05
+Nodes (18): CalculadoraPutRatio, _args_base(), calc(), _calcular(), sigma_be stays 0 when iv_media = 0 (no spot), zona = C, Prova que T = dias/365 vs T = du/252 produz IV diferente., Regressao: o T usado internamente pelo calcular() deve         corresponder a du, TestConvencaoTBlackScholes (+10 more)
 
 ### Community 44 - "Fase4"
-Cohesion: 0.11
-Nodes (6): MonitorTableModel, liq_indicator: ✓ both ok, ✗ both bad, ✓~ one side bad., test_monitor_liq_indicator(), _make_opp(), TestMonitorTableModel, TestOportunidadeMonitorDTO
+Cohesion: 0.14
+Nodes (5): MonitorTableModel, liq_indicator: ✓ both ok, ✗ both bad, ✓~ one side bad., test_monitor_liq_indicator(), _make_opp(), TestMonitorTableModel
 
 ### Community 45 - "Display Mismatch"
-Cohesion: 0.13
-Nodes (22): _monitor_col_key(), _monitor_opp(), MonitorTableModel cell display for BOX strategy., ganho_bruto_display must use percent_sbth_bruto for SBTH classification., ganho_bruto_display must show both SBTH and BOX for BOX+SBTH classification., ganho_bruto_display must use sbth for 2SBTH regardless of box value., ganho_bruto_display must show '-' when both percentages are zero., tipo_opcao DisplayRole is blank (icon only in DecorationRole). (+14 more)
+Cohesion: 0.12
+Nodes (24): _monitor_col_key(), _monitor_opp(), MonitorTableModel cell display for BOX strategy., ganho_bruto_display must use percent_sbth_bruto for SBTH classification., ganho_bruto_display must show both SBTH and BOX for BOX+SBTH classification., ganho_bruto_display must use sbth for 2SBTH regardless of box value., ganho_bruto_display must show '-' when both percentages are zero., tipo_opcao DisplayRole is blank (icon only in DecorationRole). (+16 more)
 
 ### Community 47 - "le_f()"
-Cohesion: 0.07
-Nodes (8): Analise PETR4 com pivot points + suportes intraday via API + RTD., Monitor PETR4 — updates de 1 em 1 minuto, Monitor PETR4 — análise a cada 2 min com projecoes, Monitora PETR4 spot + OTM 38.36 por 5 min, Monitor contínuo do book PETR4 com análise de direção + volume., Monitor bounce PETR4 — analise a cada 30 segundos, Monitor PETR4 a cada 20s — divergencias + bounce, Script para ler PETR4 do Profit RTD e calcular Put Ratio Spread.
-
-### Community 48 - "Calculadora Put Ratio"
-Cohesion: 0.10
-Nodes (13): CalculadoraPutRatio, date, ResultadoPutRatio, _args_base(), calc(), Prova que T = dias/365 vs T = du/252 produz IV diferente., Regressao: o T usado internamente pelo calcular() deve         corresponder a du, TestConvencaoTBlackScholes (+5 more)
+Cohesion: 0.31
+Nodes (3): _int_param(), copiar_basket_pnt(), fmt_br()
 
 ### Community 49 - "Divida Tecnica Docs"
 Cohesion: 0.07
 Nodes (28): 1.10 🟡 MÉDIO — `_on_coleta_taxa_finished` promete sucesso silencioso, 1.1 🔴 CRÍTICO — `_obter_instrumentos_mapa()` retorna apenas 1 item por bug de indentação, 1.2 🔴 CRÍTICO — `NameError: msg` na coleta de taxas de aluguel (sucesso), 1.3 🟠 ALTO — Parâmetros `import_max_months` e `black_list_import` somem da UI, 1.4 🟠 ALTO — `tipo_opcao` MOD desconhecido descarta pares válidos na importação, 1.5 🟡 MÉDIO — `_regras_param_map` referencia chave inexistente `premio_risco` em 3 estratégias, 1.6 🟡 MÉDIO — `monitor_vendidas` chama método inexistente (`calcular_custos_vendida`), 1.7 🟡 MÉDIO — Vetorização do BOX/SBTH é desperdiçada (+20 more)
 
 ### Community 50 - "Calculadora Colar"
-Cohesion: 0.15
-Nodes (6): TestBlackScholes, Prova que a unificação numérica da BS não alterou a CalculadoraColar., black_scholes_call/put == black_scholes(option_type) do Calendário., calcular_iv continua retornando o mesmo IV do prêmio real (sem IV calc)., Voltando o preço BS do IV recuperado obtém-se o prêmio original., TestBlackScholesUmicaColar
+Cohesion: 0.11
+Nodes (8): CalculadoraColar, date, TestBlackScholes, Prova que a unificação numérica da BS não alterou a CalculadoraColar., black_scholes_call/put == black_scholes(option_type) do Calendário., calcular_iv continua retornando o mesmo IV do prêmio real (sem IV calc)., Voltando o preço BS do IV recuperado obtém-se o prêmio original., TestBlackScholesUmicaColar
 
 ### Community 51 - "Enum"
 Cohesion: 0.08
@@ -849,16 +834,16 @@ Cohesion: 0.15
 Nodes (13): callable, apagar_throttle_registro(), _caminhos_excel_options(), _contar(), ler_throttle_registro(), main(), _media(), _para_float() (+5 more)
 
 ### Community 53 - "Dtos Vendida"
-Cohesion: 0.08
-Nodes (8): OportunidadeVendida, VendidasTableModel, Sem selecao na table_view -> exporta TODAS as linhas., Com 1 linha selecionada -> exporta so ela., test_exportar_com_selecao_exporta_apenas_selecionadas(), test_exportar_sem_selecao_exporta_todas(), Vendidas table — arraste coluna → salvar no Registry → restaurar em nova table., test_vendidas_save_restore_order()
+Cohesion: 0.09
+Nodes (6): OportunidadeVendida, VendidasTableModel, Sem selecao na table_view -> exporta TODAS as linhas., Com 1 linha selecionada -> exporta so ela., test_exportar_com_selecao_exporta_apenas_selecionadas(), test_exportar_sem_selecao_exporta_todas()
 
 ### Community 54 - "Export Dialog"
-Cohesion: 0.12
-Nodes (9): QFrame, QLabel, StatCard, ExportDialog, QFrame, QWidget, Label de preço de uma perna (put/call) com idade — aviso amarelo se velho., Aciona a integração visual com o PNT com feedback de progresso. (+1 more)
+Cohesion: 0.10
+Nodes (9): QLabel, QListWidget, BlacklistImportDialog, ExportDialog, QFrame, QWidget, Label de preço de uma perna (put/call) com idade — aviso amarelo se velho., Aciona a integração visual com o PNT com feedback de progresso. (+1 more)
 
 ### Community 55 - "Parametros Widget"
-Cohesion: 0.18
-Nodes (4): QComboBox, QWidget, ParametrosWidget, Qual parâmetro de som reflete para esta estratégia.
+Cohesion: 0.15
+Nodes (6): QComboBox, QDoubleSpinBox, QWidget, NoWheelSpinBox, ParametrosWidget, Qual parâmetro de som reflete para esta estratégia.
 
 ### Community 56 - "Sim Frescor Openfast"
 Cohesion: 0.14
@@ -868,41 +853,33 @@ Nodes (17): Random, carregar_instrumentos(), classe_atividade(), fator_codigo(),
 Cohesion: 0.12
 Nodes (8): Session, OpcoesNetClient, Busca grade de opções (strike x vencimento) do opcoes.net.br.         tipo: 'CAL, Busca o mapping {ticker: 'A'/'E'} (MOD = modelo Americano/Europeu)         via A, Retorna lista de todos os ativos com opções disponíveis em opcoes.net.br., Busca todas as opções (CALL + PUT) de um ativo via API, incluindo         séries, Busca histórico de candles + volatilidade do ativo via API.         Request type, Retorna lista de candles {date, open, high, low, close, change, volume, vol_hist
 
-### Community 58 - "Dividendos Dialog"
-Cohesion: 0.11
-Nodes (4): DividendosStatusInvestProvider, DividendosDialog, DividendosFetchWorker, DividendosTableModel
-
-### Community 59 - "Fast Trade Rtd Adapter"
-Cohesion: 0.13
-Nodes (5): FastTradeRTDAdapter, Traduz FieldName → str Fast Trade RTD. Ponte RTDFastTrade (Excel headless)., adapter(), FastTradeRTDAdapter com RTDFastTrade mockado., TestFastTradeRTDAdapterThrottle
-
 ### Community 60 - "Exportar Csv Dtos"
 Cohesion: 0.17
 Nodes (14): Extrai o valor exibido pela grade (respeita a formatacao do modelo).      Prio, _valor_csv(), _check_csv_equiv(), Validacao do copiar/te exportacao CSV em todos os monitores., COLAR usa dicts no model (atualizar([{...}])). Verifica que o helper     extrai, BOX 4P usa dicts no model (atualizar([{...}])). Verifica que o helper     reprod, Para cada coluna, compara model.data(DisplayRole) com o valor exportado.      Ca, Quando o usuario chama sem table_view/model=None, nao pode crashar. (+6 more)
 
 ### Community 61 - "Monitor Put Ratio"
-Cohesion: 0.13
-Nodes (6): MonitorPutRatioUseCase, Timestamp de origem (TIME/TIMENEG do protocolo) quando assinado.          Diag, Normaliza um campo de horário cru do protocolo para epoch Unix.          TIME, Horário da mensagem de cotação (TIME) normalizado para epoch Unix.          Di, Horário do último negócio (TIMENEG) normalizado para epoch Unix.          Diag, Idade real da cotação (agora - TIME/TIMENEG) quando o protocolo fornecer.
+Cohesion: 0.07
+Nodes (14): _is_weekly(), MonitorPutRatioUseCase, Timestamp de origem (TIME/TIMENEG do protocolo) quando assinado.          Diag, Normaliza um campo de horário cru do protocolo para epoch Unix.          TIME, Horário da mensagem de cotação (TIME) normalizado para epoch Unix.          Di, Horário do último negócio (TIMENEG) normalizado para epoch Unix.          Diag, Idade real da cotação (agora - TIME/TIMENEG) quando o protocolo fornecer., _FakeInstRepo (+6 more)
 
 ### Community 62 - "Estudos Calendario Dialog"
-Cohesion: 0.08
-Nodes (6): QAbstractTableModel, get_db_path(), EstudosCalendarioDialog, EstudosCalendarioTableModel, HistoricoSimulacoesDialog, HistoricoSimulacoesTableModel
+Cohesion: 0.07
+Nodes (8): QAbstractTableModel, get_db_path(), EstudosCalendarioDialog, EstudosCalendarioTableModel, HistoricoSimulacoesDialog, HistoricoSimulacoesTableModel, Proxy que mantém só as N melhores linhas por ativo (coluna 1).      Agrupa lin, TopNSortProxy
 
 ### Community 63 - "Pnt"
-Cohesion: 0.10
-Nodes (20): _achar_combobox(), _debug_screenshot(), _diagnostic_list_windows(), executar_automacao_pnt(), PNT UI Debug Screenshot, PNT UI Debug Step 4, PNT UI Debug Step 5, _localizar_imagem() (+12 more)
+Cohesion: 0.12
+Nodes (18): _achar_combobox(), _debug_screenshot(), _diagnostic_list_windows(), executar_automacao_pnt(), PNT UI Debug Screenshot, PNT UI Debug Step 4, PNT UI Debug Step 5, _minimizar_ide() (+10 more)
 
 ### Community 64 - "Dtos"
-Cohesion: 0.07
-Nodes (4): OportunidadeMonitor, Pernas fora de 'aberto' (leilão/fechado), per-perna.          Formato: 'Leilão, test_mensagem_telegram_pct_ganho_box_formatado_corretamente(), test_mensagem_telegram_pct_ganho_formatado_corretamente()
+Cohesion: 0.08
+Nodes (3): OportunidadeMonitor, test_mensagem_telegram_pct_ganho_box_formatado_corretamente(), test_mensagem_telegram_pct_ganho_formatado_corretamente()
 
 ### Community 65 - "Boleta Dialog"
-Cohesion: 0.13
-Nodes (7): QTableWidget, QTableWidgetItem, BoletaDialog, _int_param(), copiar_basket_pnt(), fmt_br(), TimesDialog
+Cohesion: 0.14
+Nodes (5): QTableWidget, QTableWidgetItem, BoletaDialog, RegrasDialog, TimesDialog
 
 ### Community 66 - "Times Dialog"
-Cohesion: 0.09
-Nodes (19): CalculadoraBox, date, ResultadoBox, _diff(), _fmt_detectado(), _fmt_dur(), _fmt_ts(), _idade() (+11 more)
+Cohesion: 0.06
+Nodes (20): MonitorBoxUseCase, CalculadoraBox, date, ResultadoBox, _diff(), _fmt_detectado(), _fmt_dur(), _fmt_ts() (+12 more)
 
 ### Community 67 - "Reader Perf"
 Cohesion: 0.12
@@ -910,7 +887,7 @@ Nodes (11): LoadSimulator, socket, Teste de performance da _thread_leitora do Op
 
 ### Community 68 - "Harness Onda2 Sem Repromocao"
 Cohesion: 0.12
-Nodes (6): FakeSource, _montar_book(), principal(), Harness de regressao: Onda 2 antiga NAO pode sobreviver via post-loop sem revali, Fonte fake que emula Profit RTD (polling + CAB skip) — sem is_stale_campo., setup()
+Nodes (5): FakeSource, _montar_book(), principal(), Fonte fake que emula Profit RTD (polling + CAB skip) — sem is_stale_campo., setup()
 
 ### Community 69 - "Times Dialog"
 Cohesion: 0.09
@@ -921,8 +898,8 @@ Cohesion: 0.09
 Nodes (21): Contrato (Requisitos), Dependências Diretas (por import), `desconectar()`, `disponivel` (property) -> bool, `forcar_leitura(codigo: str, campo: FieldName) -> float | None`, `get_idade_campo(codigo: str, campo: FieldName) -> float | None`, `get_ts_campo(codigo: str, campo: FieldName) -> float | None`, `__init__()` (+13 more)
 
 ### Community 72 - "Grade Opcoes Dialog"
-Cohesion: 0.05
-Nodes (19): QThread, QTreeWidgetItem, CalendarioResultadosWebwalletProvider, CalendarioFetchWorker, CalendarioResultadosDialog, CalendarioTableModel, _dias_ate(), _fmt_strike() (+11 more)
+Cohesion: 0.13
+Nodes (11): QTreeWidgetItem, _dias_ate(), _fmt_strike(), GradeOpcoesDialog, _label_serie(), date, Diálogo visualizador da grade de opções estilo plataforma Profit., Recarrega a lista de ativos do banco e popula o combo. (+3 more)
 
 ### Community 73 - "Calculadora Colar Calendario"
 Cohesion: 0.10
@@ -933,8 +910,8 @@ Cohesion: 0.10
 Nodes (19): Contrato (Requisitos), Demais métodos (`desconectar`, `reconectar`, `invalidar_cache`), Dependências Diretas (por import), `gerar_dados_para_instrumentos(instrumentos: list) -> dict[str, dict]`, `MockDataSource.forcar_leitura(codigo, campo) -> float | None`, `MockDataSource.__init__(db_path=None)`, `MockDataSource.ler_campo_cache(codigo, campo) -> float | None`, `MockDataSource.ler_campos(codigo, *campos) -> dict` (+11 more)
 
 ### Community 75 - "Rtd Profit"
-Cohesion: 0.13
-Nodes (4): rtd_topico(), Leitura one-shot (ConnectData False) que força o servidor RTD         a buscar o, Tenta reconectar ao servidor RTD (ServerStart + RefreshData)., RTDProfit
+Cohesion: 0.05
+Nodes (18): Analise PETR4 com pivot points + suportes intraday via API + RTD., Monitor PETR4 — updates de 1 em 1 minuto, Monitor PETR4 — análise a cada 2 min com projecoes, Monitora PETR4 spot + OTM 38.36 por 5 min, Monitor contínuo do book PETR4 com análise de direção + volume., Monitor bounce PETR4 — analise a cada 30 segundos, Monitor PETR4 a cada 20s — divergencias + bounce, Script para ler PETR4 do Profit RTD e calcular Put Ratio Spread. (+10 more)
 
 ### Community 76 - "Stale Trace"
 Cohesion: 0.22
@@ -952,13 +929,17 @@ Nodes (3): build(), FakeRTD, main()
 Cohesion: 0.17
 Nodes (11): ColarDialog, Contrato (Requisitos), Dependências Diretas (por import), Filtros (`ColarSortProxy`), `_mostrar_detalhes(r: ResultadoColar)`, Métricas, Notas, Propósito (+3 more)
 
+### Community 81 - "Monitor Box"
+Cohesion: 0.50
+Nodes (4): _achar_janela_pnt(), _obter_rect_pnt(), Localiza o HWND da janela principal do PNT (prefere janela maior)., Obtém o retângulo da janela PNT: processo > HWND > pygetwindow.
+
 ### Community 83 - "Calculadora Protecao Cauda"
 Cohesion: 0.10
 Nodes (20): 1. Alvo da borboleta é breakeven, não 2σ, 1. Tratar BWB como compra de proteção pura (débito), 2. Fallback dentro do próprio módulo para parâmetros, 2. Seleção por eficiência, não proximidade, 3. Integrar proteção com o Collar Tradicional, 3. Razão de convexidade só no estágio "Proteção", 4. E[PnL] calculado sempre, mesmo sem proteção, 5. Custo no modo simples = `premio_ask × qtd_lote` (sem ×100) — consistente com BWB (+12 more)
 
 ### Community 84 - "Repositories"
-Cohesion: 0.15
-Nodes (4): Traduz FieldName → str Profit. RTDProfit permanece intacto., RTDProfitAdapter, adapter(), RTDProfitAdapter com RTDProfit mockado.
+Cohesion: 0.11
+Nodes (4): CalendarioResultadosWebwalletProvider, CalendarioFetchWorker, CalendarioResultadosDialog, CalendarioTableModel
 
 ### Community 85 - "Venda Coberta Table Model"
 Cohesion: 0.29
@@ -973,8 +954,8 @@ Cohesion: 0.22
 Nodes (8): CalculadoraBoxSbth, `calcular(dados: DadosMercado) -> ResultadoBOXSBTH`, Cobertura de Teste, Contrato (Requisitos), `DadosMercado`, Dependências, Notas, Propósito
 
 ### Community 88 - "Repositories"
-Cohesion: 0.23
-Nodes (3): ParametroOperacional, TestParametroOperacional, TestParametroRepository
+Cohesion: 0.10
+Nodes (20): 1. Visão Geral do Fluxo de Dados, 2.1 BOX Vendida (Venda de Box 4 pernas), 2.2 SBTH Vendida (Spread Buy Through - Venda Simplificada), 2.3 Matriz de 6 Combinações Estratégicas, 2. Lógica de Negócio — Correção Formal, 3.1 Condição SBTH Contraditória (Alto Impacto), 3.2 Concorrência de Cálculos: Duas Rotas Paralelas, 3.3 Inconsistência de Timestamp Dentro de `dados_mercado[key]` (+12 more)
 
 ### Community 90 - "Fix Onda1 Sem Preco"
 Cohesion: 0.09
@@ -997,36 +978,32 @@ Cohesion: 0.17
 Nodes (11): `_BarWidget`, Colunas da tabela, Contrato (Requisitos), Dependências Diretas (por import), `_fmt_tempo(segundos)`, `__init__(tracker: PipelineTracker | None, parent)`, Métricas, Notas (+3 more)
 
 ### Community 97 - "Fix Onda1 Sem Preco"
-Cohesion: 0.11
-Nodes (7): Open Fast nao usa CAB skip — suporta_cab_skip=False., E2E: book fresco gera; para feed push change-driven, a ausência de push, Parâmetro ligado por default assina TIME/TIMENEG do ativo., Com parâmetro ativo, o provider assina TIME/TIMENEG do ativo., Com timestamp assinado e push de TIME/TIMENEG, o entry carrega         ts_origem, TIME/TIMENEG do OpenFast viram ts_time_ativo/ts_timeng_ativo no entry., TestMercadoProviderOpenFast
+Cohesion: 0.22
+Nodes (4): montar_leilao_label(), Pernas fora de 'aberto' (leilão/fechado), per-perna.          Formato: 'Leilão, Pernas fora de 'aberto' (leilão/fechado), per-perna.      Formato: 'Leilão Ati, TestMontarLeilaoLabel
 
 ### Community 98 - "Openfast Socket Adapter"
 Cohesion: 0.12
 Nodes (7): get_ts_origem() aplica a normalização para TIME/TIMENEG vindos do SQT., TIME vence mesmo quando TIMENEG (<= TIME) está presente no mesmo pregão., Caso real reproduzido ao vivo: TIME=10:57:22, TIMENEG=10:57:56.          TIME<, TIMENEG=00:00:00 é sentinela 'sem negócio' -> Tn usa TIME (não meia-noite)., Timestamp absoluto/epoch não muda de data: preservado como está., Idade real calculada a partir de TIME/TIMENEG normalizado.          Push de um, TestGetTsOrigemNormalizado
 
 ### Community 99 - "Monitor Colares"
-Cohesion: 0.08
-Nodes (25): MonitorColaresUseCase, datetime, CalculadoraColar, DadosPata, date, ResultadoColar, RiscoLeilao, TipoColar (+17 more)
+Cohesion: 0.10
+Nodes (23): Trace runtime: Varredura(Onda1/Onda2) e Manutenção, MonitorColaresUseCase, datetime, DadosPata, ResultadoColar, RiscoLeilao, TipoColar, _profile_log_path() (+15 more)
 
 ### Community 100 - "Calculadora Colar Calendario"
 Cohesion: 0.11
 Nodes (17): Calculadoras Base, Camada 0 — Kernel & Contratos, Camada 1 — Infraestrutura & Streaming, Camada 2 — Estratégias & Regras Financeiras, Camada 3 — Aplicação & UI, Configurações Externas e Tipos Globais, Estrutura do Banco (19 tabelas, exceto `sqlite_sequence`), Fontes de Parâmetros de Mercado (+9 more)
 
-### Community 102 - "Monitor Put Ratio"
-Cohesion: 0.20
-Nodes (6): _FakeInstRepo, _FakeParam, _FakeParamRepo, _inst(), TestFiltroSemanalNoVarrer, _uc()
-
 ### Community 103 - "Rtd Fast Trade"
 Cohesion: 0.24
-Nodes (3): _ponte(), TestRTDFastTradeMatriz, TestRTDFastTradeRegistro
+Nodes (6): DividendosStatusInvestProvider, _FakeResp, Proventos: fallback dadosdemercado cobre eventos que a StatusInvest perdeu.  Cas, test_fallback_erro_nao_derruba_importacao(), test_mescla_evento_faltante_na_statusinvest(), test_mesclar_preenche_campo_faltante_e_deduplica()
 
 ### Community 104 - "Pnt Importacao"
 Cohesion: 0.14
 Nodes (13): Arquivos Relacionados, Automação — `executar_automacao_pnt()`, Diferenças entre nosso formato e o oficial:, Direcional — Formato (sem automação), Exemplo MultiLeg com Opções Mensais PETR4, Importação de Ordens no PNT (FastTrader), Linha de exemplo copiável (3 pernas, mensal jun/26):, MultiLeg — Formato Oficial PNT (10 colunas para 3 pernas) (+5 more)
 
 ### Community 106 - "Pnt"
-Cohesion: 0.25
-Nodes (8): _achar_janela_pnt(), _achar_janela_pnt_por_processo(), _focar_janela_pnt(), _obter_rect_pnt(), Localiza o HWND da janela principal do PNT (prefere janela maior)., Localiza HWND do PNT pelo nome do processo PnT.Inteface.exe., Localiza e ativa a janela do PNT: processo > título., Obtém o retângulo da janela PNT: processo > HWND > pygetwindow.
+Cohesion: 0.16
+Nodes (8): _achar_janela_pnt_por_processo(), _focar_janela_pnt(), Localiza HWND do PNT pelo nome do processo PnT.Inteface.exe., Localiza e ativa a janela do PNT: processo > título., Testes unitários da automação PNT com mocks (mercado fechado)., TestBuscaPorProcesso, TestRoboComAcento, TestSwitchToThisWindow
 
 ### Community 107 - "Telegram Service"
 Cohesion: 0.21
@@ -1036,37 +1013,29 @@ Nodes (4): TelegramNotifier, Fetch token, chat_id and enable flag from the param
 Cohesion: 0.11
 Nodes (17): 1. Função standalone em vez de classe, 1. Usar `QProcess` em vez de `subprocess.Popen`, 2. Caminho do root via `Path(__file__).resolve().parent.parent.parent.parent`, 2. Matar processo Streamlit anterior ao spawnar novo, 3. Parametrizar porta e caminhos via banco de dados, 3. `subprocess.Popen` fire-and-forget (sem `.wait()` ou `.communicate()`), 4. `webbrowser.open()` com URL fixa e porta fixa, 5. `CREATE_NO_WINDOW` no Windows (+9 more)
 
-### Community 109 - "Pipeline Dialog"
-Cohesion: 0.15
-Nodes (11): QStyledItemDelegate, QStyleOptionViewItem, _BarWidget, _fmt(), _fmt_tempo(), _mkitem(), PipelineDialog, Barra de progresso horizontal para a coluna PROGRESSO. (+3 more)
-
 ### Community 110 - "Dtos Origem"
-Cohesion: 0.18
+Cohesion: 0.20
 Nodes (8): _coberta(), _monitor(), _naive_utc(), Testes dos campos de origem da cotação (ts/idade_origem_ativo) nos DTOs., TestOportunidadeMonitorOrigem, TestOportunidadeVendaCobertaOrigem, TestOportunidadeVendidaOrigem, _vendida()
 
 ### Community 111 - "Whitelist Box4P Dialog"
-Cohesion: 0.28
-Nodes (3): ler_whitelist(), salvar_whitelist(), WhitelistBox4PDialog
+Cohesion: 0.12
+Nodes (7): ParametroOperacional, ler_whitelist(), salvar_whitelist(), WhitelistBox4PDialog, Com parâmetro ativo, o provider assina TIME/TIMENEG do ativo., Com timestamp assinado e push de TIME/TIMENEG, o entry carrega         ts_origem, TIME/TIMENEG do OpenFast viram ts_time_ativo/ts_timeng_ativo no entry.
 
 ### Community 112 - "Distribuicao"
 Cohesion: 0.15
 Nodes (12): Arquivos de build, Build, Cuidados, Distribuição — Build PyInstaller, Fluxo de distribuição, Histórico, O que o script faz, O que o script **NÃO** faz mais (+4 more)
 
 ### Community 113 - "Main Window"
-Cohesion: 0.12
-Nodes (5): QToolButton, BadgeDelegate, _make_led_icon(), QIcon, Constrói o botão 🗂 Painéis que abre um dropup QMenu com os 7 dialogs.
+Cohesion: 0.14
+Nodes (10): QStyledItemDelegate, BadgeDelegate, _BarWidget, _fmt(), _fmt_tempo(), _mkitem(), PipelineDialog, Barra de progresso horizontal para a coluna PROGRESSO. (+2 more)
 
 ### Community 114 - "Pnt"
 Cohesion: 0.19
 Nodes (6): PNTIntegration, Integração com PlugNTrade via automação de interface (GUI) usando Clipboard., Busca parâmetros operacionais no banco de dados., Limpa o campo atual e digita o valor formatado (ponto para vírgula)., Monta dados no formato de importação direcional do PlugNTrade., Envia a oportunidade usando o fluxo correto de importação do PNT.
 
-### Community 115 - "Oportunidade"
-Cohesion: 0.14
-Nodes (4): Oportunidade, OportunidadeRepository, TestOportunidade, TestOportunidadeRepository
-
 ### Community 116 - "Pnt"
-Cohesion: 0.22
-Nodes (6): PNTScreenManager, Gerenciador de telas do PNT via reconhecimento de imagem, Encontra e foca a janela do PNT usando Win32 API (ou fallback pyautogui)., Abre a tela MultiLeg manualmente (usuário deve fazer isso), Abre a tela Spread manualmente (usuário deve fazer isso), TestSwitchToThisWindow
+Cohesion: 0.25
+Nodes (5): PNTScreenManager, Gerenciador de telas do PNT via reconhecimento de imagem, Encontra e foca a janela do PNT usando Win32 API (ou fallback pyautogui)., Abre a tela MultiLeg manualmente (usuário deve fazer isso), Abre a tela Spread manualmente (usuário deve fazer isso)
 
 ### Community 117 - "Collar Calendario Estrutural Calda Assincrona"
 Cohesion: 0.17
@@ -1101,12 +1070,12 @@ Cohesion: 0.17
 Nodes (11): `_carregar()`, Contrato (Requisitos), Dependências Diretas (por import), `_exportar()`, HistoricoSimulacoesDialog, `HistoricoSimulacoesTableModel`, `_limpar()`, Métricas (+3 more)
 
 ### Community 126 - "Pipeline Calendario"
-Cohesion: 0.31
-Nodes (3): _criar_base_viavel(), Verifica que a construcao de variantes otimizadas herda campos do base., TestVariantFieldsInheritance
+Cohesion: 0.09
+Nodes (11): QDialog, QTextEdit, exportar_para_simulador(), ColarCalendarioDialog, copiar_figura_clipboard(), copiar_texto_formatado(), Renderiza matplotlib Figure para PNG e cola como imagem no clipboard., Salva matplotlib Figure como PNG via diálogo. (+3 more)
 
 ### Community 127 - "Mock Fast Trade Server"
 Cohesion: 0.08
-Nodes (13): MockFastTradeServer, socket, Simula chegada de SQT., Servidor TCP fake que emula Open Fast. Porta 5557 para não conflitar., server(), Heartbeat NÃO atualiza _cache_ts de ASK/BID: com janela curta o campo         f, Thread morta -> DISCONNECTED e cache invalidado (nada ressuscita)., server() (+5 more)
+Nodes (12): MockFastTradeServer, socket, Simula chegada de SQT., Servidor TCP fake que emula Open Fast. Porta 5557 para não conflitar., server(), Heartbeat NÃO atualiza _cache_ts de ASK/BID: com janela curta o campo         f, Adapter tambem aceita # como separador., Thread morta -> DISCONNECTED e cache invalidado (nada ressuscita). (+4 more)
 
 ### Community 128 - "Analise Mercado"
 Cohesion: 0.09
@@ -1121,8 +1090,12 @@ Cohesion: 0.29
 Nodes (6): Contrato (Requisitos), Dependências Diretas (por import), Métricas, Notas, TipoExportacao, `TipoExportacao` (enum)
 
 ### Community 131 - "Calculadora Protecao Cauda"
-Cohesion: 0.22
-Nodes (3): CandidatoPescaria, ElegibilidadePescaria, TestElegibilidadePescaria
+Cohesion: 0.11
+Nodes (24): Probe colunas opcoes.net.br (OptionsChain schema), Underlying PETR4 (IV, Greeks, exp0), Testa migração de fonte_market_data 0/1 → profit/openfast., ImportFlash: varre opcoes.net.br e atualiza o banco do SpreadHunter.  Captura o, _get_appdata_dir(), init_db(), _migrar_banco_legado(), _migrar_calendario_resultados() (+16 more)
+
+### Community 132 - "Rtd Fast Trade"
+Cohesion: 0.21
+Nodes (8): Row, _parse_date(), _parse_datetime(), date, datetime, True quando perf_filtro_semanal estiver ativo (vale para qualquer estrategia)., Safely extract strike column (may not exist in legacy DB)., _row_strike()
 
 ### Community 133 - "Collarcauda"
 Cohesion: 0.20
@@ -1139,10 +1112,6 @@ Nodes (21): 1. Grid de busca em float, não otimização contínua, 1. Otimizaç
 ### Community 136 - "Som Service"
 Cohesion: 0.45
 Nodes (9): _carregar_params(), _gerar_wav_volume(), testar(), testar_coberta(), testar_vendidas(), tocar_coberta(), _tocar_premio(), tocar_vendidas() (+1 more)
-
-### Community 137 - "Blacklist Import Dialog"
-Cohesion: 0.28
-Nodes (3): BlacklistImportDialog, ler_blacklist(), salvar_blacklist()
 
 ### Community 138 - "Bootstrap"
 Cohesion: 0.12
@@ -1188,10 +1157,6 @@ Nodes (7): Automação Basket PNT — instruções de uso, Como testar, Dependê
 Cohesion: 0.12
 Nodes (16): Contrato (Requisitos), Dependências Diretas (por import), `fetch_all_options(ativo, delay=0.5) -> list[dict]`, `fetch_available_assets() -> list[str]`, `fetch_matriz(ativo, tipo, session=None) -> list[dict]`, `fetch_mod_mapping(ativo, session=None) -> dict[str, str]`, `_garantir_csrf() -> str | None`, `get_stock_history(ativo) -> dict | None` (+8 more)
 
-### Community 151 - "Rtd Profit Adapter"
-Cohesion: 0.36
-Nodes (4): RTDProfit sem conexão COM: só os mapas internos usados por ler_campo_cache., Regressão: negativo deve virar None. Antes virava 0.0 e sobrescrevia         um, _rtd_sem_com(), TestRTDProfitNormalizacaoNegativo
-
 ### Community 153 - ".Claude"
 Cohesion: 0.29
 Nodes (6): Confirmação Obrigatória, Convenções, Estrutura, Regras Críticas, Spreadhunter, Stack
@@ -1203,10 +1168,6 @@ Nodes (8): Contrato (Requisitos), Dependências Diretas (por import), ExcelImpor
 ### Community 155 - "Market Data Source"
 Cohesion: 0.22
 Nodes (8): Contrato (Requisitos), Dependências Diretas (por import), FieldName, `FieldName` (Enum, `auto()`), Métricas, Notas, `OPENFAST_FIELD_STR: dict[FieldName, str]`, `PROFIT_FIELD_STR: dict[FieldName, str]`
-
-### Community 156 - "Calculadora Colar Calendario"
-Cohesion: 0.23
-Nodes (11): calcular_coberta(), calcular_comprada(), _cdi_periodo(), _custos_vendida(), ndarray, Cálculo vetorizado (numpy) da Venda Coberta e Taxa Comprada.  Reproduz exatament, Cálculo da Taxa Comprada (varrer_comprada) para as linhas válidas., Cálculo da Venda Coberta (varrer) para as linhas válidas. (+3 more)
 
 ### Community 157 - "Calculadora Put Ratio"
 Cohesion: 0.12
@@ -1248,10 +1209,6 @@ Nodes (14): Contrato (Requisitos), Dependências Diretas (por import), MonitorWo
 Cohesion: 0.13
 Nodes (14): `_apagar_selecionado()`, `_carregar_lista()`, Contrato (Requisitos), Dependencias Diretas (por import), `_exportar_selecionado()`, `_importar_arquivo()`, Metricas, Notas (+6 more)
 
-### Community 168 - "Main"
-Cohesion: 0.16
-Nodes (8): calcular_vendidas(), ndarray, Calcula BOX/SBTH vendidas para as linhas válidas (pré-filtradas)., ResultadoVendidasVetor, TestCalcularVendidas, TestCustosSemBoca, (E) BOX_VENDIDO: valor que antes disfarçava False->True agora fica False., (F) SBTH_VENDIDA: valor que antes disfarçava False->True agora fica False.
-
 ### Community 169 - "Blacklist Import Dialog"
 Cohesion: 0.15
 Nodes (12): `_adicionar() -> None`, BlacklistImportDialog, `BlacklistImportDialog(db_path=None, parent=None) -> None`, `_confirmar() -> None`, Contrato (Requisitos), Dependências Diretas (por import), Funções de Módulo, `ler_blacklist(db_path=None) -> list[str]` (+4 more)
@@ -1261,8 +1218,8 @@ Cohesion: 0.14
 Nodes (13): Contrato (Requisitos), `delete_all() -> int`, `delete_by_ano(ano: int) -> int`, Dependências Diretas (por import), FeriadoB3Repository, `get_all() -> list[dict]`, `get_anos_disponiveis() -> list[int]`, `get_by_ano(ano: int) -> list[dict]` (+5 more)
 
 ### Community 172 - "Excel Importer"
-Cohesion: 0.13
-Nodes (11): ClassificacaoOp, ClassificacaoOportunidade, ResultadoBOXSBTH, extrair_strike(), parse_vencimento(), date, sanitizar_strike(), TestClassificacaoOportunidade (+3 more)
+Cohesion: 0.06
+Nodes (17): ClassificacaoOportunidade, CalculadoraBoxSbth, DadosMercado, ResultadoBOXSBTH, CandidatoPescaria, ElegibilidadePescaria, extrair_strike(), parse_vencimento() (+9 more)
 
 ### Community 177 - "Monitorar Divergencia"
 Cohesion: 0.14
@@ -1303,10 +1260,6 @@ Nodes (12): `_calcular_qualidade(r) -> int`, ColarCalendarioDialog, Contrato (Re
 ### Community 191 - "Disclaimer.Png"
 Cohesion: 1.00
 Nodes (3): Spreadhunter Financial HUD Branding, Tomahawk Military Theme Identity, Tomahawk Theme Disclaimer Banner
-
-### Community 192 - "Pnt"
-Cohesion: 0.25
-Nodes (3): Testes unitários da automação PNT com mocks (mercado fechado)., TestBuscaPorProcesso, TestRoboComAcento
 
 ### Community 202 - "Badge Delegate"
 Cohesion: 0.25
@@ -1473,8 +1426,8 @@ Cohesion: 0.20
 Nodes (9): `atualizar(items: list[OportunidadeVendida])`, Colunas escondidas por default, Contrato (Requisitos), `data(index, role)`, Dependências Diretas (por import), Métricas, Notas, Propósito (+1 more)
 
 ### Community 300 - "test_calcular_custos_vendida.py"
-Cohesion: 0.20
-Nodes (8): custos(), Testes para o método calcular_custos_vendida() de CalculadoraCustosB3.  Garante, BOX Vendida: vende PUT + compra CALL + vende ação = 2 opções + 1 ação., SBTH Vendida: vende PUT + vende ação = 1 opção + 1 ação., Falha claramente se alguém chamar posicional (defesa contra regresso)., test_assinatura_aceita_argumentos_kwargs_apenas(), test_calcular_custos_vendida_box_vendido_3_pernas(), test_calcular_custos_vendida_sbth_vendido_2_pernas()
+Cohesion: 0.31
+Nodes (3): _opp(), Tolera 'Leil?o' (ã virou ? no servidor OpenFast)., TestLeilaoLabel
 
 ### Community 301 - "FeriadosB3Provider"
 Cohesion: 0.22
@@ -1524,10 +1477,6 @@ Nodes (8): Contrato (Requisitos), `DARK_THEME_QSS` (string), Dependências Diret
 Cohesion: 0.22
 Nodes (8): Contrato (Requisitos), Dependências Diretas (por import), Métricas, Notas, Propósito, `TipoOpcao.AMERICANA`, TipoOpcao (enum), `TipoOpcao.EUROPEIA`
 
-### Community 313 - "TestOpenFastSocketAdapterRegistrar"
-Cohesion: 0.22
-Nodes (3): Evento anterior à chamada NÃO conta — sem push novo deve retornar None., Com allow_stale=True devolve mesmo sem push novo (valor em cache)., TestOpenFastSocketAdapterRegistrar
-
 ### Community 314 - "Plano de Integração — Proteção de Cauda (BWB)"
 Cohesion: 0.25
 Nodes (8): 4.1. Migração: `database.py` → `_migrar_historico_simulacoes()`, 4.2. INSERT: `repositories.py` → `HistoricoSimulacoesRepository.salvar_lote()`, 4. Expandir banco: `historico_simulacoes` + `salvar_lote`, 5. Arquivos tocados — resumo, 6. Ordem de implementação, 7. Riscos, Plano de Integração — Proteção de Cauda (BWB), Visão geral: o que a calculadora precisa
@@ -1565,8 +1514,8 @@ Cohesion: 0.25
 Nodes (7): Contrato (Requisitos), `copiar_basket_pnt(linhas) -> None`, Dependências Diretas (por import), `fmt_br(valor) -> str`, Métricas, Notas, pnt_utils
 
 ### Community 323 - "or_chain"
-Cohesion: 0.39
-Nodes (3): or_chain(), Encadeia chaves com ``or`` (ex.: vov_put_boca or vov_put or 0.0)., TestOrChain
+Cohesion: 0.16
+Nodes (4): MockMarketDataProvider, TestMockMarketDataProvider, TestMonitorWorker, TestRTDConfig
 
 ### Community 324 - "Códigos B3 — Opções sobre Ações"
 Cohesion: 0.29
@@ -1600,17 +1549,9 @@ Nodes (6): Contrato (Requisitos), Dependências Diretas (por import), MarketData
 Cohesion: 0.29
 Nodes (6): Contrato (Requisitos), Dependências Diretas (por import), Métricas, Notas, OportunidadeVendida, `OportunidadeVendida` (dataclass, `slots=True`)
 
-### Community 332 - "strike_limpo"
-Cohesion: 0.43
-Nodes (3): Strike RTD: aceito apenas se truthy e > 0, senão 0.0., strike_limpo(), TestStrikeLimpo
-
 ### Community 333 - "Sessão 07/08/2026"
 Cohesion: 0.33
 Nodes (5): Bugs encontrados e corrigidos, Módulos auditados, Pendências para amanhã, Resumo, Sessão 07/08/2026
-
-### Community 334 - "or_default"
-Cohesion: 0.47
-Nodes (3): or_default(), Equivalente a ``mercado.get(chave, default) or default`` (truthiness)., TestOrDefault
 
 ### Community 335 - "planoprotecaocauda.md"
 Cohesion: 0.40
@@ -1676,20 +1617,24 @@ Nodes (4): 3.1. Ponto de inserção, 3.2. Tratar retorno `None`, 3.3. Acrescenta
 Cohesion: 0.67
 Nodes (3): Plano evidenciado: dados antigos via OpenFast, Probe SQT topics PETR4/VALE3 (ASK,BID,TIME,TIMENEG,PEX…), SYN heartbeat (conectividade, não cotação)
 
+### Community 646 - "TestVendidaLeilaoDisplay"
+Cohesion: 0.36
+Nodes (3): Leilao por perna nas oportunidades Vendidas e Venda Coberta.  leilao_display exi, TestVendidaLeilaoDisplay, _vendida()
+
 ## Knowledge Gaps
-- **1620 isolated node(s):** `$schema`, `plugin`, `@opencode-ai/plugin`, `spreadhunter`, `ImportarResultado` (+1615 more)
+- **1634 isolated node(s):** `$schema`, `plugin`, `@opencode-ai/plugin`, `spreadhunter`, `ImportarResultado` (+1629 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **336 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `ParametroRepository` connect `Test Fix Onda1 Sem Preco` to `Colar Dialog`, `Sensibilidade Mercado Widget`, `Mercado Data Provider`, `Workspace Service & Snapshot`, `Harness Stale Of Compra`, `Calculadora Custos B3`, `Equivalencia Vendidas Coberta`, `Som Service`, `Flag Icons`, `Blacklist Import Dialog`, `Main Window`, `Harness Stale Of Compra`, `Fix Sem Ativo Skip`, `Colar Calendario Dialog`, `Monitor Worker`, `Calculadora Colar Calendario`, `Column Crash`, `Mercado Topbar`, `Fase1`, `Calculadoras Dialog`, `Mpp Use Case`, `Put Ratio Dialog`, `Calculadora Cauda Assincrona`, `Fix Stale Of Compra`, `Monitor Oportunidades`, `Colar Calendario Dialog`, `Feriados Dialog`, `Excel Importer`, `Fase4`, `Export Dialog`, `Parametros Widget`, `Monitor Put Ratio`, `Estudos Calendario Dialog`, `Pnt`, `Boleta Dialog`, `Harness Onda2 Sem Repromocao`, `Benchmark Stale Of Compra`, `Monitor Box`, `Repositories`, `Fix Onda1 Sem Preco`, `Fix Onda1 Sem Preco`, `Fix Sem Ativo Skip`, `Fix Onda1 Sem Preco`, `Monitor Colares`, `Main Window`, `Telegram Service`, `Pipeline Dialog`, `Whitelist Box4P Dialog`, `Pnt`, `Oportunidade`, `Pnt`, `Fase4`?**
-  _High betweenness centrality (0.081) - this node is a cross-community bridge._
-- **Why does `FieldName` connect `Harness Stale Of Compra` to `Openfast Socket Adapter`, `Sensibilidade Mercado Widget`, `Mercado Data Provider`, `Calculadora Custos B3`, `Flag Icons`, `Main Window`, `Test Fix Onda1 Sem Preco`, `Openfast Socket Adapter`, `Harness Stale Of Compra`, `Rtd Profit Adapter`, `Fix Sem Ativo Skip`, `Colar Calendario Dialog`, `Monitor Worker`, `Rtd Profit Adapter`, `Mercado Topbar`, `Fase1`, `Mpp Use Case`, `Fix Stale Of Compra`, `Monitor Oportunidades`, `le_f()`, `Export Dialog`, `TestOpenFastSocketAdapterRegistrar`, `Fast Trade Rtd Adapter`, `Monitor Put Ratio`, `Reader Perf`, `Harness Onda2 Sem Repromocao`, `Fast Trade Rtd Adapter`, `Stale Trace`, `Benchmark Stale Of Compra`, `Monitor Box`, `Rtd Profit Adapter`, `Repositories`, `Fix Onda1 Sem Preco`, `Fix Onda1 Sem Preco`, `Fix Sem Ativo Skip`, `TestOpenFastSocketAdapterConecta`, `TestOpenFastSocketAdapterSeparador`, `Fix Onda1 Sem Preco`, `Openfast Socket Adapter`, `Monitor Colares`, `Mock Fast Trade Server`?**
-  _High betweenness centrality (0.068) - this node is a cross-community bridge._
-- **Why does `MainWindow` connect `Main Window` to `Colar Dialog`, `Sensibilidade Mercado Widget`, `Workspace Service & Snapshot`, `Harness Stale Of Compra`, `Calculadora Custos B3`, `Equivalencia Vendidas Coberta`, `Flag Icons`, `Test Fix Onda1 Sem Preco`, `Monitor Worker`, `Column Crash`, `Mercado Topbar`, `Fase1`, `Calculadoras Dialog`, `Put Ratio Dialog`, `Box Dialog`, `Colar Calendario Dialog`, `Repositories`, `Feriados Dialog`, `Fase4`, `Main Window`, `Dtos Vendida`, `Export Dialog`, `Parametros Widget`, `Opcoesnet Client`, `Dividendos Dialog`, `Estudos Calendario Dialog`, `Boleta Dialog`, `Grade Opcoes Dialog`, `Main Window`, `Repositories`, `Historico Dialog`, `Main Window`, `Main Window`, `Pipeline Dialog`, `Main Window`?**
-  _High betweenness centrality (0.045) - this node is a cross-community bridge._
+- **Why does `ParametroRepository` connect `Test Fix Onda1 Sem Preco` to `Openfast Socket Adapter`, `Colar Dialog`, `Sensibilidade Mercado Widget`, `Mercado Data Provider`, `Workspace Service & Snapshot`, `Calculadora Protecao Cauda`, `Fase2`, `Harness Stale Of Compra`, `Calculadora Custos B3`, `Equivalencia Vendidas Coberta`, `Som Service`, `Flag Icons`, `Main Window`, `Harness Stale Of Compra`, `Fix Sem Ativo Skip`, `Colar Calendario Dialog`, `Display Mismatch`, `Monitor Worker`, `Calculadora Colar Calendario`, `Column Crash`, `Mercado Topbar`, `Fase1`, `Calculadoras Dialog`, `Mpp Use Case`, `Put Ratio Dialog`, `Fix Stale Of Compra`, `Monitor Oportunidades`, `Colar Calendario Dialog`, `Repositories`, `Feriados Dialog`, `Fase4`, `test_calcular_custos_vendida.py`, `le_f()`, `Calculadora Put Ratio`, `Export Dialog`, `Parametros Widget`, `Monitor Put Ratio`, `Estudos Calendario Dialog`, `Pnt`, `Dtos`, `Boleta Dialog`, `Times Dialog`, `or_chain`, `Harness Onda2 Sem Repromocao`, `Benchmark Stale Of Compra`, `Fix Onda1 Sem Preco`, `Fix Onda1 Sem Preco`, `Fix Sem Ativo Skip`, `Monitor Colares`, `Main Window`, `Telegram Service`, `Whitelist Box4P Dialog`, `Main Window`, `Pnt`, `Pnt`, `Fase4`, `Pipeline Calendario`?**
+  _High betweenness centrality (0.087) - this node is a cross-community bridge._
+- **Why does `FieldName` connect `Harness Stale Of Compra` to `Openfast Socket Adapter`, `Sensibilidade Mercado Widget`, `Mercado Data Provider`, `Fase2`, `Equivalencia Vendidas Coberta`, `Flag Icons`, `Main Window`, `Test Fix Onda1 Sem Preco`, `Openfast Socket Adapter`, `Harness Stale Of Compra`, `Rtd Profit Adapter`, `Fix Sem Ativo Skip`, `Colar Calendario Dialog`, `Display Mismatch`, `Monitor Worker`, `Mercado Topbar`, `Fase1`, `Mpp Use Case`, `Fix Stale Of Compra`, `test_calcular_custos_vendida.py`, `Export Dialog`, `Monitor Put Ratio`, `Estudos Calendario Dialog`, `Times Dialog`, `or_chain`, `Harness Onda2 Sem Repromocao`, `Reader Perf`, `Fast Trade Rtd Adapter`, `Rtd Profit`, `Stale Trace`, `Benchmark Stale Of Compra`, `Rtd Profit Adapter`, `Fix Onda1 Sem Preco`, `Fix Onda1 Sem Preco`, `Fix Sem Ativo Skip`, `Openfast Socket Adapter`, `Monitor Colares`, `Mock Fast Trade Server`?**
+  _High betweenness centrality (0.067) - this node is a cross-community bridge._
+- **Why does `MainWindow` connect `Main Window` to `Colar Dialog`, `Sensibilidade Mercado Widget`, `Workspace Service & Snapshot`, `Harness Stale Of Compra`, `Equivalencia Vendidas Coberta`, `Flag Icons`, `Test Fix Onda1 Sem Preco`, `Monitor Worker`, `Column Crash`, `Mercado Topbar`, `Fase1`, `Calculadoras Dialog`, `Put Ratio Dialog`, `Box Dialog`, `Repositories`, `Feriados Dialog`, `Fase4`, `Dtos Vendida`, `Export Dialog`, `Parametros Widget`, `Opcoesnet Client`, `Dividendos Dialog`, `Estudos Calendario Dialog`, `Boleta Dialog`, `Grade Opcoes Dialog`, `Main Window`, `Dtos Venda Coberta`, `Repositories`, `Historico Dialog`, `Main Window`, `Monitor Put Ratio`, `Rtd Fast Trade`, `Main Window`, `Whitelist Box4P Dialog`, `Main Window`, `Pipeline Calendario`?**
+  _High betweenness centrality (0.044) - this node is a cross-community bridge._
 - **Are the 112 inferred relationships involving `ParametroRepository` (e.g. with `FakeRTD` and `FakeSource`) actually correct?**
   _`ParametroRepository` has 112 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 95 inferred relationships involving `InstrumentoRepository` (e.g. with `FakeRTD` and `FakeSource`) actually correct?**

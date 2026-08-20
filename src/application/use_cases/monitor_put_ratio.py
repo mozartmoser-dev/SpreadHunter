@@ -44,6 +44,16 @@ class MonitorPutRatioUseCase:
             return rtd.ler_campo_cache(codigo, campo, allow_stale=True)
         return rtd.ler_campo_cache(codigo, campo)
 
+    def _forcar_leitura(self, rtd, codigo: str, campo: FieldName):
+        push = getattr(rtd, 'suporta_push', False) and getattr(rtd, 'disponivel', True)
+        try:
+            return rtd.forcar_leitura(codigo, campo, allow_stale=push, timeout_ms=200)
+        except TypeError:
+            try:
+                return rtd.forcar_leitura(codigo, campo, allow_stale=push)
+            except TypeError:
+                return rtd.forcar_leitura(codigo, campo)
+
     def __init__(self, db_path=None):
         self.db_path = db_path
         self.inst_repo = InstrumentoRepository(db_path)
@@ -428,15 +438,8 @@ class MonitorPutRatioUseCase:
             if not r.viavel:
                 confirmados.append(r)
                 continue
-            try:
-                ask_p1 = rtd.forcar_leitura(r.cod_put_k1, FieldName.ASK, timeout_ms=200)
-            except TypeError:
-                ask_p1 = rtd.forcar_leitura(r.cod_put_k1, FieldName.ASK)
-
-            try:
-                bid_p2 = rtd.forcar_leitura(r.cod_put_k2, FieldName.BID, timeout_ms=200)
-            except TypeError:
-                bid_p2 = rtd.forcar_leitura(r.cod_put_k2, FieldName.BID)
+            ask_p1 = self._forcar_leitura(rtd, r.cod_put_k1, FieldName.ASK)
+            bid_p2 = self._forcar_leitura(rtd, r.cod_put_k2, FieldName.BID)
             if any(v is None or v <= 0 for v in (ask_p1, bid_p2)):
                 continue
             du = dc_to_du(hoje, r.vencimento) if r.vencimento else None

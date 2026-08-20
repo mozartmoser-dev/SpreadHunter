@@ -70,6 +70,16 @@ class MonitorBoxUseCase:
             return rtd.ler_campos(codigo, *campos, allow_stale=True)
         return rtd.ler_campos(codigo, *campos)
 
+    def _forcar_leitura(self, rtd, codigo: str, campo: FieldName):
+        push = getattr(rtd, 'suporta_push', False) and getattr(rtd, 'disponivel', True)
+        try:
+            return rtd.forcar_leitura(codigo, campo, allow_stale=push, timeout_ms=200)
+        except TypeError:
+            try:
+                return rtd.forcar_leitura(codigo, campo, allow_stale=push)
+            except TypeError:
+                return rtd.forcar_leitura(codigo, campo)
+
     def _extrair(self, inst: InstrumentoOpcional, rtd) -> dict | None:
         c_put = self._ler_campos(rtd, inst.cod_put, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
         c_call = self._ler_campos(rtd, inst.cod_call, FieldName.BID, FieldName.ASK, FieldName.VOL_BID, FieldName.VOL_ASK)
@@ -354,25 +364,10 @@ class MonitorBoxUseCase:
             if not r.viavel:
                 confirmados.append(r)
                 continue
-            try:
-                bid_c1 = rtd.forcar_leitura(r.cod_call_k1, FieldName.BID, timeout_ms=200)
-            except TypeError:
-                bid_c1 = rtd.forcar_leitura(r.cod_call_k1, FieldName.BID)
-
-            try:
-                ask_p1 = rtd.forcar_leitura(r.cod_put_k1, FieldName.ASK, timeout_ms=200)
-            except TypeError:
-                ask_p1 = rtd.forcar_leitura(r.cod_put_k1, FieldName.ASK)
-
-            try:
-                ask_c2 = rtd.forcar_leitura(r.cod_call_k2, FieldName.ASK, timeout_ms=200)
-            except TypeError:
-                ask_c2 = rtd.forcar_leitura(r.cod_call_k2, FieldName.ASK)
-
-            try:
-                bid_p2 = rtd.forcar_leitura(r.cod_put_k2, FieldName.BID, timeout_ms=200)
-            except TypeError:
-                bid_p2 = rtd.forcar_leitura(r.cod_put_k2, FieldName.BID)
+            bid_c1 = self._forcar_leitura(rtd, r.cod_call_k1, FieldName.BID)
+            ask_p1 = self._forcar_leitura(rtd, r.cod_put_k1, FieldName.ASK)
+            ask_c2 = self._forcar_leitura(rtd, r.cod_call_k2, FieldName.ASK)
+            bid_p2 = self._forcar_leitura(rtd, r.cod_put_k2, FieldName.BID)
             if any(v is None or v <= 0 for v in (bid_c1, ask_p1, ask_c2, bid_p2)):
                 continue
             du = dc_to_du(hoje, r.vencimento) if r.vencimento else None

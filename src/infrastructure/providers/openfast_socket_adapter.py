@@ -2,6 +2,7 @@ import socket
 import threading
 import time
 import logging
+import unicodedata
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -26,6 +27,12 @@ def _midnight_brt_epoch() -> float:
     agora_brt = datetime.now(_TZ_BR)
     midnight = agora_brt.replace(hour=0, minute=0, second=0, microsecond=0)
     return midnight.timestamp()
+
+
+def _normalizar_status(status: str) -> str:
+    """Remove acento combinante para comparacao robusta (ex.: 'Leil?o' do servidor)."""
+    chave = unicodedata.normalize("NFD", status.upper())
+    return "".join(c for c in chave if unicodedata.category(c) != "Mn")
 
 
 def _normalizar_ts_origem(raw) -> float | None:
@@ -362,7 +369,13 @@ class OpenFastSocketAdapter:
     def ler_status_cache(self, codigo: str) -> str:
         with self._mutex:
             raw = self._cache.get((codigo.upper(), "ST"), "")
-        return _STATUS_NORMALIZE.get(str(raw).upper(), str(raw))
+        s = str(raw)
+        conhecido = _STATUS_NORMALIZE.get(s.upper(), "")
+        if conhecido:
+            return conhecido
+        if _normalizar_status(s).startswith("LEIL"):
+            return "Leilão"
+        return s
 
     def forcar_leitura(self, codigo: str, campo: FieldName,
                        allow_stale: bool = False, timeout_ms: int = 500) -> float | None:

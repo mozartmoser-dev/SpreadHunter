@@ -1,6 +1,44 @@
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
+
+
+def montar_leilao_label(status_ativo, status_put, status_call) -> str:
+    """Pernas fora de 'aberto' (leilão/fechado), per-perna.
+
+    Formato: 'Leilão Ativo', 'Leilão PUT', 'Leilão Ativo + PUT + CALL'.
+    Status diferente de leilão (ex. 'Fechado') -> 'PUT: Fechado'.
+    Tolerante a artefatos de encoding (ex.: 'Leil?o' do OpenFast, 'ã' decomposto).
+    """
+    def _chave(status) -> str:
+        if status is None:
+            return ""
+        s = unicodedata.normalize("NFD", str(status))
+        s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+        return s.strip().lower()
+
+    leilao_pernas: list[str] = []
+    outros: list[str] = []
+    for nome, status in (
+        ("Ativo", status_ativo),
+        ("PUT", status_put),
+        ("CALL", status_call),
+    ):
+        s = _chave(status)
+        if not s or s == "aberto":
+            continue
+        if s.startswith("leil"):
+            leilao_pernas.append(nome)
+        else:
+            outros.append(f"{nome}: {status}")
+    partes: list[str] = []
+    if leilao_pernas and not outros:
+        partes.append("Leilão " + " + ".join(leilao_pernas))
+    else:
+        partes.extend(f"Leilão {n}" for n in leilao_pernas)
+    partes.extend(outros)
+    return " + ".join(partes)
 
 
 class TipoExportacao(Enum):
@@ -79,27 +117,7 @@ class OportunidadeMonitor:
         ('Leilão Ativo', 'Leilão PUT', 'Leilão Ativo + PUT + CALL').
         Status diferente de leilão (ex. 'Fechado') -> 'PUT: Fechado'.
         """
-        leilao_pernas: list[str] = []
-        outros: list[str] = []
-        for nome, status in (
-            ("Ativo", self.status_ativo),
-            ("PUT", self.status_put),
-            ("CALL", self.status_call),
-        ):
-            s = str(status).strip().lower()
-            if not s or s == "aberto":
-                continue
-            if s in ("leilão", "leilao"):
-                leilao_pernas.append(nome)
-            else:
-                outros.append(f"{nome}: {status}")
-        partes: list[str] = []
-        if leilao_pernas and not outros:
-            partes.append("Leilão " + " + ".join(leilao_pernas))
-        else:
-            partes.extend(f"Leilão {n}" for n in leilao_pernas)
-        partes.extend(outros)
-        return " + ".join(partes)
+        return montar_leilao_label(self.status_ativo, self.status_put, self.status_call)
 
     @property
     def idade_ativo_ask(self) -> float | None:

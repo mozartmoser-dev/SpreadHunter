@@ -453,11 +453,19 @@ def test_monitor_leilao_display(qapp):
 
 
 def test_monitor_leilao_display_por_perna(qapp):
-    """leilao_display mostra a perna em leilao quando o status vem informado."""
+    """leilao_display mostra triângulo + a perna em leilao quando o status vem informado."""
     model = MonitorTableModel()
     model.atualizar([_monitor_opp(em_leilao=True, status_put="leilão")])
     idx = model.index(0, _monitor_col_key("leilao_display"))
-    assert model.data(idx, Qt.ItemDataRole.DisplayRole) == "Leilão PUT"
+    assert model.data(idx, Qt.ItemDataRole.DisplayRole) == "\u26a0 Leilão PUT"
+
+
+def test_monitor_leilao_display_artefato_encoding(qapp):
+    """leilao_display tolera o artefato 'Leil?o' (ã trocado por ? no servidor OpenFast)."""
+    model = MonitorTableModel()
+    model.atualizar([_monitor_opp(em_leilao=True, status_ativo="Leil?o")])
+    idx = model.index(0, _monitor_col_key("leilao_display"))
+    assert model.data(idx, Qt.ItemDataRole.DisplayRole) == "\u26a0 Leilão Ativo"
 
 
 def test_monitor_money_display(qapp):

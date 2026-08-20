@@ -11,6 +11,7 @@ HEADERS = {
 }
 
 STATUSINVEST_URL = "https://statusinvest.com.br/acoes/{}"
+DADOSMERCADO_URL = "https://www.dadosdemercado.com.br/acoes/{}/dividendos"
 
 
 class DividendosStatusInvestProvider:
@@ -35,6 +36,12 @@ class DividendosStatusInvestProvider:
         return data_str
 
     def buscar_proventos(self, ticker: str) -> list[dict]:
+        return self._mesclar(
+            self._buscar_statusinvest(ticker),
+            self._buscar_dadosdemercado(ticker),
+        )
+
+    def _buscar_statusinvest(self, ticker: str) -> list[dict]:
         dividendos = []
         url = STATUSINVEST_URL.format(ticker.lower())
         try:
@@ -78,6 +85,62 @@ class DividendosStatusInvestProvider:
         except Exception as e:
             logger.warning(f"StatusInvest: erro ao buscar {ticker}: {e}")
             return []
+
+    def _buscar_dadosdemercado(self, ticker: str) -> list[dict]:
+        dividendos = []
+        url = DADOSMERCADO_URL.format(ticker.lower())
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=15)
+            if resp.status_code != 200:
+                logger.warning(f"DadosMercado: HTTP {resp.status_code} para {ticker}")
+                return []
+
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            table = soup.find('table', class_='normal-table')
+            if table is None:
+                return []
+
+            # Colunas: Tipo, Valor, Registro (data com), Ex, Pagamento
+            rows = table.find('tbody').find_all('tr')
+            for row in rows:
+                cols = row.find_all('td')
+                if len(cols) < 5:
+                    continue
+
+                tipo = cols[0].get_text(strip=True)
+                data_com = self._parse_date(cols[2].get_text(strip=True))
+                data_ex = self._parse_date(cols[3].get_text(strip=True))
+                data_pag = self._parse_date(cols[4].get_text(strip=True))
+
+                dividendos.append({
+                    "ativo": ticker.upper(),
+                    "tipo": tipo,
+                    "data_com": data_com,
+                    "data_ex": data_ex or self._proximo_dia_util(data_com),
+                    "data_pagamento": data_pag,
+                    "valor": self._parse_valor(cols[1].get_text(strip=True)),
+                    "fonte": "dadosdemercado",
+                })
+
+            return dividendos
+        except Exception as e:
+            logger.warning(f"DadosMercado: erro ao buscar {ticker}: {e}")
+            return []
+
+    @staticmethod
+    def _mesclar(*listas: list[dict]) -> list[dict]:
+        mapa = {}
+        for lista in listas:
+            for div in lista:
+                chave = (div.get("data_com"), div.get("tipo"))
+                if chave not in mapa:
+                    mapa[chave] = dict(div)
+                    continue
+                atual = mapa[chave]
+                for campo in ("data_ex", "data_pagamento", "valor"):
+                    if atual.get(campo) in (None, "-") and div.get(campo) not in (None, "-"):
+                        atual[campo] = div.get(campo)
+        return list(mapa.values())
 
     @staticmethod
     def _parse_date(date_str: str) -> str | None:

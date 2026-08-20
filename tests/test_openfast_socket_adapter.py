@@ -161,6 +161,15 @@ class TestOpenFastSocketAdapterCache:
         assert v == ""
         adapter.desconectar()
 
+    def test_ler_status_cache_leilao_artefato_encoding(self, server):
+        """Servidor manda 'Leil?o' (ã virou ?); adapter normaliza para 'Leilão'."""
+        adapter = OpenFastSocketAdapter(host=HOST, port=PORT, send_delay_s=0.001)
+        server.push("PETR4", "ST", "Leil?o")
+        time.sleep(0.1)
+        v = adapter.ler_status_cache("PETR4")
+        assert v == "Leilão"
+        adapter.desconectar()
+
 
 class TestOpenFastSocketAdapterDirtyKeys:
     def test_refresh_retorna_mudancas(self, server):

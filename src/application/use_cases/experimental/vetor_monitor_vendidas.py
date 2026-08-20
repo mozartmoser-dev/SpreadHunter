@@ -80,6 +80,9 @@ class VetorMonitorVendidasUseCase:
         _qul_put: list = []
         _qul_call: list = []
         _em_leilao: list = []
+        _status_put: list = []
+        _status_call: list = []
+        _status_ativo: list = []
         _ts_ask: list = []
         _ts_bid: list = []
         _ts_origem: list = []
@@ -120,6 +123,9 @@ class VetorMonitorVendidasUseCase:
             _qul_put.append(mercado.get("qul_put", 0.0) or 0.0)
             _qul_call.append(mercado.get("qul_call", 0.0) or 0.0)
             _em_leilao.append(mercado.get("em_leilao", False))
+            _status_put.append(mercado.get("status_put", "") or "")
+            _status_call.append(mercado.get("status_call", "") or "")
+            _status_ativo.append(mercado.get("status_ativo", "") or "")
             _ts_ask.append(mercado.get("ts_ativo_ask"))
             _ts_bid.append(mercado.get("ts_ativo_bid"))
             _ts_origem.append(mercado.get("ts_origem_ativo"))
@@ -192,6 +198,9 @@ class VetorMonitorVendidasUseCase:
                         pct_cdi=round(_pct_cdi_box[i], 4),
                         viavel=_viavel_box[i],
                         em_leilao=_em_leilao[i],
+                        status_put=_status_put[i],
+                        status_call=_status_call[i],
+                        status_ativo=_status_ativo[i],
                         liq_put_x_lote=_vov_put[i] - lote_box,
                         liq_call_x_lote=_voc_call[i] - lote_box,
                         preco_ativo=round(p_ativo, 2),
@@ -233,6 +242,9 @@ class VetorMonitorVendidasUseCase:
                         pct_cdi=round(_pct_cdi_sbth[i], 4),
                         viavel=_viavel_sbth[i],
                         em_leilao=bool(_em_leilao[i]),
+                        status_put=_status_put[i],
+                        status_call=_status_call[i],
+                        status_ativo=_status_ativo[i],
                         liq_put_x_lote=_vov_put[i] - lote_sbth,
                         liq_call_x_lote=0.0,
                         preco_ativo=round(p_ativo, 2),

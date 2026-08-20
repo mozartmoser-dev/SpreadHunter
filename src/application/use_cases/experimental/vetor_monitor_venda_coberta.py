@@ -125,6 +125,9 @@ class VetorMonitorVendaCobertaUseCase:
             )
 
             em_leilao_l = [dados_mercado[k].get("em_leilao", False) for k in chaves_validas]
+            status_put_l = [dados_mercado[k].get("status_put", "") or "" for k in chaves_validas]
+            status_call_l = [dados_mercado[k].get("status_call", "") or "" for k in chaves_validas]
+            status_ativo_l = [dados_mercado[k].get("status_ativo", "") or "" for k in chaves_validas]
             ts_ask = extrair_passthrough(chaves_validas, dados_mercado, "ts_ativo_ask")
             ts_bid = extrair_passthrough(chaves_validas, dados_mercado, "ts_ativo_bid")
             ts_origem = extrair_passthrough(chaves_validas, dados_mercado, "ts_origem_ativo")
@@ -158,6 +161,9 @@ class VetorMonitorVendaCobertaUseCase:
                     pct_cdi=round(float(res.pct_cdi[i]), 4),
                     viavel=bool(res.viavel[i]),
                     em_leilao=em_leilao_l[i],
+                    status_put=status_put_l[i],
+                    status_call=status_call_l[i],
+                    status_ativo=status_ativo_l[i],
                     liq_call_x_lote=float(voc_call[i] - lote_call),
                     preco_ativo=round(p_ativo, 2),
                     of_venda_call=round(float(of_venda_call[i]), 2),
@@ -225,6 +231,9 @@ class VetorMonitorVendaCobertaUseCase:
         _voc_call: list = []
         _strikes: list = []
         _em_leilao: list = []
+        _status_put: list = []
+        _status_call: list = []
+        _status_ativo: list = []
         _ts_ask: list = []
         _ts_bid: list = []
         _ts_origem: list = []
@@ -256,6 +265,9 @@ class VetorMonitorVendaCobertaUseCase:
             _of_compra_call.append(mercado.get("of_compra_call", 0.0) or 0.0)
             _voc_call.append(mercado.get("voc_call_boca", 0.0) or mercado.get("voc_call", 0.0) or 0.0)
             _em_leilao.append(mercado.get("em_leilao", False))
+            _status_put.append(mercado.get("status_put", "") or "")
+            _status_call.append(mercado.get("status_call", "") or "")
+            _status_ativo.append(mercado.get("status_ativo", "") or "")
             _ts_ask.append(mercado.get("ts_ativo_ask"))
             _ts_bid.append(mercado.get("ts_ativo_bid"))
             _ts_origem.append(mercado.get("ts_origem_ativo"))
@@ -315,6 +327,9 @@ class VetorMonitorVendaCobertaUseCase:
                     pct_cdi=round(_pct_cdi[i], 4),
                     viavel=_viavel[i],
                     em_leilao=_em_leilao[i],
+                    status_put=_status_put[i],
+                    status_call=_status_call[i],
+                    status_ativo=_status_ativo[i],
                     liq_call_x_lote=_voc_call[i] - lote_liquidez,
                     preco_ativo=round(p_ativo, 2),
                     of_venda_call=round(_of_compra_call[i], 2),

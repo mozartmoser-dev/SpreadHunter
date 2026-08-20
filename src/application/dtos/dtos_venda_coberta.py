@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from datetime import date, datetime
 
+from src.application.dtos.dtos import montar_leilao_label
+
 
 @dataclass(slots=True)
 class OportunidadeVendaCoberta:
@@ -31,6 +33,9 @@ class OportunidadeVendaCoberta:
     pct_ganho_liquido: float = 0.0
     pct_cdi_bruto: float = 0.0
     pct_cdi_liquido: float = 0.0
+    status_put: str = ""
+    status_call: str = ""
+    status_ativo: str = ""
     detectado_em: datetime | None = None
     ts_ativo_ask: float | None = None
     ts_ativo_bid: float | None = None
@@ -105,7 +110,10 @@ class OportunidadeVendaCoberta:
 
     @property
     def leilao_display(self) -> str:
-        return "\u26a0 LEILAO" if self.em_leilao else ""
+        if not self.em_leilao:
+            return ""
+        label = montar_leilao_label(self.status_ativo, self.status_put, self.status_call)
+        return "\u26a0 " + label if label else "\u26a0 LEILAO"
 
     @property
     def ganho_bruto_display(self) -> str:

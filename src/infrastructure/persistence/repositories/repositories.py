@@ -639,9 +639,10 @@ class DividendoRepository:
             conn.execute(
                 f"""INSERT INTO dividendos ({COLUNAS_DIVIDENDOS})
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(ativo, data_com, tipo, data_pagamento) DO UPDATE SET
-                       data_ex=excluded.data_ex,
-                       data_aprovacao=excluded.data_aprovacao,
+ON CONFLICT(ativo, data_com, tipo) DO UPDATE SET
+    data_ex=excluded.data_ex,
+    data_pagamento=excluded.data_pagamento,
+    data_aprovacao=excluded.data_aprovacao,
                        valor=excluded.valor,
                        tipo_acao=excluded.tipo_acao,
                        preco_fechamento=excluded.preco_fechamento,
@@ -663,9 +664,10 @@ class DividendoRepository:
             conn.executemany(
                 f"""INSERT INTO dividendos ({COLUNAS_DIVIDENDOS})
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(ativo, data_com, tipo, data_pagamento) DO UPDATE SET
-                       data_ex=excluded.data_ex,
-                       data_aprovacao=excluded.data_aprovacao,
+ON CONFLICT(ativo, data_com, tipo) DO UPDATE SET
+    data_ex=excluded.data_ex,
+    data_pagamento=excluded.data_pagamento,
+    data_aprovacao=excluded.data_aprovacao,
                        valor=excluded.valor,
                        tipo_acao=excluded.tipo_acao,
                        preco_fechamento=excluded.preco_fechamento,
