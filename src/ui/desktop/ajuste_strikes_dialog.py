@@ -5,11 +5,100 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableView,
     QAbstractItemView, QHeaderView, QMessageBox,
 )
-from PySide6.QtCore import Qt, QAbstractTableModel
+from PySide6.QtCore import Qt, QAbstractTableModel, QThread, Signal
 from PySide6.QtGui import QFont, QColor, QBrush
 
 from src.domain.services.market_data_source import FieldName
 from src.ui.desktop.theme import Palette
+
+
+def consultar_divergencias_strikes(source, db_path, hoje):
+    """Consulta o PEX no OpenFast e retorna (itens, resumo).
+
+    Roda em background (QThread) para não travar a UI. Lógica equivalente à
+    antiga consulta síncrona que dormia 2s na thread da interface.
+    """
+    import time as _time
+    from src.infrastructure.persistence.database import get_connection
+
+    conn = get_connection(db_path)
+    proventos = conn.execute(
+        "SELECT ativo, valor FROM dividendos WHERE data_ex = ? AND valor > 0",
+        (hoje,),
+    ).fetchall()
+    provento_por_ativo = {}
+    for a, v in proventos:
+        provento_por_ativo[a] = provento_por_ativo.get(a, 0.0) + float(v)
+    ativos = sorted(set(provento_por_ativo))
+
+    if not ativos:
+        return [], "Nenhum ativo com data_ex hoje. Nada a ajustar."
+
+    itens: list[dict] = []
+    codigos = []
+    pares = []
+    for ativo in ativos:
+        insts = conn.execute(
+            "SELECT cod_put, cod_call, strike FROM instrumentos_base WHERE ativo = ? AND strike IS NOT NULL",
+            (ativo,),
+        ).fetchall()
+        for cp, cc, st in insts:
+            if cp:
+                codigos.append((cp, FieldName.STRIKE))
+            if cc:
+                codigos.append((cc, FieldName.STRIKE))
+            pares.append((ativo, cp, cc, st, provento_por_ativo.get(ativo, 0.0)))
+
+    if not codigos:
+        return [], "Nenhum instrumento no banco para os ativos com data_ex hoje."
+
+    source.registrar_lista(codigos)
+    _time.sleep(2.0)
+
+    for ativo, cp, cc, st, provento in pares:
+        pex_put = source.ler_campos(cp, FieldName.STRIKE, allow_stale=True).get(FieldName.STRIKE) if cp else None
+        pex_call = source.ler_campos(cc, FieldName.STRIKE, allow_stale=True).get(FieldName.STRIKE) if cc else None
+        pex = pex_put if pex_put else pex_call
+        cod = cp or cc
+        if pex is None or not st:
+            continue
+        if abs(float(pex) - float(st)) > 0.005:
+            itens.append({
+                "ativo": ativo,
+                "cod": cod,
+                "strike_banco": float(st),
+                "strike_openfast": float(pex),
+                "provento": provento,
+                "data_ex": hoje,
+                "esperado": float(st) - float(provento),
+            })
+
+    resumo = (
+        f"Divergências encontradas: {len(itens)}"
+        if itens
+        else "Nenhuma divergência entre banco e OpenFast nos ativos com data_ex hoje."
+    )
+    return itens, resumo
+
+
+class _ConsultarStrikesThread(QThread):
+    concluido = Signal(list, str)
+    falhou = Signal(str)
+
+    def __init__(self, source, db_path, hoje):
+        super().__init__()
+        self._source = source
+        self._db_path = db_path
+        self._hoje = hoje
+
+    def run(self):
+        try:
+            itens, resumo = consultar_divergencias_strikes(
+                self._source, self._db_path, self._hoje
+            )
+            self.concluido.emit(itens, resumo)
+        except Exception as e:
+            self.falhou.emit(str(e))
 
 
 class AjusteStrikesTableModel(QAbstractTableModel):
@@ -92,10 +181,11 @@ class AjusteStrikesDialog(QDialog):
         self.aplicou = False
         self._items = []
         self._hoje = None
+        self._consultar_thread = None
         self.setWindowTitle("Ajustar Strikes (divergência por provento)")
         self.setMinimumSize(760, 420)
         self._setup_ui()
-        self._consultar()
+        self._iniciar_consulta()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -161,99 +251,37 @@ class AjusteStrikesDialog(QDialog):
             return None
         return worker.market_data_source
 
-    def _consultar(self):
+    def _iniciar_consulta(self):
+        """Abre a janela na hora e consulta o PEX em background (sem travar a UI)."""
+        from datetime import date
+        self._hoje = date.today().isoformat()
+
         source = self._obter_source()
         if source is None or not getattr(source, "disponivel", False):
             self.lbl_topo.setText("❌ OpenFast desconectado — não é possível consultar os strikes.")
             self.lbl_topo.setStyleSheet("color: {}; font-weight: bold;".format(Palette.RED))
             return
 
-        from src.infrastructure.persistence.database import get_connection
-        from datetime import date
-        hoje = date.today().isoformat()
-        self._hoje = hoje
+        self.lbl_topo.setText("Consultando PEX no OpenFast... (os dados chegam em instantes)")
+        self._consultar_thread = _ConsultarStrikesThread(source, self.db_path, self._hoje)
+        self._consultar_thread.concluido.connect(self._on_consulta_concluida)
+        self._consultar_thread.falhou.connect(self._on_consulta_falhou)
+        self._consultar_thread.start()
 
-        try:
-            conn = get_connection(self.db_path)
-            proventos = conn.execute(
-                "SELECT ativo, valor FROM dividendos WHERE data_ex = ? AND valor > 0",
-                (hoje,),
-            ).fetchall()
-            provento_por_ativo = {}
-            for a, v in proventos:
-                provento_por_ativo[a] = provento_por_ativo.get(a, 0.0) + float(v)
-            ativos = sorted(set(provento_por_ativo))
-        except Exception as e:
-            QMessageBox.critical(self, "Erro", f"Erro ao ler dividendos:\n{e}")
-            return
-
-        if not ativos:
-            self.lbl_topo.setText("Nenhum ativo com data_ex hoje. Nada a ajustar.")
-            self.lbl_status.setText("0 registros")
-            return
-
-        self.lbl_topo.setText(
-            f"Consultando PEX no OpenFast para: {', '.join(ativos)} (aguarde ~2s)..."
-        )
-        import time as _time
-
-        itens: list[dict] = []
-        codigos = []
-        pares = []
-        conn = get_connection(self.db_path)
-        for ativo in ativos:
-            insts = conn.execute(
-                "SELECT cod_put, cod_call, strike FROM instrumentos_base WHERE ativo = ? AND strike IS NOT NULL",
-                (ativo,),
-            ).fetchall()
-            for cp, cc, st in insts:
-                if cp:
-                    codigos.append((cp, FieldName.STRIKE))
-                if cc:
-                    codigos.append((cc, FieldName.STRIKE))
-                pares.append((ativo, cp, cc, st, provento_por_ativo.get(ativo, 0.0)))
-
-        if not codigos:
-            self.lbl_topo.setText("Nenhum instrumento no banco para os ativos com data_ex hoje.")
-            return
-
-        try:
-            source.registrar_lista(codigos)
-            _time.sleep(2.0)
-        except Exception as e:
-            QMessageBox.critical(self, "Erro", f"Erro ao assinar PEX no OpenFast:\n{e}")
-            return
-
-        for ativo, cp, cc, st, provento in pares:
-            pex_put = source.ler_campos(cp, FieldName.STRIKE, allow_stale=True).get(FieldName.STRIKE) if cp else None
-            pex_call = source.ler_campos(cc, FieldName.STRIKE, allow_stale=True).get(FieldName.STRIKE) if cc else None
-            pex = pex_put if pex_put else pex_call
-            cod = cp or cc
-            if pex is None or not st:
-                continue
-            if abs(float(pex) - float(st)) > 0.005:
-                itens.append({
-                    "ativo": ativo,
-                    "cod": cod,
-                    "strike_banco": float(st),
-                    "strike_openfast": float(pex),
-                    "provento": provento,
-                    "data_ex": hoje,
-                    "esperado": float(st) - float(provento),
-                })
-
+    def _on_consulta_concluida(self, itens, resumo):
         self._items = itens
         self.model.atualizar(itens)
-        self.lbl_topo.setText(
-            f"Divergências encontradas: {len(itens)}"
-            if itens
-            else "Nenhuma divergência entre banco e OpenFast nos ativos com data_ex hoje."
-        )
+        self.lbl_topo.setText(resumo)
         self.lbl_status.setText(f"{len(itens)} registros")
         self.btn_aplicar.setEnabled(bool(itens))
         self.btn_aplicar_todos.setEnabled(bool(itens))
         self.btn_selecionar_todos.setEnabled(bool(itens))
         self.btn_ajustar_series.setEnabled(bool(itens))
+
+    def _on_consulta_falhou(self, msg):
+        self.lbl_topo.setText("❌ Erro ao consultar PEX no OpenFast.")
+        self.lbl_topo.setStyleSheet("color: {}; font-weight: bold;".format(Palette.RED))
+        QMessageBox.critical(self, "Erro", f"Erro ao consultar PEX:\n{msg}")
 
     def _ajustar_todas_series(self):
         """Aplica strike = strike - provento em TODOS os strikes de todos os ativos

@@ -704,3 +704,50 @@ class TestMonitorWorker:
         mock._cache["GGBRH151|PEX"] = 14.87
         worker._verificar_divergencias_strike()
         assert received, "após o PEX chegar, deve detectar e emitir"
+
+    def test_consultar_divergencias_strikes_funcao(self, populated_db, monkeypatch):
+        """A função módulo (usada pelo QThread do diálogo) retorna itens + resumo sem tocar em UI."""
+        import time as _time
+        from datetime import date
+        from src.ui.desktop.ajuste_strikes_dialog import consultar_divergencias_strikes
+        from src.infrastructure.providers.mock_market_data import MockDataSource
+        from src.infrastructure.persistence.database import get_connection
+        from src.infrastructure.persistence.repositories.repositories import (
+            InstrumentoRepository,
+        )
+        from src.domain.entities.instrumento_opcional import InstrumentoOpcional, TipoOpcao
+
+        monkeypatch.setattr(_time, "sleep", lambda *a, **k: None)
+
+        hoje = date.today().isoformat()
+        conn = get_connection(str(populated_db))
+        conn.execute(
+            "INSERT INTO dividendos (ativo, tipo, data_com, data_ex, data_pagamento, valor, fonte) "
+            "VALUES ('GGBR4', 'DIVIDENDO', ?, ?, ?, 0.23, 'teste')",
+            (hoje, hoje, hoje),
+        )
+        conn.commit()
+
+        repo = InstrumentoRepository(str(populated_db))
+        repo.save(InstrumentoOpcional(
+            ativo="GGBR4", cod_put="GGBRT151", cod_call="GGBRH151",
+            vencimento=date.today(), tipo_opcao=TipoOpcao.EUROPEIA, strike=15.10,
+        ))
+
+        mock = MockDataSource()
+        mock._cache["GGBRT151|PEX"] = 14.87
+        mock._cache["GGBRH151|PEX"] = 14.87
+
+        itens, resumo = consultar_divergencias_strikes(mock, str(populated_db), hoje)
+
+        assert len(itens) == 1
+        assert itens[0]["cod"] == "GGBRT151"
+        assert itens[0]["strike_banco"] == 15.10
+        assert itens[0]["strike_openfast"] == 14.87
+        assert itens[0]["esperado"] == pytest.approx(14.87)
+        assert "Divergências encontradas: 1" in resumo
+
+        # Sem candidatos (outra data) -> lista vazia e resumo informativo.
+        itens2, resumo2 = consultar_divergencias_strikes(mock, str(populated_db), "2099-01-01")
+        assert itens2 == []
+        assert "Nenhum ativo com data_ex hoje" in resumo2
