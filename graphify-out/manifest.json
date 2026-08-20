@@ -720,8 +720,8 @@
     "semantic_hash": "773f3ceb5e47b4748d5e416b4b21e83e"
   },
   "tests/test_fase4.py": {
-    "mtime": 1787248401.756266,
-    "ast_hash": "4f84418528ded133d9c610e642d259eb",
+    "mtime": 1787254397.3153594,
+    "ast_hash": "43903bb5f98161015d0b063baed13977",
     "semantic_hash": ""
   },
   "tests/test_field_name_enum.py": {
@@ -2185,8 +2185,8 @@
     "semantic_hash": ""
   },
   "src/ui/desktop/ajuste_strikes_dialog.py": {
-    "mtime": 1787252994.335868,
-    "ast_hash": "1f0266cfaafe8e08595115b3bcfa512b",
+    "mtime": 1787254317.9926484,
+    "ast_hash": "f057fc4f10c31371e9bd2c53a85571cb",
     "semantic_hash": ""
   },
   "docs/openfast_protocolo.md": {
