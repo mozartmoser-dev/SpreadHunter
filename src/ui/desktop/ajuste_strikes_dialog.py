@@ -91,6 +91,7 @@ class AjusteStrikesDialog(QDialog):
         self.divergencias = divergencias or []
         self.aplicou = False
         self._items = []
+        self._hoje = None
         self.setWindowTitle("Ajustar Strikes (divergência por provento)")
         self.setMinimumSize(760, 420)
         self._setup_ui()
@@ -140,6 +141,11 @@ class AjusteStrikesDialog(QDialog):
         self.btn_aplicar_todos.clicked.connect(self._aplicar_todos)
         btn_layout.addWidget(self.btn_aplicar_todos)
 
+        self.btn_ajustar_series = QPushButton("✔✔✔ Ajustar todas as séries (strike − provento)")
+        self.btn_ajustar_series.setEnabled(False)
+        self.btn_ajustar_series.clicked.connect(self._ajustar_todas_series)
+        btn_layout.addWidget(self.btn_ajustar_series)
+
         self.btn_fechar = QPushButton("Fechar")
         self.btn_fechar.clicked.connect(self.reject)
         btn_layout.addWidget(self.btn_fechar)
@@ -165,6 +171,7 @@ class AjusteStrikesDialog(QDialog):
         from src.infrastructure.persistence.database import get_connection
         from datetime import date
         hoje = date.today().isoformat()
+        self._hoje = hoje
 
         try:
             conn = get_connection(self.db_path)
@@ -246,6 +253,185 @@ class AjusteStrikesDialog(QDialog):
         self.btn_aplicar.setEnabled(bool(itens))
         self.btn_aplicar_todos.setEnabled(bool(itens))
         self.btn_selecionar_todos.setEnabled(bool(itens))
+        self.btn_ajustar_series.setEnabled(bool(itens))
+
+    def _ajustar_todas_series(self):
+        """Aplica strike = strike - provento em TODOS os strikes de todos os ativos
+        com data_ex hoje e evidência de divergência (os que aparecem na lista).
+
+        Salvaguardas (NUNCA aplicar às cegas):
+        1. Só ativos que já têm divergência constatada na lista (com PEX lido).
+        2. Múltiplos proventos no dia (JCP + dividendo) são somados via SUM(valor).
+        3. ANTES de aplicar, valida a fórmula contra o PEX de cada par da amostra:
+           esperado = strike_banco - provento deve bater com strike_openfast.
+           - Se TODOS os pares do ativo conferirem -> aplica a fórmula em todas
+             as séries do ativo.
+           - Se QUALQUER par divergir -> NÃO aplica no ativo e reporta os códigos.
+           - Se o ativo não tiver NENHUM par com PEX na amostra -> não valida,
+             NÃO aplica e reporta.
+        """
+        if not self._items or not self._hoje:
+            return
+
+        from src.infrastructure.persistence.database import get_connection
+        conn = get_connection(self.db_path)
+        ativos = sorted({it["ativo"] for it in self._items})
+        proventos = {}
+        for a in ativos:
+            row = conn.execute(
+                "SELECT SUM(valor) FROM dividendos WHERE ativo = ? AND data_ex = ? AND valor > 0",
+                (a, self._hoje),
+            ).fetchone()
+            proventos[a] = float(row[0] or 0.0) if row else 0.0
+
+        ativos_com_provento = [a for a in ativos if proventos[a] > 0]
+        if not ativos_com_provento:
+            QMessageBox.information(
+                self, "Aviso",
+                "Nenhum ativo com provento cadastrado para data_ex hoje.",
+            )
+            return
+
+        # ── Salvaguarda 3: valida a fórmula contra o PEX da amostra ──
+        validar: dict[str, dict] = {}
+        divergencias_amostra: list[str] = []
+        sem_pex: list[str] = []
+        for it in self._items:
+            d = validar.setdefault(it["ativo"], {"n": 0, "ok": 0, "problemas": []})
+            d["n"] += 1
+            esperado = round(float(it["strike_banco"]) - float(it["provento"]), 2)
+            if abs(esperado - float(it["strike_openfast"])) <= 0.005:
+                d["ok"] += 1
+            else:
+                d["problemas"].append(
+                    f"  {it['cod']}: banco={it['strike_banco']:.2f} → esperado={esperado:.2f}, "
+                    f"PEX={it['strike_openfast']:.2f}"
+                )
+        for a in ativos_com_provento:
+            v = validar.get(a, {"n": 0, "ok": 0, "problemas": []})
+            if v["n"] == 0:
+                sem_pex.append(a)
+            elif v["ok"] != v["n"]:
+                divergencias_amostra.append(a)
+                divergencias_amostra.extend(v["problemas"])
+
+        if sem_pex or divergencias_amostra:
+            partes = []
+            if sem_pex:
+                partes.append(
+                    "SEM amostra de PEX (não é possível validar, NÃO aplicado):\n  "
+                    + ", ".join(sem_pex)
+                )
+            if divergencias_amostra:
+                partes.append(
+                    "FÓRMULA NÃO CONFERE com o PEX (NÃO aplicado):\n"
+                    + "\n".join(divergencias_amostra)
+                )
+            QMessageBox.warning(
+                self, "Ajuste bloqueado pela validação",
+                "\n\n".join(partes) + "\n\n"
+                "Use '✔ Aplicar selecionados'/'✔✔ Aplicar todos' (valor do PEX por linha) "
+                "para esses casos, ou investigue antes de ajustar.",
+            )
+            return
+
+        # ── Confirmação com a prova da amostra ──
+        n_pend = conn.execute(
+            f"SELECT COUNT(*) FROM instrumentos_base "
+            f"WHERE ativo IN ({','.join('?' * len(ativos_com_provento))}) "
+            f"AND strike_ajustado_em IS NULL",
+            ativos_com_provento,
+        ).fetchone()[0]
+        if n_pend == 0:
+            QMessageBox.information(self, "Aviso", "Nenhum strike pendente para ajustar.")
+            return
+
+        prova = "\n".join(
+            f"  {a}: {validar[a]['ok']}/{validar[a]['n']} pares conferem "
+            f"(strike_banco − provento = PEX)"
+            for a in ativos_com_provento
+        )
+        resp = QMessageBox.question(
+            self, "Ajustar todas as séries",
+            f"Ajustar {n_pend} strike(s) de {', '.join(ativos_com_provento)}?\n\n"
+            f"Validação contra PEX (amostra):\n{prova}\n\n"
+            "Aplica strike = strike − provento em TODAS as séries, equivalentes ao valor do OpenFast.\n"
+            "O opcoes.net corrige em 1-2 dias; a próxima importação substitui pelo valor do site.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if resp != QMessageBox.Yes:
+            return
+
+        agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        source = self._obter_source()
+        aplicados = 0
+        corretos_pulados = 0
+        anomalias: list[str] = []
+        for a in ativos_com_provento:
+            prov = proventos[a]
+            rows = conn.execute(
+                "SELECT id, cod_put, cod_call, strike FROM instrumentos_base "
+                "WHERE ativo = ? AND strike_ajustado_em IS NULL",
+                (a,),
+            ).fetchall()
+            for rid, cp, cc, strike_banco in rows:
+                if not strike_banco:
+                    continue
+                strike_banco = float(strike_banco)
+                pex = None
+                for cod in (cp, cc):
+                    if cod and source is not None:
+                        try:
+                            v = source.ler_campos(cod, FieldName.STRIKE, allow_stale=True).get(FieldName.STRIKE)
+                            if v is not None:
+                                pex = float(v)
+                                break
+                        except Exception:
+                            pass
+                if pex is not None:
+                    if abs(strike_banco - pex) <= 0.005:
+                        corretos_pulados += 1
+                        continue
+                    if abs((strike_banco - prov) - pex) <= 0.005:
+                        novo = pex
+                    else:
+                        anomalias.append(
+                            f"  {cp or cc}: banco={strike_banco:.2f}, PEX={pex:.2f}, "
+                            f"esperado={strike_banco - prov:.2f}"
+                        )
+                        continue
+                else:
+                    novo = round(strike_banco - prov, 2)
+                try:
+                    cur = conn.execute(
+                        "UPDATE instrumentos_base SET strike = ?, strike_ajustado_em = ? WHERE id = ?",
+                        (novo, agora, rid),
+                    )
+                    aplicados += cur.rowcount
+                except Exception as e:
+                    QMessageBox.critical(self, "Erro", f"Erro ao ajustar {cp or cc}:\n{e}")
+        conn.commit()
+
+        if anomalias:
+            QMessageBox.warning(
+                self, "Ajuste parcial com divergências não esperadas",
+                "Strikes NÃO ajustados (banco não é pré-ajuste nem igual ao PEX):\n"
+                + "\n".join(anomalias)
+                + "\n\nInvestigue antes de ajustá-los manualmente.",
+            )
+
+        self.aplicou = aplicados > 0
+        if self.aplicou:
+            QMessageBox.information(
+                self, "Concluído",
+                f"{aplicados} strike(s) ajustados em todas as séries "
+                f"({', '.join(ativos_com_provento)}).\n"
+                + (f"{corretos_pulados} já estavam no valor do PEX (ignorados).\n" if corretos_pulados else "")
+                + "O opcoes.net corrige em 1-2 dias; a próxima importação substitui pelo valor do site.",
+            )
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Aviso", "Nenhum strike foi atualizado.")
 
     def _selecionar_todos(self):
         self.table_view.selectAll()

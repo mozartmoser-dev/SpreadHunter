@@ -1437,12 +1437,15 @@ class MonitorWorker(QThread):
             tot_pares = 0
             exemplo: dict | None = None
             leu_este_ativo = False
+            faltou_pex = False
             for (cp, cc, strike_banco) in insts:
                 tot_pares += 1
                 pex_put = source.ler_campos(cp, FieldName.STRIKE, allow_stale=True).get(FieldName.STRIKE) if cp else None
                 pex_call = source.ler_campos(cc, FieldName.STRIKE, allow_stale=True).get(FieldName.STRIKE) if cc else None
                 pex = pex_put if pex_put else pex_call
                 if pex is None or not strike_banco:
+                    if strike_banco:
+                        faltou_pex = True
                     continue
                 leu_este_ativo = True
                 if abs(float(pex) - float(strike_banco)) > 0.005:
@@ -1456,7 +1459,11 @@ class MonitorWorker(QThread):
                             "provento": provento_total,
                             "data_ex": hoje,
                         }
-            if leu_este_ativo:
+            # Só grava o estado quando TODOS os strikes do ativo foram comparados
+            # com o PEX. Se algum ficou sem PEX (carga inicial do OpenFast ainda
+            # em andamento), o ativo fica pendente e a próxima manutenção tenta
+            # de novo — evita "engolir" divergências ainda não detectadas.
+            if leu_este_ativo and not faltou_pex:
                 self._strike_divergencia_estado[ativo] = chave_ativo
             if tot_diverge > 0:
                 divergencias.append({
