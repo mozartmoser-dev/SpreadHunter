@@ -410,8 +410,8 @@
     "semantic_hash": "3bbc927a3ad784c340243de2b0befb1d"
   },
   "src/infrastructure/persistence/database.py": {
-    "mtime": 1787233464.955233,
-    "ast_hash": "68ecca70d92c5f699f79ceb8975b62b0",
+    "mtime": 1787246776.7503889,
+    "ast_hash": "01c83244216ea96b37d610f789f05021",
     "semantic_hash": ""
   },
   "src/infrastructure/persistence/repositories/__init__.py": {
@@ -545,9 +545,9 @@
     "semantic_hash": "e6c890be7c67e4e161d0278d6574a290"
   },
   "src/ui/desktop/dividendos_dialog.py": {
-    "mtime": 1781626951.7589788,
-    "ast_hash": "9a99d879fdb4aafe56da1ff9241a79ae",
-    "semantic_hash": "9a99d879fdb4aafe56da1ff9241a79ae"
+    "mtime": 1787245850.1427014,
+    "ast_hash": "2cbf64b3311e1f1b67a198a897bb142c",
+    "semantic_hash": ""
   },
   "src/ui/desktop/engine_dashboard.py": {
     "mtime": 1782743810.7451236,
@@ -570,9 +570,9 @@
     "semantic_hash": "01d1755fab1b19d7f4137f78a7095323"
   },
   "src/ui/desktop/main_window.py": {
-    "mtime": 1787076049.6807897,
-    "ast_hash": "13b7296a864d3f95ff68d031f673a9a2",
-    "semantic_hash": "13b7296a864d3f95ff68d031f673a9a2"
+    "mtime": 1787247235.8801193,
+    "ast_hash": "95ac09d47c47ceb8de336deba486c61d",
+    "semantic_hash": ""
   },
   "src/ui/desktop/monitor_table_model.py": {
     "mtime": 1787234062.0121493,
@@ -580,9 +580,9 @@
     "semantic_hash": ""
   },
   "src/ui/desktop/monitor_worker.py": {
-    "mtime": 1787072693.8983955,
-    "ast_hash": "a54931f72bf11194fbb4df320a7cf028",
-    "semantic_hash": "a54931f72bf11194fbb4df320a7cf028"
+    "mtime": 1787252961.0889199,
+    "ast_hash": "6b02acdf95b008ea5c12191ba44e8aa6",
+    "semantic_hash": ""
   },
   "src/ui/desktop/mpp_dialog.py": {
     "mtime": 1783795741.44953,
@@ -720,9 +720,9 @@
     "semantic_hash": "773f3ceb5e47b4748d5e416b4b21e83e"
   },
   "tests/test_fase4.py": {
-    "mtime": 1787076078.1577091,
-    "ast_hash": "5ddfc43218adca6a974e9b5fb5ffa534",
-    "semantic_hash": "5ddfc43218adca6a974e9b5fb5ffa534"
+    "mtime": 1787248401.756266,
+    "ast_hash": "4f84418528ded133d9c610e642d259eb",
+    "semantic_hash": ""
   },
   "tests/test_field_name_enum.py": {
     "mtime": 1786448967.9066648,
@@ -2182,6 +2182,16 @@
   "auditronem.md": {
     "mtime": 1787229322.9209948,
     "ast_hash": "7bf8e4a771fa822dc8e33c729ffe6c4a",
+    "semantic_hash": ""
+  },
+  "src/ui/desktop/ajuste_strikes_dialog.py": {
+    "mtime": 1787252994.335868,
+    "ast_hash": "1f0266cfaafe8e08595115b3bcfa512b",
+    "semantic_hash": ""
+  },
+  "docs/openfast_protocolo.md": {
+    "mtime": 1787239644.5321288,
+    "ast_hash": "997e1067d9492a5599b1d976f2ab3819",
     "semantic_hash": ""
   }
 }
