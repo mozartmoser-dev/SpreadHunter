@@ -2317,9 +2317,9 @@ class MainWindow(QMainWindow):
             return l
 
         f1.addRow(_muted("Venda Ativo ({})".format(r.ativo)), QLabel("R$ {:.2f} (of. compra)".format(r.preco_ativo)))
-        f1.addRow(_muted("Compra Put ({})".format(r.cod_put)), QLabel("R$ {:.2f} (of. compra)  Strike: {:.2f}".format(r.of_compra_put, r.strike)))
+        f1.addRow(_muted("Venda Put ({})".format(r.cod_put)), QLabel("R$ {:.2f} (of. compra)  Strike: {:.2f}".format(r.of_compra_put, r.strike)))
         if r.classificacao == "BOX_VENDIDO" and r.cod_call:
-            f1.addRow(_muted("Venda Call ({})".format(r.cod_call)), QLabel("R$ {:.2f} (of. venda)  Strike: {:.2f}".format(r.of_venda_call, r.strike)))
+            f1.addRow(_muted("Compra Call ({})".format(r.cod_call)), QLabel("R$ {:.2f} (of. venda)  Strike: {:.2f}".format(r.of_venda_call, r.strike)))
         g1.setLayout(f1)
         pernas_layout.addWidget(g1)
 
