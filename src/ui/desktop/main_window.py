@@ -1669,6 +1669,7 @@ class MainWindow(QMainWindow):
 
     def _on_tp_op_toggled(self, checked):
         self._mostrar_tp_op = checked
+        self._filtrar_e_atualizar_tabela()
         self._filtrar_e_atualizar_vendidas()
         self._filtrar_e_atualizar_coberta()
         self._atualizar_dashboard()
@@ -1771,6 +1772,7 @@ class MainWindow(QMainWindow):
             filtrados = [r for r in self._resultados_brutos if self._key_vencimento(r) == self._filtro_vencimento]
         else:
             filtrados = self._resultados_brutos
+        filtrados = _filtra_exibir_todas_viavel(filtrados, self._mostrar_tp_op)
         self._filtrados_brutos = filtrados
         self.table_model.atualizar(filtrados)
         self._main_proxy.invalidate_top_n()

@@ -116,3 +116,18 @@ class TestFiltroSemanalNoVarrer:
         uc.varrer(rtd=None)
         assert "PETRH30W1" in calls
         assert "PETRH30" in calls
+
+
+class TestCacheIvHistorico:
+    def test_limpar_cache_iv_esvazia(self):
+        uc = MonitorPutRatioUseCase(db_path=None)
+        uc._cache_iv_historico["PETR4"] = (0.1, 0.9, 0.5, [0.1, 0.5, 0.9])
+        uc.limpar_cache_iv()
+        assert uc._cache_iv_historico == {}
+
+    def test_recarregar_parametros_limpa_cache_iv(self):
+        uc = MonitorPutRatioUseCase(db_path=None)
+        uc.param_repo = _FakeParamRepo({})
+        uc._cache_iv_historico["VALE3"] = (0.1, 0.9, 0.5, [0.1, 0.5, 0.9])
+        uc.recarregar_parametros()
+        assert uc._cache_iv_historico == {}

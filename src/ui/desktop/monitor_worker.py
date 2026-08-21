@@ -432,6 +432,7 @@ class MonitorWorker(QThread):
     def iniciar_auto_colar_cal(self, ativos: list[str] | None = None, params: dict | None = None):
         self._colar_cal_ativos = ativos
         self._colar_cal_params = params
+        self._monitor_colares_cal_uc.limpar_cache_iv()
         self._toggle_colar_cal.iniciar_auto()
 
     def parar_auto_colar_cal(self):
@@ -444,6 +445,7 @@ class MonitorWorker(QThread):
         self._toggle_box.parar_auto()
 
     def iniciar_auto_put_ratio(self):
+        self._monitor_put_ratio_uc.limpar_cache_iv()
         self._toggle_put_ratio.iniciar_auto()
 
     def parar_auto_put_ratio(self):

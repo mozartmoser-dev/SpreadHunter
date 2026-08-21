@@ -104,6 +104,16 @@ class MonitorPutRatioUseCase:
     def recarregar_parametros(self):
         self._calculadora = None
         self.param_repo.invalidate_cache()
+        self._cache_iv_historico.clear()
+
+    def limpar_cache_iv(self):
+        """Invalida o cache de IV histórico para re-buscar do opcoes.net.br.
+
+        Chamado ao iniciar o scanner do Put Ratio: o histórico de vol_impl só
+        muda de um dia para o outro, então re-busca 1x por dia (na abertura da
+        varredura) os ativos que passam pelo pipeline, em vez de cache eterno.
+        """
+        self._cache_iv_historico.clear()
 
     def _get_param(self, chave: str, default: float = 0.0) -> float:
         param = self.param_repo.get_by_chave(chave)
